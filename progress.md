@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 13:55 UTC):
+  Twenty-eighth consolidation follow-up is reduced and validated in the
+  rolling libsqlite integration worktree. The batch accepted six AL-wave
+  handoffs: planner/STAT4, compound recursive-limit, attach temp WAL schema
+  cache example cleanup, B-tree vacuum/freeblock wrapper cleanup, trigger
+  recursive RETURNING cleanup, and upstream-suite wrapper cleanup. Verification
+  passed: php-lint for `25` changed PHP files, focused changed tests
+  `10 test files / 3775 assertions / 0 failures`, `7` changed WordPress
+  examples/self-tests, upstream veryquick shard broad suite
+  `309 test files / 382180 assertions / 0 failures`, git diff --check, exact
+  user-named 150 suffix scan clean, numbered production filename/class scans
+  at `0`, and remaining numbered production method-line audit down to `4135`.
+  Public libsqlite PASS and mapped totals remain `154019 / 0 fail` and
+  `830 / 1589` because this is consolidation, not new upstream behavior
+  coverage. Broad B-tree/vacuum, compound recursive-limit, planner/STAT4,
+  trigger-recursive, and attach-temp-WAL family sweeps still have accepted-head
+  failures; representative failures reproduced with the corresponding AL patch
+  reversed, so they are pre-existing family-gate debt rather than regressions
+  from this reduced batch.
+
 - 2026-05-29 supervisor continuation (shell samples 13:40 UTC):
   Twenty-seventh consolidation follow-up is reduced and validated in the
   rolling libsqlite integration worktree. The batch accepted safe AG-wave

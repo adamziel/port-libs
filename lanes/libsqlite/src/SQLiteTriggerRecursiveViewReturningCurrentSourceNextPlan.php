@@ -10493,7 +10493,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext206(
+    public static function executeYieldWatermarkFence(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -10512,29 +10512,29 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentRows = self::rowsNext206($base['current_generation_rows_next203'] ?? [], 'current generation rows');
-        $nextRows = self::rowsNext206($base['attempted_next_generation_rows_next203'] ?? [], 'attempted next generation rows');
-        $sourceToken = self::tokenNext206((string) ($options['yield_current_source_token_next206'] ?? 'wp.current.recursive.returning.source.206'), 'current source token');
-        $cursor = self::tokenNext206((string) ($options['yield_current_cursor_next206'] ?? 'wp.returning.current.cursor.206'), 'current cursor');
-        $statementToken = self::tokenNext206((string) ($options['yield_statement_token_next206'] ?? 'wp.recursive.view.returning.statement.206'), 'statement token');
-        $batchKeys = self::batchKeysNext206($currentRows, $sourceToken, $cursor, $statementToken);
-        $watermark = self::watermarkNext206($batchKeys, $sourceToken, $cursor, $statementToken);
-        $expectedWatermark = self::tokenNext206((string) ($options['expected_yield_watermark_next206'] ?? $watermark), 'expected watermark');
-        $acknowledgedWatermark = self::tokenNext206((string) ($options['acknowledged_yield_watermark_next206'] ?? $watermark), 'acknowledged watermark');
-        $expectedCount = self::nonNegativeIntNext206($options['expected_yield_row_count_next206'] ?? count($currentRows), 'expected row count');
+        $currentRows = self::rowsForYieldWatermarkFence($base['current_generation_rows_next203'] ?? [], 'current generation rows');
+        $nextRows = self::rowsForYieldWatermarkFence($base['attempted_next_generation_rows_next203'] ?? [], 'attempted next generation rows');
+        $sourceToken = self::tokenForYieldWatermarkFence((string) ($options['yield_current_source_token_next206'] ?? 'wp.current.recursive.returning.source.206'), 'current source token');
+        $cursor = self::tokenForYieldWatermarkFence((string) ($options['yield_current_cursor_next206'] ?? 'wp.returning.current.cursor.206'), 'current cursor');
+        $statementToken = self::tokenForYieldWatermarkFence((string) ($options['yield_statement_token_next206'] ?? 'wp.recursive.view.returning.statement.206'), 'statement token');
+        $batchKeys = self::batchKeysForYieldWatermarkFence($currentRows, $sourceToken, $cursor, $statementToken);
+        $watermark = self::watermarkForYieldWatermarkFence($batchKeys, $sourceToken, $cursor, $statementToken);
+        $expectedWatermark = self::tokenForYieldWatermarkFence((string) ($options['expected_yield_watermark_next206'] ?? $watermark), 'expected watermark');
+        $acknowledgedWatermark = self::tokenForYieldWatermarkFence((string) ($options['acknowledged_yield_watermark_next206'] ?? $watermark), 'acknowledged watermark');
+        $expectedCount = self::nonNegativeIntForYieldWatermarkFence($options['expected_yield_row_count_next206'] ?? count($currentRows), 'expected row count');
         $baseVisible = (bool) ($base['next_source_visible_after_current_generation_next203'] ?? false);
         $watermarkMatches = hash_equals($watermark, $expectedWatermark) && hash_equals($watermark, $acknowledgedWatermark);
         $rowCountMatches = count($currentRows) === $expectedCount;
         $nextVisible = $baseVisible && $watermarkMatches && $rowCountMatches;
-        $blockedReasons = self::blockedReasonsNext206(
+        $blockedReasons = self::blockedReasonsForYieldWatermarkFence(
             $base['blocked_reasons_next203'] ?? [],
             $baseVisible,
             $watermarkMatches,
             $rowCountMatches,
         );
 
-        $taggedCurrent = self::tagCurrentRowsNext206($currentRows, $batchKeys, $watermark, $sourceToken, $cursor, $statementToken);
-        $taggedNext = self::tagNextRowsNext206($nextRows, $nextVisible, $blockedReasons, $watermark, $sourceToken, $cursor, $statementToken);
+        $taggedCurrent = self::tagCurrentRowsForYieldWatermarkFence($currentRows, $batchKeys, $watermark, $sourceToken, $cursor, $statementToken);
+        $taggedNext = self::tagNextRowsForYieldWatermarkFence($nextRows, $nextVisible, $blockedReasons, $watermark, $sourceToken, $cursor, $statementToken);
         $visibleRows = array_values(array_filter(
             array_merge($taggedCurrent, $taggedNext),
             static fn (array $row): bool => (bool) $row['visible_after_yield_watermark_next206'],
@@ -10545,7 +10545,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ));
 
         return [
-            'status_next206' => self::statusNext206($nextVisible, $baseVisible, $watermarkMatches, $rowCountMatches),
+            'status_next206' => self::statusForYieldWatermarkFence($nextVisible, $baseVisible, $watermarkMatches, $rowCountMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next206' => $baseVisible,
@@ -10597,7 +10597,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function batchKeysNext206(array $rows, string $sourceToken, string $cursor, string $statementToken): array
+    private static function batchKeysForYieldWatermarkFence(array $rows, string $sourceToken, string $cursor, string $statementToken): array
     {
         $keys = [];
         foreach ($rows as $index => $row) {
@@ -10619,7 +10619,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<string> $batchKeys
      */
-    private static function watermarkNext206(array $batchKeys, string $sourceToken, string $cursor, string $statementToken): string
+    private static function watermarkForYieldWatermarkFence(array $batchKeys, string $sourceToken, string $cursor, string $statementToken): string
     {
         if ($batchKeys === []) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next206 current source batch is empty');
@@ -10632,7 +10632,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext206(mixed $rows, string $label): array
+    private static function rowsForYieldWatermarkFence(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next206 {$label} must be a list");
@@ -10651,7 +10651,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $batchKeys
      * @return list<array<string,mixed>>
      */
-    private static function tagCurrentRowsNext206(array $rows, array $batchKeys, string $watermark, string $sourceToken, string $cursor, string $statementToken): array
+    private static function tagCurrentRowsForYieldWatermarkFence(array $rows, array $batchKeys, string $watermark, string $sourceToken, string $cursor, string $statementToken): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -10675,7 +10675,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $blockedReasons
      * @return list<array<string,mixed>>
      */
-    private static function tagNextRowsNext206(array $rows, bool $visible, array $blockedReasons, string $watermark, string $sourceToken, string $cursor, string $statementToken): array
+    private static function tagNextRowsForYieldWatermarkFence(array $rows, bool $visible, array $blockedReasons, string $watermark, string $sourceToken, string $cursor, string $statementToken): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -10698,7 +10698,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $baseReasons
      * @return list<string>
      */
-    private static function blockedReasonsNext206(mixed $baseReasons, bool $baseVisible, bool $watermarkMatches, bool $rowCountMatches): array
+    private static function blockedReasonsForYieldWatermarkFence(mixed $baseReasons, bool $baseVisible, bool $watermarkMatches, bool $rowCountMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next206 base blocked reasons are malformed');
@@ -10717,7 +10717,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext206(bool $nextVisible, bool $baseVisible, bool $watermarkMatches, bool $rowCountMatches): string
+    private static function statusForYieldWatermarkFence(bool $nextVisible, bool $baseVisible, bool $watermarkMatches, bool $rowCountMatches): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-returning-current-source-next206-watermark-released';
@@ -10735,7 +10735,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-next206-held';
     }
 
-    private static function tokenNext206(string $token, string $label): string
+    private static function tokenForYieldWatermarkFence(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next206 {$label} is malformed");
@@ -10744,7 +10744,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $token;
     }
 
-    private static function nonNegativeIntNext206(mixed $value, string $label): int
+    private static function nonNegativeIntForYieldWatermarkFence(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next206 {$label} must be a non-negative integer");
@@ -10774,7 +10774,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext206(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeYieldWatermarkFence(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -11119,7 +11119,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext206(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeYieldWatermarkFence(
             $baseRows,
             $currentInput,
             $nextInput,

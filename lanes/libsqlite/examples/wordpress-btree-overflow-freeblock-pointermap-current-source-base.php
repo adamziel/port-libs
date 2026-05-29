@@ -50,7 +50,7 @@ foreach ([
     $pages[2] = substr_replace($pages[2], chr($type) . pack('N', $parent), 5 * ($pageNumber - 3), 5);
 }
 
-$plan = SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::next128FromDeleteResults(
+$plan = SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::baseFromDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [[

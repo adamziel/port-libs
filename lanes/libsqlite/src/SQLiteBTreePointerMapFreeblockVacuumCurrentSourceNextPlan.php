@@ -27,7 +27,7 @@ final class SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan
         int $maxTruncatedPages,
         bool $secureDelete = false,
     ): self {
-        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next127TableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::baseTableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -47,7 +47,7 @@ final class SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan
         bool $secureDelete = false,
         ?callable $overflowReader = null,
     ): self {
-        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next127IndexLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::baseIndexLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,

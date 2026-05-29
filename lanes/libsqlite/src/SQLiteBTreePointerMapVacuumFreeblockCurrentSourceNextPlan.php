@@ -22,37 +22,37 @@ final class SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan
         throw new \BadMethodCallException(sprintf('Unknown %s factory method %s', self::class, $name));
     }
 
-    public static function next127TableLeafFromDeleteResult(mixed ...$args): self
+    public static function baseTableLeafFromDeleteResult(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextBaseVariantPlan::tableLeafFromDeleteResult(...$args));
     }
 
-    public static function next127IndexLeafFromDeleteResult(mixed ...$args): self
+    public static function baseIndexLeafFromDeleteResult(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextBaseVariantPlan::indexLeafFromDeleteResult(...$args));
     }
 
-    public static function next127FromDeletePlan(mixed ...$args): self
+    public static function baseFromDeletePlan(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextBaseVariantPlan::fromDeletePlan(...$args));
     }
 
-    public static function next144TableLeafFromDeleteResult(mixed ...$args): self
+    public static function extendedTableLeafFromDeleteResult(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextExtendedVariantPlan::tableLeafFromDeleteResult(...$args));
     }
 
-    public static function next144IndexLeafFromDeleteResult(mixed ...$args): self
+    public static function extendedIndexLeafFromDeleteResult(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextExtendedVariantPlan::indexLeafFromDeleteResult(...$args));
     }
 
-    public static function next144FromBasePlan(mixed ...$args): self
+    public static function extendedFromBasePlan(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextExtendedVariantPlan::fromBasePlan(...$args));

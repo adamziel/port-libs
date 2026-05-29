@@ -14,6 +14,11 @@ Current supervisor override, 2026-05-29 11:43 UTC:
   `Plan.php` must not exist in consolidated production classes. When
   consolidating, rename those implementations into stable descriptive
   unsuffixed canonical classes/helpers and update direct callers/tests/examples.
+- The autonomous worker path must treat that exact user-named suffix as an
+  active cleanup target, not just a guard. If your slice touches a consolidated
+  family that still exposes that suffix in a class, file, method, test, example,
+  reference, or handoff patch, remove it as part of the slice and prove the
+  focused tests still pass.
 - Continue consolidating any remaining numbered duplicate production methods,
   helpers, files, or classes. Do not stop at the exact suffix; every duplicate
   family that only differs by a worker number is in scope for the current
@@ -30,9 +35,10 @@ Current supervisor override, 2026-05-29 11:20 UTC:
   work is the broad set of numbered method/helper wrappers inside canonical
   production files.
 - If your slice name starts with `consolidate-`, work on that consolidation
-  target immediately. Remove remaining numbered production methods/helpers in
-  the assigned family, migrate direct callers/tests/examples to stable
-  descriptive unsuffixed names, and preserve focused tests.
+  target immediately and do not drift into functional coverage work. Remove
+  remaining numbered production methods/helpers in the assigned family, migrate
+  direct callers/tests/examples to stable descriptive unsuffixed names, and keep
+  the relevant focused tests passing.
 - If your slice name includes `production-suffix-cleanup`, audit for any
   remaining user-named `CurrentSource` + `Next150` + `Plan.php` suffix and all
   generated `CurrentNextNN`/`CurrentSourceNextNN` production class, file, helper,

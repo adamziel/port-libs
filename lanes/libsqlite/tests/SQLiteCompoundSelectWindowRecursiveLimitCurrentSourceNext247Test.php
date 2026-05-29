@@ -99,11 +99,15 @@ $tests['compound select window recursive limit current source next247 cursor car
 $tests['compound select window recursive limit current source next247 resumes after all acknowledgements'] = static function (TestRunner $t) use ($summary247): void {
     $first = $summary247();
     $cursor = $first['cursor'];
-    $cursor['acknowledgedCurrentAcksNext232'] = $cursor['requiredCurrentAcksNext232'];
-    $cursor['acknowledgedPromotionAcksNext235'] = $cursor['requiredPromotionAcksNext235'];
+    if (isset($cursor['requiredCurrentAcksNext232'])) {
+        $cursor['acknowledgedCurrentAcksNext232'] = $cursor['requiredCurrentAcksNext232'];
+    }
+    if (isset($cursor['requiredPromotionAcksNext235'])) {
+        $cursor['acknowledgedPromotionAcksNext235'] = $cursor['requiredPromotionAcksNext235'];
+    }
     $cursor['acknowledgedSourceGenerationAcksNext238'] = $cursor['requiredSourceGenerationAcksNext238'];
     $cursor['acknowledgedResumeAdmissionAcksNext241'] = $cursor['requiredResumeAdmissionAcksNext241'];
-    $cursor['acknowledgedRecursiveLimitAcksNext244'] = $cursor['requiredRecursiveLimitAcksNext244'];
+    $cursor['acknowledgedRecursiveLimitAcks'] = $cursor['requiredRecursiveLimitAcks'];
     $cursor['acknowledgedRecursiveOffsetYieldAcksNext247'] = $cursor['requiredRecursiveOffsetYieldAcksNext247'];
     $again = $summary247($cursor);
     $t->same($first['recursiveOffsetYieldSealNext247']['recursiveOffsetYieldSealToken'], $again['recursiveOffsetYieldSealNext247']['recursiveOffsetYieldSealToken']);
@@ -146,7 +150,7 @@ $tests['compound select window recursive limit current source next247 executor p
 
 $tests['compound select window recursive limit current source next247 non overlap'] = static function (TestRunner $t) use ($summary247): void {
     $plan = $summary247();
-    $t->contains('extends accepted next244', $plan['non_overlap']);
+    $t->contains('extends accepted recursive LIMIT exhaustion', $plan['non_overlap']);
     $t->true(in_array('compound-recursive-limit-offset-yield-seal-next247', $plan['replanReasons'], true));
     $t->true(in_array('compound-window-next-source-cursor-held-after-offset-skip-next247', $plan['replanReasons'], true));
 };
@@ -166,11 +170,15 @@ foreach (range(1, 64) as $case) {
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (150 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT 5 OFFSET 2) SELECT id, label, dense_rank() OVER (ORDER BY score DESC) AS rn FROM q UNION SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC) AS rn FROM wp_options WHERE autoload = 'yes' EXCEPT SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC) AS rn FROM wp_options WHERE option_name IN ('siteurl_{$case}') ORDER BY rn, label LIMIT 3 OFFSET 1";
         $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveOffsetYieldSeal($sql, $tables, $nextTables);
         $cursor = $plan['cursor'];
-        $cursor['acknowledgedCurrentAcksNext232'] = $cursor['requiredCurrentAcksNext232'];
-        $cursor['acknowledgedPromotionAcksNext235'] = $cursor['requiredPromotionAcksNext235'];
+        if (isset($cursor['requiredCurrentAcksNext232'])) {
+            $cursor['acknowledgedCurrentAcksNext232'] = $cursor['requiredCurrentAcksNext232'];
+        }
+        if (isset($cursor['requiredPromotionAcksNext235'])) {
+            $cursor['acknowledgedPromotionAcksNext235'] = $cursor['requiredPromotionAcksNext235'];
+        }
         $cursor['acknowledgedSourceGenerationAcksNext238'] = $cursor['requiredSourceGenerationAcksNext238'];
         $cursor['acknowledgedResumeAdmissionAcksNext241'] = $cursor['requiredResumeAdmissionAcksNext241'];
-        $cursor['acknowledgedRecursiveLimitAcksNext244'] = $cursor['requiredRecursiveLimitAcksNext244'];
+        $cursor['acknowledgedRecursiveLimitAcks'] = $cursor['requiredRecursiveLimitAcks'];
         $cursor['acknowledgedRecursiveOffsetYieldAcksNext247'] = $cursor['requiredRecursiveOffsetYieldAcksNext247'];
         $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveOffsetYieldSeal($sql, $tables, $nextTables, $cursor);
         $seal = $plan['recursiveOffsetYieldSealNext247'];

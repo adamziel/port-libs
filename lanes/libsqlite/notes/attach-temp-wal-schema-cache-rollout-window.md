@@ -10,12 +10,11 @@ Validation:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCachePlan.php
-php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCachePublishWindowTest.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheRolloutWindowTest.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next861-876.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCachePublishWindowTest.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheRolloutWindowTest.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next861-876.php --self-test
-git diff --check
+php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-rollout-window.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheRolloutWindowTest.php
+php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-rollout-window.php --self-test
+git diff --check -- lanes/libsqlite
 ```
 
 Non-overlap: this stays inside attach/TEMP/WAL schema-cache current-source coverage and avoids PRAGMA, JSON, B-tree, VFS, planner, row-value, and unrelated WAL hot-journal surfaces.

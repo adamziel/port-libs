@@ -19768,22 +19768,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         public static function compareRecursiveLimitExhaustionFence(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareResumeAdmissionReceipt($sql, $currentTables, $nextTables, self::baseCursorNext244($cursor));
-            $fence = self::recursiveLimitFenceNext244($base);
-            self::validateCursorNext244($cursor, $fence);
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareResumeAdmissionReceipt($sql, $currentTables, $nextTables, self::baseRecursiveLimitExhaustionCursor($cursor));
+            $fence = self::recursiveLimitExhaustionFence($base);
+            self::validateRecursiveLimitExhaustionCursor($cursor, $fence);
 
-            $base['status'] = 'compound-select-window-recursive-limit-current-source-next244-ready';
-            $base['recursiveLimitExhaustionFenceNext244'] = $fence;
-            $base['cursor']['recursiveLimitFenceTokenNext244'] = $fence['recursiveLimitFenceToken'];
-            $base['cursor']['currentRecursiveWindowTokenNext244'] = $fence['currentRecursiveWindowToken'];
-            $base['cursor']['nextRecursiveWindowTokenNext244'] = $fence['nextRecursiveWindowToken'];
-            $base['cursor']['requiredRecursiveLimitAcksNext244'] = $fence['requiredRecursiveLimitAcks'];
-            $base['cursor']['yieldedNextSourceCursorNext244'] = $fence['nextSourceCursor'];
-            $base['replanReasons'][] = 'compound-recursive-limit-exhaustion-fence-next244';
-            $base['replanReasons'][] = 'compound-window-yielded-next-source-held-next244';
-            $base['dependencies'][] = 'sqlite-compound-recursive-limit-window-yield-fence-next244';
-            $base['dependency_closure'] = 'no new support component needed; next244 reuses accepted next241 final-row resume admission and adds a recursive LIMIT exhaustion fence over current/next recursive queue plus window tokens before yielding the next-source cursor';
-            $base['non_overlap'] = 'next244 extends accepted next241 final-row resume admission with recursive LIMIT exhaustion acknowledgements; it avoids accepted next226/228/230/232/235/238/241 compound handoffs, suite next244 evidence, row-value/window RETURNING, trigger recursive UPSERT, JSON table, WAL/VFS, B-tree, planner, PRAGMA, encoding, and VDBE clusters';
+            $base['status'] = 'compound-select-window-recursive-limit-exhaustion-fence-ready';
+            $base['recursiveLimitExhaustionFence'] = $fence;
+            $base['cursor']['recursiveLimitFenceToken'] = $fence['recursiveLimitFenceToken'];
+            $base['cursor']['currentRecursiveWindowToken'] = $fence['currentRecursiveWindowToken'];
+            $base['cursor']['nextRecursiveWindowToken'] = $fence['nextRecursiveWindowToken'];
+            $base['cursor']['requiredRecursiveLimitAcks'] = $fence['requiredRecursiveLimitAcks'];
+            $base['cursor']['yieldedNextSourceCursor'] = $fence['nextSourceCursor'];
+            $base['replanReasons'][] = 'compound-recursive-limit-exhaustion-fence';
+            $base['replanReasons'][] = 'compound-window-yielded-next-source-held';
+            $base['dependencies'][] = 'sqlite-compound-recursive-limit-window-yield-fence';
+            $base['dependency_closure'] = 'no new support component needed; recursive-limit-exhaustion reuses accepted resume-admission final-row resume admission and adds a recursive LIMIT exhaustion fence over current/next recursive queue plus window tokens before yielding the next-source cursor';
+            $base['non_overlap'] = 'recursive-limit-exhaustion extends accepted resume admission final-row resume admission with recursive LIMIT exhaustion acknowledgements; it avoids accepted next226/228/230/232/235/238/241 compound handoffs, suite numbered evidence, row-value/window RETURNING, trigger recursive UPSERT, JSON table, WAL/VFS, B-tree, planner, PRAGMA, encoding, and VDBE clusters';
 
             return $base;
         }
@@ -19792,7 +19792,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>|null
          */
-        private static function baseCursorNext244(?array $cursor): ?array
+        private static function baseRecursiveLimitExhaustionCursor(?array $cursor): ?array
         {
             if ($cursor === null) {
                 return null;
@@ -19826,35 +19826,35 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan @return array<string,mixed> */
-        private static function recursiveLimitFenceNext244(array $plan): array
+        private static function recursiveLimitExhaustionFence(array $plan): array
         {
             $queue = is_array($plan['recursiveQueue'] ?? null) ? $plan['recursiveQueue'] : [];
             $windows = is_array($plan['windows'] ?? null) ? $plan['windows'] : [];
             $receipt = is_array($plan['resumeAdmissionReceiptNext241'] ?? null) ? $plan['resumeAdmissionReceiptNext241'] : [];
-            $currentRows = self::rowsNext244($plan['currentRows'] ?? []);
-            $nextRows = self::rowsNext244($plan['nextRows'] ?? []);
-            $currentPreLimit = self::rowsNext244($plan['currentPreLimitRows'] ?? []);
-            $nextPreLimit = self::rowsNext244($plan['nextPreLimitRows'] ?? []);
+            $currentRows = self::recursiveLimitRows($plan['currentRows'] ?? []);
+            $nextRows = self::recursiveLimitRows($plan['nextRows'] ?? []);
+            $currentPreLimit = self::recursiveLimitRows($plan['currentPreLimitRows'] ?? []);
+            $nextPreLimit = self::recursiveLimitRows($plan['nextPreLimitRows'] ?? []);
 
-            $currentRecursiveWindowToken = self::tokenNext244([
+            $currentRecursiveWindowToken = self::recursiveLimitToken([
                 'recursiveName' => (string) ($queue['name'] ?? ''),
                 'traceCount' => (int) ($queue['currentTraceCount'] ?? 0),
-                'emittedLabels' => self::stringsNext244($queue['currentEmittedLabels'] ?? []),
-                'windowFunctions' => self::stringsNext244($windows['functions'] ?? []),
-                'windowTerms' => self::stringsNext244(array_column(is_array($windows['current'] ?? null) ? $windows['current'] : [], 'function')),
-                'preLimitLabels' => self::labelsNext244($currentPreLimit),
-                'resultLabels' => self::labelsNext244($currentRows),
+                'emittedLabels' => self::recursiveLimitStrings($queue['currentEmittedLabels'] ?? []),
+                'windowFunctions' => self::recursiveLimitStrings($windows['functions'] ?? []),
+                'windowTerms' => self::recursiveLimitStrings(array_column(is_array($windows['current'] ?? null) ? $windows['current'] : [], 'function')),
+                'preLimitLabels' => self::recursiveLimitLabels($currentPreLimit),
+                'resultLabels' => self::recursiveLimitLabels($currentRows),
             ]);
-            $nextRecursiveWindowToken = self::tokenNext244([
+            $nextRecursiveWindowToken = self::recursiveLimitToken([
                 'recursiveName' => (string) ($queue['name'] ?? ''),
                 'traceCount' => (int) ($queue['nextTraceCount'] ?? 0),
-                'emittedLabels' => self::stringsNext244($queue['nextEmittedLabels'] ?? []),
-                'windowFunctions' => self::stringsNext244($windows['functions'] ?? []),
-                'windowTerms' => self::stringsNext244(array_column(is_array($windows['next'] ?? null) ? $windows['next'] : [], 'function')),
-                'preLimitLabels' => self::labelsNext244($nextPreLimit),
-                'resultLabels' => self::labelsNext244($nextRows),
+                'emittedLabels' => self::recursiveLimitStrings($queue['nextEmittedLabels'] ?? []),
+                'windowFunctions' => self::recursiveLimitStrings($windows['functions'] ?? []),
+                'windowTerms' => self::recursiveLimitStrings(array_column(is_array($windows['next'] ?? null) ? $windows['next'] : [], 'function')),
+                'preLimitLabels' => self::recursiveLimitLabels($nextPreLimit),
+                'resultLabels' => self::recursiveLimitLabels($nextRows),
             ]);
-            $recursiveLimitFenceToken = self::tokenNext244([
+            $recursiveLimitFenceToken = self::recursiveLimitToken([
                 'currentRecursiveWindowToken' => $currentRecursiveWindowToken,
                 'nextRecursiveWindowToken' => $nextRecursiveWindowToken,
                 'resumeAdmissionToken' => (string) ($receipt['resumeAdmissionToken'] ?? ''),
@@ -19877,46 +19877,46 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'nextRecursiveTraceCount' => (int) ($queue['nextTraceCount'] ?? 0),
                 'currentPreLimitCount' => count($currentPreLimit),
                 'nextPreLimitCount' => count($nextPreLimit),
-                'currentResultLabels' => self::labelsNext244($currentRows),
-                'nextResultLabels' => self::labelsNext244($nextRows),
-                'nextOnlyLabels' => self::stringsNext244($receipt['nextOnlyLabels'] ?? []),
+                'currentResultLabels' => self::recursiveLimitLabels($currentRows),
+                'nextResultLabels' => self::recursiveLimitLabels($nextRows),
+                'nextOnlyLabels' => self::recursiveLimitStrings($receipt['nextOnlyLabels'] ?? []),
                 'nextSourceCursor' => is_array($receipt['nextSourceCursor'] ?? null) ? $receipt['nextSourceCursor'] : [],
-                'yieldBoundary' => 'compound-window-recursive-limit-next244-exhaustion-before-next-source',
+                'yieldBoundary' => 'compound-window-recursive-limit-exhaustion-before-next-source',
                 'resumeState' => 'held-until-recursive-limit-current-and-next-window-acks-match',
             ];
         }
 
         /** @param array<string,mixed>|null $cursor @param array<string,mixed> $fence */
-        private static function validateCursorNext244(?array $cursor, array $fence): void
+        private static function validateRecursiveLimitExhaustionCursor(?array $cursor, array $fence): void
         {
             if ($cursor === null) {
                 return;
             }
             foreach ([
-                'recursiveLimitFenceTokenNext244' => 'recursiveLimitFenceToken',
-                'currentRecursiveWindowTokenNext244' => 'currentRecursiveWindowToken',
-                'nextRecursiveWindowTokenNext244' => 'nextRecursiveWindowToken',
+                'recursiveLimitFenceToken' => 'recursiveLimitFenceToken',
+                'currentRecursiveWindowToken' => 'currentRecursiveWindowToken',
+                'nextRecursiveWindowToken' => 'nextRecursiveWindowToken',
             ] as $cursorKey => $fenceKey) {
                 if (isset($cursor[$cursorKey]) && $cursor[$cursorKey] !== $fence[$fenceKey]) {
-                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next244 cursor does not match recursive LIMIT exhaustion fence');
+                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT exhaustion cursor does not match recursive LIMIT exhaustion fence');
                 }
             }
-            if (!array_key_exists('acknowledgedRecursiveLimitAcksNext244', $cursor)) {
+            if (!array_key_exists('acknowledgedRecursiveLimitAcks', $cursor)) {
                 return;
             }
-            if (!is_array($cursor['acknowledgedRecursiveLimitAcksNext244'])) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next244 acknowledgements must be a list');
+            if (!is_array($cursor['acknowledgedRecursiveLimitAcks'])) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT exhaustion acknowledgements must be a list');
             }
 
-            $acknowledged = self::stringsNext244($cursor['acknowledgedRecursiveLimitAcksNext244']);
-            $required = self::stringsNext244($fence['requiredRecursiveLimitAcks'] ?? []);
+            $acknowledged = self::recursiveLimitStrings($cursor['acknowledgedRecursiveLimitAcks']);
+            $required = self::recursiveLimitStrings($fence['requiredRecursiveLimitAcks'] ?? []);
             if (array_values(array_diff($required, $acknowledged)) !== [] || array_values(array_diff($acknowledged, $required)) !== []) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next244 acknowledgements do not match required recursive/window fence set');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT exhaustion acknowledgements do not match required recursive/window fence set');
             }
         }
 
         /** @param mixed $value @return list<array<string,mixed>> */
-        private static function rowsNext244(mixed $value): array
+        private static function recursiveLimitRows(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -19934,13 +19934,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
-        private static function labelsNext244(array $rows): array
+        private static function recursiveLimitLabels(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['option_name'] ?? $row['name'] ?? json_encode($row, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), $rows));
         }
 
         /** @param mixed $value @return list<string> */
-        private static function stringsNext244(mixed $value): array
+        private static function recursiveLimitStrings(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -19950,7 +19950,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param mixed $payload */
-        private static function tokenNext244(mixed $payload): string
+        private static function recursiveLimitToken(mixed $payload): string
         {
             return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION));
         }
@@ -20389,8 +20389,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['replanReasons'][] = 'compound-recursive-limit-offset-yield-seal-next247';
             $base['replanReasons'][] = 'compound-window-next-source-cursor-held-after-offset-skip-next247';
             $base['dependencies'][] = 'sqlite-compound-recursive-limit-offset-window-yield-seal-next247';
-            $base['dependency_closure'] = 'no new support component needed; next247 reuses accepted compound SELECT recursive LIMIT/OFFSET, window result metrics, next244 recursive exhaustion acknowledgements, and adds a skipped-row lineage seal before yielding the next-source cursor';
-            $base['non_overlap'] = 'next247 extends accepted next244 recursive LIMIT exhaustion fencing by binding OFFSET-skipped recursive rows, window result labels, and the yielded next-source cursor into one acknowledgement set; it avoids accepted next244 exhaustion-only fencing, next243 replay tickets, next241 resume admission, row-value/window RETURNING, trigger recursive UPSERT, JSON table, WAL/VFS, B-tree, planner, PRAGMA, encoding, and suite evidence clusters';
+            $base['dependency_closure'] = 'no new support component needed; recursive-offset-yield-seal reuses accepted compound SELECT recursive LIMIT/OFFSET, window result metrics, recursive exhaustion acknowledgements, and adds a skipped-row lineage seal before yielding the next-source cursor';
+            $base['non_overlap'] = 'recursive-offset-yield-seal extends accepted recursive LIMIT exhaustion fencing by binding OFFSET-skipped recursive rows, window result labels, and the yielded next-source cursor into one acknowledgement set; it avoids next243 replay tickets, next241 resume admission, row-value/window RETURNING, trigger recursive UPSERT, JSON table, WAL/VFS, B-tree, planner, PRAGMA, encoding, and suite evidence clusters';
 
             return $base;
         }
@@ -20423,10 +20423,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'nextResultTokenNext241',
                 'windowLimitReceiptTokenNext241',
                 'acknowledgedResumeAdmissionAcksNext241',
-                'recursiveLimitFenceTokenNext244',
-                'currentRecursiveWindowTokenNext244',
-                'nextRecursiveWindowTokenNext244',
-                'acknowledgedRecursiveLimitAcksNext244',
+                'recursiveLimitFenceToken',
+                'currentRecursiveWindowToken',
+                'nextRecursiveWindowToken',
+                'acknowledgedRecursiveLimitAcks',
             ] as $key) {
                 if (array_key_exists($key, $cursor)) {
                     $base[$key] = $cursor[$key];
@@ -20440,7 +20440,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         private static function offsetYieldSealRecursiveOffsetYieldSeal(array $plan): array
         {
             $queue = is_array($plan['recursiveQueue'] ?? null) ? $plan['recursiveQueue'] : [];
-            $fence = is_array($plan['recursiveLimitExhaustionFenceNext244'] ?? null) ? $plan['recursiveLimitExhaustionFenceNext244'] : [];
+            $fence = is_array($plan['recursiveLimitExhaustionFence'] ?? null) ? $plan['recursiveLimitExhaustionFence'] : [];
             $currentRows = self::rowsRecursiveOffsetYieldSeal($plan['currentRows'] ?? []);
             $nextRows = self::rowsRecursiveOffsetYieldSeal($plan['nextRows'] ?? []);
             $currentSkipped = self::stringsRecursiveOffsetYieldSeal($queue['currentSkippedLabels'] ?? []);

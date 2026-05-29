@@ -8900,7 +8900,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocati
         bool $secureDelete = true,
     ): self {
         return self::fromBasePlan(
-            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
+            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::extendedTableLeafFromDeleteResult(
                 $database,
                 $leafPageNumber,
                 $deleteResult,
@@ -9116,7 +9116,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceTransitionVariant
         int $maxTruncatedPages,
         bool $secureDelete = false,
     ): self {
-        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::extendedTableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -9296,7 +9296,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceVacuumAllocationVar
         bool $secureDelete = true,
     ): self {
         return self::fromVacuumPlan(
-            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
+            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::extendedTableLeafFromDeleteResult(
                 $database,
                 $leafPageNumber,
                 $deleteResult,
@@ -9853,7 +9853,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceAppendAllocationVar
         bool $secureDelete = true,
     ): self {
         return self::fromBasePlan(
-            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
+            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::extendedTableLeafFromDeleteResult(
                 $database,
                 $leafPageNumber,
                 $deleteResult,
@@ -29680,7 +29680,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceLeafFreeblockReuseV
         string $replacementOverflowPayload,
         bool $secureDelete = true,
     ): self {
-        return self::fromBasePlan(SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::next147TableAndIndexFromCurrentSourceDeleteResults(
+        return self::fromBasePlan(SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::extendedTableAndIndexFromCurrentSourceDeleteResults(
             $database,
             $leafPageNumber,
             $currentOverflowChains,
@@ -30199,7 +30199,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReleasedOverflowReu
         string $replacementOverflowPayload,
         bool $secureDelete = true,
     ): self {
-        return self::fromBasePlan(SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::next147TableAndIndexFromCurrentSourceDeleteResults(
+        return self::fromBasePlan(SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::extendedTableAndIndexFromCurrentSourceDeleteResults(
             $database,
             $leafPageNumber,
             $currentOverflowChains,
@@ -30721,7 +30721,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceOverflowAllocationV
         bool $secureDelete = true,
     ): self {
         return self::fromBasePlan(
-            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
+            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::extendedTableLeafFromDeleteResult(
                 $database,
                 $leafPageNumber,
                 $deleteResult,

@@ -60,7 +60,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['rollout-reader']['schema_transitions'][0]['next_schema'] === 'rollout');
     assert($plan['stable_statements'] === ['temp-gate-reader']);
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next861-876 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-rollout-window self-test passed\n";
     return;
 }
 

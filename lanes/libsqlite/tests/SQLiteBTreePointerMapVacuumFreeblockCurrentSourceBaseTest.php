@@ -110,7 +110,7 @@ $tablePlan127 = static function (int $maxTruncatedPages = 5) use ($tableDatabase
     $database = $tableDatabase127();
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 11, secureDelete: true);
 
-    return SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next127TableLeafFromDeleteResult(
+    return SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::baseTableLeafFromDeleteResult(
         $database,
         3,
         [
@@ -131,7 +131,7 @@ $indexPlan127 = static function (int $maxTruncatedPages = 4) use ($indexDatabase
         secureDelete: true,
     );
 
-    return SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next127IndexLeafFromDeleteResult(
+    return SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::baseIndexLeafFromDeleteResult(
         $database,
         4,
         [
@@ -218,7 +218,7 @@ $cases127 = [
     'invalid from plan truncation rejected' => static function () use ($tablePlan127, $throwMessage127): mixed {
         $plan = $tablePlan127();
 
-        return $throwMessage127(static fn () => SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next127FromDeletePlan($plan->sourceDatabase, $plan->deletePlan, 0));
+        return $throwMessage127(static fn () => SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::baseFromDeletePlan($plan->sourceDatabase, $plan->deletePlan, 0));
     },
 ];
 

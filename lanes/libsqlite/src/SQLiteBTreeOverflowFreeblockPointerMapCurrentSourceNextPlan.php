@@ -22,13 +22,13 @@ final class SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan
         throw new \BadMethodCallException(sprintf('Unknown %s factory method %s', self::class, $name));
     }
 
-    public static function next128FromDeleteResults(mixed ...$args): self
+    public static function baseFromDeleteResults(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextBaseVariantPlan::fromDeleteResults(...$args));
     }
 
-    public static function next147TableAndIndexFromCurrentSourceDeleteResults(mixed ...$args): self
+    public static function extendedTableAndIndexFromCurrentSourceDeleteResults(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextExtendedVariantPlan::tableAndIndexFromCurrentSourceDeleteResults(...$args));

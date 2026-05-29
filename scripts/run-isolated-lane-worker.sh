@@ -6,6 +6,16 @@ LANE="${1:?lane name required}"
 SLICE="${2:?micro-slice label required}"
 SESSION="${3:-isolated-${LANE}-${SLICE}}"
 
+refill_libsqlite_on_exit() {
+  local status=$?
+  trap - EXIT
+  if [[ "${LANE:-}" == "libsqlite" && "${LIBSQLITE_AUTO_REFILL:-1}" != "0" && -x "$ROOT/scripts/refill-libsqlite-workers.sh" ]]; then
+    LIBSQLITE_AUTO_REFILL=0 bash "$ROOT/scripts/refill-libsqlite-workers.sh" --once || true
+  fi
+  exit "$status"
+}
+trap refill_libsqlite_on_exit EXIT
+
 AGENT_BIN="${AGENT_BIN:-codex}"
 AGENT_FAST_MODEL="${AGENT_FAST_MODEL:-gpt-5.5}"
 AGENT_FAST_REASONING="${AGENT_FAST_REASONING:-low}"
@@ -42,7 +52,11 @@ if ! command -v "$AGENT_BIN" >/dev/null 2>&1; then
   exit 2
 fi
 
-BASE_SHA="$(git rev-parse HEAD)" || exit 2
+if [[ -n "${ISOLATED_BASE_SHA:-}" ]]; then
+  BASE_SHA="$(git rev-parse --verify "$ISOLATED_BASE_SHA")" || exit 2
+else
+  BASE_SHA="$(git rev-parse HEAD)" || exit 2
+fi
 mkdir -p "$WORKTREE_ROOT" "$PROMPT_DIR" "$LOG_DIR" "$HANDOFF_DIR"
 
 if [[ -e "$WORKTREE" ]]; then
@@ -109,7 +123,7 @@ fi
 (
   cd "$WORKTREE" || exit 1
   git add -N "lanes/$LANE" >/dev/null 2>&1 || true
-  git diff --binary -- "lanes/$LANE" > "$PATCH_FILE"
+  git diff --binary HEAD -- "lanes/$LANE" > "$PATCH_FILE"
 ) || exit 2
 
 if [[ ! -s "$PATCH_FILE" ]]; then
@@ -117,6 +131,13 @@ if [[ ! -s "$PATCH_FILE" ]]; then
   printf 'Log: %s\n' "$LOG_FILE" >&2
   rm -f "$PATCH_FILE"
   exit 3
+fi
+
+if [[ "$LANE" == "libsqlite" ]] &&
+  grep -E '^\+.*(CurrentSourceNext150Plan|CurrentSourceNext150)' "$PATCH_FILE" >/dev/null; then
+  printf 'libsqlite handoff guard failed: patch adds the user-named CurrentSourceNext150 suffix. No ready marker written.\n' >&2
+  printf 'Patch: %s\n' "$PATCH_FILE" >&2
+  exit 4
 fi
 
 PATCH_SHA256="$(sha256sum "$PATCH_FILE" | awk '{print $1}')"

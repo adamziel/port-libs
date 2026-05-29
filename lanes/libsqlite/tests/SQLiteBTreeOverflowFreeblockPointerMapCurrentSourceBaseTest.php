@@ -77,7 +77,7 @@ $fixture128 = static function (
     bool $clearCoalescedFragments = true,
     string $pageType = "\x0d",
 ) use ($databaseFixture128, $payload128): SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan {
-    return SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::next128FromDeleteResults(
+    return SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::baseFromDeleteResults(
         $databaseFixture128($pageType),
         3,
         [[
@@ -165,9 +165,9 @@ $cases128 = [
     'index leaf page type accepted' => static fn (): mixed => $fixture128(true, true, "\x0a")->coalescePlan->pageType,
     'without secure delete keeps old payload until allocation overwrites first byte' => static fn (): mixed => substr($fixture128(false)->databaseAfterRelease->page(6), 4, 1),
     'without clear leaves current fragments payload' => static fn (): mixed => strpos($fixture128(true, false)->databaseAfterAllocation->page(3), str_repeat("\xcc", 4)) !== false,
-    'empty payload rejected' => static fn () => $throwsMessage128(static fn () => SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::next128FromDeleteResults($databaseFixture128(), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 3, '')),
-    'bad parent rejected' => static fn () => $throwsMessage128(static fn () => SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::next128FromDeleteResults($databaseFixture128(), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 1, 'x')),
-    'bad leaf rejected' => static fn () => $throwsMessage128(static fn () => SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::next128FromDeleteResults($databaseFixture128(), 9, [['obsolete_overflow_page_numbers' => [5, 6]]], 3, 'x')),
+    'empty payload rejected' => static fn () => $throwsMessage128(static fn () => SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::baseFromDeleteResults($databaseFixture128(), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 3, '')),
+    'bad parent rejected' => static fn () => $throwsMessage128(static fn () => SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::baseFromDeleteResults($databaseFixture128(), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 1, 'x')),
+    'bad leaf rejected' => static fn () => $throwsMessage128(static fn () => SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::baseFromDeleteResults($databaseFixture128(), 9, [['obsolete_overflow_page_numbers' => [5, 6]]], 3, 'x')),
 ];
 
 $expected128 = [
