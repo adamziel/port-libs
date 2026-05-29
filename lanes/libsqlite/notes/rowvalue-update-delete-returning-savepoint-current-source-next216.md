@@ -12,7 +12,7 @@ Verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext216Test.php
 php lanes/libsqlite/examples/wordpress-rowvalue-distinct-subquery-savepoint-current-source-next216.php --self-test
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
-php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext216Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext216Test.php
 php -l lanes/libsqlite/examples/wordpress-rowvalue-distinct-subquery-savepoint-current-source-next216.php
 git diff --check -- lanes/libsqlite

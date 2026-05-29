@@ -24,7 +24,7 @@ Verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
-php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext214Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext214Test.php
 php -l lanes/libsqlite/examples/wordpress-rowvalue-ordered-subquery-savepoint-current-source-next214.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext214Test.php

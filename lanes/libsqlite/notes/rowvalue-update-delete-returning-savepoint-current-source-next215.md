@@ -20,7 +20,7 @@ Verification:
 
 ```text
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
-php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext215Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext215Test.php
 php -l lanes/libsqlite/examples/wordpress-rowvalue-subquery-limit-savepoint-current-source-next215.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext215Test.php

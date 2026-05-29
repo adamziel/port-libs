@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext199Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows199 = [
@@ -29,12 +29,12 @@ $attemptDeleteResult199 = static fn (): array => SQLiteUpdateDeleteReturningSql:
 $retryUpdateResult199 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate199, $tables199);
 $retryDeleteResult199 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete199, $retryUpdateResult199()['tables']);
 $starUpdate199 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute("UPDATE wp_options SET status = 'star199' WHERE autoload = 'no' RETURNING * ORDER BY (blog_id, option_name) IS (3, 'rewrite_rules') DESC LIMIT 1", $tables199);
-$plan199 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext199Plan::execute(
+$plan199 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext199(
     $tables199,
     [$attemptUpdate199, $attemptDelete199],
     [$retryUpdate199, $retryDelete199],
 );
-$customPlan199 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext199Plan::execute(
+$customPlan199 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext199(
     $tables199,
     [$attemptUpdate199],
     [$retryUpdate199],
@@ -107,10 +107,10 @@ $cases199 = [
     'plan dependency limit before mutation' => [static fn (): mixed => in_array('sqlite-rowvalue-order-expression-limit-before-source-mutation-next199', $plan199()['dependencies'], true), true],
     'custom plan savepoint' => [static fn (): mixed => $customPlan199()['savepoint'], 'wp_custom_order_expr_next199'],
     'custom plan retry count' => [static fn (): mixed => $customPlan199()['yielded_after_retry_count'], 5],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext199Plan::execute($tables199, [], [$retryUpdate199]), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext199Plan::execute($tables199, [$attemptUpdate199], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext199Plan::execute($tables199, [$attemptUpdate199], [$retryUpdate199], 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext199Plan::execute(['wp_options' => ['bad']], [$attemptUpdate199], [$retryUpdate199]), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext199($tables199, [], [$retryUpdate199]), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext199($tables199, [$attemptUpdate199], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext199($tables199, [$attemptUpdate199], [$retryUpdate199], 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext199(['wp_options' => ['bad']], [$attemptUpdate199], [$retryUpdate199]), InvalidArgumentException::class],
 ];
 
 $tests = [];

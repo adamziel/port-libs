@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for row-value UPDATE/DELETE RETURNING
 current-source handling around explicit `ROLLBACK TO` of an inner savepoint.
 
 This slice adds
-`SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext197Plan`. It
+`SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan`. It
 models a copied `wp_options` import where outer row-value UPDATE RETURNING work
 is preserved, inner DELETE/UPDATE RETURNING work is executed and then explicitly
 rolled back to the still-open inner savepoint, and retry UPDATE/DELETE
@@ -27,8 +27,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext197Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext197Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext197Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext197Test.php

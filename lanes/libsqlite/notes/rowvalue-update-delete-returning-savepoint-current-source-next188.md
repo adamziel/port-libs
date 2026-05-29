@@ -20,7 +20,7 @@ Verification:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
-php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Test.php
 php -l lanes/libsqlite/examples/wordpress-rowvalue-empty-in-savepoint-current-source-next188.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Test.php

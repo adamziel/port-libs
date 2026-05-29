@@ -6,7 +6,7 @@ RETURNING execution.
 This slice makes empty row-value tuple lists explicit in the bounded DML
 executor and adds savepoint coverage for SQLite's upstream behavior:
 `(a,b) IN ()` is false, while `(a,b) NOT IN ()` is true even when the tuple
-contains `NULL`. The new `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext186Plan`
+contains `NULL`. The new `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan`
 records an outer current-source update, an attempted inner stream that is
 rolled back, and retry UPDATE/DELETE RETURNING statements that reread the
 inner savepoint image.
@@ -21,7 +21,7 @@ Verification:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
-php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext186Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext186Test.php
 php -l lanes/libsqlite/examples/wordpress-rowvalue-empty-in-savepoint-current-source-next186.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext186Test.php

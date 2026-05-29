@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://old.test'],
@@ -27,7 +28,7 @@ $attemptDelete = "DELETE FROM wp_options WHERE bytes NOT BETWEEN 10 AND 35 AND a
 $retryUpdate = str_replace('between198', 'retry198', $attemptUpdate);
 $retryDelete = $attemptDelete;
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext188(
     ['wp_options' => $rows],
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],

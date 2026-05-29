@@ -6,7 +6,7 @@ tuple subqueries.
 This slice teaches `SQLiteUpdateDeleteReturningSql` to parse
 `SELECT DISTINCT` row-value tuple sources and de-duplicate tuples before
 applying LIMIT/OFFSET. The new
-`SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext227Plan` proves
+`SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan` proves
 that attempted UPDATE/DELETE RETURNING rows sourced from duplicated
 `wp_optionmeta` tuples are rolled back to the savepoint image, and retry
 statements re-read the de-duplicated current source.

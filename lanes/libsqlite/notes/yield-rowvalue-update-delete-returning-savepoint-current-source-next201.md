@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext201Plan` for the current-source edge where:
+Adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan` for the current-source edge where:
 
 - outer row-value `UPDATE ... RETURNING` statements remain committed in the surrounding transaction;
 - successful savepoint-local row-value `UPDATE` and `DELETE ... RETURNING` streams are discarded by `ROLLBACK TO`;
@@ -18,7 +18,7 @@ Focused commands run from the isolated worktree:
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext201Test.php
 php lanes/libsqlite/examples/wordpress-rowvalue-rollback-to-savepoint-current-source-next201.php
-php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext201Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext201Test.php
 php -l lanes/libsqlite/examples/wordpress-rowvalue-rollback-to-savepoint-current-source-next201.php
 git diff --check -- lanes/libsqlite

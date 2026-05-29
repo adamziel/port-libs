@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for current-source row-value UPDATE/DELETE
 RETURNING execution.
 
-This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext204Plan`
+This slice adds `SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan`
 for SQLite `UPDATE OR ROLLBACK` conflicts inside an active savepoint. The
 bounded executor models the transaction-level rollback boundary:
 
@@ -25,7 +25,7 @@ savepoint changes before retrying from the original source.
 Focused verification:
 
 ```bash
-php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext204Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext204Test.php
 php -l lanes/libsqlite/examples/wordpress-rowvalue-rollback-savepoint-current-source-next204.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext204Test.php
