@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 16:09:02 UTC",
-    "sourceCommit": "2f85b736e632e1acdb2a62e6c07db778d89746b7",
-    "sourceCommitShort": "2f85b736e632",
+    "generated": "2026-05-29 16:13:29 UTC",
+    "sourceCommit": "67084ceecc2864f3a598cab7e22a89a0c0700801",
+    "sourceCommitShort": "67084ceecc28",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2f85b736e632e1acdb2a62e6c07db778d89746b7",
-    "dashboardCommitShort": "2f85b736e632",
+    "dashboardCommit": "67084ceecc2864f3a598cab7e22a89a0c0700801",
+    "dashboardCommitShort": "67084ceecc28",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted eight ready-marked BI consolidat...",
-            "currentWork": "Consolidated eight BI numbered method/helper cleanup handoffs across attach schema-cookie...",
-            "nextTarget": "Rebase or retire overlapping BI/BH/BG/BF leftovers, then continue consolidating remaining...",
+            "audit": "Accepted six ready-marked BJ consolidatio...",
+            "currentWork": "Consolidated six BJ numbered method/helper cleanup handoffs across attach schema-cache pu...",
+            "nextTarget": "Rebase or retire overlapping BJ/BI/BH/BG/BF leftovers, then continue consolidating remain...",
             "blocker": "No blocker for the accepted reduced consolidation slice.",
-            "commit": "forty-n"
+            "commit": "fiftiet"
         },
         {
             "library": "LightningCSS",
