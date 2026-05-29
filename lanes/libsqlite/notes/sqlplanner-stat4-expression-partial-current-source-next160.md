@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext160Plan`, a bounded
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded
 planner materialization for stale prepared statements whose current schema/stat4
 source still admits an OR-rowid-union over partial expression indexes.
 
@@ -18,7 +18,7 @@ The slice records:
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext160Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext160Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next160.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext160Test.php`

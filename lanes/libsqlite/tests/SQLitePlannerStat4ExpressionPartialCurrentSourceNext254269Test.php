@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq254269 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $like254269 = static fn (string $column, string $right): array => ['left' => ['column' => $column], 'operator' => 'LIKE', 'right' => $right];
@@ -97,7 +97,7 @@ $terms254269 = static fn (): array => [
     $like254269('option_name', 'plugin_%'),
 ];
 
-$plan254269 = static fn (string $variant = 'ready', array $needed = ['option_name', 'option_value', 'updated_at', 'blog_id']): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan::materializeNext254269(
+$plan254269 = static fn (string $variant = 'ready', array $needed = ['option_name', 'option_value', 'updated_at', 'blog_id']): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext254269(
     $prepared254269(),
     $current254269($variant),
     $terms254269(),

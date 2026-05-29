@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext160Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -51,7 +51,7 @@ $predicate = $or(
     $and($point('autoload', 'yes'), $exprRange('>=', 'plugin_delta'), $exprRange('<=', 'plugin_forms')),
 );
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext160Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext160(
     $source('prepared-main.wp_options@next160', 1600, 80, $preparedRows, array_slice($samples, 0, 4), 16001),
     $source('current-main.wp_options@next160', 1603, 83, $currentRows, $samples, 16031),
     $predicate,

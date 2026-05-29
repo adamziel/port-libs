@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq958973 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $like958973 = static fn (string $column, string $right): array => ['left' => ['column' => $column], 'operator' => 'LIKE', 'right' => $right];
@@ -101,7 +101,7 @@ $terms958973 = static fn (): array => [
     $like958973('option_name', 'plugin_%'),
 ];
 
-$plan958973 = static fn (?array $rows = null, ?array $samples = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan::materializeNext958973(
+$plan958973 = static fn (?array $rows = null, ?array $samples = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext958973(
     $prepared958973(),
     $current958973($rows, $samples),
     $terms958973(),
@@ -134,7 +134,7 @@ $tests = [
     'planner stat4 expression partial current source next958973 dependency closure' => static fn (TestRunner $t) => $t->contains('next958-973 preparation extends', $plan958973()['dependency_closure']),
     'planner stat4 expression partial current source next958973 non overlap' => static fn (TestRunner $t) => $t->contains('next942-957 handoff windows', $plan958973()['non_overlap']),
     'planner stat4 expression partial current source next958973 malformed needed column' => static function (TestRunner $t) use ($prepared958973, $current958973, $terms958973): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan::materializeNext958973($prepared958973(), $current958973(), $terms958973(), ['option_name', ''], 6));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext958973($prepared958973(), $current958973(), $terms958973(), ['option_name', ''], 6));
     },
 ];
 

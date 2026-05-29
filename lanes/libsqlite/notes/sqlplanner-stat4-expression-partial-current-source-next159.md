@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for a STAT4 expression partial-index current-source yield planner.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext159Plan`, a bounded native PHP planner for stale prepared statements that can still use the current source of a non-skip-scan partial expression index. It records current-source rowids, STAT4 yield pairs, covering payload rows, table-lookup rows for non-covered columns, current/next source admission, and reprepare fences for schema-cookie, STAT4 generation, index signature, rowset, and cursor program changes.
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded native PHP planner for stale prepared statements that can still use the current source of a non-skip-scan partial expression index. It records current-source rowids, STAT4 yield pairs, covering payload rows, table-lookup rows for non-covered columns, current/next source admission, and reprepare fences for schema-cookie, STAT4 generation, index signature, rowset, and cursor program changes.
 
 WordPress path: `wordpress-planner-stat4-expression-partial-current-source-next159.php` models copied `wp_options` plugin option scans over `lower(option_name)` where the current source adds plugin rows and updated STAT4 samples while the prepared statement must yield from the stale source to the current source.
 
@@ -10,7 +10,7 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext159Test.php`
   - `1 test files, 69 assertions, 0 failures`
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext159Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
   - `No syntax errors detected`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext159Test.php`
   - `No syntax errors detected`

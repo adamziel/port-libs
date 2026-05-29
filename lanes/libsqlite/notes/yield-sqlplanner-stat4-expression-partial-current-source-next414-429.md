@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `sqlplanner-stat4-expression-partial-current-source-next414-429`.
 
-Behavior: extends the established canonical `SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan` source with `materializeNext414429()`, a direct follow-on to the merged next398-413 preparation fence. No new numbered source class was created because the local pattern keeps the chained planner STAT4 expression/partial handoff slices in this class.
+Behavior: extends the established canonical `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` source with `materializeNext414429()`, a direct follow-on to the merged next398-413 preparation fence. No new numbered source class was created because the local pattern keeps the chained planner STAT4 expression/partial handoff slices in this class.
 
 WordPress path: `wordpress-sqlplanner-stat4-expression-partial-current-source-next414-429.php` models copied `wp_options` plugin-admin pagination over a descending partial `lower(option_name)` covering index. It carries the next398-413 current-source STAT4 handoff into next414-429 only when the projected current rows still match.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext414429Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next414-429.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext414429Test.php`

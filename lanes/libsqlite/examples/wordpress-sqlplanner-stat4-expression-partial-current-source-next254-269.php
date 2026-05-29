@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $like = static fn (string $column, string $right): array => ['left' => ['column' => $column], 'operator' => 'LIKE', 'right' => $right];
@@ -69,7 +69,7 @@ $current['indexes'][0]['rootPage'] = 26988;
 $current['rows'] = $rows;
 $current['indexes'][0]['stat4ExpressionPayloads'] = array_map($payload, $rows);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan::materializeNext254269(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext254269(
     $prepared,
     $current,
     [

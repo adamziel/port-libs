@@ -1,6 +1,6 @@
 # sqlplanner-stat4-expression-partial-current-source-next155
 
-- Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNext155Plan` for a STAT4-backed partial expression range scan where current-source schema/stat4/row generations and the partial predicate drift after reprepare.
+- Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` for a STAT4-backed partial expression range scan where current-source schema/stat4/row generations and the partial predicate drift after reprepare.
 - Focused behavior: stale prepared `lower(option_name)` partial index rows are fenced out, current rows satisfying `autoload = 'yes' AND blog_id = 1 AND option_value IS NOT NULL` are admitted, and covering index reads remain table-lookup-free.
 - WordPress smoke: `wordpress-stat4-expression-partial-current-source-next155.php` models copied `wp_options` plugin option scans after an ANALYZE/DDL refresh.
 - Dependency closure: no new support component needed; this composes lane-local `SQLiteSelectExpressionIndexPlan`, expression-index metadata, STAT4 estimates, and current-source row fences.

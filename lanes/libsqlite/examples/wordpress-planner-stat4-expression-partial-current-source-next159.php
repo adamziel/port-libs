@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext159Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext159Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $partial = new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, [
     new SQLiteIndexPredicate('autoload', SQLiteIndexPredicate::EQUALS, 'yes'),
@@ -49,7 +49,7 @@ $terms = [
     ['operator' => '<', 'left' => ['expression' => 'lower(option_name)'], 'right' => 'plugin_t'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext159Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext159(
     $prepared,
     $current,
     $partial,

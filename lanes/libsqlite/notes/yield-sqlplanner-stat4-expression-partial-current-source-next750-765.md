@@ -1,14 +1,14 @@
 # SQLite planner STAT4 expression partial current-source next750-765
 
-Behavior: extends `SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan` with `materializeNext750765()`, a direct follow-on to the merged next734-749 preparation fence. The new fence threads the next734-749 handoff signature, rechecks each carried current-source row projection, and prepares slices 750-765 only when the prior projected rows still match the current source.
+Behavior: extends `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` with `materializeNext750765()`, a direct follow-on to the merged next734-749 preparation fence. The new fence threads the next734-749 handoff signature, rechecks each carried current-source row projection, and prepares slices 750-765 only when the prior projected rows still match the current source.
 
 Files:
-- `SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan.php`
+- `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `SQLitePlannerStat4ExpressionPartialCurrentSourceNext750765Test.php`
 - `wordpress-sqlplanner-stat4-expression-partial-current-source-next750-765.php`
 
 Validation:
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext750765Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next750-765.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext718733Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext734749Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext750765Test.php`

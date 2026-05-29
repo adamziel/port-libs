@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for a STAT4 expression partial-index planner
 fence over copied `wp_options` rows.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext227Plan`.
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`.
 It composes the accepted next224 current-source sample-order fence, then admits
 the prepared partial expression-index cursor only when each selected
 `sqlite_stat4` sample's `neq` peer cardinality still matches the current

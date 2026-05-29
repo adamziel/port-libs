@@ -8,12 +8,12 @@ needed by the next direct planner continuation.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext254269Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next254-269.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext254269Test.php`
 - `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next254-269.php --self-test`
-- `git diff --check -- lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext254269Test.php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next254-269.php lanes/libsqlite/notes/yield-sqlplanner-stat4-expression-partial-current-source-next254-269.md`
+- `git diff --check -- lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext254269Test.php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next254-269.php lanes/libsqlite/notes/yield-sqlplanner-stat4-expression-partial-current-source-next254-269.md`
 
 Expected focused movement: `+38` focused assertions in the new lane-scoped
 test file. Mapped coverage is unchanged; this is PHP behavior preparation over

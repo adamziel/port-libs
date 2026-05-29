@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq9901005 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $like9901005 = static fn (string $column, string $right): array => ['left' => ['column' => $column], 'operator' => 'LIKE', 'right' => $right];
@@ -101,7 +101,7 @@ $terms9901005 = static fn (): array => [
     $like9901005('option_name', 'plugin_%'),
 ];
 
-$plan9901005 = static fn (?array $rows = null, ?array $samples = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan::materializeNext9901005(
+$plan9901005 = static fn (?array $rows = null, ?array $samples = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext9901005(
     $prepared9901005(),
     $current9901005($rows, $samples),
     $terms9901005(),
@@ -134,7 +134,7 @@ $tests = [
     'planner stat4 expression partial current source next9901005 dependency closure' => static fn (TestRunner $t) => $t->contains('next990-1005 preparation extends', $plan9901005()['dependency_closure']),
     'planner stat4 expression partial current source next9901005 non overlap' => static fn (TestRunner $t) => $t->contains('next974-989 handoff windows', $plan9901005()['non_overlap']),
     'planner stat4 expression partial current source next9901005 malformed needed column' => static function (TestRunner $t) use ($prepared9901005, $current9901005, $terms9901005): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan::materializeNext9901005($prepared9901005(), $current9901005(), $terms9901005(), ['option_name', ''], 6));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext9901005($prepared9901005(), $current9901005(), $terms9901005(), ['option_name', ''], 6));
     },
 ];
 

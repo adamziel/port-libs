@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `sqlplanner-stat4-expression-partial-current-source-next350-365`.
 
-Behavior: extends `SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan` with `materializeNext350365()`, a direct follow-on to the merged next334-349 preparation fence. The new fence threads the prior handoff signature, rechecks each carried current-source row projection, and prepares slices 350-365 only when the prior projected rows still match the current source.
+Behavior: extends `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` with `materializeNext350365()`, a direct follow-on to the merged next334-349 preparation fence. The new fence threads the prior handoff signature, rechecks each carried current-source row projection, and prepares slices 350-365 only when the prior projected rows still match the current source.
 
 WordPress path: `wordpress-sqlplanner-stat4-expression-partial-current-source-next350-365.php` models copied `wp_options` plugin-admin pagination over a descending partial `lower(option_name)` covering index. A stale payload mutation or missing current row blocks the continuation before the next prepared handoff can be reused.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext350365Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next350-365.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext350365Test.php`
