@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for current/next `CAST(...)` results feeding LIKE/GLOB residual checks and BINARY/NOCASE/RTRIM collation keys.
 
-This slice adds `SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan()`. It runs `CAST(option_value AS ...)` through the bounded parser-level `SQLiteSelectSql` executor, records cast storage and text bytes, applies LIKE/GLOB residual matching, records collation keys, and compares current/next `wp_options` sources for changed cast results, entered/exited matches, matched text changes, and schema-cookie invalidation.
+This slice adds `SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan()`. It runs `CAST(option_value AS ...)` through the bounded parser-level `SQLiteSelectSql` executor, records cast storage and text bytes, applies LIKE/GLOB residual matching, records collation keys, and compares current/next `wp_options` sources for changed cast results, entered/exited matches, matched text changes, and schema-cookie invalidation.
 
 WordPress path: `wordpress-cast-collation-like-current-source-next123.php` models a copied `wp_options` source where plugin option values change type/text after an import, so a prepared cast/pattern cursor must be invalidated before reuse.
 

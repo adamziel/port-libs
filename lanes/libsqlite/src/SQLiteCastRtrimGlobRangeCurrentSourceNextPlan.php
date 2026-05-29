@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteCastRtrimGlobRangeCurrentSourceNext127Plan
+final class SQLiteCastRtrimGlobRangeCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows

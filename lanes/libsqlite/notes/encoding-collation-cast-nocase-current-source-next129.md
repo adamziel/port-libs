@@ -5,7 +5,7 @@ NOCASE `LIKE` range scans at the current-source to next-source boundary.
 
 Behavior:
 
-- Adds `SQLiteCastNocaseCurrentSourceNext129Plan` for parser-level
+- Adds `SQLiteCastNocaseCurrentSourceNextPlan` for parser-level
   `CAST(option_value AS ...)` scans that use SQLite-style ASCII-only NOCASE
   prefix bounds while keeping the `LIKE` residual.
 - Tracks current/next candidate rowids, residual matches, entered/exited

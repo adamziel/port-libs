@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteCastCollationLikeCurrentSourceNext123Plan;
+use PortLibs\LibSqlite\SQLiteCastCollationLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -32,7 +32,7 @@ $nextRows = [
     ['option_id' => 10, 'option_name' => 'plugin_added', 'option_value' => '49', 'autoload' => 'yes'],
 ];
 
-$textPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan(
+$textPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan(
     $currentRows,
     $nextRows,
     'TEXT',
@@ -45,7 +45,7 @@ $textPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNext123Pl
     18,
 );
 
-$integerPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan(
+$integerPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan(
     $currentRows,
     $nextRows,
     'INTEGER',
@@ -54,7 +54,7 @@ $integerPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNext12
     'BINARY',
 );
 
-$blobPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan(
+$blobPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan(
     $currentRows,
     $nextRows,
     'BLOB',
@@ -156,60 +156,60 @@ foreach ($blobCases as $name => [$path, $expected]) {
 }
 
 $tests['cast collation like current source next123 stable sources are reusable'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'LIKE', 'NOCASE');
+    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'LIKE', 'NOCASE');
     $t->same(true, $plan['reusable']);
 };
 
 $tests['cast collation like current source next123 stable sources have no reasons'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'LIKE', 'NOCASE');
+    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'LIKE', 'NOCASE');
     $t->same([], $plan['invalidationReasons']);
 };
 
 $tests['cast collation like current source next123 stable sources keep matched rowids'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'LIKE', 'NOCASE');
+    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'LIKE', 'NOCASE');
     $t->same([5, 7, 8], $plan['currentRowids']);
 };
 
 $tests['cast collation like current source next123 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', '%', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', '%', 'REGEXP'));
 };
 
 $tests['cast collation like current source next123 rejects glob escape'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', '*', 'GLOB', 'BINARY', '\\'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', '*', 'GLOB', 'BINARY', '\\'));
 };
 
 $tests['cast collation like current source next123 rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', '%', 'LIKE', 'WP_LOCALE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', '%', 'LIKE', 'WP_LOCALE'));
 };
 
 $tests['cast collation like current source next123 rejects malformed cast target'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT); DROP TABLE wp_options; --', '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT); DROP TABLE wp_options; --', '%'));
 };
 
 $tests['cast collation like current source next123 rejects missing option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan([['option_value' => 'plugin']], [], 'TEXT', '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan([['option_value' => 'plugin']], [], 'TEXT', '%'));
 };
 
 $tests['cast collation like current source next123 rejects missing option value'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan([['option_id' => 1]], [], 'TEXT', '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan([['option_id' => 1]], [], 'TEXT', '%'));
 };
 
 $tests['cast collation like current source next123 rejects non integer option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan([['option_id' => '1', 'option_value' => 'plugin']], [], 'TEXT', '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan([['option_id' => '1', 'option_value' => 'plugin']], [], 'TEXT', '%'));
 };
 
 $tests['cast collation like current source next123 rejects multi-byte escape'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin!_%', 'LIKE', 'BINARY', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin!_%', 'LIKE', 'BINARY', '!!'));
 };
 
 $tests['cast collation like current source next123 accepts decimal type target'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan($currentRows, $currentRows, 'DECIMAL(10, 2)', '4*', 'GLOB');
+    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan($currentRows, $currentRows, 'DECIMAL(10, 2)', '4*', 'GLOB');
     $t->same([2, 3], $plan['currentRowids']);
 };
 
 $tests['cast collation like current source next123 escaped LIKE pattern matches literal underscore'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value' => 'plugin_key'], ['option_id' => 2, 'option_value' => 'pluginXkey']];
-    $plan = SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan($rows, $rows, 'TEXT', 'plugin!_key', 'LIKE', 'BINARY', '!');
+    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan($rows, $rows, 'TEXT', 'plugin!_key', 'LIKE', 'BINARY', '!');
     $t->same([1], $plan['currentRowids']);
 };
 

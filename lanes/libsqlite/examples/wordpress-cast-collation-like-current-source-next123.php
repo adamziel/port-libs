@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteCastCollationLikeCurrentSourceNext123Plan;
+use PortLibs\LibSqlite\SQLiteCastCollationLikeCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -20,7 +20,7 @@ $nextRows = [
     ['option_id' => 13, 'option_name' => 'plugin_added', 'option_value' => '49', 'autoload' => 'yes'],
 ];
 
-$plan = SQLiteCastCollationLikeCurrentSourceNext123Plan::wordpressOptionValueCastScan(
+$plan = SQLiteCastCollationLikeCurrentSourceNextPlan::wordpressOptionValueCastScan(
     $currentRows,
     $nextRows,
     'TEXT',

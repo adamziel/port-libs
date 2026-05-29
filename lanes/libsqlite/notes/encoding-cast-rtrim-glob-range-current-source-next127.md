@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for CAST expression scans under RTRIM
 collation with GLOB prefix ranges.
 
 Behavior:
-- Adds `SQLiteCastRtrimGlobRangeCurrentSourceNext127Plan` for copied
+- Adds `SQLiteCastRtrimGlobRangeCurrentSourceNextPlan` for copied
   `wp_options` current/next scans using `CAST(option_value AS ...)` as the
   range key.
 - Models SQLite's two-stage behavior for `GLOB` with an RTRIM index key:

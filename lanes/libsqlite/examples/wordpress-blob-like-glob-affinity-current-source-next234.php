@@ -7,7 +7,7 @@ foreach (glob(__DIR__ . '/../src/*.php') ?: [] as $file) {
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLiteBlobLikeGlobAffinityCurrentSourceNext234Plan;
+use PortLibs\LibSqlite\SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBlobValue;
 
 $current = [
@@ -23,8 +23,8 @@ $next = [
     ['option_id' => 4, 'option_name' => 'plugin_blob_new', 'option_value' => new SQLiteBlobValue('plugin:new'), 'autoload' => 'no'],
 ];
 
-$implicit = SQLiteBlobLikeGlobAffinityCurrentSourceNext234Plan::wordpressOptionValuePlan($current, $next, 'plugin:%');
-$cast = SQLiteBlobLikeGlobAffinityCurrentSourceNext234Plan::wordpressOptionValuePlan($current, $next, 'plugin:%', 'LIKE', 'NOCASE', null, false, true);
+$implicit = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, 'plugin:%');
+$cast = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, 'plugin:%', 'LIKE', 'NOCASE', null, false, true);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($implicit['currentRowids'] === [1]);

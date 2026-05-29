@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingNumericAffinityCurrentSourceNext107Plan;
+use PortLibs\LibSqlite\SQLiteEncodingNumericAffinityCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -23,7 +23,7 @@ $nextRows = [
     ['option_id' => 6, 'option_name' => 'retry_limit_new', 'option_value' => '0010'],
 ];
 
-$numericPlan = SQLiteEncodingNumericAffinityCurrentSourceNext107Plan::wordpressOptionValueComparisonPlan(
+$numericPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::wordpressOptionValueComparisonPlan(
     $currentRows,
     $nextRows,
     'option_value',
@@ -40,7 +40,7 @@ $numericPlan = SQLiteEncodingNumericAffinityCurrentSourceNext107Plan::wordpressO
     108,
 );
 
-$rtrimPlan = SQLiteEncodingNumericAffinityCurrentSourceNext107Plan::wordpressOptionValueComparisonPlan(
+$rtrimPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::wordpressOptionValueComparisonPlan(
     $currentRows,
     $nextRows,
     'option_value',

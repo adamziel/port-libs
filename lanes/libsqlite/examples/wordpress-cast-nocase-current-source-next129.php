@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteCastNocaseCurrentSourceNext129Plan;
+use PortLibs\LibSqlite\SQLiteCastNocaseCurrentSourceNextPlan;
 
 $currentRows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'Plugin_Cache'],
@@ -20,7 +20,7 @@ $nextRows = [
     ['option_id' => 4, 'option_name' => 'fresh_plugin', 'option_value' => 'PLUGIN_CACHE_NEW'],
 ];
 
-$plan = SQLiteCastNocaseCurrentSourceNext129Plan::wordpressOptionValuePlan(
+$plan = SQLiteCastNocaseCurrentSourceNextPlan::wordpressOptionValuePlan(
     $currentRows,
     $nextRows,
     'TEXT',
