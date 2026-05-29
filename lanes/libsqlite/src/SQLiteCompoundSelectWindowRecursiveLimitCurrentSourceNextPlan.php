@@ -18522,6 +18522,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['cursor']['sourceGenerationTokenSourceGenerationSeal'] = $seal['sourceGenerationToken'];
             $base['cursor']['finalBoundaryTokenSourceGenerationSeal'] = $seal['finalBoundaryToken'];
             $base['cursor']['requiredSourceGenerationAcksSourceGenerationSeal'] = $seal['requiredSourceGenerationAcks'];
+            $base['cursor']['requiredSourceGenerationAcksNext238'] = $seal['requiredSourceGenerationAcks'];
             $base['cursor']['generationNextSourceCursorSourceGenerationSeal'] = $seal['nextSourceCursor'];
             $base['replanReasons'][] = 'compound-recursive-window-source-generation-seal';
             $base['replanReasons'][] = 'final-compound-limit-boundary-source-generation-seal';
@@ -18663,14 +18664,17 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT source-generation-seal cursor does not match source-generation seal');
                 }
             }
-            if (!array_key_exists('acknowledgedSourceGenerationAcksSourceGenerationSeal', $cursor)) {
+            $acknowledgedKey = array_key_exists('acknowledgedSourceGenerationAcksSourceGenerationSeal', $cursor)
+                ? 'acknowledgedSourceGenerationAcksSourceGenerationSeal'
+                : (array_key_exists('acknowledgedSourceGenerationAcksNext238', $cursor) ? 'acknowledgedSourceGenerationAcksNext238' : null);
+            if ($acknowledgedKey === null) {
                 return;
             }
-            if (!is_array($cursor['acknowledgedSourceGenerationAcksSourceGenerationSeal'])) {
+            if (!is_array($cursor[$acknowledgedKey])) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT source-generation-seal source-generation acknowledgements must be a list');
             }
 
-            $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedSourceGenerationAcksSourceGenerationSeal']));
+            $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor[$acknowledgedKey]));
             $required = self::stringListSourceGenerationSeal($seal['requiredSourceGenerationAcks'] ?? []);
             $missing = array_values(array_diff($required, $acknowledged));
             $unexpected = array_values(array_diff($acknowledged, $required));
