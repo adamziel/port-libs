@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachTempWalSchemaCookiePlan;
 
 $tests = [];
 
@@ -61,7 +61,7 @@ $statements = static fn (): array => [
     ['name' => 'posts-update', 'sql' => 'UPDATE main.wp_posts SET post_title = ? WHERE ID = ?'],
 ];
 
-$plan = static fn (?array $schemasArg = null, ?array $statementsArg = null): array => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan(
+$plan = static fn (?array $schemasArg = null, ?array $statementsArg = null): array => SQLiteAttachTempWalSchemaCookiePlan::plan(
     $schemasArg ?? $schemas(),
     $statementsArg ?? $statements(),
 );
@@ -154,7 +154,7 @@ $tests['attach temp wal schema cookie root signature source only movement remain
     $schemas['archive']['next_schema_roots'] = $schemas['archive']['schema_roots'];
     unset($schemas['network']['wal_schema_cookie']);
 
-    $result = SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, [
+    $result = SQLiteAttachTempWalSchemaCookiePlan::plan($schemas, [
         ['name' => 'options', 'sql' => 'SELECT option_value FROM main.wp_options'],
         ['name' => 'posts', 'sql' => 'UPDATE main.wp_posts SET post_title = ? WHERE ID = ?'],
     ]);
@@ -167,7 +167,7 @@ $tests['attach temp wal schema cookie root signature detects same cookie root ch
     $schemas = $schemas();
     $schemas['archive']['next_schema_roots']['wp_comments'] = 19;
 
-    $result = SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, [
+    $result = SQLiteAttachTempWalSchemaCookiePlan::plan($schemas, [
         ['name' => 'comments', 'sql' => 'SELECT comment_ID FROM archive.wp_comments'],
     ]);
 
@@ -180,14 +180,14 @@ $tests['attach temp wal schema cookie root signature validates root map'] = stat
     $schemas = $schemas();
     $schemas['main']['schema_roots']['wp_options'] = -1;
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, $statements()));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookiePlan::plan($schemas, $statements()));
 };
 
 $tests['attach temp wal schema cookie root signature rejects non array root map'] = static function (TestRunner $t) use ($schemas, $statements): void {
     $schemas = $schemas();
     $schemas['main']['schema_roots'] = 'wp_options';
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, $statements()));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookiePlan::plan($schemas, $statements()));
 };
 
 return $tests;

@@ -7510,7 +7510,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,drained_current_pages?:int,resume_source_signature?:string,savepoint_action?:string,restart_cursor?:string,current_source_epoch?:int,snapshot_token?:string,expected_snapshot_token?:string,current_schema_cookie?:int,expected_current_schema_cookie?:int,current_source_generation?:string,expected_current_source_generation?:string,trigger_source_generation?:string,expected_trigger_source_generation?:string,returning_cursor_generation?:string,nested_epoch?:string,expected_nested_epoch?:string,drained_nested_depths?:list<int>,required_nested_depths?:list<int>,outer_publish_requested?:bool,current_watermark?:string,expected_current_watermark?:string,acknowledged_current_ordinals?:list<int>,auto_ack_current_ordinals?:bool,require_contiguous_ordinals?:bool,fingerprint_salt?:string,expected_fingerprint_salt?:string,acknowledged_current_fingerprints?:list<string>,auto_ack_current_fingerprints?:bool,require_fingerprint_order?:bool} $options
      * @return array<string,mixed>
      */
-    public static function executeNext191(
+    public static function executeCurrentSourceFingerprintFence(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -7519,8 +7519,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $salt = self::tokenNext191((string) ($options['fingerprint_salt'] ?? 'wp.recursive.view.returning.fingerprint.191'), 'fingerprint salt');
-        $expectedSalt = self::tokenNext191((string) ($options['expected_fingerprint_salt'] ?? $salt), 'expected fingerprint salt');
+        $salt = self::currentSourceFingerprintToken((string) ($options['fingerprint_salt'] ?? 'wp.recursive.view.returning.fingerprint.191'), 'fingerprint salt');
+        $expectedSalt = self::currentSourceFingerprintToken((string) ($options['expected_fingerprint_salt'] ?? $salt), 'expected fingerprint salt');
         $requireOrder = (bool) ($options['require_fingerprint_order'] ?? true);
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext188(
@@ -7536,21 +7536,21 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $currentRows = self::rowsNext191($base['current_watermark_rows_next188'] ?? [], 'current rows');
-        $nextRows = self::dedupeRowsNext191(array_merge(
-            self::rowsNext191($base['attempted_next_watermark_rows_next188'] ?? [], 'attempted next rows'),
-            self::rowsNext191($base['blocked_next_source_rows_next188'] ?? [], 'blocked next rows'),
+        $currentRows = self::currentSourceFingerprintRows($base['current_watermark_rows_next188'] ?? [], 'current rows');
+        $nextRows = self::dedupeCurrentSourceFingerprintRows(array_merge(
+            self::currentSourceFingerprintRows($base['attempted_next_watermark_rows_next188'] ?? [], 'attempted next rows'),
+            self::currentSourceFingerprintRows($base['blocked_next_source_rows_next188'] ?? [], 'blocked next rows'),
         ));
-        $required = self::fingerprintsNext191($currentRows, $salt);
-        $acknowledged = self::acknowledgedFingerprintsNext191($options, $required);
+        $required = self::currentSourceFingerprints($currentRows, $salt);
+        $acknowledged = self::acknowledgedCurrentSourceFingerprints($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
-        $orderMatches = !$requireOrder || self::orderedNext191($required, $acknowledged);
+        $orderMatches = !$requireOrder || self::currentSourceFingerprintOrderMatches($required, $acknowledged);
         $saltMatches = hash_equals($salt, $expectedSalt);
         $basePublishAllowed = (bool) ($base['next_source_publish_allowed_next188'] ?? false);
         $fingerprintFenceClear = $missing === [] && $unexpected === [] && $orderMatches;
         $publishNext = $basePublishAllowed && $saltMatches && $fingerprintFenceClear;
-        $blockedReasons = self::blockedReasonsNext191(
+        $blockedReasons = self::currentSourceFingerprintBlockedReasons(
             $base['blocked_reasons_next188'] ?? [],
             $basePublishAllowed,
             $saltMatches,
@@ -7560,8 +7560,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $currentTagged = self::tagRowsNext191($currentRows, 'current', true, $salt, $required, []);
-        $nextTagged = self::tagRowsNext191($nextRows, 'next', $publishNext, $salt, [], $blockedReasons);
+        $currentTagged = self::tagCurrentSourceFingerprintRows($currentRows, 'current', true, $salt, $required, []);
+        $nextTagged = self::tagCurrentSourceFingerprintRows($nextRows, 'next', $publishNext, $salt, [], $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentTagged, $nextTagged),
             static fn (array $row): bool => $row['visible_after_current_fingerprint_next191']
@@ -7572,7 +7572,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ));
 
         return $base + [
-            'status_next191' => self::statusNext191($basePublishAllowed, $saltMatches, $fingerprintFenceClear, $publishNext),
+            'status_next191' => self::currentSourceFingerprintStatus($basePublishAllowed, $saltMatches, $fingerprintFenceClear, $publishNext),
             'fingerprint_salt_next191' => $salt,
             'expected_fingerprint_salt_next191' => $expectedSalt,
             'fingerprint_salt_matches_next191' => $saltMatches,
@@ -7626,7 +7626,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function fingerprintsNext191(array $rows, string $salt): array
+    private static function currentSourceFingerprints(array $rows, string $salt): array
     {
         $fingerprints = [];
         foreach ($rows as $index => $row) {
@@ -7652,20 +7652,20 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedFingerprintsNext191(array $options, array $required): array
+    private static function acknowledgedCurrentSourceFingerprints(array $options, array $required): array
     {
         if (($options['auto_ack_current_fingerprints'] ?? false) === true) {
             return $required;
         }
 
-        return self::fingerprintListNext191($options['acknowledged_current_fingerprints'] ?? [], 'acknowledged current fingerprints');
+        return self::currentSourceFingerprintList($options['acknowledged_current_fingerprints'] ?? [], 'acknowledged current fingerprints');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function fingerprintListNext191(mixed $values, string $label): array
+    private static function currentSourceFingerprintList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next191 {$label} must be a list");
@@ -7683,7 +7683,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $required
      * @param list<string> $acknowledged
      */
-    private static function orderedNext191(array $required, array $acknowledged): bool
+    private static function currentSourceFingerprintOrderMatches(array $required, array $acknowledged): bool
     {
         return $required === $acknowledged;
     }
@@ -7694,7 +7694,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext191(array $rows, string $phase, bool $visible, string $salt, array $fingerprints, array $reasons): array
+    private static function tagCurrentSourceFingerprintRows(array $rows, string $phase, bool $visible, string $salt, array $fingerprints, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -7714,7 +7714,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext191(mixed $rows, string $label): array
+    private static function currentSourceFingerprintRows(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next191 {$label} are malformed");
@@ -7732,7 +7732,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function dedupeRowsNext191(array $rows): array
+    private static function dedupeCurrentSourceFingerprintRows(array $rows): array
     {
         $seen = [];
         $out = [];
@@ -7754,7 +7754,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext191(
+    private static function currentSourceFingerprintBlockedReasons(
         mixed $baseReasons,
         bool $basePublishAllowed,
         bool $saltMatches,
@@ -7786,7 +7786,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext191(bool $basePublishAllowed, bool $saltMatches, bool $fingerprintFenceClear, bool $publishNext): string
+    private static function currentSourceFingerprintStatus(bool $basePublishAllowed, bool $saltMatches, bool $fingerprintFenceClear, bool $publishNext): string
     {
         if ($publishNext) {
             return 'trigger-recursive-view-returning-current-source-fingerprints-released-next191';
@@ -7804,7 +7804,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-fingerprints-pending-next191';
     }
 
-    private static function tokenNext191(string $value, string $label): string
+    private static function currentSourceFingerprintToken(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@\\/-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next191 {$label} is malformed");
@@ -8685,7 +8685,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $expectedResumeToken = self::tokenForSourceResume((string) ($options['expected_next_resume_token_source_resume'] ?? $resumeToken), 'expected next resume token');
         $requireOrder = (bool) ($options['require_receipt_order_source_resume'] ?? true);
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext191(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceFingerprintFence(
             $rows,
             $currentInput,
             $nextInput,

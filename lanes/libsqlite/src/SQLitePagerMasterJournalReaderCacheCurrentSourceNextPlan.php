@@ -162,7 +162,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
 
         if (count($args) < 457) {
-            return self::variantNext686(...$args);
+            return self::currentSourceVdbeVirtualTableOpcodeBranchHandoff(...$args);
         }
 
         if (count($args) < 473) {
@@ -31483,201 +31483,36 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext671(mixed ...$args): array
+    public static function currentSourceVdbeVirtualTableOpcodeBranchHandoff(mixed ...$args): array
     {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next671 requires stmt-vdbe-journal-mode-branch-handoff token');
+        $base = self::applyReaderCacheFenceSequence(self::variantNext670(...array_slice($args, 0, -16)), $args, self::vdbeVirtualTableOpcodeBranchHandoffSpecs());
+        $base['status'] = 'pager-master-journal-reader-cache-vdbe-virtual-table-opcode-branch-handoff';
+        foreach ($base['operations'] as &$operation) {
+            if (isset($operation['op']) && is_string($operation['op'])) {
+                $operation['op'] = str_replace('current_source_next' . 686, 'vdbe_virtual_table_opcode_branch_handoff', $operation['op']);
+            }
         }
-        $base = self::variantNext670(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_token', $currentToken, 671, 'reader_cache_stmt_vdbe_journal_mode_branch_handoff', 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_must_match_current_stmt_vdbe_journal_mode_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext672(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next672 requires stmt-vdbe-vacuum-branch-handoff token');
+        unset($operation);
+        foreach ($base['next_reads'] as &$read) {
+            if (isset($read['source']) && is_string($read['source'])) {
+                $read['source'] = str_replace('current-source-next' . 686, 'vdbe-virtual-table-opcode-branch-handoff', $read['source']);
+            }
         }
-        $base = self::variantNext671(...$args);
+        unset($read);
+        $base['dependencies'] = array_values(array_filter(
+            $base['dependencies'],
+            static fn (string $dependency): bool => !str_ends_with($dependency, '-current-source-next' . 686),
+        ));
+        $base['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-vdbe-virtual-table-opcode-branch-handoff';
+        $base['non_overlap'] = 'VDBE virtual-table opcode branch handoff fences reader-cache reuse after accepted pager reader-cache current-source gates; it does not repeat earlier reader-cache source, recovery receipt, snapshot, generation, rollback-source, WAL, VFS, B-tree, JSON, SQL executor, PRAGMA, trigger, or encoding behavior.';
 
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_handoff_token', $currentToken, 672, 'reader_cache_stmt_vdbe_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_vacuum_branch_handoff_must_match_current_stmt_vdbe_vacuum_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext673(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next673 requires stmt-vdbe-incr-vacuum-branch-handoff token');
-        }
-        $base = self::variantNext672(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token', $currentToken, 673, 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_must_match_current_stmt_vdbe_incr_vacuum_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext674(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next674 requires stmt-vdbe-expire-branch-handoff token');
-        }
-        $base = self::variantNext673(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_handoff_token', $currentToken, 674, 'reader_cache_stmt_vdbe_expire_branch_handoff', 'reader_cache_stmt_vdbe_expire_branch_handoff_must_match_current_stmt_vdbe_expire_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext675(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next675 requires stmt-vdbe-table-lock-branch-handoff token');
-        }
-        $base = self::variantNext674(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_handoff_token', $currentToken, 675, 'reader_cache_stmt_vdbe_table_lock_branch_handoff', 'reader_cache_stmt_vdbe_table_lock_branch_handoff_must_match_current_stmt_vdbe_table_lock_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext676(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next676 requires stmt-vdbe-vbegin-branch-handoff token');
-        }
-        $base = self::variantNext675(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_handoff_token', $currentToken, 676, 'reader_cache_stmt_vdbe_vbegin_branch_handoff', 'reader_cache_stmt_vdbe_vbegin_branch_handoff_must_match_current_stmt_vdbe_vbegin_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext677(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next677 requires stmt-vdbe-vcreate-branch-handoff token');
-        }
-        $base = self::variantNext676(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_handoff_token', $currentToken, 677, 'reader_cache_stmt_vdbe_vcreate_branch_handoff', 'reader_cache_stmt_vdbe_vcreate_branch_handoff_must_match_current_stmt_vdbe_vcreate_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext678(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next678 requires stmt-vdbe-vdestroy-branch-handoff token');
-        }
-        $base = self::variantNext677(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_token', $currentToken, 678, 'reader_cache_stmt_vdbe_vdestroy_branch_handoff', 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_must_match_current_stmt_vdbe_vdestroy_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext679(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next679 requires stmt-vdbe-vopen-branch-handoff token');
-        }
-        $base = self::variantNext678(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_handoff_token', $currentToken, 679, 'reader_cache_stmt_vdbe_vopen_branch_handoff', 'reader_cache_stmt_vdbe_vopen_branch_handoff_must_match_current_stmt_vdbe_vopen_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext680(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next680 requires stmt-vdbe-vfilter-branch-handoff token');
-        }
-        $base = self::variantNext679(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_handoff_token', $currentToken, 680, 'reader_cache_stmt_vdbe_vfilter_branch_handoff', 'reader_cache_stmt_vdbe_vfilter_branch_handoff_must_match_current_stmt_vdbe_vfilter_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext681(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next681 requires stmt-vdbe-vcolumn-branch-handoff token');
-        }
-        $base = self::variantNext680(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_token', $currentToken, 681, 'reader_cache_stmt_vdbe_vcolumn_branch_handoff', 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_must_match_current_stmt_vdbe_vcolumn_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext682(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next682 requires stmt-vdbe-vnext-branch-handoff token');
-        }
-        $base = self::variantNext681(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_handoff_token', $currentToken, 682, 'reader_cache_stmt_vdbe_vnext_branch_handoff', 'reader_cache_stmt_vdbe_vnext_branch_handoff_must_match_current_stmt_vdbe_vnext_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext683(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next683 requires stmt-vdbe-vrename-branch-handoff token');
-        }
-        $base = self::variantNext682(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_handoff_token', $currentToken, 683, 'reader_cache_stmt_vdbe_vrename_branch_handoff', 'reader_cache_stmt_vdbe_vrename_branch_handoff_must_match_current_stmt_vdbe_vrename_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext684(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next684 requires stmt-vdbe-pagecount-branch-handoff token');
-        }
-        $base = self::variantNext683(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_handoff_token', $currentToken, 684, 'reader_cache_stmt_vdbe_pagecount_branch_handoff', 'reader_cache_stmt_vdbe_pagecount_branch_handoff_must_match_current_stmt_vdbe_pagecount_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext685(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next685 requires stmt-vdbe-maxpgcnt-branch-handoff token');
-        }
-        $base = self::variantNext684(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_token', $currentToken, 685, 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff', 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_must_match_current_stmt_vdbe_maxpgcnt_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext686(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next686 requires stmt-vdbe-opcode-trace-branch-handoff token');
-        }
-        $base = self::variantNext685(...$args);
-
-        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token', $currentToken, 686, 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff', 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_must_match_current_stmt_vdbe_opcode_trace_branch_handoff_state');
+        return $base;
     }
 
     /** @return array<string,mixed> */
     public static function currentSourceVdbeOpcodeBranchHandoffFence(mixed ...$args): array
     {
-        $base = self::applyReaderCacheFenceSequence(self::variantNext686(...array_slice($args, 0, -16)), $args, self::vdbeOpcodeBranchHandoffFenceSpecs());
+        $base = self::applyReaderCacheFenceSequence(self::currentSourceVdbeVirtualTableOpcodeBranchHandoff(...array_slice($args, 0, -16)), $args, self::vdbeOpcodeBranchHandoffFenceSpecs());
         $base['status'] = 'pager-master-journal-reader-cache-vdbe-opcode-branch-handoff-fence';
         foreach ($base['operations'] as &$operation) {
             if (isset($operation['op']) && is_string($operation['op'])) {
@@ -31705,6 +31540,29 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     public static function currentSourceVdbeLiteralArithmeticBranchFence(mixed ...$args): array
     {
         return self::applyReaderCacheFenceSequence(self::currentSourceVdbeOpcodeBranchHandoffFence(...array_slice($args, 0, -16)), $args, self::vdbeLiteralArithmeticBranchFenceSpecs());
+    }
+
+    /** @return list<array{field:string,label:string,ordinal:int,reason:string}> */
+    private static function vdbeVirtualTableOpcodeBranchHandoffSpecs(): array
+    {
+        return [
+            ['field' => 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_journal_mode_branch_handoff', 'ordinal' => 671, 'reason' => 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_must_match_current_stmt_vdbe_journal_mode_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_vacuum_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_vacuum_branch_handoff', 'ordinal' => 672, 'reason' => 'reader_cache_stmt_vdbe_vacuum_branch_handoff_must_match_current_stmt_vdbe_vacuum_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff', 'ordinal' => 673, 'reason' => 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_must_match_current_stmt_vdbe_incr_vacuum_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_expire_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_expire_branch_handoff', 'ordinal' => 674, 'reason' => 'reader_cache_stmt_vdbe_expire_branch_handoff_must_match_current_stmt_vdbe_expire_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_table_lock_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_table_lock_branch_handoff', 'ordinal' => 675, 'reason' => 'reader_cache_stmt_vdbe_table_lock_branch_handoff_must_match_current_stmt_vdbe_table_lock_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_vbegin_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_vbegin_branch_handoff', 'ordinal' => 676, 'reason' => 'reader_cache_stmt_vdbe_vbegin_branch_handoff_must_match_current_stmt_vdbe_vbegin_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_vcreate_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_vcreate_branch_handoff', 'ordinal' => 677, 'reason' => 'reader_cache_stmt_vdbe_vcreate_branch_handoff_must_match_current_stmt_vdbe_vcreate_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_vdestroy_branch_handoff', 'ordinal' => 678, 'reason' => 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_must_match_current_stmt_vdbe_vdestroy_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_vopen_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_vopen_branch_handoff', 'ordinal' => 679, 'reason' => 'reader_cache_stmt_vdbe_vopen_branch_handoff_must_match_current_stmt_vdbe_vopen_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_vfilter_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_vfilter_branch_handoff', 'ordinal' => 680, 'reason' => 'reader_cache_stmt_vdbe_vfilter_branch_handoff_must_match_current_stmt_vdbe_vfilter_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_vcolumn_branch_handoff', 'ordinal' => 681, 'reason' => 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_must_match_current_stmt_vdbe_vcolumn_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_vnext_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_vnext_branch_handoff', 'ordinal' => 682, 'reason' => 'reader_cache_stmt_vdbe_vnext_branch_handoff_must_match_current_stmt_vdbe_vnext_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_vrename_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_vrename_branch_handoff', 'ordinal' => 683, 'reason' => 'reader_cache_stmt_vdbe_vrename_branch_handoff_must_match_current_stmt_vdbe_vrename_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_pagecount_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_pagecount_branch_handoff', 'ordinal' => 684, 'reason' => 'reader_cache_stmt_vdbe_pagecount_branch_handoff_must_match_current_stmt_vdbe_pagecount_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff', 'ordinal' => 685, 'reason' => 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_must_match_current_stmt_vdbe_maxpgcnt_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token', 'label' => 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff', 'ordinal' => 686, 'reason' => 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_must_match_current_stmt_vdbe_opcode_trace_branch_handoff_state'],
+        ];
     }
 
     /** @return list<array{field:string,label:string,ordinal:int,reason:string}> */
