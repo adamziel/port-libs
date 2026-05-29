@@ -8,6 +8,34 @@ Worktree: `{{WORKTREE}}`
 Main repo for handoff artifacts only: `{{MAIN_REPO}}`
 Supervisor log: `{{LOG_FILE}}`
 
+Current supervisor override, 2026-05-29 11:20 UTC:
+
+- Exact `CurrentSourceNext150` production-source names are gone and pushed.
+  Do not reintroduce `CurrentSourceNext150`, `CurrentSourceNext150Plan.php`,
+  or any numbered production class/file/helper name that differs only by a
+  worker number.
+- The latest accepted consolidation commit removed all generated numbered
+  production class declarations, standalone `CurrentNextNNPlan.php` files, and
+  numbered `CurrentSourceNextNN` production filenames. Remaining consolidation
+  work is the broad set of numbered method/helper wrappers inside canonical
+  production files.
+- If your slice name starts with `consolidate-`, work on that consolidation
+  target immediately. Remove remaining numbered production methods/helpers in
+  the assigned family, migrate direct callers/tests/examples to stable
+  descriptive unsuffixed names, and preserve focused tests.
+- If your slice is not a consolidation slice, work on the assigned libsqlite
+  functional/test-coverage slice immediately. Add behavior-backed PHP
+  implementation, direct tests, and a WordPress example or smoke path where
+  appropriate.
+- Do not create any production class, production file, or production helper
+  whose name differs only by a numeric suffix such as `Next123`,
+  `CurrentNext123`, or `CurrentSourceNext123`. Use stable descriptive names.
+- Run `php -l` for changed PHP files, focused `php tools/run-tests.php ...`
+  for changed libsqlite tests, changed examples with `--self-test` when
+  available, and `git diff --check -- lanes/libsqlite`.
+- Exit with a real lane patch. Do not sleep, wait, loop forever, or produce
+  status-only/dashboard-only/manifest-only handoffs.
+
 Current supervisor override, 2026-05-28 05:55 UTC:
 
 - The launcher-printed `Base accepted HEAD` is authoritative. The current
