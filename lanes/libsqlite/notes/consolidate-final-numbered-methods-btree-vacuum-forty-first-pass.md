@@ -7,7 +7,7 @@ freelist handoff range tests/examples into stable descriptive files:
 - `wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff.php`
 
 The test still covers every handoff slice from 1151 through 1182 through the
-canonical `tableLeafFromDeleteResultForCurrentSourceFreelistHandoff()` entrypoint.
+canonical `tableLeafCurrentSourceFreelistHandoffFromDeleteResult()` entrypoint.
 No numbered production class, file, or helper was added.
 
 Verification:

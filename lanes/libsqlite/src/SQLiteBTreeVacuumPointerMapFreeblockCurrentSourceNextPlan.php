@@ -749,13 +749,9 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan
     /**
      * @param array<string, mixed> $deleteResult
      */
-    public static function tableLeafFromDeleteResultForCurrentSourceFreelistHandoff(int $sliceNumber, SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    public static function tableLeafCurrentSourceFreelistHandoffFromDeleteResult(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
     {
-        if ($sliceNumber < 447 || $sliceNumber > 1182) {
-            throw new \InvalidArgumentException('Current-source freelist handoff slice must be between 447 and 1182.');
-        }
-
-        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice($sliceNumber, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSourceVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
     }
 
 
@@ -8582,21 +8578,22 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistSpliceVaria
 
 final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSourceVariant
 {
+    private const FREELIST_SPLICE_BASELINE = 447;
+    private const HANDOFF_NAME = 'current-source-freelist-handoff';
+
     /**
      * @param list<array<string, mixed>> $currentSourceRows
      */
     private function __construct(
         public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistSpliceVariant $freelistPlan,
         private readonly array $currentSourceRows,
-        private readonly int $sliceNumber,
     ) {
     }
 
     /**
      * @param array<string, mixed> $deleteResult
      */
-    public static function tableLeafFromDeleteResultForSlice(
-        int $sliceNumber,
+    public static function tableLeafFromDeleteResult(
         SQLiteDatabase $database,
         int $leafPageNumber,
         array $deleteResult,
@@ -8606,12 +8603,8 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSour
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        if ($sliceNumber < 447 || $sliceNumber > 1182) {
-            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock current-source slice must be next447 through next1182');
-        }
-
         return self::fromFreelistPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(
-            $sliceNumber,
+            self::FREELIST_SPLICE_BASELINE,
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -8620,18 +8613,18 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSour
             $parentBtreePageNumber,
             $secureDelete,
             $batchSize,
-        ), $sliceNumber);
+        ));
     }
 
-    public static function fromFreelistPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistSpliceVariant $freelistPlan, int $sliceNumber): self
+    public static function fromFreelistPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistSpliceVariant $freelistPlan): self
     {
-        $rows = self::buildCurrentSourceRows($freelistPlan, $sliceNumber);
-        $errors = self::currentSourceErrorsForRows($rows, $sliceNumber);
+        $rows = self::buildCurrentSourceRows($freelistPlan);
+        $errors = self::currentSourceErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException("SQLite b-tree vacuum pointer-map freeblock current-source next{$sliceNumber} handoff failed: " . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source freelist handoff failed: ' . implode('; ', $errors));
         }
 
-        return new self($freelistPlan, $rows, $sliceNumber);
+        return new self($freelistPlan, $rows);
     }
 
     /**
@@ -8647,7 +8640,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSour
      */
     public function currentSourceErrors(): array
     {
-        return self::currentSourceErrorsForRows($this->currentSourceRows, $this->sliceNumber);
+        return self::currentSourceErrorsForRows($this->currentSourceRows);
     }
 
     /**
@@ -8682,7 +8675,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSour
         $freelistSummary = $this->freelistPlan->freelistSummary();
 
         return [
-            'status' => "btree-vacuum-pointermap-freeblock-current-source-next{$this->sliceNumber}-ready",
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-freelist-handoff-ready',
             'current_source_row_count' => count($this->currentSourceRows),
             'current_source_pages' => $this->currentSourcePages(),
             'current_source_leaf_pages' => $this->currentSourceLeafPages(),
@@ -8696,17 +8689,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSour
             'all_current_source_links_valid' => !in_array(false, array_column($this->currentSourceRows, 'current_source_link_valid'), true),
             'current_source_errors' => $this->currentSourceErrors(),
             'current_source_signature' => self::signature($this->currentSourceTokens()),
-            "current_source_next{$this->sliceNumber}_token" => self::signature(array_merge(
-                ["next{$this->sliceNumber}", $freelistSummary["current_source_next{$this->sliceNumber}_token"]],
+            'current_source_freelist_handoff_token' => self::signature(array_merge(
+                [self::HANDOFF_NAME, $freelistSummary['current_source_next447_token']],
                 $this->currentSourcePages(),
                 $this->currentSourceTokens(),
             )),
             'dependencies' => [
                 'sqlite-btree-vacuum-pointermap-freeblock-current-source-next431-446',
-                "sqlite-current-source-next{$this->sliceNumber}",
+                'sqlite-current-source-freelist-handoff',
             ],
-            'dependency_closure' => "no new support component needed; next{$this->sliceNumber} reuses the next431-446 freelist splice shape and publishes current-source handoff receipts only",
-            'non_overlap' => "adds current-source handoff receipts after next431-446 freelist splice admission; does not repeat next{$this->sliceNumber} freelist splice construction, next261 vacuum finalization, next259 source-next links, overflow release, page relocation, root collapse, VFS, WAL, JSON, SQL, or encoding behavior",
+            'dependency_closure' => 'no new support component needed; current-source freelist handoff reuses the existing freelist splice shape and publishes current-source handoff receipts only',
+            'non_overlap' => 'adds current-source handoff receipts after freelist splice admission; does not repeat freelist splice construction, vacuum finalization, source-link construction, overflow release, page relocation, root collapse, VFS, WAL, JSON, SQL, or encoding behavior',
         ];
     }
 
@@ -8716,7 +8709,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSour
     public function toArray(): array
     {
         return [
-            'action' => "btree-vacuum-pointermap-freeblock-current-source-next{$this->sliceNumber}",
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-freelist-handoff',
             'current_source_summary' => $this->currentSourceSummary(),
             'current_source_errors' => $this->currentSourceErrors(),
             'current_source_rows' => $this->currentSourceRows,
@@ -8743,7 +8736,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSour
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildCurrentSourceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistSpliceVariant $freelistPlan, int $sliceNumber): array
+    private static function buildCurrentSourceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistSpliceVariant $freelistPlan): array
     {
         $rows = [];
         $previousToken = null;
@@ -8764,7 +8757,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSour
             }
 
             $token = self::signature(array_merge(
-                ["next{$sliceNumber}", $ordinal, $previousToken ?? 'initial', $freelistRow['freelist_token']],
+                [self::HANDOFF_NAME, $ordinal, $previousToken ?? 'initial', $freelistRow['freelist_token']],
                 [$pageNumber, $channel, $activeTrunkPage, (int) $freelistRow['trunk_slot_ordinal']],
                 self::sortedIntKeys($publishedTrunks),
                 self::sortedIntKeys($publishedLeafPages),
@@ -8783,7 +8776,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSour
                 'leaf_receipt_current_at_source' => $isTrunk || in_array($pageNumber, self::sortedIntKeys($publishedLeafPages), true),
                 'tail_page_excluded_from_source' => !in_array($pageNumber, [109, 110], true),
                 'current_source_link_valid' => $freelistRow['previous_freelist_token'] === ($freelistPlan->freelistRows()[$index - 1]['freelist_token'] ?? null),
-                'current_source_state' => "current-source-next{$sliceNumber}-handoff-ready",
+                'current_source_state' => 'current-source-freelist-handoff-ready',
                 'current_source_token' => $token,
             ];
 
@@ -8797,14 +8790,14 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistCurrentSour
      * @param list<array<string, mixed>> $rows
      * @return list<string>
      */
-    private static function currentSourceErrorsForRows(array $rows, int $sliceNumber): array
+    private static function currentSourceErrorsForRows(array $rows): array
     {
         $errors = [];
         $previousToken = null;
         $previousOrdinal = 0;
 
         foreach ($rows as $row) {
-            if ($row['current_source_state'] !== "current-source-next{$sliceNumber}-handoff-ready") {
+            if ($row['current_source_state'] !== 'current-source-freelist-handoff-ready') {
                 $errors[] = "current-source row {$row['current_source_ordinal']} is not handoff-ready";
             }
             if ((int) $row['current_source_ordinal'] !== $previousOrdinal + 1) {

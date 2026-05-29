@@ -1,6 +1,6 @@
 # B-tree Vacuum Numbered Method Consolidation Forty-Sixth Pass
 
-- Migrated the 991-1006 B-tree vacuum freelist handoff direct callers from dynamic numbered method-name construction to the stable `tableLeafFromDeleteResultForCurrentSourceFreelistHandoff()` entry point on `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`.
+- Migrated the 991-1006 B-tree vacuum freelist handoff direct callers from dynamic numbered method-name construction to the stable `tableLeafCurrentSourceFreelistHandoffFromDeleteResult()` entry point on `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`.
 - Folded the migrated range into the existing descriptive freelist-handoff focused test and WordPress smoke, preserving the existing 1135-1182 coverage while deleting the old numbered direct test/example filenames.
 - Dependency closure: no new support component is needed; this reuses the canonical B-tree vacuum current-source freelist handoff implementation already in production.
 

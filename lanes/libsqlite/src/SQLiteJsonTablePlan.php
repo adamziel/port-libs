@@ -7578,7 +7578,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{function:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,replanRequired:bool,replanReasons:list<string>,currentReaderPolicy:string,nextReaderPolicy:string,leftJoin:bool,dependencies:list<string>}
      */
-    public static function lateralHiddenPlannerCurrentSourceNext90(
+    public static function lateralHiddenPlanner(
         array $currentHostRows,
         array $nextHostRows,
         string $jsonColumn,
@@ -7635,8 +7635,8 @@ final class SQLiteJsonTablePlan
                     $rootColumn,
                     $orderBy,
                 );
-                $currentPlan = self::lateralHiddenHostPlan90($index, $currentRow, $pair, 'current', $joinType);
-                $nextPlan = self::lateralHiddenHostPlan90($index, $nextRow, $pair, 'next', $joinType);
+                $currentPlan = self::lateralHiddenHostPlan($index, $currentRow, $pair, 'current', $joinType);
+                $nextPlan = self::lateralHiddenHostPlan($index, $nextRow, $pair, 'next', $joinType);
             } elseif ($currentRow !== null) {
                 $single = self::currentSourceHiddenConstraintPlannerNext88(
                     $function,
@@ -7647,7 +7647,7 @@ final class SQLiteJsonTablePlan
                     $rootColumn,
                     $orderBy,
                 );
-                $currentPlan = self::lateralHiddenHostPlan90($index, $currentRow, $single, 'current', $joinType);
+                $currentPlan = self::lateralHiddenHostPlan($index, $currentRow, $single, 'current', $joinType);
                 $nextPlan = null;
             } else {
                 $single = self::currentSourceHiddenConstraintPlannerNext88(
@@ -7660,7 +7660,7 @@ final class SQLiteJsonTablePlan
                     $orderBy,
                 );
                 $currentPlan = null;
-                $nextPlan = self::lateralHiddenHostPlan90($index, $nextRow, $single, 'next', $joinType);
+                $nextPlan = self::lateralHiddenHostPlan($index, $nextRow, $single, 'next', $joinType);
             }
 
             if ($currentPlan !== null) {
@@ -7670,7 +7670,7 @@ final class SQLiteJsonTablePlan
                 $next[] = $nextPlan;
             }
 
-            $reason = self::lateralHiddenTransitionReason90($currentPlan, $nextPlan, $pair);
+            $reason = self::lateralHiddenTransitionReason($currentPlan, $nextPlan, $pair);
             if ($reason !== 'stable-lateral-hidden-json-plan') {
                 $reasons[$reason] = true;
             }
@@ -7713,7 +7713,7 @@ final class SQLiteJsonTablePlan
             'leftJoin' => $joinType === 'left',
             'dependencies' => [
                 'sqlite-json-table-hidden-constraint-planner-current-source-next88',
-                'sqlite-json-table-lateral-hidden-planner-current-source-next90',
+                'sqlite-json-table-lateral-hidden-planner',
             ],
         ];
     }
@@ -7910,8 +7910,8 @@ final class SQLiteJsonTablePlan
                     $rootColumn,
                     $orderBy,
                 );
-                $currentPlan = self::lateralHiddenHostPlan90($currentEntry['ordinal'], $currentEntry['row'], $pair, 'current', $joinType);
-                $nextPlan = self::lateralHiddenHostPlan90($nextEntry['ordinal'], $nextEntry['row'], $pair, 'next', $joinType);
+                $currentPlan = self::lateralHiddenHostPlan($currentEntry['ordinal'], $currentEntry['row'], $pair, 'current', $joinType);
+                $nextPlan = self::lateralHiddenHostPlan($nextEntry['ordinal'], $nextEntry['row'], $pair, 'next', $joinType);
             } elseif ($currentEntry !== null) {
                 $single = self::currentSourceHiddenConstraintPlannerNext88(
                     $function,
@@ -7922,7 +7922,7 @@ final class SQLiteJsonTablePlan
                     $rootColumn,
                     $orderBy,
                 );
-                $currentPlan = self::lateralHiddenHostPlan90($currentEntry['ordinal'], $currentEntry['row'], $single, 'current', $joinType);
+                $currentPlan = self::lateralHiddenHostPlan($currentEntry['ordinal'], $currentEntry['row'], $single, 'current', $joinType);
                 $nextPlan = null;
             } else {
                 $single = self::currentSourceHiddenConstraintPlannerNext88(
@@ -7935,7 +7935,7 @@ final class SQLiteJsonTablePlan
                     $orderBy,
                 );
                 $currentPlan = null;
-                $nextPlan = self::lateralHiddenHostPlan90($nextEntry['ordinal'], $nextEntry['row'], $single, 'next', $joinType);
+                $nextPlan = self::lateralHiddenHostPlan($nextEntry['ordinal'], $nextEntry['row'], $single, 'next', $joinType);
             }
 
             if ($currentPlan !== null) {
@@ -7947,7 +7947,7 @@ final class SQLiteJsonTablePlan
                 $next[] = $nextPlan;
             }
 
-            $reason = self::lateralHiddenTransitionReason90($currentPlan, $nextPlan, $pair);
+            $reason = self::lateralHiddenTransitionReason($currentPlan, $nextPlan, $pair);
             if ($reason !== 'stable-lateral-hidden-json-plan') {
                 $reasons[$reason] = true;
             }
@@ -8001,7 +8001,7 @@ final class SQLiteJsonTablePlan
             'leftJoin' => $joinType === 'left',
             'dependencies' => [
                 'sqlite-json-table-hidden-constraint-planner-current-source-next88',
-                'sqlite-json-table-lateral-hidden-planner-current-source-next90',
+                'sqlite-json-table-lateral-hidden-planner',
                 'sqlite-json-table-lateral-hidden-constraint-current-source-next103',
             ],
         ];
@@ -8104,7 +8104,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{function:string,hostKeyColumn:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,hostOrderTransition:array{current:list<mixed>,next:list<mixed>,changed:bool},replanRequired:bool,replanReasons:list<string>,currentReaderPolicy:string,nextReaderPolicy:string,leftJoin:bool,dependencies:list<string>}
      */
-    public static function lateralConstraintHiddenCurrentSourceNext118(
+    public static function lateralConstraintHidden(
         array $currentHostRows,
         array $nextHostRows,
         string $hostKeyColumn,
@@ -8114,20 +8114,20 @@ final class SQLiteJsonTablePlan
         string $joinType = 'inner',
     ): array {
         if ($hostKeyColumn === '') {
-            throw new \InvalidArgumentException('SQLite JSON table lateral hidden current-source next118 requires a host key column');
+            throw new \InvalidArgumentException('SQLite JSON table lateral hidden constraint requires a host key column');
         }
         if ($constraintSources === []) {
-            throw new \InvalidArgumentException('SQLite JSON table lateral hidden current-source next118 requires constraint sources');
+            throw new \InvalidArgumentException('SQLite JSON table lateral hidden constraint requires constraint sources');
         }
 
         $function = self::normalizeFunction($function);
         $joinType = strtolower($joinType);
         if ($joinType !== 'inner' && $joinType !== 'left') {
-            throw new \InvalidArgumentException('SQLite JSON table lateral hidden current-source next118 join type must be inner or left');
+            throw new \InvalidArgumentException('SQLite JSON table lateral hidden constraint join type must be inner or left');
         }
 
-        $currentIndex = self::keyedHostRows118($currentHostRows, $hostKeyColumn, $constraintSources, 'current');
-        $nextIndex = self::keyedHostRows118($nextHostRows, $hostKeyColumn, $constraintSources, 'next');
+        $currentIndex = self::keyedConstraintSourceHostRows($currentHostRows, $hostKeyColumn, $constraintSources, 'current');
+        $nextIndex = self::keyedConstraintSourceHostRows($nextHostRows, $hostKeyColumn, $constraintSources, 'next');
         $hostKeys = array_values(array_unique(array_merge($currentIndex['keys'], $nextIndex['keys'])));
 
         $current = [];
@@ -8147,8 +8147,8 @@ final class SQLiteJsonTablePlan
                     $constraintSources,
                     $orderBy,
                 );
-                $currentPlan = self::lateralConstraintHiddenHostPlan118($currentEntry['ordinal'], $currentEntry['row'], $pair, 'current', $joinType);
-                $nextPlan = self::lateralConstraintHiddenHostPlan118($nextEntry['ordinal'], $nextEntry['row'], $pair, 'next', $joinType);
+                $currentPlan = self::lateralConstraintHiddenHostPlan($currentEntry['ordinal'], $currentEntry['row'], $pair, 'current', $joinType);
+                $nextPlan = self::lateralConstraintHiddenHostPlan($nextEntry['ordinal'], $nextEntry['row'], $pair, 'next', $joinType);
             } elseif ($currentEntry !== null) {
                 $single = self::hiddenConstraintSourceCurrentSource(
                     $function,
@@ -8157,7 +8157,7 @@ final class SQLiteJsonTablePlan
                     $constraintSources,
                     $orderBy,
                 );
-                $currentPlan = self::lateralConstraintHiddenHostPlan118($currentEntry['ordinal'], $currentEntry['row'], $single, 'current', $joinType);
+                $currentPlan = self::lateralConstraintHiddenHostPlan($currentEntry['ordinal'], $currentEntry['row'], $single, 'current', $joinType);
                 $nextPlan = null;
             } else {
                 $single = self::hiddenConstraintSourceCurrentSource(
@@ -8168,7 +8168,7 @@ final class SQLiteJsonTablePlan
                     $orderBy,
                 );
                 $currentPlan = null;
-                $nextPlan = self::lateralConstraintHiddenHostPlan118($nextEntry['ordinal'], $nextEntry['row'], $single, 'next', $joinType);
+                $nextPlan = self::lateralConstraintHiddenHostPlan($nextEntry['ordinal'], $nextEntry['row'], $single, 'next', $joinType);
             }
 
             if ($currentPlan !== null) {
@@ -8180,7 +8180,7 @@ final class SQLiteJsonTablePlan
                 $next[] = $nextPlan;
             }
 
-            $reason = self::lateralConstraintHiddenTransitionReason118($currentPlan, $nextPlan, $pair);
+            $reason = self::lateralConstraintHiddenTransitionReason($currentPlan, $nextPlan, $pair);
             if ($reason !== 'stable-lateral-hidden-current-source') {
                 $reasons[$reason] = true;
             }
@@ -8229,7 +8229,7 @@ final class SQLiteJsonTablePlan
             'leftJoin' => $joinType === 'left',
             'dependencies' => [
                 'sqlite-json-table-hidden-constraint-source-current-source-next102',
-                'sqlite-json-table-lateral-hidden-current-source-next118',
+                'sqlite-json-table-lateral-hidden-constraint',
             ],
         ];
     }
@@ -19347,7 +19347,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $pair
      * @return array<string,mixed>
      */
-    private static function lateralHiddenHostPlan90(
+    private static function lateralHiddenHostPlan(
         int $hostIndex,
         array $hostRow,
         array $pair,
@@ -19385,7 +19385,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed>|null $next
      * @param array<string,mixed>|null $pair
      */
-    private static function lateralHiddenTransitionReason90(?array $current, ?array $next, ?array $pair): string
+    private static function lateralHiddenTransitionReason(?array $current, ?array $next, ?array $pair): string
     {
         if ($current === null) {
             return 'next-lateral-hidden-host-row-added';
@@ -19514,7 +19514,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,sourceColumn?:string,value?:mixed,operator?:string,usable?:bool}> $constraintSources
      * @return array{keys:list<string>,values:list<mixed>,rows:array<string,array{ordinal:int,row:array<string,mixed>,value:mixed}>}
      */
-    private static function keyedHostRows118(
+    private static function keyedConstraintSourceHostRows(
         array $hostRows,
         string $hostKeyColumn,
         array $constraintSources,
@@ -19552,7 +19552,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $pair
      * @return array<string,mixed>
      */
-    private static function lateralConstraintHiddenHostPlan118(
+    private static function lateralConstraintHiddenHostPlan(
         int $hostIndex,
         array $hostRow,
         array $pair,
@@ -19588,7 +19588,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed>|null $next
      * @param array<string,mixed>|null $pair
      */
-    private static function lateralConstraintHiddenTransitionReason118(?array $current, ?array $next, ?array $pair): string
+    private static function lateralConstraintHiddenTransitionReason(?array $current, ?array $next, ?array $pair): string
     {
         if ($current === null) {
             return 'next-lateral-hidden-current-source-host-row-added';

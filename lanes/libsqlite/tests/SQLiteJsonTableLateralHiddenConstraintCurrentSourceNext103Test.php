@@ -115,7 +115,7 @@ $tests = [
     'normalizes json table function' => static fn (TestRunner $t) => $t->same('json_each', $plan103()['function']),
     'records host key column' => static fn (TestRunner $t) => $t->same('option_id', $plan103()['hostKeyColumn']),
     'records next103 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-lateral-hidden-constraint-current-source-next103', $plan103()['dependencies'], true)),
-    'preserves next90 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-lateral-hidden-planner-current-source-next90', $plan103()['dependencies'], true)),
+    'preserves lateral hidden dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-lateral-hidden-planner', $plan103()['dependencies'], true)),
     'preserves next88 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-hidden-constraint-planner-current-source-next88', $plan103()['dependencies'], true)),
     'marks left join mode' => static fn (TestRunner $t) => $t->same(true, $plan103()['leftJoin']),
     'pins current keyed reader policy' => static fn (TestRunner $t) => $t->same('pin-current-lateral-hidden-keyed-json-source-until-host-key-advances', $plan103()['currentReaderPolicy']),

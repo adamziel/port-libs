@@ -1,7 +1,7 @@
 # B-tree Vacuum Pointer-map Freeblock Freelist Handoff Consolidation
 
 - Folded the direct 1135-1150 freelist handoff test/example coverage into the stable unsuffixed freelist handoff files, preserving the existing 1151-1182 coverage in the same direct caller.
-- Kept callers on the canonical `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultForCurrentSourceFreelistHandoff()` entrypoint.
+- Kept callers on the canonical `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafCurrentSourceFreelistHandoffFromDeleteResult()` entrypoint.
 - Dependency closure: no new support component needed; this is consolidation-only cleanup for direct test/example references.
 
 Verification:

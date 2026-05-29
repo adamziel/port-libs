@@ -304,7 +304,7 @@ final class SQLiteAttachWalTempViewCachePlan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
      * @return array<string,mixed>
      */
-    public static function triggerProgramCacheCurrentSourceNext(
+    public static function triggerProgramCacheRepreparePlan(
         SQLiteAttachedSchemaCatalog $catalog,
         array $triggers,
         array $nextSchemaRecords = [],
@@ -378,7 +378,7 @@ final class SQLiteAttachWalTempViewCachePlan
 
         return [
             'status' => 'planned',
-            'operation' => 'attach-temp-wal-trigger-cache-current-source',
+            'operation' => 'attach-temp-wal-trigger-cache-reprepare',
             'source_schema' => $source,
             'trigger_count' => count($triggers),
             'triggers' => $triggerPlans,
@@ -395,7 +395,7 @@ final class SQLiteAttachWalTempViewCachePlan
             'wal_schema_cookie_sources' => $schemaCookies['wal_sources'],
             'invalidation' => $invalidation,
             'dependencies' => [
-                'sqlite-attach-temp-wal-trigger-cache-current-source',
+                'sqlite-attach-temp-wal-trigger-cache-reprepare',
                 'sqlite-trigger-program-cache-reprepare',
                 'sqlite-wal-page-one-schema-cookie',
             ],

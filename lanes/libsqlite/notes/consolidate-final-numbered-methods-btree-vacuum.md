@@ -1,7 +1,7 @@
 2026-05-29 - consolidate final B-tree vacuum numbered methods
 
 Scope:
-- Consolidated the final `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` production freelist handoff coverage into `tableLeafFromDeleteResultForCurrentSourceFreelistHandoff()`.
+- Consolidated the final `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` production freelist handoff coverage into `tableLeafCurrentSourceFreelistHandoffFromDeleteResult()`.
 - Migrated the direct focused test and WordPress example for the final freelist handoff range to stable descriptive filenames.
 
 Verification:
