@@ -68,7 +68,7 @@ $tests = [];
 
 $tests['compound window recursive affinity current source cursor status'] = static fn (TestRunner $t) => $t->same('compound-window-recursive-affinity-current-source-cursor-ready', $page()['status']);
 $tests['compound window recursive affinity current source cursor dependencies'] = static fn (TestRunner $t) => $t->same([
-    'sqlite-compound-recursive-affinity-window-current-source-next142',
+    'sqlite-compound-recursive-affinity-window-current-source-source-boundary',
     'sqlite-compound-current-source-cursor-fence',
     'sqlite-recursive-union-affinity-page-boundary',
     'sqlite-window-before-compound-page-resume',
