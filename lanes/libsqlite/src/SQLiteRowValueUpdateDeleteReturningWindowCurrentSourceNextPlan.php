@@ -8370,6 +8370,171 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext281(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next281',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext280($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $receipt = [
+            'savepoint' => $savepoint,
+            'after_current_seal_next280' => $base['after_current_seal_next280']['after_current_seal_next280'],
+            'after_current_ready_next280' => $base['after_current_ready_next280'],
+            'retry_returning_count' => $base['retry_returning_count'],
+            'current_source_rows_after_release' => count($base['current_source_tables']['wp_options'] ?? []),
+        ];
+        $receipt['current_source_receipt_next281'] = hash('sha256', json_encode($receipt, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next281',
+            'current_source_receipt_next281' => $receipt,
+            'dependency_closure_next281' => 'no new support component needed; next281 records the next280 after-current seal with retry RETURNING and current-source row counts',
+            'dependencies_next281' => [
+                'sqlite-rowvalue-update-delete-returning-current-source-receipt-next281',
+                'sqlite-rowvalue-update-delete-returning-after-current-seal-next280',
+                'wordpress-rowvalue-update-delete-returning-current-source-receipt-next281',
+            ],
+            'non_overlap_next281' => 'adds a current-source receipt over the next280 seal and row counts; avoids DML execution, row comparison semantics, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and trigger surfaces',
+        ]);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext282(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next282',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext281($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $ledger = [
+            'savepoint' => $savepoint,
+            'current_source_receipt_next281' => $base['current_source_receipt_next281']['current_source_receipt_next281'],
+            'yielded_returning_count' => $base['yielded_returning_count'],
+            'suppressed_returning_count' => $base['suppressed_returning_count'],
+            'retry_returning_count' => $base['retry_returning_count'],
+            'changed_tables_after_release' => array_keys($base['changed_tables_after_release']),
+        ];
+        sort($ledger['changed_tables_after_release']);
+        $ledger['returning_window_ledger_next282'] = hash('sha256', json_encode($ledger, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next282',
+            'returning_window_ledger_next282' => $ledger,
+            'dependency_closure_next282' => 'no new support component needed; next282 adds a returning-window ledger for yielded, suppressed, and retried row-value streams',
+            'dependencies_next282' => [
+                'sqlite-rowvalue-update-delete-returning-window-ledger-next282',
+                'sqlite-rowvalue-update-delete-returning-current-source-receipt-next281',
+                'wordpress-rowvalue-update-delete-returning-window-ledger-next282',
+            ],
+            'non_overlap_next282' => 'adds ledger metadata over existing RETURNING stream counts and changed tables; avoids rebuilding DML execution, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and previous current-source slices',
+        ]);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext283(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next283',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext282($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $window = [
+            'savepoint' => $savepoint,
+            'returning_window_ledger_next282' => $base['returning_window_ledger_next282']['returning_window_ledger_next282'],
+            'retry_window_rows' => count($base['retry_window']),
+            'retry_window_ids' => array_column($base['retry_window'], 'option_id'),
+            'after_current_ready_next280' => $base['after_current_ready_next280'],
+        ];
+        $window['after_current_window_receipt_next283'] = hash('sha256', json_encode($window, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next283',
+            'after_current_window_receipt_next283' => $window,
+            'dependency_closure_next283' => 'no new support component needed; next283 records retry-window row coverage from the next282 ledger',
+            'dependencies_next283' => [
+                'sqlite-rowvalue-update-delete-returning-after-current-window-next283',
+                'sqlite-rowvalue-update-delete-returning-window-ledger-next282',
+                'wordpress-rowvalue-update-delete-returning-after-current-window-next283',
+            ],
+            'non_overlap_next283' => 'adds after-current retry-window metadata over the existing window rows; avoids DML execution, row comparison, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and trigger surfaces',
+        ]);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext284(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next284',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext283($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $seal = [
+            'savepoint' => $savepoint,
+            'current_source_receipt_next281' => $base['current_source_receipt_next281']['current_source_receipt_next281'],
+            'returning_window_ledger_next282' => $base['returning_window_ledger_next282']['returning_window_ledger_next282'],
+            'after_current_window_receipt_next283' => $base['after_current_window_receipt_next283']['after_current_window_receipt_next283'],
+            'after_current_ready_next280' => $base['after_current_ready_next280'],
+        ];
+        $seal['current_source_next284'] = hash('sha256', json_encode($seal, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next284',
+            'current_source_next284' => $seal,
+            'current_source_ready_next284' => $base['after_current_ready_next280'] === true
+                && $base['returning_window_ledger_next282']['retry_returning_count'] > 0
+                && $base['after_current_window_receipt_next283']['retry_window_rows'] > 0,
+            'dependency_closure_next284' => 'no new support component needed; next284 seals next281-283 receipts for the row-value UPDATE/DELETE RETURNING window current-source handoff',
+            'dependencies_next284' => [
+                'sqlite-rowvalue-update-delete-returning-current-source-next284',
+                'sqlite-rowvalue-update-delete-returning-after-current-window-next283',
+                'wordpress-rowvalue-update-delete-returning-current-source-next284',
+            ],
+            'non_overlap_next284' => 'adds the final next281-284 current-source seal over receipt, ledger, and retry-window metadata; avoids broad suite evidence, DML execution, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and prior row-value slices',
+        ]);
+    }
+
+    /**
      * @param list<array<string,mixed>> $checkpoints
      * @return array<string,mixed>
      */
