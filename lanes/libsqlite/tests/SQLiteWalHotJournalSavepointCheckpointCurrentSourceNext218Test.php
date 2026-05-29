@@ -216,6 +216,7 @@ $cases = [
     'operation verify present' => [static fn (): mixed => in_array('verify_restart_truncate_current_source_next218', $restart()['operation_names'], true), true],
     'operation publish present' => [static fn (): mixed => in_array('publish_wal_reset_current_source_next218', $restart()['operation_names'], true), true],
     'reset digest length' => [static fn (): mixed => strlen($restart()['reset_digest']), 64],
+    'dependency next212 inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next212', $restart()['dependencies'], true), true],
     'dependency next218' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next218', $restart()['dependencies'], true), true],
     'dependency restart truncate' => [static fn (): mixed => in_array('sqlite-wal-restart-truncate-after-hot-journal-savepoint-fence', $restart()['dependencies'], true), true],
     'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-checkpoint-reset-waits-for-current-source-reopen', $restart()['dependencies'], true), true],

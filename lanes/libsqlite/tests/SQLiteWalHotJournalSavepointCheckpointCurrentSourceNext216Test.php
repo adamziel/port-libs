@@ -157,6 +157,7 @@ $cases = [
     'operation verify present' => [static fn (): mixed => in_array('verify_reader_drain_before_restart_truncate_current_source_next216', $restart()['operation_names'], true), true],
     'operation restart present' => [static fn (): mixed => in_array('restart_wal_after_reader_drain_next216', $restart()['operation_names'], true), true],
     'checkpoint digest length' => [static fn (): mixed => strlen($restart()['checkpoint_digest']), 64],
+    'dependency next212 inherited' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next212', $restart()['dependencies'], true), true],
     'dependency next216' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next216', $restart()['dependencies'], true), true],
     'dependency drain' => [static fn (): mixed => in_array('sqlite-restart-truncate-after-hot-journal-reader-drain', $restart()['dependencies'], true), true],
     'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-checkpoint-reset-after-reader-drain', $restart()['dependencies'], true), true],
