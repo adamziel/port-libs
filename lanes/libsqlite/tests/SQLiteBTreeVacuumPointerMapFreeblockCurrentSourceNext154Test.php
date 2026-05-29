@@ -78,7 +78,7 @@ $plan154 = static function (int $maxTruncatedPages = 4, bool $mismatchedCurrentN
     $database = $database154($mismatchedCurrentNext);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext154(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafOverflowChainAuditFromDeleteResult(
         $database,
         3,
         [

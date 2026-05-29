@@ -73,7 +73,7 @@ $plan169 = static function (array $observedCurrentPages = []) use ($database169)
     $database = $database169();
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext169(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafCurrentSourceWriteGateFromDeleteResult(
         $database,
         3,
         [

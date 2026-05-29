@@ -75,7 +75,7 @@ $plan205 = static function (int $batchSize = 2): SQLiteBTreeVacuumPointerMapFree
     $database = $database205();
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext205(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFreeblockHandoffFromDeleteResult(
         $database,
         3,
         [

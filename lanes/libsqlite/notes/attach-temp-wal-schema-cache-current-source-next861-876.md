@@ -10,10 +10,10 @@ Validation:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCachePlan.php
-php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext845860Test.php
+php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCachePublishWindowTest.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheRolloutWindowTest.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next861-876.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext845860Test.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheRolloutWindowTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCachePublishWindowTest.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheRolloutWindowTest.php
 php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next861-876.php --self-test
 git diff --check
 ```

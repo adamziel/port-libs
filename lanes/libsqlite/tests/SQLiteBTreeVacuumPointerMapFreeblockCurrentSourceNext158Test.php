@@ -77,7 +77,7 @@ $plan158 = static function (?string $payload = null) use ($database158): SQLiteB
     $database = $database158();
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext158(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafVacuumAllocationFromDeleteResult(
         $database,
         3,
         [

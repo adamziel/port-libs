@@ -73,7 +73,7 @@ $plan157 = static function (int $maxTruncatedPages = 4) use ($database157): SQLi
     $database = $database157();
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext157(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafTransitionFromDeleteResult(
         $database,
         3,
         [

@@ -83,7 +83,7 @@ $database153 = static function () use ($makeFirstPage153, $fragmentedLeaf153, $p
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$plan153 = static fn (bool $secureDelete = true): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan => SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableAndIndexFromCurrentSourceDeleteResultsNext153(
+$plan153 = static fn (bool $secureDelete = true): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan => SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableAndIndexReleasedOverflowReuseFromCurrentSourceDeleteResults(
     $database153(),
     3,
     [
@@ -163,8 +163,8 @@ $cases153 = [
     'base action' => static fn (): mixed => $plan153()->toArray()['base_plan']['action'],
     'without secure delete preserves released table byte before reuse' => static fn (): mixed => substr($plan153(false)->basePlan->databaseAfterRelease->page(6), 4, 1),
     'without secure delete preserves released index byte before reuse' => static fn (): mixed => substr($plan153(false)->basePlan->databaseAfterRelease->page(9), 4, 1),
-    'no autovacuum rejected' => static fn (): mixed => $message153(static fn () => SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableAndIndexFromCurrentSourceDeleteResultsNext153(SQLiteDatabase::fromBytes(substr_replace($database153()->toBytes(), pack('N', 0), 52, 4)), 3, [['first_page' => 5, 'overflow_payload_bytes' => 1016]], [['obsolete_overflow_page_numbers' => [5, 6]], ['obsolete_overflow_page_numbers' => [8, 9]]], 3, 'x')),
-    'empty replacement rejected' => static fn (): mixed => $message153(static fn () => SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableAndIndexFromCurrentSourceDeleteResultsNext153($database153(), 3, [['first_page' => 5, 'overflow_payload_bytes' => 1016]], [['obsolete_overflow_page_numbers' => [5, 6]], ['obsolete_overflow_page_numbers' => [8, 9]]], 3, '')),
+    'no autovacuum rejected' => static fn (): mixed => $message153(static fn () => SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableAndIndexReleasedOverflowReuseFromCurrentSourceDeleteResults(SQLiteDatabase::fromBytes(substr_replace($database153()->toBytes(), pack('N', 0), 52, 4)), 3, [['first_page' => 5, 'overflow_payload_bytes' => 1016]], [['obsolete_overflow_page_numbers' => [5, 6]], ['obsolete_overflow_page_numbers' => [8, 9]]], 3, 'x')),
+    'empty replacement rejected' => static fn (): mixed => $message153(static fn () => SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableAndIndexReleasedOverflowReuseFromCurrentSourceDeleteResults($database153(), 3, [['first_page' => 5, 'overflow_payload_bytes' => 1016]], [['obsolete_overflow_page_numbers' => [5, 6]], ['obsolete_overflow_page_numbers' => [8, 9]]], 3, '')),
 ];
 
 $expected153 = [

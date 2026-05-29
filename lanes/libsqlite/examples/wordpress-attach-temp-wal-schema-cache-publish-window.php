@@ -61,7 +61,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['review-reader']['schema_transitions'][0]['next_schema'] === 'review');
     assert($plan['stable_statements'] === ['publish-done-reader', 'report-meta-reader', 'temp-notice-reader']);
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next845-860 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-publish-window self-test passed\n";
     return;
 }
 

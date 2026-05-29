@@ -10765,7 +10765,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext207(
+    public static function executeCurrentSourceDrainFence(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -10784,21 +10784,21 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentRows = self::rowsNext207($base['current_source_rows_next206'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext207($base['attempted_next_source_rows_next206'] ?? [], 'attempted next source rows');
+        $currentRows = self::rowsForCurrentSourceDrainFence($base['current_source_rows_next206'] ?? [], 'current source rows');
+        $nextRows = self::rowsForCurrentSourceDrainFence($base['attempted_next_source_rows_next206'] ?? [], 'attempted next source rows');
         $baseVisible = (bool) ($base['next_source_visible_after_yield_watermark_next206'] ?? false);
-        $drainToken = self::tokenNext207((string) ($options['current_returning_drain_token_next207'] ?? 'wp.current.returning.drain.207'), 'current drain token');
-        $expectedDrainToken = self::tokenNext207((string) ($options['expected_current_returning_drain_token_next207'] ?? $drainToken), 'expected current drain token');
-        $cursor = self::tokenNext207((string) ($options['current_returning_cursor_next207'] ?? 'wp.current.returning.cursor.207'), 'current returning cursor');
-        $statementToken = self::tokenNext207((string) ($options['returning_statement_token_next207'] ?? 'wp.recursive.view.returning.statement.207'), 'statement token');
-        $drainKeys = self::drainKeysNext207($currentRows, $drainToken, $cursor, $statementToken);
-        $acknowledgedDrainKeys = self::acknowledgedDrainKeysNext207($options, $drainKeys);
+        $drainToken = self::tokenForCurrentSourceDrainFence((string) ($options['current_returning_drain_token_next207'] ?? 'wp.current.returning.drain.207'), 'current drain token');
+        $expectedDrainToken = self::tokenForCurrentSourceDrainFence((string) ($options['expected_current_returning_drain_token_next207'] ?? $drainToken), 'expected current drain token');
+        $cursor = self::tokenForCurrentSourceDrainFence((string) ($options['current_returning_cursor_next207'] ?? 'wp.current.returning.cursor.207'), 'current returning cursor');
+        $statementToken = self::tokenForCurrentSourceDrainFence((string) ($options['returning_statement_token_next207'] ?? 'wp.recursive.view.returning.statement.207'), 'statement token');
+        $drainKeys = self::drainKeysForCurrentSourceDrainFence($currentRows, $drainToken, $cursor, $statementToken);
+        $acknowledgedDrainKeys = self::acknowledgedDrainKeysForCurrentSourceDrainFence($options, $drainKeys);
         $requireOrder = (bool) ($options['require_returning_drain_order_next207'] ?? true);
         $missing = array_values(array_diff($drainKeys, $acknowledgedDrainKeys));
         $unexpected = array_values(array_diff($acknowledgedDrainKeys, $drainKeys));
         $orderMatches = !$requireOrder || $drainKeys === $acknowledgedDrainKeys;
         $drainTokenMatches = hash_equals($drainToken, $expectedDrainToken);
-        $expectedCount = self::nonNegativeIntNext207($options['expected_current_returning_drain_count_next207'] ?? count($currentRows), 'expected current drain count');
+        $expectedCount = self::nonNegativeIntForCurrentSourceDrainFence($options['expected_current_returning_drain_count_next207'] ?? count($currentRows), 'expected current drain count');
         $countMatches = count($currentRows) === $expectedCount;
         $drainClear = $drainKeys !== []
             && $missing === []
@@ -10807,7 +10807,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             && $drainTokenMatches
             && $countMatches;
         $nextVisible = $baseVisible && $drainClear;
-        $blocked = self::blockedReasonsNext207(
+        $blocked = self::blockedReasonsForCurrentSourceDrainFence(
             $base['blocked_reasons_next206'] ?? [],
             $baseVisible,
             $drainTokenMatches,
@@ -10819,7 +10819,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         );
 
         $taggedCurrent = self::tagCurrentNextDrainRows($currentRows, $drainKeys, $drainToken, $cursor, $statementToken);
-        $taggedNext = self::tagNextNext207($nextRows, $nextVisible, $blocked, $drainToken, $cursor, $statementToken);
+        $taggedNext = self::tagNextSourceDrainRows($nextRows, $nextVisible, $blocked, $drainToken, $cursor, $statementToken);
         $visibleRows = array_values(array_filter(
             array_merge($taggedCurrent, $taggedNext),
             static fn (array $row): bool => (bool) $row['visible_after_current_drain_next207'],
@@ -10830,7 +10830,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ));
 
         return [
-            'status_next207' => self::statusNext207($nextVisible, $baseVisible, $drainTokenMatches, $countMatches, $missing, $unexpected, $orderMatches),
+            'status_next207' => self::statusForCurrentSourceDrainFence($nextVisible, $baseVisible, $drainTokenMatches, $countMatches, $missing, $unexpected, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next207' => $baseVisible,
@@ -10890,7 +10890,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function drainKeysNext207(array $rows, string $drainToken, string $cursor, string $statementToken): array
+    private static function drainKeysForCurrentSourceDrainFence(array $rows, string $drainToken, string $cursor, string $statementToken): array
     {
         $keys = [];
         foreach ($rows as $index => $row) {
@@ -10915,20 +10915,20 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedDrainKeysNext207(array $options, array $required): array
+    private static function acknowledgedDrainKeysForCurrentSourceDrainFence(array $options, array $required): array
     {
         if (($options['auto_ack_current_returning_drain_next207'] ?? false) === true) {
             return $required;
         }
 
-        return self::drainKeyListNext207($options['acknowledged_current_returning_drain_keys_next207'] ?? [], 'acknowledged current drain keys');
+        return self::drainKeyListForCurrentSourceDrainFence($options['acknowledged_current_returning_drain_keys_next207'] ?? [], 'acknowledged current drain keys');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function drainKeyListNext207(mixed $values, string $label): array
+    private static function drainKeyListForCurrentSourceDrainFence(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next207 {$label} must be a list");
@@ -10946,7 +10946,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext207(mixed $rows, string $label): array
+    private static function rowsForCurrentSourceDrainFence(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next207 {$label} must be a list");
@@ -10988,7 +10988,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $blocked
      * @return list<array<string,mixed>>
      */
-    private static function tagNextNext207(array $rows, bool $visible, array $blocked, string $drainToken, string $cursor, string $statementToken): array
+    private static function tagNextSourceDrainRows(array $rows, bool $visible, array $blocked, string $drainToken, string $cursor, string $statementToken): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -11012,7 +11012,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext207(
+    private static function blockedReasonsForCurrentSourceDrainFence(
         mixed $baseReasons,
         bool $baseVisible,
         bool $drainTokenMatches,
@@ -11052,7 +11052,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext207(
+    private static function statusForCurrentSourceDrainFence(
         bool $nextVisible,
         bool $baseVisible,
         bool $drainTokenMatches,
@@ -11080,7 +11080,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-next207-held';
     }
 
-    private static function tokenNext207(string $token, string $label): string
+    private static function tokenForCurrentSourceDrainFence(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next207 {$label} is malformed");
@@ -11089,7 +11089,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $token;
     }
 
-    private static function nonNegativeIntNext207(mixed $value, string $label): int
+    private static function nonNegativeIntForCurrentSourceDrainFence(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next207 {$label} must be a non-negative integer");

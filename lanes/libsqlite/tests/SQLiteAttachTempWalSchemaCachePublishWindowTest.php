@@ -77,7 +77,7 @@ $plan845860 = static fn (array $events, ?array $statements = null, ?array $schem
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next845-860 extends next829-844 handoff'] = static function (TestRunner $t) use ($plan845860): void {
+$tests['attach temp wal schema cache publish window extends prior handoff'] = static function (TestRunner $t) use ($plan845860): void {
     $result = $plan845860([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 846, 'table' => 'wp_navigation_rule_locale_publish_delta_next846', 'indexes' => ['wp_navigation_rule_locale_publish_delta_key_next846'], 'commit' => true],
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 848, 'table' => 'wp_theme_stage_publish_notice_next848', 'commit' => true],
@@ -114,7 +114,7 @@ $tests['attach temp wal schema cache current source next845-860 extends next829-
     $t->same(['publish-done-reader', 'report-meta-reader', 'temp-notice-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next845-860 ignores detached scratch handoff'] = static function (TestRunner $t) use ($plan845860): void {
+$tests['attach temp wal schema cache publish window ignores detached scratch handoff'] = static function (TestRunner $t) use ($plan845860): void {
     $result = $plan845860([
         ['op' => 'attach', 'schema' => 'scratch', 'schema_cookie' => 845, 'tables' => ['wp_scratch_next845'], 'indexes' => ['wp_scratch_key_next845'], 'file' => '/srv/wp/scratch-next845.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'scratch', 'schema_cookie' => 846, 'table' => 'wp_scratch_meta_next846', 'indexes' => ['wp_scratch_meta_key_next846'], 'commit' => false],
