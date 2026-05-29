@@ -69,8 +69,8 @@ foreach (range(505, 520) as $next) {
     };
 }
 
-$tests['json table generated path rowid cost current source next520 no later alias yet'] = static function (TestRunner $t) use ($plan505520): void {
-    $t->throws(Error::class, static fn () => $plan505520(521));
+$tests['json table generated path rowid cost current source next520 hands off to next521'] = static function (TestRunner $t) use ($plan505520): void {
+    $t->same('cost-select-current-json-table-generated-path-rowid-next521', $plan505520(521)['currentReaderPolicy']);
 };
 
 return $tests;
