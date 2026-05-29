@@ -43,13 +43,13 @@ $retryDelete250 = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SEL
 
 $attemptUpdateResult250 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptUpdate250, $tables250, 'option_id', $unique250);
 $retryUpdateResult250 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate250, $tables250, 'option_id', $unique250);
-$plan250 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext250(
+$plan250 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeExcludeTiesWindowPlan(
     $tables250,
     [$attemptUpdate250, $attemptDelete250],
     [$retryUpdate250, $retryDelete250],
     $unique250,
 );
-$customPlan250 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext250(
+$customPlan250 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeExcludeTiesWindowPlan(
     $tables250,
     [$attemptUpdate250],
     [$retryUpdate250],
@@ -131,11 +131,11 @@ $cases250 = [
     'custom replay ids' => [static fn (): mixed => $customPlan250()['window_exclude_ties_replayed_ids_next250'], [8, 9]],
     'custom discarded ids' => [static fn (): mixed => $customPlan250()['window_exclude_ties_discarded_ids_next250'], [7]],
     'custom restart ids' => [static fn (): mixed => $customPlan250()['window_exclude_ties_restart_ids_next250'], [10]],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext250($tables250, [], [$retryUpdate250], $unique250), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext250($tables250, [$attemptUpdate250], [], $unique250), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext250($tables250, [$attemptUpdate250], [$retryUpdate250], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext250($tables250, [$attemptUpdate250], [$retryUpdate250], $unique250, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext250(['wp_options' => ['bad']], [$attemptUpdate250], [$retryUpdate250], $unique250), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeExcludeTiesWindowPlan($tables250, [], [$retryUpdate250], $unique250), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeExcludeTiesWindowPlan($tables250, [$attemptUpdate250], [], $unique250), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeExcludeTiesWindowPlan($tables250, [$attemptUpdate250], [$retryUpdate250], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeExcludeTiesWindowPlan($tables250, [$attemptUpdate250], [$retryUpdate250], $unique250, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeExcludeTiesWindowPlan(['wp_options' => ['bad']], [$attemptUpdate250], [$retryUpdate250], $unique250), InvalidArgumentException::class],
 ];
 
 $tests = [];

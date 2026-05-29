@@ -14,13 +14,13 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext159(string $sql, array $currentTables, array $nextTables): array
+        public static function compareRecursiveWindowYieldSources(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext159($sql, $currentPlan, $nextPlan);
+            self::assertSupportedRecursiveWindowYield($sql, $currentPlan, $nextPlan);
 
-            $preLimitSql = self::withoutFinalLimitNext159($sql);
+            $preLimitSql = self::withoutFinalLimit($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $currentTables);
@@ -38,15 +38,15 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
                     'operators' => array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? [])),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext159($currentPlan),
+                    'orderColumns' => self::orderColumns($currentPlan),
                     'limit' => $currentPlan['compound']['limit'],
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
                     'commaLimit' => preg_match('/\s+LIMIT\s+\d+\s*,\s*\d+\s*$/i', rtrim(trim($sql), ';')) === 1,
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext159($currentPlan),
-                    'next' => self::windowTermsNext159($nextPlan),
-                    'functions' => array_values(array_unique(array_column(self::windowTermsNext159($currentPlan), 'function'))),
+                    'current' => self::windowTerms($currentPlan),
+                    'next' => self::windowTerms($nextPlan),
+                    'functions' => array_values(array_unique(array_column(self::windowTerms($currentPlan), 'function'))),
                 ],
                 'recursive' => [
                     'name' => $currentTrace['name'] ?? null,
@@ -56,24 +56,24 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
                     'nextRows' => $nextTrace['rows'] ?? [],
                     'currentTraceCount' => is_array($currentTrace['trace'] ?? null) ? count($currentTrace['trace']) : 0,
                     'nextTraceCount' => is_array($nextTrace['trace'] ?? null) ? count($nextTrace['trace']) : 0,
-                    'currentLimitRemaining' => self::lastTraceValueNext159($currentTrace, 'limit_remaining'),
-                    'nextLimitRemaining' => self::lastTraceValueNext159($nextTrace, 'limit_remaining'),
+                    'currentLimitRemaining' => self::lastTraceValue($currentTrace, 'limit_remaining'),
+                    'nextLimitRemaining' => self::lastTraceValue($nextTrace, 'limit_remaining'),
                     'dependencies' => array_values(array_unique(array_merge(
                         is_array($currentTrace['dependencies'] ?? null) ? $currentTrace['dependencies'] : [],
                         is_array($nextTrace['dependencies'] ?? null) ? $nextTrace['dependencies'] : [],
                     ))),
                 ],
                 'yieldSlots' => [
-                    'current' => self::yieldSlotsNext159($currentPreLimitRows, $currentRows, $currentPlan),
-                    'next' => self::yieldSlotsNext159($nextPreLimitRows, $nextRows, $nextPlan),
+                    'current' => self::yieldSlots($currentPreLimitRows, $currentRows, $currentPlan),
+                    'next' => self::yieldSlots($nextPreLimitRows, $nextRows, $nextPlan),
                 ],
                 'sourceClasses' => [
-                    'current' => self::sourceClassesNext159($currentRows),
-                    'next' => self::sourceClassesNext159($nextRows),
+                    'current' => self::sourceClasses($currentRows),
+                    'next' => self::sourceClasses($nextRows),
                 ],
-                'boundary' => self::boundaryDeltaNext159($currentRows, $nextRows),
-                'changedSignatures' => self::changedSignaturesNext159($currentRows, $nextRows),
-                'replanReasons' => self::replanReasonsNext159($currentRows, $nextRows, $currentPreLimitRows, $nextPreLimitRows, $currentTrace, $nextTrace),
+                'boundary' => self::boundaryDelta($currentRows, $nextRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentPreLimitRows, $nextPreLimitRows, $currentTrace, $nextTrace),
                 'dependencies' => [
                     'sqlite-recursive-cte-limit-before-window-yield-next159',
                     'sqlite-compound-window-ntile-percent-rank-yield-next159',
@@ -87,7 +87,7 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @param array<string,mixed> $nextPlan
          */
-        private static function assertSupportedNext159(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertSupportedRecursiveWindowYield(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
                 throw new \InvalidArgumentException('SQLite compound window recursive yield next159 needs WITH RECURSIVE SQL');
@@ -98,7 +98,7 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
             if (($currentPlan['compound']['limit'] ?? null) === null || preg_match('/\s+LIMIT\s+\d+\s*,\s*\d+\s*$/i', rtrim(trim($sql), ';')) !== 1) {
                 throw new \InvalidArgumentException('SQLite compound window recursive yield next159 needs a final comma LIMIT');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext159($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTerms($currentPlan), 'function'));
             if (!in_array('ntile', $functions, true) || !in_array('percent_rank', $functions, true)) {
                 throw new \InvalidArgumentException('SQLite compound window recursive yield next159 needs ntile() and percent_rank() window arms');
             }
@@ -108,7 +108,7 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext159(array $plan): array
+        private static function orderColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -122,7 +122,7 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext159(array $plan): array
+        private static function windowTerms(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             $arms = is_array($compound) && is_array($compound['arms'] ?? null) ? $compound['arms'] : [];
@@ -147,7 +147,7 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
             return $windows;
         }
 
-        private static function withoutFinalLimitNext159(string $sql): string
+        private static function withoutFinalLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*,\s*\d+\s*$/i', '', $trimmed);
@@ -164,7 +164,7 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function yieldSlotsNext159(array $preLimitRows, array $limitedRows, array $plan): array
+        private static function yieldSlots(array $preLimitRows, array $limitedRows, array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $offset = isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0;
@@ -175,7 +175,7 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
                 $slots[] = [
                     'slot' => $slot,
                     'preLimitIndex' => $offset + $slot,
-                    'sourceClass' => self::sourceClassNext159($row),
+                    'sourceClass' => self::sourceClass($row),
                     'row' => $row,
                 ];
             }
@@ -195,11 +195,11 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return array<string,int>
          */
-        private static function sourceClassesNext159(array $rows): array
+        private static function sourceClasses(array $rows): array
         {
             $classes = [];
             foreach ($rows as $row) {
-                $class = self::sourceClassNext159($row);
+                $class = self::sourceClass($row);
                 $classes[$class] = ($classes[$class] ?? 0) + 1;
             }
             ksort($classes);
@@ -210,7 +210,7 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $row
          */
-        private static function sourceClassNext159(array $row): string
+        private static function sourceClass(array $row): string
         {
             $label = (string) ($row['label'] ?? '');
 
@@ -220,7 +220,7 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $trace
          */
-        private static function lastTraceValueNext159(array $trace, string $key): mixed
+        private static function lastTraceValue(array $trace, string $key): mixed
         {
             $rows = is_array($trace['trace'] ?? null) ? $trace['trace'] : [];
             $last = $rows === [] ? null : $rows[count($rows) - 1];
@@ -233,10 +233,10 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return array<string,mixed>
          */
-        private static function boundaryDeltaNext159(array $currentRows, array $nextRows): array
+        private static function boundaryDelta(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext159($currentRows);
-            $next = self::rowSignaturesNext159($nextRows);
+            $current = self::rowSignatures($currentRows);
+            $next = self::rowSignatures($nextRows);
 
             return [
                 'currentFirst' => $currentRows[0] ?? null,
@@ -252,7 +252,7 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext159(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -262,9 +262,9 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext159(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
-            return array_values(array_merge(array_diff(self::rowSignaturesNext159($currentRows), self::rowSignaturesNext159($nextRows)), array_diff(self::rowSignaturesNext159($nextRows), self::rowSignaturesNext159($currentRows))));
+            return array_values(array_merge(array_diff(self::rowSignatures($currentRows), self::rowSignatures($nextRows)), array_diff(self::rowSignatures($nextRows), self::rowSignatures($currentRows))));
         }
 
         /**
@@ -276,19 +276,19 @@ final class SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan
          * @param array<string,mixed> $nextTrace
          * @return list<string>
          */
-        private static function replanReasonsNext159(array $currentRows, array $nextRows, array $currentPreLimitRows, array $nextPreLimitRows, array $currentTrace, array $nextTrace): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentPreLimitRows, array $nextPreLimitRows, array $currentTrace, array $nextTrace): array
         {
             $reasons = ['recursive-limit-before-window-yield', 'compound-comma-limit-yield-boundary'];
-            if (self::rowSignaturesNext159($currentRows) !== self::rowSignaturesNext159($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'yielded-compound-rowset-changed';
             }
-            if (self::rowSignaturesNext159($currentPreLimitRows) !== self::rowSignaturesNext159($nextPreLimitRows)) {
+            if (self::rowSignatures($currentPreLimitRows) !== self::rowSignatures($nextPreLimitRows)) {
                 $reasons[] = 'prelimit-window-rowset-changed';
             }
             if (($currentTrace['rows'] ?? []) !== ($nextTrace['rows'] ?? [])) {
                 $reasons[] = 'recursive-source-rowset-changed';
             }
-            if (self::lastTraceValueNext159($currentTrace, 'limit_remaining') === 0) {
+            if (self::lastTraceValue($currentTrace, 'limit_remaining') === 0) {
                 $reasons[] = 'recursive-limit-exhausted-before-window';
             }
 

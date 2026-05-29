@@ -68,7 +68,7 @@ SELECT option_name AS name,
  LIMIT 1, 4
 SQL;
 
-$summary148 = static fn (): array => SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan::compareNext148($sql148, $currentTables148, $nextTables148);
+$summary148 = static fn (): array => SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan::compareExceptWindowLimitSources($sql148, $currentTables148, $nextTables148);
 $tests = [];
 
 $tests['compound select except window limit current source next148 status dependencies'] = static function (TestRunner $t) use ($summary148): void {
@@ -164,7 +164,7 @@ $tests['compound select except window limit current source next148 changed signa
 };
 
 $tests['compound select except window limit current source next148 rejects single except'] = static function (TestRunner $t) use ($currentTables148): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan::compareNext148(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan::compareExceptWindowLimitSources(
         'SELECT option_name AS name, autoload, row_number() OVER (ORDER BY option_id) AS source_rank FROM wp_options EXCEPT SELECT option_name, autoload, source_rank FROM network_current ORDER BY source_rank LIMIT 1',
         $currentTables148,
         $currentTables148,
@@ -172,7 +172,7 @@ $tests['compound select except window limit current source next148 rejects singl
 };
 
 $tests['compound select except window limit current source next148 rejects missing limit'] = static function (TestRunner $t) use ($currentTables148): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan::compareNext148(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan::compareExceptWindowLimitSources(
         'SELECT option_name AS name, autoload, row_number() OVER (ORDER BY option_id) AS source_rank FROM wp_options EXCEPT SELECT option_name, autoload, source_rank FROM network_current EXCEPT SELECT option_name, autoload, source_rank FROM stale_option_audit ORDER BY source_rank',
         $currentTables148,
         $currentTables148,
@@ -180,7 +180,7 @@ $tests['compound select except window limit current source next148 rejects missi
 };
 
 $tests['compound select except window limit current source next148 rejects missing window'] = static function (TestRunner $t) use ($currentTables148): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan::compareNext148(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan::compareExceptWindowLimitSources(
         'SELECT option_name AS name, autoload, option_id AS source_rank FROM wp_options EXCEPT SELECT option_name, autoload, source_rank FROM network_current EXCEPT SELECT option_name, autoload, source_rank FROM stale_option_audit ORDER BY source_rank LIMIT 1',
         $currentTables148,
         $currentTables148,

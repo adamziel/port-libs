@@ -14,7 +14,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext148(string $sql, array $currentTables, array $nextTables): array
+        public static function compareExceptWindowLimitSources(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -29,17 +29,17 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
             if (($currentPlan['compound']['limit'] ?? null) === null) {
                 throw new \InvalidArgumentException('SQLite compound SELECT EXCEPT window LIMIT current-source next148 plan needs a final LIMIT');
             }
-            if (self::windowTermsNext148($currentPlan) === []) {
+            if (self::windowTerms($currentPlan) === []) {
                 throw new \InvalidArgumentException('SQLite compound SELECT EXCEPT window LIMIT current-source next148 plan needs a window function arm');
             }
 
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
-            $preLimitSql = self::withoutFinalLimitNext148($sql);
+            $preLimitSql = self::withoutFinalLimit($sql);
             $currentPreLimit = SQLiteSelectSql::execute($preLimitSql, $currentTables);
             $nextPreLimit = SQLiteSelectSql::execute($preLimitSql, $nextTables);
-            $currentTrace = self::exceptTraceNext148($currentPlan);
-            $nextTrace = self::exceptTraceNext148($nextPlan);
+            $currentTrace = self::exceptTrace($currentPlan);
+            $nextTrace = self::exceptTrace($nextPlan);
 
             return [
                 'status' => 'compound-select-except-window-limit-current-source-next148-ready',
@@ -47,40 +47,40 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
                 'nextRows' => $nextRows,
                 'currentPreLimitRows' => $currentPreLimit,
                 'nextPreLimitRows' => $nextPreLimit,
-                'currentSignatures' => self::rowSignaturesNext148($currentRows),
-                'nextSignatures' => self::rowSignaturesNext148($nextRows),
-                'changedSignatures' => self::changedSignaturesNext148($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignatures($currentRows),
+                'nextSignatures' => self::rowSignatures($nextRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
                 'compound' => [
                     'operators' => $operators,
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext148($currentPlan),
+                    'orderColumns' => self::orderColumns($currentPlan),
                     'limit' => $currentPlan['compound']['limit'],
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
-                    'exceptArmIndexes' => self::exceptArmIndexesNext148($operators),
+                    'exceptArmIndexes' => self::exceptArmIndexes($operators),
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext148($currentPlan),
-                    'next' => self::windowTermsNext148($nextPlan),
+                    'current' => self::windowTerms($currentPlan),
+                    'next' => self::windowTerms($nextPlan),
                 ],
                 'exceptTrace' => [
                     'current' => $currentTrace,
                     'next' => $nextTrace,
-                    'currentRemovedNames' => self::removedNamesNext148($currentTrace),
-                    'nextRemovedNames' => self::removedNamesNext148($nextTrace),
+                    'currentRemovedNames' => self::removedNames($currentTrace),
+                    'nextRemovedNames' => self::removedNames($nextTrace),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext148($currentPreLimit, $currentRows, $currentPlan),
-                    'next' => self::limitTraceNext148($nextPreLimit, $nextRows, $nextPlan),
+                    'current' => self::limitTrace($currentPreLimit, $currentRows, $currentPlan),
+                    'next' => self::limitTrace($nextPreLimit, $nextRows, $nextPlan),
                 ],
                 'boundary' => [
                     'currentFirst' => $currentRows[0] ?? null,
                     'nextFirst' => $nextRows[0] ?? null,
                     'currentLast' => $currentRows === [] ? null : $currentRows[count($currentRows) - 1],
                     'nextLast' => $nextRows === [] ? null : $nextRows[count($nextRows) - 1],
-                    'admittedNamesChanged' => self::admittedNamesChangedNext148($currentRows, $nextRows),
+                    'admittedNamesChanged' => self::admittedNamesChanged($currentRows, $nextRows),
                 ],
-                'replanReasons' => self::replanReasonsNext148($currentRows, $nextRows, $currentPreLimit, $nextPreLimit, $currentTrace, $nextTrace, $currentPlan, $nextPlan),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentPreLimit, $nextPreLimit, $currentTrace, $nextTrace, $currentPlan, $nextPlan),
                 'dependencies' => [
                     'sqlite-select-sql-window-arm-evaluation',
                     'sqlite-select-sql-chained-except',
@@ -94,7 +94,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext148(array $plan): array
+        private static function orderColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -108,7 +108,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param list<string> $operators
          * @return list<int>
          */
-        private static function exceptArmIndexesNext148(array $operators): array
+        private static function exceptArmIndexes(array $operators): array
         {
             $indexes = [];
             foreach ($operators as $index => $operator) {
@@ -124,7 +124,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext148(array $plan): array
+        private static function windowTerms(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -158,7 +158,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
             return $windows;
         }
 
-        private static function withoutFinalLimitNext148(string $sql): string
+        private static function withoutFinalLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
@@ -173,7 +173,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array{operator:string,arm:int,beforeCount:int,afterCount:int,removed:list<array<string,mixed>>}>
          */
-        private static function exceptTraceNext148(array $plan): array
+        private static function exceptTrace(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null) || !is_array($compound['operators'] ?? null)) {
@@ -186,7 +186,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
                 if (!is_array($arm)) {
                     continue;
                 }
-                $armRows = self::executeArmNext148($arm);
+                $armRows = self::executeArm($arm);
                 if ($index === 0) {
                     $rows = $armRows;
                     continue;
@@ -196,14 +196,14 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
                 if (!is_array($rows)) {
                     continue;
                 }
-                $nextRows = SQLiteSelectCompound::combine($rows, $armRows, $operator, self::compoundSelectCollationsNext148($compound['arms'][0]));
+                $nextRows = SQLiteSelectCompound::combine($rows, $armRows, $operator, self::compoundSelectCollations($compound['arms'][0]));
                 if ($operator === 'EXCEPT') {
                     $trace[] = [
                         'operator' => $operator,
                         'arm' => $index,
                         'beforeCount' => count($rows),
                         'afterCount' => count($nextRows),
-                        'removed' => self::removedBySignatureNext148($rows, $nextRows),
+                        'removed' => self::removedBySignature($rows, $nextRows),
                     ];
                 }
                 $rows = $nextRows;
@@ -216,7 +216,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param array<string,mixed> $arm
          * @return list<array<string,mixed>>
          */
-        private static function executeArmNext148(array $arm): array
+        private static function executeArm(array $arm): array
         {
             $rows = SQLiteSelectQuery::execute($arm);
             $hidden = [];
@@ -239,7 +239,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param array<string,mixed> $arm
          * @return array<string,string>
          */
-        private static function compoundSelectCollationsNext148(array $arm): array
+        private static function compoundSelectCollations(array $arm): array
         {
             if (!is_array($arm['select'] ?? null)) {
                 return [];
@@ -264,9 +264,9 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $after
          * @return list<array<string,mixed>>
          */
-        private static function removedBySignatureNext148(array $before, array $after): array
+        private static function removedBySignature(array $before, array $after): array
         {
-            $afterSignatures = array_fill_keys(self::rowSignaturesNext148($after), true);
+            $afterSignatures = array_fill_keys(self::rowSignatures($after), true);
             $removed = [];
             foreach ($before as $row) {
                 if (!isset($afterSignatures[json_encode($row, JSON_THROW_ON_ERROR)])) {
@@ -281,7 +281,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param list<array{operator:string,arm:int,beforeCount:int,afterCount:int,removed:list<array<string,mixed>>}> $trace
          * @return list<string>
          */
-        private static function removedNamesNext148(array $trace): array
+        private static function removedNames(array $trace): array
         {
             $names = [];
             foreach ($trace as $step) {
@@ -301,7 +301,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function limitTraceNext148(array $preLimitRows, array $limitedRows, array $plan): array
+        private static function limitTrace(array $preLimitRows, array $limitedRows, array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $offset = isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0;
@@ -320,7 +320,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext148(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -330,10 +330,10 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext148(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext148($currentRows);
-            $next = self::rowSignaturesNext148($nextRows);
+            $current = self::rowSignatures($currentRows);
+            $next = self::rowSignatures($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -343,7 +343,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function admittedNamesChangedNext148(array $currentRows, array $nextRows): array
+        private static function admittedNamesChanged(array $currentRows, array $nextRows): array
         {
             $current = array_values(array_map('strval', array_column($currentRows, 'name')));
             $next = array_values(array_map('strval', array_column($nextRows, 'name')));
@@ -362,25 +362,25 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param array<string,mixed> $nextPlan
          * @return list<string>
          */
-        private static function replanReasonsNext148(array $currentRows, array $nextRows, array $currentPreLimit, array $nextPreLimit, array $currentTrace, array $nextTrace, array $currentPlan, array $nextPlan): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentPreLimit, array $nextPreLimit, array $currentTrace, array $nextTrace, array $currentPlan, array $nextPlan): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext148($currentRows) !== self::rowSignaturesNext148($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'limited-chained-except-window-rowset-changed';
             }
-            if (self::rowSignaturesNext148($currentPreLimit) !== self::rowSignaturesNext148($nextPreLimit)) {
+            if (self::rowSignatures($currentPreLimit) !== self::rowSignatures($nextPreLimit)) {
                 $reasons[] = 'prelimit-chained-except-window-rowset-changed';
             }
-            if (self::traceSignaturesNext148($currentTrace) !== self::traceSignaturesNext148($nextTrace)) {
+            if (self::traceSignatures($currentTrace) !== self::traceSignatures($nextTrace)) {
                 $reasons[] = 'chained-except-removal-trace-changed';
             }
             if (($currentPlan['compound']['limit'] ?? null) !== null) {
                 $reasons[] = 'compound-final-comma-limit';
             }
-            if (self::windowTermsNext148($currentPlan) !== []) {
+            if (self::windowTerms($currentPlan) !== []) {
                 $reasons[] = 'window-before-chained-except';
             }
-            if (self::windowTermsNext148($currentPlan) !== self::windowTermsNext148($nextPlan)) {
+            if (self::windowTerms($currentPlan) !== self::windowTerms($nextPlan)) {
                 $reasons[] = 'window-plan-changed';
             }
 
@@ -391,7 +391,7 @@ final class SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan
          * @param list<array{operator:string,arm:int,beforeCount:int,afterCount:int,removed:list<array<string,mixed>>}> $trace
          * @return list<string>
          */
-        private static function traceSignaturesNext148(array $trace): array
+        private static function traceSignatures(array $trace): array
         {
             return array_values(array_map(static fn (array $step): string => json_encode($step, JSON_THROW_ON_ERROR), $trace));
         }

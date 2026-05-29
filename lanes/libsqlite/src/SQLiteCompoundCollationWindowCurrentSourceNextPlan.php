@@ -14,7 +14,7 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext136(string $sql, array $currentTables, array $nextTables): array
+        public static function compareCollationWindowSources(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -29,9 +29,9 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
 
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
-            $currentArmRows = self::armRowsNext136($currentPlan);
-            $nextArmRows = self::armRowsNext136($nextPlan);
-            $collations = self::leftArmCollationsNext136($currentPlan);
+            $currentArmRows = self::armRows($currentPlan);
+            $nextArmRows = self::armRows($nextPlan);
+            $collations = self::leftArmCollations($currentPlan);
 
             return [
                 'status' => 'compound-collation-window-current-source-next136-ready',
@@ -39,29 +39,29 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
                 'nextRows' => $nextRows,
                 'currentNames' => array_values(array_map(static fn (array $row): mixed => $row['name'] ?? null, $currentRows)),
                 'nextNames' => array_values(array_map(static fn (array $row): mixed => $row['name'] ?? null, $nextRows)),
-                'changedSignatures' => self::changedSignaturesNext136($currentRows, $nextRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
                 'compound' => [
                     'operators' => $operators,
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
                     'leftCollations' => $collations,
-                    'orderByCollations' => self::orderByCollationsNext136($currentPlan),
-                    'currentDuplicateKeys' => self::duplicateKeysNext136($currentArmRows, $collations),
-                    'nextDuplicateKeys' => self::duplicateKeysNext136($nextArmRows, $collations),
-                    'currentSuppressedRows' => self::suppressedRowsNext136($currentArmRows, $currentRows, $collations),
-                    'nextSuppressedRows' => self::suppressedRowsNext136($nextArmRows, $nextRows, $collations),
+                    'orderByCollations' => self::orderByCollations($currentPlan),
+                    'currentDuplicateKeys' => self::duplicateKeys($currentArmRows, $collations),
+                    'nextDuplicateKeys' => self::duplicateKeys($nextArmRows, $collations),
+                    'currentSuppressedRows' => self::suppressedRows($currentArmRows, $currentRows, $collations),
+                    'nextSuppressedRows' => self::suppressedRows($nextArmRows, $nextRows, $collations),
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext136($currentPlan),
-                    'next' => self::windowTermsNext136($nextPlan),
+                    'current' => self::windowTerms($currentPlan),
+                    'next' => self::windowTerms($nextPlan),
                     'aliases' => array_values(array_unique(array_merge(
-                        array_column(self::windowTermsNext136($currentPlan), 'alias'),
-                        array_column(self::windowTermsNext136($nextPlan), 'alias'),
+                        array_column(self::windowTerms($currentPlan), 'alias'),
+                        array_column(self::windowTerms($nextPlan), 'alias'),
                     ))),
                     'currentRowNumbers' => array_values(array_map(static fn (array $row): mixed => $row['rn'] ?? null, $currentRows)),
                     'nextRowNumbers' => array_values(array_map(static fn (array $row): mixed => $row['rn'] ?? null, $nextRows)),
                 ],
-                'replanReasons' => self::replanReasonsNext136($currentRows, $nextRows, $currentArmRows, $nextArmRows, $currentPlan, $nextPlan, $collations),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentArmRows, $nextArmRows, $currentPlan, $nextPlan, $collations),
                 'dependencies' => [
                     'sqlite-compound-left-collation-dedup',
                     'sqlite-window-arm-before-compound',
@@ -74,7 +74,7 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function armRowsNext136(array $plan): array
+        private static function armRows(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -95,7 +95,7 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,string>
          */
-        private static function leftArmCollationsNext136(array $plan): array
+        private static function leftArmCollations(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             $arm = is_array($compound) && is_array($compound['arms'] ?? null) ? ($compound['arms'][0] ?? null) : null;
@@ -121,7 +121,7 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,string>
          */
-        private static function orderByCollationsNext136(array $plan): array
+        private static function orderByCollations(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -143,11 +143,11 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param array<string,string> $collations
          * @return list<string>
          */
-        private static function duplicateKeysNext136(array $rows, array $collations): array
+        private static function duplicateKeys(array $rows, array $collations): array
         {
             $counts = [];
             foreach ($rows as $row) {
-                $key = self::rowKeyNext136($row, $collations);
+                $key = self::rowKey($row, $collations);
                 $counts[$key] = ($counts[$key] ?? 0) + 1;
             }
 
@@ -160,13 +160,13 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param array<string,string> $collations
          * @return list<array<string,mixed>>
          */
-        private static function suppressedRowsNext136(array $armRows, array $resultRows, array $collations): array
+        private static function suppressedRows(array $armRows, array $resultRows, array $collations): array
         {
-            $resultKeys = array_fill_keys(array_map(static fn (array $row): string => self::rowKeyNext136($row, $collations), $resultRows), true);
+            $resultKeys = array_fill_keys(array_map(static fn (array $row): string => self::rowKey($row, $collations), $resultRows), true);
             $suppressed = [];
             $seen = [];
             foreach ($armRows as $row) {
-                $key = self::rowKeyNext136($row, $collations);
+                $key = self::rowKey($row, $collations);
                 if (isset($seen[$key]) || !isset($resultKeys[$key])) {
                     $suppressed[] = $row;
                 }
@@ -180,7 +180,7 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext136(array $plan): array
+        private static function windowTerms(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -214,7 +214,7 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext136(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -224,10 +224,10 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext136(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext136($currentRows);
-            $next = self::rowSignaturesNext136($nextRows);
+            $current = self::rowSignatures($currentRows);
+            $next = self::rowSignatures($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -242,22 +242,22 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param array<string,string> $collations
          * @return list<string>
          */
-        private static function replanReasonsNext136(array $currentRows, array $nextRows, array $currentArmRows, array $nextArmRows, array $currentPlan, array $nextPlan, array $collations): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentArmRows, array $nextArmRows, array $currentPlan, array $nextPlan, array $collations): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext136($currentRows) !== self::rowSignaturesNext136($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'compound-window-rowset-changed';
             }
             if ($collations !== []) {
                 $reasons[] = 'compound-left-collation';
             }
-            if (self::windowTermsNext136($currentPlan) !== []) {
+            if (self::windowTerms($currentPlan) !== []) {
                 $reasons[] = 'window-before-compound-source';
             }
-            if (self::duplicateKeysNext136($currentArmRows, $collations) !== self::duplicateKeysNext136($nextArmRows, $collations)) {
+            if (self::duplicateKeys($currentArmRows, $collations) !== self::duplicateKeys($nextArmRows, $collations)) {
                 $reasons[] = 'compound-dedup-keyset-changed';
             }
-            if (self::windowTermsNext136($currentPlan) !== self::windowTermsNext136($nextPlan)) {
+            if (self::windowTerms($currentPlan) !== self::windowTerms($nextPlan)) {
                 $reasons[] = 'window-plan-changed';
             }
 
@@ -268,17 +268,17 @@ final class SQLiteCompoundCollationWindowCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param array<string,string> $collations
          */
-        private static function rowKeyNext136(array $row, array $collations): string
+        private static function rowKey(array $row, array $collations): string
         {
             $parts = [];
             foreach ($row as $column => $value) {
-                $parts[] = $column . '=' . self::valueKeyNext136($value, $collations[$column] ?? 'BINARY');
+                $parts[] = $column . '=' . self::valueKey($value, $collations[$column] ?? 'BINARY');
             }
 
             return implode("\0", $parts);
         }
 
-        private static function valueKeyNext136(mixed $value, string $collation): string
+        private static function valueKey(mixed $value, string $collation): string
         {
             if ($value === null) {
                 return 'null:';

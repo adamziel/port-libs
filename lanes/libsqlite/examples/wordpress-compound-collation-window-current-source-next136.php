@@ -33,7 +33,7 @@ SELECT option_name AS name,
  ORDER BY name COLLATE NOCASE, rn
 SQL;
 
-$plan = SQLiteCompoundCollationWindowCurrentSourceNextPlan::compareNext136($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundCollationWindowCurrentSourceNextPlan::compareCollationWindowSources($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'compound-collation-window-current-source-next136-ready');

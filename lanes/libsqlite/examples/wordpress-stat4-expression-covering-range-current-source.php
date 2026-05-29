@@ -58,7 +58,7 @@ $rows = [
     ['rowid' => 51, 'option_name' => 'plugin_seo', 'autoload' => 'yes', 'option_value' => 'seo-enabled', 'option_id' => 51, 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeNext128(
+$plan = SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeCurrentSourceRange(
     $preparedSource,
     $currentSource,
     $preparedPredicate,
@@ -73,12 +73,12 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'stat4-expression-covering-range-current-source-next128-ready');
     assert($plan['staleRangeRejectedRowids'] === [11]);
     assert($plan['currentMatchedRowids'] === [21, 31, 41, 51]);
-    echo "wordpress-stat4-expression-covering-range-current-source-next128 self-test passed\n";
+    echo "wordpress-stat4-expression-covering-range-current-source self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-stat4-expression-covering-range-current-source-next128',
+    'scenario' => 'wordpress-stat4-expression-covering-range-current-source',
     'status' => $plan['status'],
     'selectedRootPage' => $plan['selectedPlan']['rootPage'] ?? null,
     'currentRange' => $plan['currentRangeValues'],

@@ -40,7 +40,7 @@ SQL;
 
 $currentTables = ['wp_options' => $currentOptions, 'network_options' => $currentNetwork];
 $nextTables = ['wp_options' => $nextOptions, 'network_options' => $nextNetwork];
-$summary = static fn (): array => SQLiteCompoundCollationWindowCurrentSourceNextPlan::compareNext136($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundCollationWindowCurrentSourceNextPlan::compareCollationWindowSources($sql, $currentTables, $nextTables);
 
 $tests = [];
 
@@ -106,7 +106,7 @@ $tests['compound collation window current source next136 replan reasons'] = stat
 };
 
 $tests['compound collation window current source next136 rejects non distinct compound'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundCollationWindowCurrentSourceNextPlan::compareNext136(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundCollationWindowCurrentSourceNextPlan::compareCollationWindowSources(
         "SELECT option_name AS name FROM wp_options UNION ALL SELECT option_name AS name FROM network_options",
         $currentTables,
         $currentTables,

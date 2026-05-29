@@ -30,7 +30,7 @@ final class SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan
             array $neededColumns,
             array $neededExpressions = []
         ): array {
-            $base = SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeNext128(
+            $base = SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeCurrentSourceRange(
                 $preparedSource,
                 $currentSource,
                 $preparedPredicate,

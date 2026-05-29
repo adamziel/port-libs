@@ -848,7 +848,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_returning_window_next235',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext212(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -3888,7 +3888,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<string>|null $acknowledgedYieldTickets
      * @return array<string,mixed>
      */
-    public static function executeNext248(
+    public static function executePublicationResumeBarrier(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -3910,11 +3910,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $acknowledgedYieldTickets,
         );
 
-        $yieldRows = self::publicationRowsNext248($base['yield_phase_tickets_next245'], 'current-yield', $rowIdColumn);
-        $retryRows = self::publicationRowsNext248($base['retry_phase_tickets_next245'], 'next-retry', $rowIdColumn);
+        $yieldRows = self::publicationResumeBarrierRows($base['yield_phase_tickets_next245'], 'current-yield', $rowIdColumn);
+        $retryRows = self::publicationResumeBarrierRows($base['retry_phase_tickets_next245'], 'next-retry', $rowIdColumn);
         $gate = $base['yield_current_source_gate_next245'];
-        $sequence = self::sequenceNext248($yieldRows, $retryRows, (bool) $gate['next_source_exposed']);
-        $resume = self::resumeNext248($sequence, $resumeAfterTicket);
+        $sequence = self::publicationResumeBarrierSequence($yieldRows, $retryRows, (bool) $gate['next_source_exposed']);
+        $resume = self::publicationResumeBarrierResume($sequence, $resumeAfterTicket);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next248',
@@ -3927,10 +3927,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'retry_row_count' => count($retryRows),
                 'published_row_count' => count($sequence),
                 'resume_after_ticket' => $resumeAfterTicket,
-                'current_source_digest' => self::digestNext248($base['current_source_tables']),
-                'next_source_digest' => self::digestNext248($base['next_source_tables']),
-                'barrier_token' => self::barrierTokenNext248($base, $yieldRows, $retryRows, $gate),
-                'blocked_reasons' => self::blockedReasonsNext248($gate),
+                'current_source_digest' => self::publicationResumeBarrierDigest($base['current_source_tables']),
+                'next_source_digest' => self::publicationResumeBarrierDigest($base['next_source_tables']),
+                'barrier_token' => self::publicationResumeBarrierToken($base, $yieldRows, $retryRows, $gate),
+                'blocked_reasons' => self::publicationResumeBarrierBlockedReasons($gate),
             ],
             'current_publication_rows_next248' => $yieldRows,
             'retry_publication_rows_next248' => $retryRows,
@@ -3955,7 +3955,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $tickets
      * @return list<array<string,mixed>>
      */
-    private static function publicationRowsNext248(array $tickets, string $source, string $rowIdColumn): array
+    private static function publicationResumeBarrierRows(array $tickets, string $source, string $rowIdColumn): array
     {
         $rows = [];
         foreach (array_values($tickets) as $index => $ticket) {
@@ -3966,17 +3966,17 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             if (!is_int($rowId) && !is_string($rowId)) {
                 throw new \InvalidArgumentException("SQLite row-value returning window next248 rowid column {$rowIdColumn} must be int or string");
             }
-            $ticketId = self::stringValueNext248($ticket['ticket'] ?? null, 'ticket');
+            $ticketId = self::publicationResumeBarrierStringValue($ticket['ticket'] ?? null, 'ticket');
             $rows[] = [
                 'publication_ordinal_next248' => $index + 1,
                 'source' => $source,
                 'ticket' => $ticketId,
                 $rowIdColumn => $rowId,
-                'option_name' => self::stringValueNext248($ticket['option_name'] ?? null, 'option_name'),
+                'option_name' => self::publicationResumeBarrierStringValue($ticket['option_name'] ?? null, 'option_name'),
                 'status' => $ticket['status'] ?? null,
-                'frame_token' => self::stringValueNext248($ticket['frame_token'] ?? null, 'frame_token'),
-                'running_bytes' => self::intValueNext248($ticket['running_bytes'] ?? null),
-                'following_bytes' => self::intValueNext248($ticket['following_bytes'] ?? null),
+                'frame_token' => self::publicationResumeBarrierStringValue($ticket['frame_token'] ?? null, 'frame_token'),
+                'running_bytes' => self::publicationResumeBarrierIntValue($ticket['running_bytes'] ?? null),
+                'following_bytes' => self::publicationResumeBarrierIntValue($ticket['following_bytes'] ?? null),
                 'cursor' => hash('sha256', $source . '|' . $ticketId),
             ];
         }
@@ -3989,7 +3989,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $retryRows
      * @return list<array<string,mixed>>
      */
-    private static function sequenceNext248(array $yieldRows, array $retryRows, bool $nextSourceExposed): array
+    private static function publicationResumeBarrierSequence(array $yieldRows, array $retryRows, bool $nextSourceExposed): array
     {
         $sequence = [];
         foreach ($yieldRows as $row) {
@@ -4017,7 +4017,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $sequence
      * @return array<string,mixed>
      */
-    private static function resumeNext248(array $sequence, ?string $resumeAfterTicket): array
+    private static function publicationResumeBarrierResume(array $sequence, ?string $resumeAfterTicket): array
     {
         if ($resumeAfterTicket === null) {
             return [
@@ -4058,7 +4058,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $retryRows
      * @param array<string,mixed> $gate
      */
-    private static function barrierTokenNext248(array $base, array $yieldRows, array $retryRows, array $gate): string
+    private static function publicationResumeBarrierToken(array $base, array $yieldRows, array $retryRows, array $gate): string
     {
         return hash('sha256', json_encode([
             'savepoint' => $base['savepoint'] ?? '',
@@ -4076,7 +4076,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,mixed> $gate
      * @return list<string>
      */
-    private static function blockedReasonsNext248(array $gate): array
+    private static function publicationResumeBarrierBlockedReasons(array $gate): array
     {
         $reasons = [];
         if (($gate['missing_tickets'] ?? []) !== []) {
@@ -4092,12 +4092,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $tables
      */
-    private static function digestNext248(array $tables): string
+    private static function publicationResumeBarrierDigest(array $tables): string
     {
         return hash('sha256', json_encode($tables, JSON_THROW_ON_ERROR));
     }
 
-    private static function stringValueNext248(mixed $value, string $name): string
+    private static function publicationResumeBarrierStringValue(mixed $value, string $name): string
     {
         if (!is_string($value) || $value === '') {
             throw new \InvalidArgumentException("SQLite row-value returning window next248 {$name} is missing");
@@ -4106,7 +4106,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $value;
     }
 
-    private static function intValueNext248(mixed $value): int
+    private static function publicationResumeBarrierIntValue(mixed $value): int
     {
         if (is_int($value)) {
             return $value;
@@ -4310,7 +4310,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext250(
+    public static function executeExcludeTiesWindowPlan(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -4327,8 +4327,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $rows = self::excludeTiesRowsNext250($plan['window_exclude_group_rows_next247'], $rowIdColumn);
-        $summary = self::summaryNext250($rows);
+        $rows = self::excludeTiesWindowRows($plan['window_exclude_group_rows_next247'], $rowIdColumn);
+        $summary = self::excludeTiesWindowSummary($rows);
 
         $plan['status'] = 'rowvalue-update-delete-returning-window-current-source-next250';
         $plan['savepoint'] = $savepoint;
@@ -4336,9 +4336,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $plan['window_exclude_ties_rows_next250'] = $rows;
         $plan['window_exclude_ties_count_next250'] = count($rows);
         $plan['window_exclude_ties_summary_next250'] = $summary;
-        $plan['window_exclude_ties_replayed_ids_next250'] = self::idsForClassNext250($rows, 'replayed-after-rollback');
-        $plan['window_exclude_ties_restart_ids_next250'] = self::idsForClassNext250($rows, 'restart-only');
-        $plan['window_exclude_ties_discarded_ids_next250'] = self::idsForClassNext250($rows, 'discarded-only');
+        $plan['window_exclude_ties_replayed_ids_next250'] = self::excludeTiesIdsForClass($rows, 'replayed-after-rollback');
+        $plan['window_exclude_ties_restart_ids_next250'] = self::excludeTiesIdsForClass($rows, 'restart-only');
+        $plan['window_exclude_ties_discarded_ids_next250'] = self::excludeTiesIdsForClass($rows, 'discarded-only');
         $plan['window_exclude_ties_receipts_next250'] = array_column($rows, 'exclude_ties_receipt_next250');
         $plan['window_exclude_ties_fence_next250'] = [
             'savepoint' => $savepoint,
@@ -4346,11 +4346,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'source_transition_count' => $plan['window_transition_chain_count_next244'],
             'exclude_group_count' => $plan['window_exclude_group_count_next247'],
             'exclude_ties_count' => count($rows),
-            'exclude_ties_digest' => self::digestNext250($rows),
+            'exclude_ties_digest' => self::excludeTiesDigest($rows),
             'exclude_group_digest' => $plan['window_exclude_group_fence_next247']['excluded_group_digest'],
             'transition_digest' => $plan['window_transition_fence_next244']['transition_digest'],
-            'current_row_preserved' => self::allCurrentRowsPreservedNext250($rows),
-            'peer_ties_removed' => self::allPeerTiesRemovedNext250($rows),
+            'current_row_preserved' => self::excludeTiesAllCurrentRowsPreserved($rows),
+            'peer_ties_removed' => self::excludeTiesAllPeerTiesRemoved($rows),
             'rolled_back_to_savepoint' => $plan['rolled_back_to_savepoint'],
             'retry_reads_savepoint_image' => $plan['retry_reads_savepoint_image'],
         ];
@@ -4369,27 +4369,27 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $groups
      * @return list<array<string,mixed>>
      */
-    private static function excludeTiesRowsNext250(array $groups, string $rowIdColumn): array
+    private static function excludeTiesWindowRows(array $groups, string $rowIdColumn): array
     {
         $rowsByPartition = [];
         foreach ($groups as $row) {
             if (!is_array($row)) {
                 throw new \InvalidArgumentException('SQLite row-value RETURNING EXCLUDE TIES next250 rows are malformed');
             }
-            $partition = self::stringValueNext250($row['exclude_group_partition_next247'] ?? null, 'partition');
+            $partition = self::excludeTiesStringValue($row['exclude_group_partition_next247'] ?? null, 'partition');
             $rowsByPartition[$partition][] = $row;
         }
 
         $rows = [];
         foreach ($rowsByPartition as $partition => $partitionRows) {
             foreach ($partitionRows as $row) {
-                $currentId = self::rowIdNext250($row['exclude_group_rowid_next247'] ?? null, $rowIdColumn);
-                $class = self::stringValueNext250($row['exclude_group_class_next247'] ?? null, 'class');
+                $currentId = self::excludeTiesRowId($row['exclude_group_rowid_next247'] ?? null, $rowIdColumn);
+                $class = self::excludeTiesStringValue($row['exclude_group_class_next247'] ?? null, 'class');
                 $frameRows = [];
                 $removedTieIds = [];
                 foreach ($partitionRows as $candidate) {
-                    $candidateId = self::rowIdNext250($candidate['exclude_group_rowid_next247'] ?? null, $rowIdColumn);
-                    $candidateClass = self::stringValueNext250($candidate['exclude_group_class_next247'] ?? null, 'candidate class');
+                    $candidateId = self::excludeTiesRowId($candidate['exclude_group_rowid_next247'] ?? null, $rowIdColumn);
+                    $candidateClass = self::excludeTiesStringValue($candidate['exclude_group_class_next247'] ?? null, 'candidate class');
                     if ($candidateClass === $class && $candidateId !== $currentId) {
                         $removedTieIds[] = $candidateId;
                         continue;
@@ -4397,7 +4397,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     $frameRows[] = $candidate;
                 }
 
-                $frameIds = self::rowIdsNext250($frameRows, 'exclude_group_rowid_next247', $rowIdColumn);
+                $frameIds = self::excludeTiesRowIds($frameRows, 'exclude_group_rowid_next247', $rowIdColumn);
                 $rows[] = [
                     'exclude_ties_ordinal_next250' => count($rows),
                     'exclude_ties_partition_next250' => $partition,
@@ -4427,7 +4427,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,mixed>
      */
-    private static function summaryNext250(array $rows): array
+    private static function excludeTiesWindowSummary(array $rows): array
     {
         $summary = [
             'exclude_ties_count' => count($rows),
@@ -4443,8 +4443,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ];
 
         foreach ($rows as $row) {
-            $partition = self::stringValueNext250($row['exclude_ties_partition_next250'] ?? null, 'partition');
-            $class = self::stringValueNext250($row['exclude_ties_class_next250'] ?? null, 'class');
+            $partition = self::excludeTiesStringValue($row['exclude_ties_partition_next250'] ?? null, 'partition');
+            $class = self::excludeTiesStringValue($row['exclude_ties_class_next250'] ?? null, 'class');
             $removedCount = (int) ($row['exclude_ties_removed_peer_count_next250'] ?? 0);
             $summary[$class] = ((int) ($summary[$class] ?? 0)) + 1;
             $summary['current_rows_preserved'] += (int) (($row['exclude_ties_current_row_preserved_next250'] ?? null) === true);
@@ -4462,7 +4462,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<int|string>
      */
-    private static function idsForClassNext250(array $rows, string $class): array
+    private static function excludeTiesIdsForClass(array $rows, string $class): array
     {
         $ids = [];
         foreach ($rows as $row) {
@@ -4481,17 +4481,17 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<int|string>
      */
-    private static function rowIdsNext250(array $rows, string $column, string $rowIdColumn): array
+    private static function excludeTiesRowIds(array $rows, string $column, string $rowIdColumn): array
     {
         $ids = [];
         foreach ($rows as $row) {
-            $ids[] = self::rowIdNext250($row[$column] ?? null, $rowIdColumn);
+            $ids[] = self::excludeTiesRowId($row[$column] ?? null, $rowIdColumn);
         }
 
         return $ids;
     }
 
-    private static function allCurrentRowsPreservedNext250(array $rows): bool
+    private static function excludeTiesAllCurrentRowsPreserved(array $rows): bool
     {
         foreach ($rows as $row) {
             if (($row['exclude_ties_current_row_preserved_next250'] ?? null) !== true) {
@@ -4502,7 +4502,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $rows !== [];
     }
 
-    private static function allPeerTiesRemovedNext250(array $rows): bool
+    private static function excludeTiesAllPeerTiesRemoved(array $rows): bool
     {
         foreach ($rows as $row) {
             $frameIds = $row['exclude_ties_frame_rowids_next250'] ?? null;
@@ -4518,7 +4518,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $rows !== [];
     }
 
-    private static function rowIdNext250(mixed $value, string $rowIdColumn): int|string
+    private static function excludeTiesRowId(mixed $value, string $rowIdColumn): int|string
     {
         if (!is_int($value) && !is_string($value)) {
             throw new \InvalidArgumentException("SQLite row-value RETURNING EXCLUDE TIES next250 rowid column {$rowIdColumn} must be int or string");
@@ -4527,7 +4527,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $value;
     }
 
-    private static function stringValueNext250(mixed $value, string $name): string
+    private static function excludeTiesStringValue(mixed $value, string $name): string
     {
         if (!is_string($value) || $value === '') {
             throw new \InvalidArgumentException("SQLite row-value RETURNING EXCLUDE TIES next250 {$name} is missing");
@@ -4539,7 +4539,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function digestNext250(array $rows): string
+    private static function excludeTiesDigest(array $rows): string
     {
         $parts = [];
         foreach ($rows as $row) {
@@ -4565,7 +4565,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<string>|null $acknowledgedYieldTickets
      * @return array<string,mixed>
      */
-    public static function executeNext251(
+    public static function executeSourceDigestHandoff(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -4580,13 +4580,13 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?string $expectedCurrentDigest = null,
         ?string $expectedNextDigest = null,
     ): array {
-        self::tokenNext251($currentSourceEpoch, 'current source epoch');
-        self::tokenNext251($nextSourceEpoch, 'next source epoch');
+        self::sourceDigestHandoffRequiredToken($currentSourceEpoch, 'current source epoch');
+        self::sourceDigestHandoffRequiredToken($nextSourceEpoch, 'next source epoch');
         if ($currentSourceEpoch === $nextSourceEpoch) {
             throw new \InvalidArgumentException('SQLite row-value returning window next251 source epochs must differ');
         }
 
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext248(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationResumeBarrier(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -4599,13 +4599,13 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         );
 
         $barrier = $base['publication_barrier_next248'];
-        $currentDigest = self::tokenNext251((string) ($barrier['current_source_digest'] ?? ''), 'current source digest');
-        $nextDigest = self::tokenNext251((string) ($barrier['next_source_digest'] ?? ''), 'next source digest');
-        $digestReasons = self::digestReasonsNext251($currentDigest, $nextDigest, $expectedCurrentDigest, $expectedNextDigest);
+        $currentDigest = self::sourceDigestHandoffRequiredToken((string) ($barrier['current_source_digest'] ?? ''), 'current source digest');
+        $nextDigest = self::sourceDigestHandoffRequiredToken((string) ($barrier['next_source_digest'] ?? ''), 'next source digest');
+        $digestReasons = self::sourceDigestHandoffReasons($currentDigest, $nextDigest, $expectedCurrentDigest, $expectedNextDigest);
         $sourceReady = (bool) ($barrier['next_source_exposed'] ?? false) && $digestReasons === [];
-        $handoffRows = self::handoffRowsNext251($base['publication_sequence_next248'], $sourceReady, $currentSourceEpoch, $nextSourceEpoch);
+        $handoffRows = self::sourceDigestHandoffRows($base['publication_sequence_next248'], $sourceReady, $currentSourceEpoch, $nextSourceEpoch);
         $retryRows = array_values(array_filter($handoffRows, static fn (array $row): bool => ($row['source_epoch_next251'] ?? null) === $nextSourceEpoch));
-        $resume = self::resumeNext251($handoffRows, $resumeAfterTicket);
+        $resume = self::sourceDigestHandoffResume($handoffRows, $resumeAfterTicket);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next251',
@@ -4621,7 +4621,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'next_source_exposed_by_publication' => (bool) ($barrier['next_source_exposed'] ?? false),
                 'next_source_ready' => $sourceReady,
                 'blocked_reasons' => array_values(array_merge($barrier['blocked_reasons'] ?? [], $digestReasons)),
-                'handoff_token' => self::handoffTokenNext251($base, $currentSourceEpoch, $nextSourceEpoch, $digestReasons),
+                'handoff_token' => self::sourceDigestHandoffToken($base, $currentSourceEpoch, $nextSourceEpoch, $digestReasons),
                 'retry_visible_count' => count($retryRows),
                 'handoff_row_count' => count($handoffRows),
             ],
@@ -4647,7 +4647,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function digestReasonsNext251(string $currentDigest, string $nextDigest, ?string $expectedCurrentDigest, ?string $expectedNextDigest): array
+    private static function sourceDigestHandoffReasons(string $currentDigest, string $nextDigest, ?string $expectedCurrentDigest, ?string $expectedNextDigest): array
     {
         $reasons = [];
         if ($expectedCurrentDigest !== null && $expectedCurrentDigest !== $currentDigest) {
@@ -4664,7 +4664,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function handoffRowsNext251(array $rows, bool $sourceReady, string $currentEpoch, string $nextEpoch): array
+    private static function sourceDigestHandoffRows(array $rows, bool $sourceReady, string $currentEpoch, string $nextEpoch): array
     {
         $handoffRows = [];
         foreach ($rows as $index => $row) {
@@ -4688,7 +4688,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,mixed>
      */
-    private static function resumeNext251(array $rows, ?string $resumeAfterTicket): array
+    private static function sourceDigestHandoffResume(array $rows, ?string $resumeAfterTicket): array
     {
         if ($resumeAfterTicket === null) {
             return [
@@ -4726,7 +4726,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,mixed> $base
      * @param list<string> $digestReasons
      */
-    private static function handoffTokenNext251(array $base, string $currentEpoch, string $nextEpoch, array $digestReasons): string
+    private static function sourceDigestHandoffToken(array $base, string $currentEpoch, string $nextEpoch, array $digestReasons): string
     {
         return hash('sha256', json_encode([
             'barrier' => $base['publication_barrier_next248']['barrier_token'] ?? '',
@@ -4736,7 +4736,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ], JSON_THROW_ON_ERROR));
     }
 
-    private static function tokenNext251(string $value, string $label): string
+    private static function sourceDigestHandoffRequiredToken(string $value, string $label): string
     {
         if ($value === '') {
             throw new \InvalidArgumentException("SQLite row-value returning window next251 {$label} is missing");
@@ -4756,7 +4756,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<string>|null $acknowledgedYieldTickets
      * @return array<string,mixed>
      */
-    public static function executeNext252(
+    public static function executePublicationWindowFence(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -4767,7 +4767,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?array $acknowledgedYieldTickets = null,
         ?string $resumeAfterTicket = null,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext248(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationResumeBarrier(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -4779,11 +4779,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $resumeAfterTicket,
         );
 
-        $windowRows = self::windowRowsNext252($base['publication_sequence_next248'], $rowIdColumn);
+        $windowRows = self::publicationWindowFenceRows($base['publication_sequence_next248'], $rowIdColumn);
         $currentRows = array_values(array_filter($windowRows, static fn (array $row): bool => $row['source'] === 'current-yield'));
         $retryRows = array_values(array_filter($windowRows, static fn (array $row): bool => $row['source'] === 'next-retry'));
-        $resumeRows = self::resumeRowsNext252($windowRows, $base['publication_resume_next248']['resume_after_ticket'] ?? null);
-        $fence = self::fenceNext252($windowRows, $currentRows, $retryRows, $base['publication_barrier_next248']);
+        $resumeRows = self::publicationWindowFenceResumeRows($windowRows, $base['publication_resume_next248']['resume_after_ticket'] ?? null);
+        $fence = self::publicationWindowFenceSummary($windowRows, $currentRows, $retryRows, $base['publication_barrier_next248']);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next252',
@@ -4810,7 +4810,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $sequence
      * @return list<array<string,mixed>>
      */
-    private static function windowRowsNext252(array $sequence, string $rowIdColumn): array
+    private static function publicationWindowFenceRows(array $sequence, string $rowIdColumn): array
     {
         $rows = [];
         $partitionOrdinals = [];
@@ -4818,8 +4818,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $firstRetryOrdinal = null;
 
         foreach (array_values($sequence) as $index => $row) {
-            $source = self::stringValueNext252($row['source'] ?? null, 'source');
-            $ticket = self::stringValueNext252($row['ticket'] ?? null, 'ticket');
+            $source = self::publicationWindowFenceStringValue($row['source'] ?? null, 'source');
+            $ticket = self::publicationWindowFenceStringValue($row['ticket'] ?? null, 'ticket');
             $rowId = $row[$rowIdColumn] ?? null;
             if (!is_int($rowId) && !is_string($rowId)) {
                 throw new \InvalidArgumentException("SQLite row-value returning window next252 rowid column {$rowIdColumn} must be int or string");
@@ -4844,7 +4844,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'window_next_source_first_ordinal_next252' => $firstRetryOrdinal,
                 'window_previous_ticket_next252' => is_array($previous) ? ($previous['ticket'] ?? null) : null,
                 'window_next_ticket_next252' => is_array($next) ? ($next['ticket'] ?? null) : null,
-                'window_boundary_next252' => self::boundaryNext252($previous, $next),
+                'window_boundary_next252' => self::publicationWindowFenceBoundary($previous, $next),
                 'window_is_current_source_next252' => $source === 'current-yield',
                 'window_is_next_source_next252' => $source === 'next-retry',
                 'window_current_complete_before_row_next252' => $source === 'next-retry' && $currentHighWater !== null,
@@ -4859,7 +4859,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $windowRows
      * @return list<array<string,mixed>>
      */
-    private static function resumeRowsNext252(array $windowRows, mixed $resumeAfterTicket): array
+    private static function publicationWindowFenceResumeRows(array $windowRows, mixed $resumeAfterTicket): array
     {
         if ($resumeAfterTicket === null) {
             return $windowRows;
@@ -4887,7 +4887,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,mixed> $barrier
      * @return array<string,mixed>
      */
-    private static function fenceNext252(array $windowRows, array $currentRows, array $retryRows, array $barrier): array
+    private static function publicationWindowFenceSummary(array $windowRows, array $currentRows, array $retryRows, array $barrier): array
     {
         $currentHighWaterOrdinal = $currentRows === [] ? null : $currentRows[count($currentRows) - 1]['window_row_number_next252'];
         $firstRetryOrdinal = $retryRows[0]['window_row_number_next252'] ?? null;
@@ -4906,7 +4906,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ];
     }
 
-    private static function boundaryNext252(?array $previous, ?array $next): string
+    private static function publicationWindowFenceBoundary(?array $previous, ?array $next): string
     {
         if ($previous === null && $next === null) {
             return 'singleton-row';
@@ -4921,7 +4921,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return 'middle-row';
     }
 
-    private static function stringValueNext252(mixed $value, string $name): string
+    private static function publicationWindowFenceStringValue(mixed $value, string $name): string
     {
         if (!is_string($value) || $value === '') {
             throw new \InvalidArgumentException("SQLite row-value returning window next252 {$name} is missing");
@@ -5149,7 +5149,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?array $rowReceipts = null,
         bool $requireNextReceipts = true,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext251(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeSourceDigestHandoff(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -5478,7 +5478,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?string $resumeAfterTicket = null,
         ?array $acknowledgedNextRowTickets = null,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext251(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeSourceDigestHandoff(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -6186,7 +6186,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?string $resumeAfterTicket = null,
         ?string $acknowledgedTransitionToken = null,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext252(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationWindowFence(
             $tables,
             $yieldStatements,
             $attemptStatements,

@@ -20,7 +20,7 @@ final class SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>
          */
-        public static function materializeNext128(
+        public static function materializeCurrentSourceRange(
             array $preparedSource,
             array $currentSource,
             array $preparedPredicate,
@@ -49,8 +49,8 @@ final class SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan
                 $neededExpressions,
             );
 
-            $preparedRowids = self::rowidsNext128($preparedView);
-            $currentRowids = self::rowidsNext128($currentView);
+            $preparedRowids = self::rowids($preparedView);
+            $currentRowids = self::rowids($currentView);
             $rejected = array_values(array_diff($preparedRowids, $currentRowids));
             $admitted = array_values(array_diff($currentRowids, $preparedRowids));
             $selected = $currentView['selectedPlan'] ?? [];
@@ -63,16 +63,16 @@ final class SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan
                 'status' => $ready ? 'stat4-expression-covering-range-current-source-next128-ready' : 'requires-next-stage',
                 'preparedPredicateSignature' => hash('sha256', json_encode($preparedPredicate, JSON_THROW_ON_ERROR)),
                 'currentPredicateSignature' => hash('sha256', json_encode($currentPredicate, JSON_THROW_ON_ERROR)),
-                'rangePredicateChanged' => self::rangeValuesNext128($preparedView) !== self::rangeValuesNext128($currentView),
-                'preparedRangeValues' => self::rangeValuesNext128($preparedView),
-                'currentRangeValues' => self::rangeValuesNext128($currentView),
+                'rangePredicateChanged' => self::rangeValues($preparedView) !== self::rangeValues($currentView),
+                'preparedRangeValues' => self::rangeValues($preparedView),
+                'currentRangeValues' => self::rangeValues($currentView),
                 'preparedMatchedRowids' => $preparedRowids,
                 'currentMatchedRowids' => $currentRowids,
                 'staleRangeRejectedRowids' => $rejected,
                 'currentRangeAdmittedRowids' => $admitted,
                 'residualRangeRecheckRequired' => $rejected !== [] || $admitted !== [],
                 'rangeRecheckOpcode' => 'IdxGE/IdxLT current-source fence',
-                'cursorTape' => self::annotatedTapeNext128($currentView, $preparedView, $rejected, $admitted),
+                'cursorTape' => self::annotatedTape($currentView, $preparedView, $rejected, $admitted),
                 'dependencies' => [
                     'SQLiteSelectExpressionIndexPlan bounded range STAT4 planner',
                     'SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan',
@@ -87,7 +87,7 @@ final class SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan
          * @param array<string,mixed> $view
          * @return list<int>
          */
-        private static function rowidsNext128(array $view): array
+        private static function rowids(array $view): array
         {
             $rowids = [];
             foreach (($view['currentNextRows'] ?? []) as $pair) {
@@ -107,7 +107,7 @@ final class SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan
          * @param array<string,mixed> $view
          * @return array<string,mixed>
          */
-        private static function rangeValuesNext128(array $view): array
+        private static function rangeValues(array $view): array
         {
             $plan = $view['selectedPlan'] ?? [];
             $values = is_array($plan) && is_array($plan['values'] ?? null) ? $plan['values'] : [];
@@ -127,21 +127,21 @@ final class SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan
          * @param list<int> $admitted
          * @return array<string,mixed>
          */
-        private static function annotatedTapeNext128(array $currentView, array $preparedView, array $rejected, array $admitted): array
+        private static function annotatedTape(array $currentView, array $preparedView, array $rejected, array $admitted): array
         {
             $tape = is_array($currentView['cursorTape'] ?? null) ? $currentView['cursorTape'] : [];
             $program = is_array($tape['program'] ?? null) ? $tape['program'] : [];
             array_unshift($program, [
                 'opcode' => 'RecheckRangeBounds',
                 'source' => 'current-source',
-                'prepared' => self::rangeValuesNext128($preparedView),
-                'current' => self::rangeValuesNext128($currentView),
+                'prepared' => self::rangeValues($preparedView),
+                'current' => self::rangeValues($currentView),
             ]);
 
             return array_replace($tape, [
                 'program' => $program,
-                'preparedRange' => self::rangeValuesNext128($preparedView),
-                'currentRange' => self::rangeValuesNext128($currentView),
+                'preparedRange' => self::rangeValues($preparedView),
+                'currentRange' => self::rangeValues($currentView),
                 'staleRangeRejectedRowids' => $rejected,
                 'currentRangeAdmittedRowids' => $admitted,
                 'residualRangeRecheckOpcode' => 'RecheckRangeBounds',

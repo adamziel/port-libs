@@ -10,6 +10,7 @@ require_once __DIR__ . '/../src/SQLiteJsonTableCursor.php';
 require_once __DIR__ . '/../src/SQLiteJson5Parser.php';
 require_once __DIR__ . '/../src/SQLiteGroupedAggregate.php';
 require_once __DIR__ . '/../src/SQLiteWindowFunction.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteSelectExpression.php';
 require_once __DIR__ . '/../src/SQLiteSelectPredicate.php';
 require_once __DIR__ . '/../src/SQLiteSelectProjection.php';
@@ -61,7 +62,7 @@ SELECT option_id AS id,
  LIMIT 2, 6
 SQL;
 
-$summary = SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan::compareNext159($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan::compareRecursiveWindowYieldSources($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     if (array_column($summary['currentRows'], 'label') !== ['seed:2:3', 'seed:2:3:4', 'seed', 'seed:2', 'theme_mods', 'blogname']) {

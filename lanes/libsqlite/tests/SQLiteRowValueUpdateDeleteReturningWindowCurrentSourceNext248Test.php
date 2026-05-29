@@ -26,7 +26,7 @@ $attemptDelete248 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3,
 $retryUpdate248 = "UPDATE wp_options SET (status, option_value, bytes) = ('retry248', option_value || ':retry248', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete248 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan248 = static fn (?array $ack = null, ?string $resume = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext248(
+$plan248 = static fn (?array $ack = null, ?string $resume = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationResumeBarrier(
     $tables248,
     [$yieldUpdate248, $yieldDelete248],
     [$attemptUpdate248, $attemptDelete248],
@@ -105,7 +105,7 @@ $cases248 = [
     'non overlap mentions next245' => [static fn (): mixed => str_contains($plan248()['non_overlap_next248'], 'next245'), true],
     'non overlap mentions next236' => [static fn (): mixed => str_contains($plan248()['non_overlap_next248'], 'next236'), true],
     'bad resume ticket rejected' => [static fn (): mixed => $plan248(null, 'missing-ticket-next248'), InvalidArgumentException::class],
-    'bad savepoint rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext248($tables248, [$yieldUpdate248], [$attemptUpdate248], [$retryUpdate248], $unique248, 'bad-name'), InvalidArgumentException::class],
+    'bad savepoint rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationResumeBarrier($tables248, [$yieldUpdate248], [$attemptUpdate248], [$retryUpdate248], $unique248, 'bad-name'), InvalidArgumentException::class],
 ];
 
 $tests = [];

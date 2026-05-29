@@ -85,7 +85,7 @@ $plan128 = static fn (
     ?array $currentPredicate = null,
     ?array $rows = null,
     ?array $needed = null,
-): array => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeNext128(
+): array => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeCurrentSourceRange(
     $prepared ?? $preparedSource128(),
     $current ?? $currentSource128(),
     $preparedPredicate ?? $preparedPredicate128,
@@ -178,10 +178,10 @@ $tests = [
     'planner stat4 expression covering range current source next128 validates source indexes' => static function (TestRunner $t) use ($preparedSource128, $currentSource128, $preparedPredicate128, $currentPredicate128, $rows128, $order128, $needed128, $lower128): void {
         $bad = $preparedSource128();
         $bad['indexes'] = [];
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeNext128($bad, $currentSource128(), $preparedPredicate128, $currentPredicate128, $rows128(), $order128, $needed128, [$lower128]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeCurrentSourceRange($bad, $currentSource128(), $preparedPredicate128, $currentPredicate128, $rows128(), $order128, $needed128, [$lower128]));
     },
     'planner stat4 expression covering range current source next128 validates output columns' => static function (TestRunner $t) use ($preparedSource128, $currentSource128, $preparedPredicate128, $currentPredicate128, $rows128, $order128, $lower128): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeNext128($preparedSource128(), $currentSource128(), $preparedPredicate128, $currentPredicate128, $rows128(), $order128, [], [$lower128]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeCurrentSourceRange($preparedSource128(), $currentSource128(), $preparedPredicate128, $currentPredicate128, $rows128(), $order128, [], [$lower128]));
     },
 ];
 
