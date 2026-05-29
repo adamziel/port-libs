@@ -105,8 +105,9 @@ final class SQLiteVfsCurrentSourceNext626641Plan
                 'vfs-current-source-snapshot-reuse-publish-next626-641',
                 'vfs-current-source-snapshot-reuse-publish-next642-657',
                 'vfs-current-source-snapshot-reuse-publish-next658-673',
+                'vfs-current-source-snapshot-reuse-publish-next674-689',
             ],
-            'non_overlap' => 'next626-641 follows merged next610-625 by requiring the shared-cache-next625 receipt before creating a fresh current-source snapshot and publishing shared-cache-next641; next642-657 follows the integrated next626-641 handoff by requiring shared-cache-next641 before publishing shared-cache-next657; next658-673 follows the integrated next642-657 handoff by requiring shared-cache-next657 before publishing shared-cache-next673. These windows do not modify prior next610-625 files, earlier capture/readiness/lease gates, dirty flushing, VFS locking, WAL checkpointing, or B-tree behavior.',
+            'non_overlap' => 'next626-641 follows merged next610-625 by requiring the shared-cache-next625 receipt before creating a fresh current-source snapshot and publishing shared-cache-next641; next642-657 follows the integrated next626-641 handoff by requiring shared-cache-next641 before publishing shared-cache-next657; next658-673 follows the integrated next642-657 handoff by requiring shared-cache-next657 before publishing shared-cache-next673; next674-689 follows the integrated next658-673 handoff by requiring shared-cache-next673 before publishing shared-cache-next689. These windows do not modify prior next610-625 files, earlier capture/readiness/lease gates, dirty flushing, VFS locking, WAL checkpointing, or B-tree behavior.',
         ];
     }
 
