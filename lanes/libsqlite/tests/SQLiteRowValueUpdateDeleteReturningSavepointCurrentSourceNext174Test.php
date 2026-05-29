@@ -31,7 +31,7 @@ $outer174 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($oute
 $innerReplace174 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($innerReplaceSql174, $outer174()['tables'], 'option_id', $unique174);
 $innerDelete174 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($innerDeleteSql174, $innerReplace174()['tables'], 'option_id', $unique174);
 $retry174 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdateSql174, $tables174, 'option_id', $unique174);
-$plan174 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext174(
+$plan174 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetrySavepoint(
     $tables174,
     [$outerSql174],
     [$innerReplaceSql174, $innerDeleteSql174],
@@ -96,11 +96,11 @@ $cases174 = [
     'plan dependency outer rollback discard' => [static fn (): mixed => in_array('sqlite-rollback-to-outer-savepoint-discards-released-inner-rowvalue-effects-next174', $plan174()['dependencies'], true), true],
     'plan dependency retry from outer image' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-retry-starts-from-outer-image-next174', $plan174()['dependencies'], true), true],
 
-    'malformed empty outer statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext174($tables174, [], [$innerDeleteSql174], [$retryUpdateSql174], $unique174), InvalidArgumentException::class],
-    'malformed empty inner statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext174($tables174, [$outerSql174], [], [$retryUpdateSql174], $unique174), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext174($tables174, [$outerSql174], [$innerDeleteSql174], [], $unique174), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext174($tables174, [$outerSql174], [$innerDeleteSql174], [$retryUpdateSql174], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext174(['wp_options' => ['bad']], [$outerSql174], [$innerDeleteSql174], [$retryUpdateSql174], $unique174), InvalidArgumentException::class],
+    'malformed empty outer statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetrySavepoint($tables174, [], [$innerDeleteSql174], [$retryUpdateSql174], $unique174), InvalidArgumentException::class],
+    'malformed empty inner statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetrySavepoint($tables174, [$outerSql174], [], [$retryUpdateSql174], $unique174), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetrySavepoint($tables174, [$outerSql174], [$innerDeleteSql174], [], $unique174), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetrySavepoint($tables174, [$outerSql174], [$innerDeleteSql174], [$retryUpdateSql174], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetrySavepoint(['wp_options' => ['bad']], [$outerSql174], [$innerDeleteSql174], [$retryUpdateSql174], $unique174), InvalidArgumentException::class],
 ];
 
 $tests = [];

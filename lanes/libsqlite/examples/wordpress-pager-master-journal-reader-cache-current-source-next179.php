@@ -30,7 +30,7 @@ $pages = [
     3 => $page('wp next179 plugin settings after canonical master read'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext179(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::canonicalMemberPathReaderCachePlan(
     $database,
     $master,
     implode("\n", $members) . "\n",

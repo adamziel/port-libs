@@ -33,7 +33,7 @@ $releaseDeleteResult190 = static fn (): array => SQLiteUpdateDeleteReturningSql:
 $rollbackUpdateResult190 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($rollbackUpdate190, $releaseDeleteResult190()['tables'], 'option_id', $unique190);
 $rollbackDeleteResult190 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($rollbackDelete190, $rollbackUpdateResult190()['tables'], 'option_id', $unique190);
 $retryUpdateResult190 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate190, $releaseDeleteResult190()['tables'], 'option_id', $unique190);
-$plan190 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext190(
+$plan190 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNegatedRollbackRetrySavepoint(
     $tables190,
     [$releaseUpdate190, $releaseDelete190],
     [$rollbackUpdate190, $rollbackDelete190],
@@ -111,12 +111,12 @@ $cases190 = [
     'plan dependency not in release' => [static fn (): mixed => in_array('sqlite-rowvalue-not-in-returning-savepoint-release-next190', $plan190()['dependencies'], true), true],
     'plan dependency not between rollback' => [static fn (): mixed => in_array('sqlite-rowvalue-not-between-delete-returning-rollback-next190', $plan190()['dependencies'], true), true],
     'plan dependency retry source' => [static fn (): mixed => in_array('sqlite-rowvalue-negated-predicate-retry-reads-rollback-image-next190', $plan190()['dependencies'], true), true],
-    'malformed empty release rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext190($tables190, [], [$rollbackUpdate190], [$retryUpdate190], $unique190), InvalidArgumentException::class],
-    'malformed empty rollback rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext190($tables190, [$releaseUpdate190], [], [$retryUpdate190], $unique190), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext190($tables190, [$releaseUpdate190], [$rollbackUpdate190], [], $unique190), InvalidArgumentException::class],
-    'malformed unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext190($tables190, [$releaseUpdate190], [$rollbackUpdate190], [$retryUpdate190], []), InvalidArgumentException::class],
-    'malformed savepoint name rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext190($tables190, [$releaseUpdate190], [$rollbackUpdate190], [$retryUpdate190], $unique190, 'bad-name'), InvalidArgumentException::class],
-    'malformed row rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext190(['wp_options' => ['bad']], [$releaseUpdate190], [$rollbackUpdate190], [$retryUpdate190], $unique190), InvalidArgumentException::class],
+    'malformed empty release rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNegatedRollbackRetrySavepoint($tables190, [], [$rollbackUpdate190], [$retryUpdate190], $unique190), InvalidArgumentException::class],
+    'malformed empty rollback rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNegatedRollbackRetrySavepoint($tables190, [$releaseUpdate190], [], [$retryUpdate190], $unique190), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNegatedRollbackRetrySavepoint($tables190, [$releaseUpdate190], [$rollbackUpdate190], [], $unique190), InvalidArgumentException::class],
+    'malformed unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNegatedRollbackRetrySavepoint($tables190, [$releaseUpdate190], [$rollbackUpdate190], [$retryUpdate190], []), InvalidArgumentException::class],
+    'malformed savepoint name rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNegatedRollbackRetrySavepoint($tables190, [$releaseUpdate190], [$rollbackUpdate190], [$retryUpdate190], $unique190, 'bad-name'), InvalidArgumentException::class],
+    'malformed row rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNegatedRollbackRetrySavepoint(['wp_options' => ['bad']], [$releaseUpdate190], [$rollbackUpdate190], [$retryUpdate190], $unique190), InvalidArgumentException::class],
 ];
 
 $tests = [];

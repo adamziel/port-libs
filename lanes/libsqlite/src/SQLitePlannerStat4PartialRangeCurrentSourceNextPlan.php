@@ -6,68 +6,65 @@ namespace PortLibs\LibSqlite;
 
 final class SQLitePlannerStat4PartialRangeCurrentSourceNextPlan
 {
-
-    /* Variant formerly implemented by SQLitePlannerStat4PartialRangeCurrentSourceNextPlan. */
-
     /**
-         * @param array<string,mixed> $preparedSource
-         * @param array<string,mixed> $currentSource
-         * @param array<string,mixed> $predicate
-         * @param list<array{column:string,direction?:string}> $orderBy
-         * @param list<string> $neededColumns
-         * @return array<string,mixed>
-         */
-        public static function compareNext124(
-            array $preparedSource,
-            array $currentSource,
-            array $predicate,
-            array $orderBy,
-            array $neededColumns = [],
-        ): array {
-            $preparedPlan = self::sourcePlanNext124($preparedSource, $predicate, $orderBy, $neededColumns);
-            $currentPlan = self::sourcePlanNext124($currentSource, $predicate, $orderBy, $neededColumns);
+     * @param array<string,mixed> $preparedSource
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $predicate
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    public static function compare(
+        array $preparedSource,
+        array $currentSource,
+        array $predicate,
+        array $orderBy,
+        array $neededColumns = [],
+    ): array {
+        $preparedPlan = self::sourcePlan($preparedSource, $predicate, $orderBy, $neededColumns);
+        $currentPlan = self::sourcePlan($currentSource, $predicate, $orderBy, $neededColumns);
 
-            $preparedCookie = self::nonNegativeIntNext124($preparedSource, 'schemaCookie');
-            $currentCookie = self::nonNegativeIntNext124($currentSource, 'schemaCookie');
-            $preparedStat4 = self::nonNegativeIntNext124($preparedSource, 'stat4Generation');
-            $currentStat4 = self::nonNegativeIntNext124($currentSource, 'stat4Generation');
-            $preparedRange = self::partialRangeSummaryNext124($preparedPlan);
-            $currentRange = self::partialRangeSummaryNext124($currentPlan);
-            $stale = $preparedCookie !== $currentCookie
-                || $preparedStat4 !== $currentStat4
-                || $preparedRange !== $currentRange
-                || self::indexSignatureNext124($preparedSource) !== self::indexSignatureNext124($currentSource);
-            $selected = $stale ? $currentPlan : $preparedPlan;
+        $preparedCookie = self::nonNegativeInt($preparedSource, 'schemaCookie');
+        $currentCookie = self::nonNegativeInt($currentSource, 'schemaCookie');
+        $preparedStat4 = self::nonNegativeInt($preparedSource, 'stat4Generation');
+        $currentStat4 = self::nonNegativeInt($currentSource, 'stat4Generation');
+        $preparedRange = self::partialRangeSummary($preparedPlan);
+        $currentRange = self::partialRangeSummary($currentPlan);
+        $stale = $preparedCookie !== $currentCookie
+            || $preparedStat4 !== $currentStat4
+            || $preparedRange !== $currentRange
+            || self::indexSignature($preparedSource) !== self::indexSignature($currentSource);
+        $selected = $stale ? $currentPlan : $preparedPlan;
 
-            return [
-                'status' => (string) ($selected['status'] ?? 'unusable'),
-                'selectedSource' => $stale ? 'current' : 'prepared',
-                'preparedSource' => self::sourceSummaryNext124($preparedSource, $preparedPlan, $preparedRange),
-                'currentSource' => self::sourceSummaryNext124($currentSource, $currentPlan, $currentRange),
-                'selectedPlan' => $selected,
-                'stalePreparedStatement' => $stale,
-                'reprepareRequired' => $stale,
-                'schemaCookieChanged' => $preparedCookie !== $currentCookie,
-                'stat4GenerationChanged' => $preparedStat4 !== $currentStat4,
-                'indexSignatureChanged' => self::indexSignatureNext124($preparedSource) !== self::indexSignatureNext124($currentSource),
-                'partialRangeChanged' => $preparedRange !== $currentRange,
-                'partialRangeDelta' => self::partialRangeDeltaNext124($preparedRange, $currentRange),
-                'preparedWouldUseStalePartialRange' => $stale
-                    && ($preparedPlan['usable'] ?? false) === true
-                    && ($currentPlan['usable'] ?? false) === true
-                    && $preparedRange !== $currentRange,
-                'preparedRowEstimate' => (int) ($preparedPlan['estimatedRows'] ?? 0),
-                'currentRowEstimate' => (int) ($currentPlan['estimatedRows'] ?? 0),
-                'estimatedRowsDelta' => (int) ($currentPlan['estimatedRows'] ?? 0) - (int) ($preparedPlan['estimatedRows'] ?? 0),
-                'stat4MatchedSamplesDelta' => (int) ($currentPlan['stat4MatchedSamples'] ?? 0) - (int) ($preparedPlan['stat4MatchedSamples'] ?? 0),
-                'detail' => self::detailNext124($stale, $selected, $currentSource, $currentRange),
-                'dependencies' => [
-                    'SQLitePartialIndexOrderCurrentSourcePlan',
-                    'SQLiteMultiColumnRangePlan',
-                    'SQLiteIndexPredicate',
-                ],
-            ];
-        }
+        return [
+            'status' => (string) ($selected['status'] ?? 'unusable'),
+            'selectedSource' => $stale ? 'current' : 'prepared',
+            'preparedSource' => self::sourceSummary($preparedSource, $preparedPlan, $preparedRange),
+            'currentSource' => self::sourceSummary($currentSource, $currentPlan, $currentRange),
+            'selectedPlan' => $selected,
+            'stalePreparedStatement' => $stale,
+            'reprepareRequired' => $stale,
+            'schemaCookieChanged' => $preparedCookie !== $currentCookie,
+            'stat4GenerationChanged' => $preparedStat4 !== $currentStat4,
+            'indexSignatureChanged' => self::indexSignature($preparedSource) !== self::indexSignature($currentSource),
+            'partialRangeChanged' => $preparedRange !== $currentRange,
+            'partialRangeDelta' => self::partialRangeDelta($preparedRange, $currentRange),
+            'preparedWouldUseStalePartialRange' => $stale
+                && ($preparedPlan['usable'] ?? false) === true
+                && ($currentPlan['usable'] ?? false) === true
+                && $preparedRange !== $currentRange,
+            'preparedRowEstimate' => (int) ($preparedPlan['estimatedRows'] ?? 0),
+            'currentRowEstimate' => (int) ($currentPlan['estimatedRows'] ?? 0),
+            'estimatedRowsDelta' => (int) ($currentPlan['estimatedRows'] ?? 0) - (int) ($preparedPlan['estimatedRows'] ?? 0),
+            'stat4MatchedSamplesDelta' => (int) ($currentPlan['stat4MatchedSamples'] ?? 0) - (int) ($preparedPlan['stat4MatchedSamples'] ?? 0),
+            'detail' => self::detail($stale, $selected, $currentSource, $currentRange),
+            'dependencies' => [
+                'SQLitePartialIndexOrderCurrentSourcePlan',
+                'SQLiteMultiColumnRangePlan',
+                'SQLiteIndexPredicate',
+            ],
+        ];
+    }
 
         /**
          * @param array<string,mixed> $source
@@ -76,7 +73,7 @@ final class SQLitePlannerStat4PartialRangeCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function sourcePlanNext124(array $source, array $predicate, array $orderBy, array $neededColumns): array
+        private static function sourcePlan(array $source, array $predicate, array $orderBy, array $neededColumns): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -107,13 +104,13 @@ final class SQLitePlannerStat4PartialRangeCurrentSourceNextPlan
          * @param array<string,mixed>|null $partialRange
          * @return array<string,mixed>
          */
-        private static function sourceSummaryNext124(array $source, array $plan, ?array $partialRange): array
+        private static function sourceSummary(array $source, array $plan, ?array $partialRange): array
         {
             return [
-                'name' => self::stringValueNext124($source, 'name', 'source'),
-                'schemaCookie' => self::nonNegativeIntNext124($source, 'schemaCookie'),
-                'stat4Generation' => self::nonNegativeIntNext124($source, 'stat4Generation'),
-                'indexSignature' => self::indexSignatureNext124($source),
+                'name' => self::stringValue($source, 'name', 'source'),
+                'schemaCookie' => self::nonNegativeInt($source, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeInt($source, 'stat4Generation'),
+                'indexSignature' => self::indexSignature($source),
                 'status' => (string) ($plan['status'] ?? 'unusable'),
                 'usable' => (bool) ($plan['usable'] ?? false),
                 'indexName' => $plan['name'] ?? null,
@@ -132,7 +129,7 @@ final class SQLitePlannerStat4PartialRangeCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>|null
          */
-        private static function partialRangeSummaryNext124(array $plan): ?array
+        private static function partialRangeSummary(array $plan): ?array
         {
             $indexSql = (string) ($plan['sql'] ?? '');
             if ($indexSql === '') {
@@ -177,7 +174,7 @@ final class SQLitePlannerStat4PartialRangeCurrentSourceNextPlan
          * @param array<string,mixed>|null $current
          * @return array<string,mixed>
          */
-        private static function partialRangeDeltaNext124(?array $prepared, ?array $current): array
+        private static function partialRangeDelta(?array $prepared, ?array $current): array
         {
             return [
                 'prepared' => $prepared,
@@ -192,7 +189,7 @@ final class SQLitePlannerStat4PartialRangeCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function indexSignatureNext124(array $source): string
+        private static function indexSignature(array $source): string
         {
             $indexes = $source['indexes'] ?? [];
             if (!is_array($indexes)) {
@@ -206,10 +203,10 @@ final class SQLitePlannerStat4PartialRangeCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @param array<string,mixed>|null $currentRange
          */
-        private static function detailNext124(bool $stale, array $plan, array $currentSource, ?array $currentRange): string
+        private static function detail(bool $stale, array $plan, array $currentSource, ?array $currentRange): string
         {
             $action = $stale ? 'REPREPARE USING CURRENT SOURCE ' : 'REUSE PREPARED SOURCE ';
-            $sourceName = self::stringValueNext124($currentSource, 'name', 'current');
+            $sourceName = self::stringValue($currentSource, 'name', 'current');
             $range = $currentRange === null ? 'NO PARTIAL RANGE' : 'PARTIAL RANGE ' . ($currentRange['column'] ?? 'unknown');
 
             return $action . $sourceName . ' ' . $range . ' ' . (string) ($plan['detail'] ?? 'STAT4 PARTIAL RANGE');
@@ -218,7 +215,7 @@ final class SQLitePlannerStat4PartialRangeCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $data
          */
-        private static function nonNegativeIntNext124(array $data, string $key): int
+        private static function nonNegativeInt(array $data, string $key): int
         {
             $value = $data[$key] ?? null;
             if (!is_int($value) || $value < 0) {
@@ -231,7 +228,7 @@ final class SQLitePlannerStat4PartialRangeCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $data
          */
-        private static function stringValueNext124(array $data, string $key, string $default): string
+        private static function stringValue(array $data, string $key, string $default): string
         {
             $value = $data[$key] ?? $default;
             if (!is_string($value) || $value === '') {

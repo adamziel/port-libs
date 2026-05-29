@@ -15,7 +15,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param list<int> $releaseReadPages
      * @return array<string,mixed>
      */
-    public static function currentSourceNext125(
+    public static function planSavepointCacheCurrentSource(
         string $masterJournalPath,
         ?string $cachedMasterJournalBytes,
         ?string $currentMasterJournalBytes,
@@ -31,20 +31,20 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         int $currentSourceEpoch = 1,
     ): array {
         if ($currentSourceId === '') {
-            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache next125 requires a current source id');
+            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache current-source requires a current source id');
         }
         if ($currentSourceEpoch < 1) {
-            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache next125 source epoch must be positive');
+            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache current-source source epoch must be positive');
         }
         if ($cachePages === []) {
-            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache next125 requires cache pages');
+            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache current-source requires cache pages');
         }
         if ($releaseReadPages === []) {
-            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache next125 requires release read pages');
+            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache current-source requires release read pages');
         }
 
-        self::assertCachePages125($cachePages, $pageSize);
-        self::assertPageList125($releaseReadPages);
+        self::assertCachePages($cachePages, $pageSize);
+        self::assertReleaseReadPages($releaseReadPages);
 
         $recovery = SQLitePagerMasterJournalCacheRecoveryCurrentSourceNextPlan::currentSourceNext(
             $masterJournalPath,
@@ -59,14 +59,14 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         );
 
         $currentMembers = $recovery['current_members'] ?? [];
-        $nextSourceId = self::sourceId125($masterJournalPath, is_array($currentMembers) ? $currentMembers : []);
+        $nextSourceId = self::sourceId($masterJournalPath, is_array($currentMembers) ? $currentMembers : []);
         $nextEpoch = $currentSourceEpoch + 1;
         $currentSourceVerified = ($recovery['current_source_verified'] ?? false) === true;
         $recoveredBytes = (string) ($recovery['recovery']['retry_recovery']['recovered_database_bytes'] ?? '');
         $rollbackBytes = (string) ($recovery['payloads'][$primaryDatabasePath . '#master-savepoint-rollback-preview-next108'] ?? $recoveredBytes);
         $finalBytes = (string) ($recovery['payloads'][$primaryDatabasePath . '#master-savepoint-current-source-next108'] ?? $recoveredBytes);
-        $capturedPages = self::intList125($recovery['recovery']['captured_page_numbers'] ?? []);
-        $rollbackPages = self::intList125($recovery['rollback_preview']['restored_page_numbers'] ?? []);
+        $capturedPages = self::intList($recovery['recovery']['captured_page_numbers'] ?? []);
+        $rollbackPages = self::intList($recovery['rollback_preview']['restored_page_numbers'] ?? []);
 
         $validCache = [];
         $invalidated = [];
@@ -90,7 +90,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
                 $reason = 'stale_current_source_id';
             } elseif ($epoch !== $currentSourceEpoch) {
                 $reason = 'stale_current_source_epoch';
-            } elseif (!self::matchesAnyPageImage125($image, $pageNumber, $pageSize, [$recoveredBytes, $rollbackBytes, $finalBytes])) {
+            } elseif (!self::matchesAnyPageImage($image, $pageNumber, $pageSize, [$recoveredBytes, $rollbackBytes, $finalBytes])) {
                 $reason = 'cached_image_not_from_recovered_current_source';
             }
 
@@ -122,7 +122,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         }
 
         foreach (array_unique(array_merge($capturedPages, $rollbackPages)) as $pageNumber) {
-            $image = self::pageImage125($rollbackBytes !== '' ? $rollbackBytes : $recoveredBytes, $pageNumber, $pageSize);
+            $image = self::pageImage($rollbackBytes !== '' ? $rollbackBytes : $recoveredBytes, $pageNumber, $pageSize);
             $validCache[$pageNumber] = [
                 'image' => $image,
                 'source' => in_array($pageNumber, $capturedPages, true)
@@ -155,8 +155,8 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
                 'source' => $hit ? (string) $entry['source'] : 'pager-read-miss',
                 'source_id' => $nextSourceId,
                 'epoch' => $nextEpoch,
-                'prefix' => $hit ? self::prefix125((string) $entry['image']) : '',
-                'zero_filled_short_read' => !$hit && self::pageImage125($rollbackBytes, $pageNumber, $pageSize) === str_repeat("\0", $pageSize),
+                'prefix' => $hit ? self::prefix((string) $entry['image']) : '',
+                'zero_filled_short_read' => !$hit && self::pageImage($rollbackBytes, $pageNumber, $pageSize) === str_repeat("\0", $pageSize),
             ];
             $operations[] = [
                 'op' => $hit ? 'release_read_master_journal_cache_hit' : 'release_read_master_journal_cache_miss',
@@ -168,8 +168,8 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         }
 
         $status = $currentSourceVerified
-            ? 'pager_master_journal_savepoint_cache_current_source_next125'
-            : 'pager_master_journal_savepoint_cache_current_source_blocked_next125';
+            ? 'pager_master_journal_savepoint_cache_current_source'
+            : 'pager_master_journal_savepoint_cache_current_source_blocked';
 
         return [
             'status' => $status,
@@ -194,9 +194,9 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
                 'invalidated_entries' => $invalidated,
                 'installed_page_numbers' => array_values(array_unique(array_merge($capturedPages, $rollbackPages))),
                 'final_page_numbers' => array_keys($validCache),
-                'final_sources' => self::sources125($validCache),
-                'final_source_ids' => self::sourceIds125($validCache),
-                'dirty_page_numbers' => self::dirtyPageNumbers125($validCache),
+                'final_sources' => self::sources($validCache),
+                'final_source_ids' => self::sourceIds($validCache),
+                'dirty_page_numbers' => self::dirtyPageNumbers($validCache),
             ],
             'release_reads' => $releaseReads,
             'recovery' => $recovery,
@@ -205,7 +205,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
             'dependencies' => array_values(array_unique(array_merge(
                 is_array($recovery['dependencies'] ?? null) ? $recovery['dependencies'] : [],
                 [
-                    'sqlite-pager-master-journal-savepoint-cache-current-source-next125',
+                    'sqlite-pager-master-journal-savepoint-cache-current-source',
                     'sqlite-pager-master-journal-cache-recovery-current-source-next122',
                     'sqlite-pager-cache-current-source-token',
                 ]
@@ -216,14 +216,14 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
     /**
      * @param array<int,array<string,mixed>> $cachePages
      */
-    private static function assertCachePages125(array $cachePages, int $pageSize): void
+    private static function assertCachePages(array $cachePages, int $pageSize): void
     {
         foreach ($cachePages as $pageNumber => $entry) {
             if (!is_int($pageNumber) || $pageNumber < 1) {
-                throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache next125 page numbers must be one-based integers');
+                throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache current-source page numbers must be one-based integers');
             }
             if (!isset($entry['image']) || !is_string($entry['image']) || strlen($entry['image']) !== $pageSize) {
-                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache next125 page {$pageNumber} image must match page size");
+                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache current-source page {$pageNumber} image must match page size");
             }
         }
     }
@@ -231,11 +231,11 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
     /**
      * @param list<int> $pages
      */
-    private static function assertPageList125(array $pages): void
+    private static function assertReleaseReadPages(array $pages): void
     {
         foreach ($pages as $pageNumber) {
             if (!is_int($pageNumber) || $pageNumber < 1) {
-                throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache next125 release read pages must be one-based integers');
+                throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache current-source release read pages must be one-based integers');
             }
         }
     }
@@ -244,7 +244,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param list<mixed> $values
      * @return list<int>
      */
-    private static function intList125(array $values): array
+    private static function intList(array $values): array
     {
         $ints = [];
         foreach ($values as $value) {
@@ -259,10 +259,10 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
     /**
      * @param list<string> $images
      */
-    private static function matchesAnyPageImage125(string $image, int $pageNumber, int $pageSize, array $images): bool
+    private static function matchesAnyPageImage(string $image, int $pageNumber, int $pageSize, array $images): bool
     {
         foreach ($images as $databaseBytes) {
-            if ($databaseBytes !== '' && $image === self::pageImage125($databaseBytes, $pageNumber, $pageSize)) {
+            if ($databaseBytes !== '' && $image === self::pageImage($databaseBytes, $pageNumber, $pageSize)) {
                 return true;
             }
         }
@@ -270,7 +270,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         return false;
     }
 
-    private static function pageImage125(string $databaseBytes, int $pageNumber, int $pageSize): string
+    private static function pageImage(string $databaseBytes, int $pageNumber, int $pageSize): string
     {
         $offset = ($pageNumber - 1) * $pageSize;
 
@@ -280,7 +280,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
     /**
      * @param list<string> $members
      */
-    private static function sourceId125(string $masterJournalPath, array $members): string
+    private static function sourceId(string $masterJournalPath, array $members): string
     {
         return 'master-journal:' . substr(hash('sha256', $masterJournalPath . "\n" . implode("\n", $members)), 0, 16);
     }
@@ -289,7 +289,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param array<int,array<string,mixed>> $pages
      * @return array<int,string>
      */
-    private static function sources125(array $pages): array
+    private static function sources(array $pages): array
     {
         $sources = [];
         foreach ($pages as $pageNumber => $entry) {
@@ -303,7 +303,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param array<int,array<string,mixed>> $pages
      * @return array<int,string>
      */
-    private static function sourceIds125(array $pages): array
+    private static function sourceIds(array $pages): array
     {
         $sourceIds = [];
         foreach ($pages as $pageNumber => $entry) {
@@ -317,7 +317,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param array<int,array<string,mixed>> $pages
      * @return list<int>
      */
-    private static function dirtyPageNumbers125(array $pages): array
+    private static function dirtyPageNumbers(array $pages): array
     {
         $dirty = [];
         foreach ($pages as $pageNumber => $entry) {
@@ -329,7 +329,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         return $dirty;
     }
 
-    private static function prefix125(string $bytes): string
+    private static function prefix(string $bytes): string
     {
         return rtrim(substr($bytes, 0, 56), "\0.");
     }
@@ -343,7 +343,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param list<int> $readPages
      * @return array<string,mixed>
      */
-    public static function plan138(
+    public static function planHotSavepointRetryCache(
         string $databasePath,
         string $masterJournalPath,
         ?string $cachedMasterJournalBytes,
@@ -362,15 +362,15 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         bool $releaseSavepointAfterRetry = false,
     ): array {
         if ($savepointName === '' || $retryStatementName === '') {
-            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache next138 requires savepoint and statement names');
+            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache current-source-retry requires savepoint and statement names');
         }
         if ($savepointWrites === [] || $retryStatementWrites === []) {
-            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache next138 requires savepoint and retry statement writes');
+            throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache current-source-retry requires savepoint and retry statement writes');
         }
 
-        $savepointWrites = self::normalizeImages138($savepointWrites, $pageSize, 'savepoint write');
-        $retryStatementWrites = self::normalizeImages138($retryStatementWrites, $pageSize, 'retry statement write');
-        self::assertPageList138($readPages);
+        $savepointWrites = self::normalizeImages($savepointWrites, $pageSize, 'savepoint write');
+        $retryStatementWrites = self::normalizeImages($retryStatementWrites, $pageSize, 'retry statement write');
+        self::assertReadPages($readPages);
 
         $hot = SQLitePagerMasterJournalHotCacheCurrentSourceNextPlan::plan(
             $databasePath,
@@ -391,14 +391,14 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         $nextSource = $hot['next_source'];
         $nextSourceId = (string) $nextSource['id'];
         $nextEpoch = (int) $nextSource['epoch'];
-        $source = self::sourceMap138((string) $hot['final_database_bytes'], $pageSize, 'master-journal-hot-current-source');
+        $source = self::sourceMap((string) $hot['final_database_bytes'], $pageSize, 'master-journal-hot-current-source');
         $operations = $hot['operations'];
         $savepointBefore = [];
         $retryBefore = [];
 
         foreach ($savepointWrites as $pageNumber => $image) {
             if (!isset($source[$pageNumber])) {
-                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache next138 savepoint page {$pageNumber} is outside the database image");
+                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache current-source-retry savepoint page {$pageNumber} is outside the database image");
             }
             $savepointBefore[$pageNumber] = $source[$pageNumber]['image'];
             $operations[] = [
@@ -407,7 +407,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
                 'page_number' => $pageNumber,
                 'source_id' => $nextSourceId,
                 'epoch' => $nextEpoch,
-                'before_prefix' => self::label138($source[$pageNumber]['image']),
+                'before_prefix' => self::label($source[$pageNumber]['image']),
                 'reason' => 'savepoint_journal_captures_rebased_master_hot_current_source',
             ];
             $source[$pageNumber] = [
@@ -442,7 +442,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
 
         foreach ($retryStatementWrites as $pageNumber => $image) {
             if (!isset($source[$pageNumber])) {
-                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache next138 retry page {$pageNumber} is outside the database image");
+                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache current-source-retry retry page {$pageNumber} is outside the database image");
             }
             $retryBefore[$pageNumber] = $source[$pageNumber]['image'];
             $operations[] = [
@@ -451,7 +451,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
                 'page_number' => $pageNumber,
                 'source_id' => $nextSourceId,
                 'epoch' => $nextEpoch,
-                'before_prefix' => self::label138($source[$pageNumber]['image']),
+                'before_prefix' => self::label($source[$pageNumber]['image']),
                 'reason' => 'retry_statement_captures_restored_master_hot_current_source',
             ];
             $source[$pageNumber] = [
@@ -471,7 +471,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         $reads = [];
         foreach ($readPages as $pageNumber) {
             if (!isset($source[$pageNumber])) {
-                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache next138 read page {$pageNumber} is outside the database image");
+                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache current-source-retry read page {$pageNumber} is outside the database image");
             }
             $reads[] = [
                 'page_number' => $pageNumber,
@@ -479,7 +479,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
                 'source_id' => $nextSourceId,
                 'epoch' => $nextEpoch,
                 'dirty' => (bool) $source[$pageNumber]['dirty'],
-                'prefix' => self::label138($source[$pageNumber]['image']),
+                'prefix' => self::label($source[$pageNumber]['image']),
                 'matches_savepoint_before_image' => isset($savepointBefore[$pageNumber]) && $source[$pageNumber]['image'] === $savepointBefore[$pageNumber],
                 'matches_retry_before_image' => isset($retryBefore[$pageNumber]) && $source[$pageNumber]['image'] === $retryBefore[$pageNumber],
             ];
@@ -511,7 +511,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         ksort($source, SORT_NUMERIC);
 
         return [
-            'status' => 'pager-master-journal-savepoint-cache-current-source-next138',
+            'status' => 'pager-master-journal-savepoint-cache-current-source-retry',
             'reason' => 'master_journal_hot_cache_rebases_savepoint_before_retry_statement',
             'database_path' => $databasePath,
             'master_journal_path' => $masterJournalPath,
@@ -536,19 +536,19 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
             'invalidated_cache_page_numbers' => $hot['invalidated_cache_page_numbers'],
             'current_source' => $hot['current_source'],
             'next_source' => $hot['next_source'],
-            'savepoint_before_prefixes' => self::prefixes138($savepointBefore),
-            'retry_statement_before_prefixes' => self::prefixes138($retryBefore),
-            'final_prefixes' => self::prefixesFromSource138($source),
-            'final_sources' => self::sources138($source),
-            'dirty_page_numbers' => self::dirtyPageNumbers138($source),
+            'savepoint_before_prefixes' => self::prefixes($savepointBefore),
+            'retry_statement_before_prefixes' => self::prefixes($retryBefore),
+            'final_prefixes' => self::prefixesFromSource($source),
+            'final_sources' => self::sourceNames($source),
+            'dirty_page_numbers' => self::dirtySourcePageNumbers($source),
             'reads' => $reads,
             'operations' => $operations,
-            'final_database_bytes' => self::sourceBytes138($source, $pageSize),
-            'source_digest' => hash('sha256', implode('|', self::sources138($source)) . '|' . implode(',', self::dirtyPageNumbers138($source))),
+            'final_database_bytes' => self::sourceBytes($source, $pageSize),
+            'source_digest' => hash('sha256', implode('|', self::sourceNames($source)) . '|' . implode(',', self::dirtySourcePageNumbers($source))),
             'dependencies' => [
-                'sqlite-pager-master-journal-savepoint-cache-current-source-next138',
+                'sqlite-pager-master-journal-savepoint-cache-current-source-retry',
                 'sqlite-pager-master-journal-hot-cache-current-source-next136',
-                'sqlite-pager-master-journal-savepoint-cache-current-source-next125',
+                'sqlite-pager-master-journal-savepoint-cache-current-source',
                 'sqlite-savepoint-rollback-to-rebased-pager-cache-current-source',
             ],
         ];
@@ -558,19 +558,19 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param array<int,string> $pages
      * @return array<int,string>
      */
-    private static function normalizeImages138(array $pages, int $pageSize, string $label): array
+    private static function normalizeImages(array $pages, int $pageSize, string $label): array
     {
         if ($pageSize < 1) {
-            throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache next138 {$label} page size must be positive");
+            throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache current-source-retry {$label} page size must be positive");
         }
         ksort($pages, SORT_NUMERIC);
         $normalized = [];
         foreach ($pages as $pageNumber => $image) {
             if (!is_int($pageNumber) || $pageNumber < 1) {
-                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache next138 {$label} page numbers must be one-based integers");
+                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache current-source-retry {$label} page numbers must be one-based integers");
             }
             if (!is_string($image) || strlen($image) !== $pageSize) {
-                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache next138 {$label} page {$pageNumber} image must match page size");
+                throw new \InvalidArgumentException("SQLite pager master-journal savepoint cache current-source-retry {$label} page {$pageNumber} image must match page size");
             }
             $normalized[$pageNumber] = $image;
         }
@@ -581,11 +581,11 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
     /**
      * @param list<int> $pages
      */
-    private static function assertPageList138(array $pages): void
+    private static function assertReadPages(array $pages): void
     {
         foreach ($pages as $pageNumber) {
             if (!is_int($pageNumber) || $pageNumber < 1) {
-                throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache next138 read pages must be one-based integers');
+                throw new \InvalidArgumentException('SQLite pager master-journal savepoint cache current-source-retry read pages must be one-based integers');
             }
         }
     }
@@ -593,7 +593,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
     /**
      * @return array<int,array{image:string,source:string,dirty:bool}>
      */
-    private static function sourceMap138(string $databaseBytes, int $pageSize, string $source): array
+    private static function sourceMap(string $databaseBytes, int $pageSize, string $source): array
     {
         $map = [];
         $pageCount = intdiv(strlen($databaseBytes), $pageSize);
@@ -612,12 +612,12 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param array<int,string> $pages
      * @return array<int,string>
      */
-    private static function prefixes138(array $pages): array
+    private static function prefixes(array $pages): array
     {
         ksort($pages, SORT_NUMERIC);
         $prefixes = [];
         foreach ($pages as $pageNumber => $image) {
-            $prefixes[$pageNumber] = self::label138($image);
+            $prefixes[$pageNumber] = self::label($image);
         }
 
         return $prefixes;
@@ -627,12 +627,12 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param array<int,array{image:string,source:string,dirty:bool}> $source
      * @return array<int,string>
      */
-    private static function prefixesFromSource138(array $source): array
+    private static function prefixesFromSource(array $source): array
     {
         ksort($source, SORT_NUMERIC);
         $prefixes = [];
         foreach ($source as $pageNumber => $entry) {
-            $prefixes[$pageNumber] = self::label138($entry['image']);
+            $prefixes[$pageNumber] = self::label($entry['image']);
         }
 
         return $prefixes;
@@ -642,7 +642,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param array<int,array{image:string,source:string,dirty:bool}> $source
      * @return array<int,string>
      */
-    private static function sources138(array $source): array
+    private static function sourceNames(array $source): array
     {
         ksort($source, SORT_NUMERIC);
         $sources = [];
@@ -657,7 +657,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
      * @param array<int,array{image:string,source:string,dirty:bool}> $source
      * @return list<int>
      */
-    private static function dirtyPageNumbers138(array $source): array
+    private static function dirtySourcePageNumbers(array $source): array
     {
         $pages = [];
         foreach ($source as $pageNumber => $entry) {
@@ -672,7 +672,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
     /**
      * @param array<int,array{image:string,source:string,dirty:bool}> $source
      */
-    private static function sourceBytes138(array $source, int $pageSize): string
+    private static function sourceBytes(array $source, int $pageSize): string
     {
         ksort($source, SORT_NUMERIC);
         $bytes = '';
@@ -684,7 +684,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         return $bytes;
     }
 
-    private static function label138(string $image): string
+    private static function label(string $image): string
     {
         return rtrim(substr($image, 0, 96), ".\0");
     }

@@ -1,8 +1,9 @@
-# Pager master-journal savepoint cache current-source next125
+# Pager master-journal savepoint cache current-source
 
 ## Behavior
 
-Adds `SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan` for the
+Consolidates the stable entrypoint on
+`SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan` for the
 pager edge where a cached master-journal recovery has to be refreshed from the
 current VFS source before savepoint retry pages are installed into the pager
 cache. The plan rejects stale/dirty cache entries, installs recovered
@@ -12,12 +13,16 @@ bytes.
 
 ## Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalSavepointCacheCurrentSourceNext125Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalSavepointCacheCurrentSourceTest.php`
   - `1 test files, 62 assertions, 0 failures`
   - `62` focused PASS lines
-- `php lanes/libsqlite/examples/wordpress-pager-master-journal-savepoint-cache-current-source-next125.php`
-  - `wordpress-pager-master-journal-savepoint-cache-current-source-next125 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-pager-master-journal-savepoint-cache-current-source.php`
+  - `wordpress-pager-master-journal-savepoint-cache-current-source self-test passed`
 - PHP lint and `git diff --check -- lanes/libsqlite` were run for the changed lane files.
+
+Expected dashboard delta: none. This is consolidation-only cleanup of numbered
+production method/test/example names and preserves the existing focused
+assertion coverage.
 
 ## Non-Overlap
 

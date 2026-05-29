@@ -21,8 +21,8 @@ $prepared = [
     'schemaCookie' => 123,
     'stat4Generation' => 44,
     'indexes' => [[
-        'name' => 'idx_wp_options_blog_plugin_partial_stat4_next124',
-        'rootPage' => 12401,
+        'name' => 'idx_wp_options_blog_plugin_partial_stat4_stable',
+        'rootPage' => 12501,
         'estimatedRows' => 120,
         'stat4Samples' => [
             ['neq' => '1 3 3', 'nlt' => '0 0 0', 'ndlt' => '0 0 0', 'sample' => [1, 'plugin_alpha', 'yes']],
@@ -31,19 +31,19 @@ $prepared = [
             ['neq' => '1 7 7', 'nlt' => '10 10 10', 'ndlt' => '3 3 3', 'sample' => [1, 'plugin_security', 'yes']],
             ['neq' => '1 2 2', 'nlt' => '17 17 17', 'ndlt' => '4 4 4', 'sample' => [1, 'plugin_seo', 'yes']],
         ],
-        'sql' => "CREATE INDEX idx_wp_options_blog_plugin_partial_stat4_next124 ON wp_options(blog_id, option_name, autoload, option_value) WHERE kind = 'plugin' AND option_name >= 'plugin_' AND option_name < 'plugin_zzzz'",
+        'sql' => "CREATE INDEX idx_wp_options_blog_plugin_partial_stat4_stable ON wp_options(blog_id, option_name, autoload, option_value) WHERE kind = 'plugin' AND option_name >= 'plugin_' AND option_name < 'plugin_zzzz'",
     ]],
 ];
 
 $current = $prepared;
 $current['name'] = 'current-wp-options-plugin-range';
-$current['schemaCookie'] = 124;
+$current['schemaCookie'] = 125;
 $current['stat4Generation'] = 45;
-$current['indexes'][0]['rootPage'] = 12409;
+$current['indexes'][0]['rootPage'] = 12509;
 $current['indexes'][0]['estimatedRows'] = 80;
-$current['indexes'][0]['sql'] = "CREATE INDEX idx_wp_options_blog_plugin_partial_stat4_next124 ON wp_options(blog_id, option_name, autoload, option_value) WHERE kind = 'plugin' AND option_name >= 'plugin_cache' AND option_name < 'plugin_seo'";
+$current['indexes'][0]['sql'] = "CREATE INDEX idx_wp_options_blog_plugin_partial_stat4_stable ON wp_options(blog_id, option_name, autoload, option_value) WHERE kind = 'plugin' AND option_name >= 'plugin_cache' AND option_name < 'plugin_seo'";
 
-$plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124(
+$plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compare(
     $prepared,
     $current,
     $predicate,
@@ -52,7 +52,7 @@ $plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124(
 );
 
 $summary = [
-    'scenario' => 'wordpress-stat4-partial-range-current-source-next124',
+    'scenario' => 'wordpress-stat4-partial-range-current-source-stable',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
@@ -72,7 +72,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($summary['partialRangeChanged'] === true);
     assert($summary['preparedWouldUseStalePartialRange'] === true);
     assert($summary['currentPartialRange']['lower'] === 'plugin_cache');
-    echo "wordpress-stat4-partial-range-current-source-next124 self-test passed\n";
+    echo "wordpress-stat4-partial-range-current-source-stable self-test passed\n";
     return;
 }
 

@@ -13,7 +13,7 @@ $pageSize = 512;
 $sectorSize = 512;
 $mainPath = '/srv/wp/database/main.sqlite';
 $sitePath = '/srv/wp/database/site.sqlite';
-$masterPath = '/srv/wp/database/main.sqlite-mj125';
+$masterPath = '/srv/wp/database/main.sqlite-mj-current-source';
 $currentSourceId = 'cached-master-source-before-crash';
 $page = static fn (string $label, string $pad = '.'): string => str_pad($label, $pageSize, $pad, STR_PAD_RIGHT);
 $makeJournal = static function (array $pages, int $initialPageCount, int $nonce) use ($sectorSize, $pageSize): string {
@@ -27,30 +27,30 @@ $makeJournal = static function (array $pages, int $initialPageCount, int $nonce)
 };
 $makeStack = static function () use ($page): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('wp-options-cache-next125');
-    $stack->recordPageImageWrite(1, $page('next125 outer schema before plugin retry'));
+    $stack->beginTransaction('wp-options-cache-current-source');
+    $stack->recordPageImageWrite(1, $page('current-source outer schema before plugin retry'));
     $stack->savepoint('active-plugins');
-    $stack->recordPageImageWrite(3, $page('next125 plugin settings before retry'));
+    $stack->recordPageImageWrite(3, $page('current-source plugin settings before retry'));
 
     return $stack;
 };
 
-$mainClean1 = $page('next125 clean main schema from current master');
-$mainClean2 = $page('next125 clean active_plugins from current master');
-$mainClean3 = $page('next125 clean plugin settings from savepoint');
-$mainDirty1 = $page('next125 dirty main schema after crash');
-$mainDirty2 = $page('next125 dirty active_plugins after crash');
-$mainDirty3 = $page('next125 dirty plugin settings after crash');
-$siteClean1 = $page('next125 clean attached site schema');
-$siteDirty1 = $page('next125 dirty attached site schema');
-$retry2 = $page('next125 retry active_plugins write after recovery');
-$retry4 = $page('next125 retry autoload index append');
-$stale2 = $page('next125 stale cached active_plugins page');
-$stale5 = $page('next125 stale cached missing extension page');
+$mainClean1 = $page('current-source clean main schema from current master');
+$mainClean2 = $page('current-source clean active_plugins from current master');
+$mainClean3 = $page('current-source clean plugin settings from savepoint');
+$mainDirty1 = $page('current-source dirty main schema after crash');
+$mainDirty2 = $page('current-source dirty active_plugins after crash');
+$mainDirty3 = $page('current-source dirty plugin settings after crash');
+$siteClean1 = $page('current-source clean attached site schema');
+$siteDirty1 = $page('current-source dirty attached site schema');
+$retry2 = $page('current-source retry active_plugins write after recovery');
+$retry4 = $page('current-source retry autoload index append');
+$stale2 = $page('current-source stale cached active_plugins page');
+$stale5 = $page('current-source stale cached missing extension page');
 
 $mainJournal = $makeJournal([1 => $mainClean1, 2 => $mainClean2, 3 => $mainClean3], 3, 0x12500001);
 $siteJournal = $makeJournal([1 => $siteClean1], 1, 0x12500002);
-$staleJournal = $makeJournal([1 => $page('next125 stale cached single journal')], 1, 0x1250abcd);
+$staleJournal = $makeJournal([1 => $page('current-source stale cached single journal')], 1, 0x1250abcd);
 $cachedMaster = $mainPath . "-journal\n";
 $currentMaster = $mainPath . "-journal\n" . $sitePath . "-journal\n";
 $databases = [
@@ -75,7 +75,7 @@ $cachePages = [
     5 => ['image' => $stale5, 'source' => 'stale-missing-page', 'source_id' => $currentSourceId, 'epoch' => 6],
 ];
 
-$plan = static fn (?string $cached = null, ?string $current = null, ?array $cache = null, array $reads = [1, 2, 3, 4, 5]): array => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125(
+$plan = static fn (?string $cached = null, ?string $current = null, ?array $cache = null, array $reads = [1, 2, 3, 4, 5]): array => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planSavepointCacheCurrentSource(
     $masterPath,
     func_num_args() >= 1 ? $cached : $cachedMaster,
     func_num_args() >= 2 ? $current : $currentMaster,
@@ -137,7 +137,7 @@ $cases = [
     'operation release miss present' => static fn (): mixed => in_array('release_read_master_journal_cache_miss', array_column($plan()['operations'], 'op'), true),
     'payload final exists' => static fn (): mixed => isset($plan()['payloads'][$mainPath . '#master-savepoint-current-source-next108']),
     'payload rollback exists' => static fn (): mixed => isset($plan()['payloads'][$mainPath . '#master-savepoint-rollback-preview-next108']),
-    'dependency marker' => static fn (): mixed => in_array('sqlite-pager-master-journal-savepoint-cache-current-source-next125', $plan()['dependencies'], true),
+    'dependency marker' => static fn (): mixed => in_array('sqlite-pager-master-journal-savepoint-cache-current-source', $plan()['dependencies'], true),
     'dependency recovery next122' => static fn (): mixed => in_array('sqlite-pager-master-journal-cache-recovery-current-source-next122', $plan()['dependencies'], true),
     'dependency cache token' => static fn (): mixed => in_array('sqlite-pager-cache-current-source-token', $plan()['dependencies'], true),
     'unchanged source still works' => static fn (): mixed => $plan($currentMaster, $currentMaster)['status'],
@@ -149,7 +149,7 @@ $cases = [
 ];
 
 $expected = [
-    'status' => 'pager_master_journal_savepoint_cache_current_source_next125',
+    'status' => 'pager_master_journal_savepoint_cache_current_source',
     'reason' => 'savepoint_cache_pages_rebased_to_master_journal_current_source',
     'master path' => $masterPath,
     'primary path' => $mainPath,
@@ -179,11 +179,11 @@ $expected = [
     'dirty pages empty' => [],
     'release read count' => 5,
     'release page one hit' => true,
-    'release page one prefix' => 'next125 clean main schema from current master',
+    'release page one prefix' => 'current-source clean main schema from current master',
     'release page two hit' => true,
-    'release page two prefix' => 'next125 clean active_plugins from current master',
+    'release page two prefix' => 'current-source clean active_plugins from current master',
     'release page three hit' => true,
-    'release page three prefix' => 'next125 plugin settings before retry',
+    'release page three prefix' => 'current-source plugin settings before retry',
     'release page four hit' => true,
     'release page four prefix' => '',
     'release page five miss' => false,
@@ -197,8 +197,8 @@ $expected = [
     'dependency marker' => true,
     'dependency recovery next122' => true,
     'dependency cache token' => true,
-    'unchanged source still works' => 'pager_master_journal_savepoint_cache_current_source_next125',
-    'missing current blocked' => 'pager_master_journal_savepoint_cache_current_source_blocked_next125',
+    'unchanged source still works' => 'pager_master_journal_savepoint_cache_current_source',
+    'missing current blocked' => 'pager_master_journal_savepoint_cache_current_source_blocked',
     'missing current source false' => false,
     'missing current invalid reason' => 'master_journal_current_source_unverified',
     'custom read subset' => [2, 4],
@@ -206,24 +206,24 @@ $expected = [
 ];
 
 foreach ($cases as $name => $callback) {
-    $tests['pager master journal savepoint cache current source next125 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['pager master journal savepoint cache current source ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }
 
 $throws = [
-    'empty current source rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, $cachePages, [1], ''),
-    'zero epoch rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, $cachePages, [1], $currentSourceId, 0),
-    'empty cache rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, [], [1], $currentSourceId),
-    'empty read list rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, $cachePages, [], $currentSourceId),
-    'bad cache page rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, [0 => ['image' => $mainClean1]], [1], $currentSourceId),
-    'short cache image rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, [1 => ['image' => 'short']], [1], $currentSourceId),
-    'bad read page rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, $cachePages, [0], $currentSourceId),
-    'bad recovery savepoint rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, '', $makeStack(), $retryWrites, $cachePages, [1], $currentSourceId),
+    'empty current source rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planSavepointCacheCurrentSource($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, $cachePages, [1], ''),
+    'zero epoch rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planSavepointCacheCurrentSource($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, $cachePages, [1], $currentSourceId, 0),
+    'empty cache rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planSavepointCacheCurrentSource($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, [], [1], $currentSourceId),
+    'empty read list rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planSavepointCacheCurrentSource($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, $cachePages, [], $currentSourceId),
+    'bad cache page rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planSavepointCacheCurrentSource($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, [0 => ['image' => $mainClean1]], [1], $currentSourceId),
+    'short cache image rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planSavepointCacheCurrentSource($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, [1 => ['image' => 'short']], [1], $currentSourceId),
+    'bad read page rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planSavepointCacheCurrentSource($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, 'active-plugins', $makeStack(), $retryWrites, $cachePages, [0], $currentSourceId),
+    'bad recovery savepoint rejected' => static fn () => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planSavepointCacheCurrentSource($masterPath, $cachedMaster, $currentMaster, $databases, $pageSize, $mainPath, '', $makeStack(), $retryWrites, $cachePages, [1], $currentSourceId),
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['pager master journal savepoint cache current source next125 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['pager master journal savepoint cache current source ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(Throwable::class, $callback);
     };
 }

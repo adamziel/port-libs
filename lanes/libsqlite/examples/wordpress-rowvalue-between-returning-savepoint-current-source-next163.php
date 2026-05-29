@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
@@ -23,7 +24,7 @@ $discardDeleteSql = "DELETE FROM wp_options WHERE (blog_id, option_name) BETWEEN
 $retrySql = "UPDATE wp_options SET (status, option_value, bytes) = ('retry', option_value || ':retry', bytes + 5) WHERE (blog_id, option_name) BETWEEN (2, 'home') AND (3, 'zzzz') RETURNING option_id, option_name, status, option_value, bytes, (blog_id, option_name) BETWEEN (2, 'home') AND (3, 'zzzz') AS retry_range ORDER BY option_id";
 $cleanupSql = "DELETE FROM wp_options WHERE (blog_id, option_name) BETWEEN (1, '_transient_feed') AND (1, '_transient_timeout_feed') RETURNING option_id, option_name ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext163(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBetweenRollbackRetrySavepoint(
     ['wp_options' => $rows],
     [$stageSql, $discardDeleteSql],
     [$retrySql, $cleanupSql],

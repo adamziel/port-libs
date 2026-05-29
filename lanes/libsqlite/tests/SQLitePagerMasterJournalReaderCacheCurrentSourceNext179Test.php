@@ -85,7 +85,7 @@ $plan = static fn (
     ?string $mj = null,
     ?string $sourceArg = null,
     int $epoch = 179,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext179(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::canonicalMemberPathReaderCachePlan(
     $db ?? $database,
     $mj ?? $master,
     $masterBytesArg ?? $masterBytes,

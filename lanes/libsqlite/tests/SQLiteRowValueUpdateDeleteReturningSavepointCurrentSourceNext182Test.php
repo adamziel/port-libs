@@ -31,7 +31,7 @@ $outer182 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($oute
 $innerDeleteAfterOuter182 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($innerDelete182, $outer182()['tables'], 'option_id', $unique182);
 $innerReplaceAfterDelete182 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($innerReplace182, $innerDeleteAfterOuter182()['tables'], 'option_id', $unique182);
 $retryUpdateAfterRollback182 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate182, $tables182, 'option_id', $unique182);
-$plan182 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext182(
+$plan182 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerSavepointRollback(
     $tables182,
     [$outerUpdate182],
     [$innerDelete182, $innerReplace182],
@@ -102,12 +102,12 @@ $cases182 = [
     'plan dependency suppresses released returning' => [static fn (): mixed => in_array('sqlite-rollback-to-outer-suppresses-released-inner-returning-next182', $plan182()['dependencies'], true), true],
     'plan dependency retries from outer image' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-retry-starts-from-outer-image-next182', $plan182()['dependencies'], true), true],
 
-    'malformed empty outer statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext182($tables182, [], [$innerDelete182], [$retryUpdate182], $unique182), InvalidArgumentException::class],
-    'malformed empty inner statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext182($tables182, [$outerUpdate182], [], [$retryUpdate182], $unique182), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext182($tables182, [$outerUpdate182], [$innerDelete182], [], $unique182), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext182($tables182, [$outerUpdate182], [$innerDelete182], [$retryUpdate182], []), InvalidArgumentException::class],
-    'malformed same savepoint names rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext182($tables182, [$outerUpdate182], [$innerDelete182], [$retryUpdate182], $unique182, 'same', 'same'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext182(['wp_options' => ['bad']], [$outerUpdate182], [$innerDelete182], [$retryUpdate182], $unique182), InvalidArgumentException::class],
+    'malformed empty outer statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerSavepointRollback($tables182, [], [$innerDelete182], [$retryUpdate182], $unique182), InvalidArgumentException::class],
+    'malformed empty inner statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerSavepointRollback($tables182, [$outerUpdate182], [], [$retryUpdate182], $unique182), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerSavepointRollback($tables182, [$outerUpdate182], [$innerDelete182], [], $unique182), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerSavepointRollback($tables182, [$outerUpdate182], [$innerDelete182], [$retryUpdate182], []), InvalidArgumentException::class],
+    'malformed same savepoint names rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerSavepointRollback($tables182, [$outerUpdate182], [$innerDelete182], [$retryUpdate182], $unique182, 'same', 'same'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerSavepointRollback(['wp_options' => ['bad']], [$outerUpdate182], [$innerDelete182], [$retryUpdate182], $unique182), InvalidArgumentException::class],
 ];
 
 $tests = [];

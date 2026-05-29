@@ -32,13 +32,13 @@ $deleteOnly = static function () use ($stageSql, $discardDeleteSql, $tables, $un
 
     return SQLiteUpdateDeleteReturningSql::execute($discardDeleteSql, $staged['tables'], 'option_id', $unique);
 };
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext163(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBetweenRollbackRetrySavepoint(
     $tables,
     [$stageSql, $discardDeleteSql],
     [$retrySql, $cleanupSql],
     $unique,
 );
-$customPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext163(
+$customPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBetweenRollbackRetrySavepoint(
     $tables,
     [$stageSql],
     [$retrySql],
@@ -107,11 +107,11 @@ $cases = [
     'plan dependency retry source restored' => [static fn (): mixed => in_array('sqlite-retry-after-rollback-to-reads-restored-current-source', $plan()['dependencies'], true), true],
     'custom savepoint accepted' => [static fn (): mixed => $customPlan()['savepoint'], 'wp_custom_between_retry'],
     'custom plan retry rows restored' => [static fn (): mixed => array_column($customPlan()['retry_statements'][0]['source_rows'], 'option_value'), ['https://network.test', 'https://network-home.test', 'theme', 'rules', 'plugin']],
-    'malformed empty pre statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext163($tables, [], [$retrySql], $unique), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext163($tables, [$stageSql], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext163($tables, [$stageSql], [$retrySql], []), InvalidArgumentException::class],
-    'malformed bad savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext163($tables, [$stageSql], [$retrySql], $unique, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext163(['wp_options' => ['bad']], [$stageSql], [$retrySql], $unique), InvalidArgumentException::class],
+    'malformed empty pre statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBetweenRollbackRetrySavepoint($tables, [], [$retrySql], $unique), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBetweenRollbackRetrySavepoint($tables, [$stageSql], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBetweenRollbackRetrySavepoint($tables, [$stageSql], [$retrySql], []), InvalidArgumentException::class],
+    'malformed bad savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBetweenRollbackRetrySavepoint($tables, [$stageSql], [$retrySql], $unique, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBetweenRollbackRetrySavepoint(['wp_options' => ['bad']], [$stageSql], [$retrySql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

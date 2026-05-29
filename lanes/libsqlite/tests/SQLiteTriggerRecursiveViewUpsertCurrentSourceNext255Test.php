@@ -139,7 +139,7 @@ $baseOptions255 = [
     'required_current_source_returning_aliases_next255' => ['name', 'value', 'event_name', 'spawn_child'],
 ];
 
-$plan255 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext255(
+$plan255 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentSourceUpsertReturningDrain(
     $rows255,
     $currentInput255,
     $nextInput255,

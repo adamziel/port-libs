@@ -42,7 +42,7 @@ SELECT option_id AS id, option_name AS name, priority, 'autoload' AS source
  LIMIT 6 OFFSET 1
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareNext146($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareRecursiveOrderLimit($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound recursive order limit current source next146 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -121,7 +121,7 @@ $tests['compound recursive order limit current source next146 changed signatures
 };
 
 $tests['compound recursive order limit current source next146 rejects non recursive compound'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareNext146(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareRecursiveOrderLimit(
         "SELECT option_id AS id, option_name AS name, priority, 'autoload' AS source FROM wp_options UNION ALL SELECT option_id, option_name, priority, 'copy' FROM wp_options ORDER BY priority LIMIT 3",
         $currentTables,
         $currentTables,
@@ -129,7 +129,7 @@ $tests['compound recursive order limit current source next146 rejects non recurs
 };
 
 $tests['compound recursive order limit current source next146 rejects missing compound tail limit'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareNext146(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareRecursiveOrderLimit(
         "WITH RECURSIVE ranked(id, name, priority, depth) AS (VALUES (1, 'siteurl', 90, 0) UNION ALL SELECT option_id, option_name, priority, depth + 1 FROM wp_options JOIN ranked ON parent_id = id ORDER BY priority DESC LIMIT 3) SELECT id, name, priority, 'recursive' AS source FROM ranked UNION ALL SELECT option_id, option_name, priority, 'autoload' FROM wp_options ORDER BY priority",
         $currentTables,
         $currentTables,
@@ -137,7 +137,7 @@ $tests['compound recursive order limit current source next146 rejects missing co
 };
 
 $tests['compound recursive order limit current source next146 rejects untraceable recursive select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareNext146(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareRecursiveOrderLimit(
         "WITH RECURSIVE ranked(id, name, priority, depth) AS (VALUES (1, 'siteurl', 90, 0) UNION ALL SELECT option_id, option_name, priority, depth + 1 FROM wp_options JOIN ranked ON parent_id = id ORDER BY priority DESC LIMIT 3) SELECT name, id, priority, 'recursive' AS source FROM ranked UNION ALL SELECT option_name, option_id, priority, 'autoload' FROM wp_options ORDER BY priority LIMIT 3",
         $currentTables,
         $currentTables,

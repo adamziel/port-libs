@@ -13,7 +13,7 @@ $pageSize = 512;
 $sectorSize = 512;
 $mainPath = '/srv/www/wp-content/database/main.sqlite';
 $sitePath = '/srv/www/wp-content/database/site.sqlite';
-$masterPath = '/srv/www/wp-content/database/main.sqlite-mj125';
+$masterPath = '/srv/www/wp-content/database/main.sqlite-mj-current-source';
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 $makeJournal = static function (array $pages, int $initialPageCount, int $nonce) use ($sectorSize, $pageSize): string {
     $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', count($pages), $nonce, $initialPageCount, $sectorSize, $pageSize);
@@ -44,7 +44,7 @@ $siteJournal = $makeJournal([1 => $siteClean1], 1, 0x12510002);
 $cachedMaster = $mainPath . "-journal\n";
 $currentMaster = $mainPath . "-journal\n" . $sitePath . "-journal\n";
 
-$plan = SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125(
+$plan = SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planSavepointCacheCurrentSource(
     $masterPath,
     $cachedMaster,
     $currentMaster,
@@ -80,20 +80,20 @@ $plan = SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSour
 );
 
 if (
-    $plan['status'] !== 'pager_master_journal_savepoint_cache_current_source_next125'
+    $plan['status'] !== 'pager_master_journal_savepoint_cache_current_source'
     || $plan['cache']['invalidated_page_numbers'] !== [2, 3]
     || array_column($plan['release_reads'], 'cache_hit') !== [true, true, true, true]
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-savepoint-cache-current-source-next125 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-savepoint-cache-current-source self-test failed\n");
     exit(1);
 }
 
 if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
-    echo "wordpress-pager-master-journal-savepoint-cache-current-source-next125 self-test passed\n";
+    echo "wordpress-pager-master-journal-savepoint-cache-current-source self-test passed\n";
 }
 
 return [
-    'scenario' => 'wordpress-pager-master-journal-savepoint-cache-current-source-next125',
+    'scenario' => 'wordpress-pager-master-journal-savepoint-cache-current-source',
     'wordpressUse' => 'Refresh copied WordPress SQLite pager cache pages after attached-database master-journal recovery and a retry inside a savepoint, so active_plugins and plugin settings reads use recovered current-source bytes instead of stale crashed cache entries.',
     'status' => $plan['status'],
     'cacheStaleRejected' => $plan['cache_stale_rejected'],

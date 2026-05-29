@@ -33752,7 +33752,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializeNext718733($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceNext734749($base, $currentSource, $neededColumns);
+        $fence = self::handoffFenceForPreparedHandoff($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next718-733-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -33772,7 +33772,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next734749Prepared" => $ready,
                 "next734749HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext734749($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::cursorProgramForPreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next734-749-prep"],
@@ -33783,7 +33783,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceNext734749(array $base, array $currentSource, array $neededColumns): array
+    private static function handoffFenceForPreparedHandoff(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next734-749 needs projected columns");
@@ -33799,10 +33799,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next734-749 needs next718-733 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(734, 749) as $slice) {
             $ordinal = $slice - 734;
@@ -33811,12 +33811,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next734-749 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -33858,7 +33858,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ];
     }
 
-    private static function rowsByRowidNext734749(array $source): array
+    private static function rowsByRowidForPreparedHandoff(array $source): array
     {
         if (!isset($source["rows"]) || !is_array($source["rows"])) {
             throw new \InvalidArgumentException("SQLite next734-749 needs current rows");
@@ -33869,23 +33869,23 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException("SQLite next734-749 current rows must be arrays");
             }
-            $rowid = self::intValueNext734749($row["rowid"] ?? null, "current rowid");
+            $rowid = self::intValueForPreparedHandoff($row["rowid"] ?? null, "current rowid");
             $rows[$rowid] = $row;
         }
 
         return $rows;
     }
 
-    private static function intListNext734749(mixed $value, string $label): array
+    private static function intListForPreparedHandoff(mixed $value, string $label): array
     {
         if (!is_array($value)) {
             throw new \InvalidArgumentException("SQLite next734-749 needs " . $label);
         }
 
-        return array_values(array_map(static fn (mixed $rowid): int => self::intValueNext734749($rowid, $label), $value));
+        return array_values(array_map(static fn (mixed $rowid): int => self::intValueForPreparedHandoff($rowid, $label), $value));
     }
 
-    private static function intValueNext734749(mixed $value, string $label): int
+    private static function intValueForPreparedHandoff(mixed $value, string $label): int
     {
         if (is_int($value)) {
             return $value;
@@ -33897,7 +33897,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         throw new \InvalidArgumentException("SQLite next734-749 " . $label . " must be an integer");
     }
 
-    private static function projectedColumnsNext734749(array $row, array $neededColumns): array
+    private static function projectedColumnsForPreparedHandoff(array $row, array $neededColumns): array
     {
         $projected = [];
         foreach ($neededColumns as $column) {
@@ -33910,7 +33910,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return $projected;
     }
 
-    private static function cursorProgramNext734749(array $program, bool $ready, array $fence): array
+    private static function cursorProgramForPreparedHandoff(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -33992,10 +33992,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next750-765 needs next734-749 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(750, 765) as $slice) {
             $ordinal = $slice - 750;
@@ -34004,12 +34004,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next750-765 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -34133,10 +34133,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next766-781 needs next750-765 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(766, 781) as $slice) {
             $ordinal = $slice - 766;
@@ -34145,12 +34145,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next766-781 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -34274,10 +34274,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next782-797 needs next766-781 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(782, 797) as $slice) {
             $ordinal = $slice - 782;
@@ -34286,12 +34286,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next782-797 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -34415,10 +34415,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next798-813 needs next782-797 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(798, 813) as $slice) {
             $ordinal = $slice - 798;
@@ -34427,12 +34427,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next798-813 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -34556,10 +34556,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next814-829 needs next798-813 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(814, 829) as $slice) {
             $ordinal = $slice - 814;
@@ -34568,12 +34568,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next814-829 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -34697,10 +34697,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next830-845 needs next814-829 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(830, 845) as $slice) {
             $ordinal = $slice - 830;
@@ -34709,12 +34709,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next830-845 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -34838,10 +34838,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next846-861 needs next830-845 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(846, 861) as $slice) {
             $ordinal = $slice - 846;
@@ -34850,12 +34850,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next846-861 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -34979,10 +34979,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next862-877 needs next846-861 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(862, 877) as $slice) {
             $ordinal = $slice - 862;
@@ -34991,12 +34991,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next862-877 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -35120,10 +35120,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next878-893 needs next862-877 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(878, 893) as $slice) {
             $ordinal = $slice - 878;
@@ -35132,12 +35132,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next878-893 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -35261,10 +35261,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next894-909 needs next878-893 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(894, 909) as $slice) {
             $ordinal = $slice - 894;
@@ -35273,12 +35273,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next894-909 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -35402,10 +35402,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next910-925 needs next894-909 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(910, 925) as $slice) {
             $ordinal = $slice - 910;
@@ -35414,12 +35414,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next910-925 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -35543,10 +35543,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next926-941 needs next910-925 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(926, 941) as $slice) {
             $ordinal = $slice - 926;
@@ -35555,12 +35555,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next926-941 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -35684,10 +35684,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next942-957 needs next926-941 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(942, 957) as $slice) {
             $ordinal = $slice - 942;
@@ -35696,12 +35696,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next942-957 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -35825,10 +35825,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next958-973 needs next942-957 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(958, 973) as $slice) {
             $ordinal = $slice - 958;
@@ -35837,12 +35837,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next958-973 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -35966,10 +35966,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite final prepared handoff needs prior handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext734749($currentSource);
+        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext734749($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(990, 1005) as $slice) {
             $ordinal = $slice - 990;
@@ -35978,12 +35978,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite final prepared handoff prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext734749($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext734749($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext734749($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true

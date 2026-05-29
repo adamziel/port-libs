@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
 require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
 
@@ -23,7 +24,7 @@ $attemptDelete = "DELETE FROM wp_options WHERE NOT ((blog_id, status) IS NOT DIS
 $retryUpdate = "UPDATE wp_options SET status = 'retry195', option_value = option_value || ':retry195', match_flag = NOT ((blog_id, status) IS DISTINCT FROM (1, 'live')) WHERE NOT ((blog_id, status) IS DISTINCT FROM (1, 'live')) RETURNING option_id, option_name, status, option_value, match_flag ORDER BY option_id";
 $retryDelete = $attemptDelete;
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext188(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRowValuePredicateRollbackRetrySavepoint(
     ['wp_options' => $rows],
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],

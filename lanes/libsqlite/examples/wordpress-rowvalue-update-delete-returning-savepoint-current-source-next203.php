@@ -17,7 +17,7 @@ $rows = [
     ['option_id' => 8, 'blog_id' => 4, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 30, 'option_value' => 'https://four.test'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreReplaceDeleteSavepoint(
     ['wp_options' => $rows],
     [
         "UPDATE OR IGNORE wp_options SET (blog_id, autoload, status, option_value, bytes) = (1, 'yes', 'ignored203', option_value || ':ignored203', bytes + 3) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules')) RETURNING option_id, blog_id, option_name, autoload, status, option_value, bytes, (blog_id, autoload) = (1, 'no') AS tuple_match ORDER BY option_id",

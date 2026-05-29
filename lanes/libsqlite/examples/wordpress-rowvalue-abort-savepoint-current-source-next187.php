@@ -18,7 +18,7 @@ $rows = [
     ['option_id' => 9, 'blog_id' => 3, 'option_name' => 'orphaned_cache', 'autoload' => 'no', 'status' => null, 'bytes' => 6, 'option_value' => 'cache'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext187(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortSavepointRetry(
     ['wp_options' => $rows],
     [
         "UPDATE wp_options SET (status, option_value) = ('outer187', option_value || ':outer187') WHERE (blog_id, option_name) IN (VALUES (3, 'rewrite_rules')) RETURNING option_id, option_name, status, option_value",

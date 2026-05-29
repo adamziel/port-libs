@@ -24,7 +24,7 @@ $attemptUpdateResult191 = static fn (): array => SQLiteUpdateDeleteReturningSql:
 $attemptDeleteAfterUpdate191 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptDelete191, $attemptUpdateResult191()['tables']);
 $retryUpdateResult191 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate191, $tables191);
 $retryDeleteAfterUpdate191 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete191, $retryUpdateResult191()['tables']);
-$plan191 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext188(
+$plan191 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRowValuePredicateRollbackRetrySavepoint(
     $tables191,
     [$attemptUpdate191, $attemptDelete191],
     [$retryUpdate191, $retryDelete191],

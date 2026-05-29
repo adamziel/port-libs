@@ -7748,7 +7748,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext255(
+    public static function executeCurrentSourceUpsertReturningDrain(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -7768,16 +7768,16 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_where_next252'] ?? false);
-        $currentRows = self::rowsNext255($base['current_source_rows_next252'] ?? [], 'current rows');
-        $nextRows = self::rowsNext255($base['attempted_next_source_rows_next252'] ?? [], 'next rows');
-        $cursor = self::tokenNext255((string) ($options['current_source_returning_cursor_next255'] ?? 'wp.returning.current.upsert.cursor.255'), 'returning cursor');
-        $expectedCursor = self::tokenNext255((string) ($options['expected_current_source_returning_cursor_next255'] ?? $cursor), 'expected returning cursor');
+        $currentRows = self::currentSourceReturningDrainRows($base['current_source_rows_next252'] ?? [], 'current rows');
+        $nextRows = self::currentSourceReturningDrainRows($base['attempted_next_source_rows_next252'] ?? [], 'next rows');
+        $cursor = self::currentSourceReturningToken((string) ($options['current_source_returning_cursor_next255'] ?? 'wp.returning.current.upsert.cursor.255'), 'returning cursor');
+        $expectedCursor = self::currentSourceReturningToken((string) ($options['expected_current_source_returning_cursor_next255'] ?? $cursor), 'expected returning cursor');
         $cursorMatches = hash_equals($cursor, $expectedCursor);
-        $payloads = self::payloadsNext255($currentRows);
-        $aliases = self::aliasesNext255($options['required_current_source_returning_aliases_next255'] ?? null, $payloads);
-        $missingAliases = self::missingAliasesNext255($payloads, $aliases);
-        $requiredReceipts = self::returningReceiptsNext255($currentRows, $payloads, $aliases, $cursor);
-        $acknowledgedReceipts = self::acknowledgedReceiptsNext255($options, $requiredReceipts);
+        $payloads = self::currentSourceReturningPayloads($currentRows);
+        $aliases = self::currentSourceReturningAliases($options['required_current_source_returning_aliases_next255'] ?? null, $payloads);
+        $missingAliases = self::missingCurrentSourceReturningAliases($payloads, $aliases);
+        $requiredReceipts = self::currentSourceReturningReceipts($currentRows, $payloads, $aliases, $cursor);
+        $acknowledgedReceipts = self::acknowledgedCurrentSourceReturningReceipts($options, $requiredReceipts);
         $missingReceipts = array_values(array_diff($requiredReceipts, $acknowledgedReceipts));
         $unexpectedReceipts = array_values(array_diff($acknowledgedReceipts, $requiredReceipts));
         $requireDrainOrder = (bool) ($options['require_current_source_returning_order_next255'] ?? true);
@@ -7789,7 +7789,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedReceipts === []
             && $drainOrderMatches;
         $nextVisible = $baseVisible && $returningComplete;
-        $blockedReasons = self::blockedReasonsNext255(
+        $blockedReasons = self::currentSourceReturningBlockedReasons(
             $base['blocked_reasons_next252'] ?? [],
             $baseVisible,
             $cursorMatches,
@@ -7800,13 +7800,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $drainOrderMatches,
         );
 
-        $currentRows = self::tagRowsNext255($currentRows, 'current-returning-drain', true, $requiredReceipts, $cursor, $aliases, []);
-        $nextRows = self::tagRowsNext255($nextRows, 'next-source', $nextVisible, [], $cursor, $aliases, $nextVisible ? [] : $blockedReasons);
+        $currentRows = self::tagCurrentSourceReturningRows($currentRows, 'current-returning-drain', true, $requiredReceipts, $cursor, $aliases, []);
+        $nextRows = self::tagCurrentSourceReturningRows($nextRows, 'next-source', $nextVisible, [], $cursor, $aliases, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($currentRows, $nextRows) : $currentRows;
         $heldRows = $nextVisible ? [] : $nextRows;
 
         return [
-            'status_next255' => self::statusNext255($baseVisible, $cursorMatches, $missingAliases, $missingReceipts, $unexpectedReceipts, $requireDrainOrder, $drainOrderMatches, $nextVisible),
+            'status_next255' => self::currentSourceReturningStatus($baseVisible, $cursorMatches, $missingAliases, $missingReceipts, $unexpectedReceipts, $requireDrainOrder, $drainOrderMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next255' => $baseVisible,
@@ -7867,7 +7867,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext255(mixed $rows, string $label): array
+    private static function currentSourceReturningDrainRows(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next255 {$label} must be a list");
@@ -7880,7 +7880,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function payloadsNext255(array $rows): array
+    private static function currentSourceReturningPayloads(array $rows): array
     {
         $payloads = [];
         foreach ($rows as $row) {
@@ -7901,7 +7901,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $payloads
      * @return list<string>
      */
-    private static function aliasesNext255(mixed $aliases, array $payloads): array
+    private static function currentSourceReturningAliases(mixed $aliases, array $payloads): array
     {
         if ($aliases === null) {
             return array_values(array_map('strval', array_keys($payloads[0])));
@@ -7923,7 +7923,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $aliases
      * @return list<string>
      */
-    private static function missingAliasesNext255(array $payloads, array $aliases): array
+    private static function missingCurrentSourceReturningAliases(array $payloads, array $aliases): array
     {
         $missing = [];
         foreach ($payloads as $payload) {
@@ -7943,7 +7943,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $aliases
      * @return list<string>
      */
-    private static function returningReceiptsNext255(array $rows, array $payloads, array $aliases, string $cursor): array
+    private static function currentSourceReturningReceipts(array $rows, array $payloads, array $aliases, string $cursor): array
     {
         $receipts = [];
         foreach ($payloads as $index => $payload) {
@@ -7967,20 +7967,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext255(array $options, array $required): array
+    private static function acknowledgedCurrentSourceReturningReceipts(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_returning_next255'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext255($options['acknowledged_current_source_returning_receipts_next255'] ?? [], 'acknowledged returning receipts');
+        return self::currentSourceReturningReceiptList($options['acknowledged_current_source_returning_receipts_next255'] ?? [], 'acknowledged returning receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext255(mixed $values, string $label): array
+    private static function currentSourceReturningReceiptList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next255 {$label} must be a list");
@@ -7994,7 +7994,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return array_values(array_unique($values));
     }
 
-    private static function tokenNext255(string $token, string $label): string
+    private static function currentSourceReturningToken(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next255 {$label} is malformed");
@@ -8010,7 +8010,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext255(array $rows, string $phase, bool $visible, array $receipts, string $cursor, array $aliases, array $reasons): array
+    private static function tagCurrentSourceReturningRows(array $rows, string $phase, bool $visible, array $receipts, string $cursor, array $aliases, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -8034,7 +8034,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpectedReceipts
      * @return list<string>
      */
-    private static function blockedReasonsNext255(
+    private static function currentSourceReturningBlockedReasons(
         mixed $baseReasons,
         bool $baseVisible,
         bool $cursorMatches,
@@ -8075,7 +8075,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missingReceipts
      * @param list<string> $unexpectedReceipts
      */
-    private static function statusNext255(
+    private static function currentSourceReturningStatus(
         bool $baseVisible,
         bool $cursorMatches,
         array $missingAliases,

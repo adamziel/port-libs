@@ -28,7 +28,7 @@ $attemptDelete = "DELETE FROM wp_options WHERE bytes NOT BETWEEN 10 AND 35 AND a
 $retryUpdate = str_replace('between198', 'retry198', $attemptUpdate);
 $retryDelete = $attemptDelete;
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext188(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRowValuePredicateRollbackRetrySavepoint(
     ['wp_options' => $rows],
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],

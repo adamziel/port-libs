@@ -34682,7 +34682,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
      * @param list<int> $nextReadPages
      * @return array<string,mixed>
      */
-    public static function variantNext155(
+    public static function masterJournalRecoveryReaderCachePlan(
         string $databasePath,
         string $journalPath,
         string $masterJournalPath,
@@ -34703,7 +34703,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         if ($masterJournalBytes === null || trim($masterJournalBytes) === '') {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 requires master journal bytes');
         }
-        $members = self::membersNext155($masterJournalBytes);
+        $members = self::masterJournalRecoveryMembers($masterJournalBytes);
         if (!in_array($journalPath, $members, true)) {
             throw new \RuntimeException('SQLite pager master-journal reader-cache next155 master journal does not reference the rollback journal');
         }
@@ -34727,10 +34727,10 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
 
         $pageCount = (int) (strlen($databaseBytes) / $pageSize);
-        $database = self::databaseMapNext155($databaseBytes, $pageSize);
-        $recoveredPages = self::normalizeImagesNext155($recoveredPages, $pageSize, $pageCount, 'recovered');
-        $readerCachePages = self::normalizeCacheNext155($readerCachePages, $pageSize, $pageCount);
-        self::assertPageListNext155($nextReadPages, $pageCount);
+        $database = self::masterJournalRecoveryDatabaseMap($databaseBytes, $pageSize);
+        $recoveredPages = self::normalizeMasterJournalRecoveryImages($recoveredPages, $pageSize, $pageCount, 'recovered');
+        $readerCachePages = self::normalizeMasterJournalRecoveryCache($readerCachePages, $pageSize, $pageCount);
+        self::assertMasterJournalRecoveryPageList($nextReadPages, $pageCount);
 
         $nextSourceId = 'master-reader-cache:' . substr(hash('sha256', $databasePath . $masterJournalPath . implode("\n", $members)), 0, 16);
         $nextEpoch = $currentSourceEpoch + 1;
@@ -34793,8 +34793,8 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 'shared_lock' => $entry['shared_lock'],
                 'pinned' => $entry['pinned'],
                 'dirty' => $entry['dirty'],
-                'cache_prefix' => self::prefixNext155($entry['image']),
-                'current_prefix' => self::prefixNext155($currentImage),
+                'cache_prefix' => self::masterJournalRecoveryPagePrefix($entry['image']),
+                'current_prefix' => self::masterJournalRecoveryPagePrefix($currentImage),
                 'image_matches_current_source' => $entry['image'] === $currentImage,
                 'reasons' => $reasons,
             ];
@@ -34845,7 +34845,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 'source_id' => $nextSourceId,
                 'epoch' => $nextEpoch,
                 'reader_generation' => $nextReaderGeneration,
-                'prefix' => self::prefixNext155($image),
+                'prefix' => self::masterJournalRecoveryPagePrefix($image),
             ];
             $operations[] = [
                 'op' => $cacheHit ? 'next_reader_master_journal_cache_hit' : 'next_reader_master_journal_cache_miss',
@@ -34896,7 +34896,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return list<string> */
-    private static function membersNext155(string $bytes): array
+    private static function masterJournalRecoveryMembers(string $bytes): array
     {
         $members = [];
         foreach (preg_split('/\r?\n/', $bytes) ?: [] as $line) {
@@ -34910,7 +34910,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<int,array{image:string,source:string}> */
-    private static function databaseMapNext155(string $databaseBytes, int $pageSize): array
+    private static function masterJournalRecoveryDatabaseMap(string $databaseBytes, int $pageSize): array
     {
         $pages = [];
         $pageCount = (int) (strlen($databaseBytes) / $pageSize);
@@ -34928,7 +34928,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
      * @param array<int,string> $images
      * @return array<int,string>
      */
-    private static function normalizeImagesNext155(array $images, int $pageSize, int $pageCount, string $label): array
+    private static function normalizeMasterJournalRecoveryImages(array $images, int $pageSize, int $pageCount, string $label): array
     {
         $normalized = [];
         foreach ($images as $pageNumber => $image) {
@@ -34949,7 +34949,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
      * @param array<int,array<string,mixed>> $cache
      * @return array<int,array{image:string,source_id:string,epoch:int,reader_generation:int,pinned:bool,dirty:bool,shared_lock:bool,source:string}>
      */
-    private static function normalizeCacheNext155(array $cache, int $pageSize, int $pageCount): array
+    private static function normalizeMasterJournalRecoveryCache(array $cache, int $pageSize, int $pageCount): array
     {
         $normalized = [];
         foreach ($cache as $pageNumber => $entry) {
@@ -34986,7 +34986,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @param list<int> $pages */
-    private static function assertPageListNext155(array $pages, int $pageCount): void
+    private static function assertMasterJournalRecoveryPageList(array $pages, int $pageCount): void
     {
         foreach ($pages as $pageNumber) {
             if (!is_int($pageNumber) || $pageNumber < 1 || $pageNumber > $pageCount) {
@@ -34995,7 +34995,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
     }
 
-    private static function prefixNext155(string $image): string
+    private static function masterJournalRecoveryPagePrefix(string $image): string
     {
         return rtrim(substr($image, 0, 56), ".\0 ");
     }
@@ -35009,7 +35009,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
      * @param array<int,string> $writePages
      * @return array<string,mixed>
      */
-    public static function variantNext179(
+    public static function canonicalMemberPathReaderCachePlan(
         string $databasePath,
         string $masterJournalPath,
         string $masterJournalBytes,
@@ -35038,19 +35038,19 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 requires pages, cache, and next work');
         }
 
-        $members = self::membersNext179($masterJournalBytes);
-        $canonicalMembers = self::canonicalMembersNext179($members, $canonicalPathMap);
-        $canonicalDigest = self::digestMembersNext179($canonicalMembers);
-        $rawDigest = self::digestMembersNext179($members);
-        $databaseJournal = self::canonicalPathNext179($databasePath . '-journal', $canonicalPathMap);
+        $members = self::canonicalMemberPathReaderCacheMembers($masterJournalBytes);
+        $canonicalMembers = self::canonicalMemberPathReaderCacheCanonicalMembers($members, $canonicalPathMap);
+        $canonicalDigest = self::canonicalMemberPathReaderCacheDigest($canonicalMembers);
+        $rawDigest = self::canonicalMemberPathReaderCacheDigest($members);
+        $databaseJournal = self::canonicalMemberPathReaderCacheCanonicalPath($databasePath . '-journal', $canonicalPathMap);
         if (!in_array($databaseJournal, $canonicalMembers, true)) {
             throw new \RuntimeException('SQLite pager master-journal reader-cache next179 canonical master journal does not reference the database journal');
         }
 
-        $currentPages = self::normalizePagesNext179($currentPages, $pageSize, 'current');
-        $readerCache = self::normalizeCacheNext179($readerCache, $pageSize, $canonicalPathMap);
-        $reads = self::normalizeReadsNext179($reads);
-        $writePages = self::normalizePagesNext179($writePages, $pageSize, 'write', true);
+        $currentPages = self::normalizeCanonicalMemberPathPages($currentPages, $pageSize, 'current');
+        $readerCache = self::normalizeCanonicalMemberPathCache($readerCache, $pageSize, $canonicalPathMap);
+        $reads = self::normalizeCanonicalMemberPathReads($reads);
+        $writePages = self::normalizeCanonicalMemberPathPages($writePages, $pageSize, 'write', true);
 
         $operations = [[
             'op' => 'read_master_journal_and_canonicalize_members_for_reader_cache_next179',
@@ -35071,9 +35071,9 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 cache page {$pageNumber} is outside current source");
             }
 
-            $entryCanonicalDigest = self::digestMembersNext179($entry['canonical_members']);
+            $entryCanonicalDigest = self::canonicalMemberPathReaderCacheDigest($entry['canonical_members']);
             $currentImage = $currentPages[$pageNumber];
-            $imageMatches = hash_equals(self::digestNext179($currentImage), self::digestNext179($entry['image']));
+            $imageMatches = hash_equals(self::canonicalMemberPathImageDigest($currentImage), self::canonicalMemberPathImageDigest($entry['image']));
             $reason = null;
             if ($entry['dirty']) {
                 $reason = 'dirty_reader_cache_cannot_cross_canonical_master_source';
@@ -35136,8 +35136,8 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 'canonical_digest_matches' => hash_equals($canonicalDigest, $entryCanonicalDigest),
                 'stored_canonical_digest_matches' => $entry['canonical_digest'] === '' || hash_equals($canonicalDigest, $entry['canonical_digest']),
                 'image_matches_current_source' => $imageMatches,
-                'cache_prefix' => self::prefixNext179($entry['image']),
-                'current_prefix' => self::prefixNext179($currentImage),
+                'cache_prefix' => self::canonicalMemberPathPagePrefix($entry['image']),
+                'current_prefix' => self::canonicalMemberPathPagePrefix($currentImage),
             ];
         }
 
@@ -35164,8 +35164,8 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 'source_id' => $currentSourceId,
                 'epoch' => $currentEpoch,
                 'canonical_digest' => $canonicalDigest,
-                'prefix' => self::prefixNext179($cache['image'] ?? $currentPages[$pageNumber]),
-                'digest' => self::digestNext179($cache['image'] ?? $currentPages[$pageNumber]),
+                'prefix' => self::canonicalMemberPathPagePrefix($cache['image'] ?? $currentPages[$pageNumber]),
+                'digest' => self::canonicalMemberPathImageDigest($cache['image'] ?? $currentPages[$pageNumber]),
             ];
             $operations[] = [
                 'op' => $cache !== null ? 'next179_reader_cache_hit' : 'next179_reader_reopen',
@@ -35183,8 +35183,8 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
             $currentPages[$pageNumber] = $image;
             $writeRows[] = [
                 'page_number' => $pageNumber,
-                'before_prefix' => self::prefixNext179($before),
-                'after_prefix' => self::prefixNext179($image),
+                'before_prefix' => self::canonicalMemberPathPagePrefix($before),
+                'after_prefix' => self::canonicalMemberPathPagePrefix($image),
                 'before_image_from_canonical_master_source' => true,
                 'source_id' => $currentSourceId,
                 'epoch' => $currentEpoch,
@@ -35232,7 +35232,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function membersNext179(string $bytes): array
+    private static function canonicalMemberPathReaderCacheMembers(string $bytes): array
     {
         $members = [];
         foreach (preg_split('/\r?\n/', $bytes) ?: [] as $line) {
@@ -35250,11 +35250,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
      * @param array<string,string> $canonicalPathMap
      * @return list<string>
      */
-    private static function canonicalMembersNext179(array $members, array $canonicalPathMap): array
+    private static function canonicalMemberPathReaderCacheCanonicalMembers(array $members, array $canonicalPathMap): array
     {
         $canonical = [];
         foreach ($members as $member) {
-            $canonical[self::canonicalPathNext179($member, $canonicalPathMap)] = self::canonicalPathNext179($member, $canonicalPathMap);
+            $canonical[self::canonicalMemberPathReaderCacheCanonicalPath($member, $canonicalPathMap)] = self::canonicalMemberPathReaderCacheCanonicalPath($member, $canonicalPathMap);
         }
         sort($canonical, SORT_STRING);
 
@@ -35264,7 +35264,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     /**
      * @param array<string,string> $canonicalPathMap
      */
-    private static function canonicalPathNext179(string $path, array $canonicalPathMap): string
+    private static function canonicalMemberPathReaderCacheCanonicalPath(string $path, array $canonicalPathMap): string
     {
         $path = trim($path);
         if ($path === '') {
@@ -35282,7 +35282,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     /**
      * @param list<string> $members
      */
-    private static function digestMembersNext179(array $members): string
+    private static function canonicalMemberPathReaderCacheDigest(array $members): string
     {
         return hash('sha256', implode("\n", $members));
     }
@@ -35291,7 +35291,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
      * @param array<int,string> $pages
      * @return array<int,string>
      */
-    private static function normalizePagesNext179(array $pages, int $pageSize, string $label, bool $allowEmpty = false): array
+    private static function normalizeCanonicalMemberPathPages(array $pages, int $pageSize, string $label, bool $allowEmpty = false): array
     {
         if ($pages === [] && $allowEmpty) {
             return [];
@@ -35316,7 +35316,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
      * @param array<string,string> $canonicalPathMap
      * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,raw_members:list<string>,canonical_members:list<string>,canonical_digest:string,dirty:bool,pinned:bool,shared:bool}>
      */
-    private static function normalizeCacheNext179(array $cache, int $pageSize, array $canonicalPathMap): array
+    private static function normalizeCanonicalMemberPathCache(array $cache, int $pageSize, array $canonicalPathMap): array
     {
         $normalized = [];
         foreach ($cache as $pageNumber => $entry) {
@@ -35353,7 +35353,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                 'epoch' => $epoch,
                 'reader_id' => $readerId,
                 'raw_members' => $rawMembers,
-                'canonical_members' => self::canonicalMembersNext179($rawMembers, $canonicalPathMap),
+                'canonical_members' => self::canonicalMemberPathReaderCacheCanonicalMembers($rawMembers, $canonicalPathMap),
                 'canonical_digest' => $storedDigest,
                 'dirty' => (bool) ($entry['dirty'] ?? false),
                 'pinned' => (bool) ($entry['pinned'] ?? false),
@@ -35369,7 +35369,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
      * @param list<array<string,mixed>> $reads
      * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,canonical_digest:string}>
      */
-    private static function normalizeReadsNext179(array $reads): array
+    private static function normalizeCanonicalMemberPathReads(array $reads): array
     {
         $normalized = [];
         foreach ($reads as $read) {
@@ -35396,12 +35396,12 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         return $normalized;
     }
 
-    private static function digestNext179(string $image): string
+    private static function canonicalMemberPathImageDigest(string $image): string
     {
         return hash('sha256', $image);
     }
 
-    private static function prefixNext179(string $image): string
+    private static function canonicalMemberPathPagePrefix(string $image): string
     {
         return rtrim(substr($image, 0, 64), ".\0 ");
     }

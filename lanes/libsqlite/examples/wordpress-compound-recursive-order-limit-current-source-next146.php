@@ -10,6 +10,7 @@ require_once __DIR__ . '/../src/SQLiteJsonTableCursor.php';
 require_once __DIR__ . '/../src/SQLiteJson5Parser.php';
 require_once __DIR__ . '/../src/SQLiteGroupedAggregate.php';
 require_once __DIR__ . '/../src/SQLiteWindowFunction.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteSelectExpression.php';
 require_once __DIR__ . '/../src/SQLiteSelectPredicate.php';
 require_once __DIR__ . '/../src/SQLiteSelectProjection.php';
@@ -58,7 +59,7 @@ SELECT option_id AS id, option_name AS name, priority, 'autoload' AS source
  LIMIT 6 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareNext146($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareRecursiveOrderLimit($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     if (($summary['recursive']['currentVisitOrder'] ?? null) !== ['siteurl', 'active_plugins', 'plugin_cache', 'theme_mods', 'widget_text']) {

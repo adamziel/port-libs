@@ -14,7 +14,7 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext146(string $sql, array $currentTables, array $nextTables): array
+        public static function compareRecursiveOrderLimit(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -30,7 +30,7 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
 
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
-            $traceSql = self::traceSqlNext146($sql);
+            $traceSql = self::traceSql($sql);
             $currentTrace = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $currentTables);
             $nextTrace = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
 
@@ -49,13 +49,13 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
                     'orderBy' => $currentPlan['compound']['orderBy'],
                     'limit' => $currentPlan['compound']['limit'],
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
-                    'leftColumns' => self::leftColumnsNext146($currentPlan),
+                    'leftColumns' => self::leftColumns($currentPlan),
                 ],
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
-                'currentSignatures' => self::rowSignaturesNext146($currentRows),
-                'nextSignatures' => self::rowSignaturesNext146($nextRows),
-                'changedSignatures' => self::changedSignaturesNext146($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignatures($currentRows),
+                'nextSignatures' => self::rowSignatures($nextRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
                 'recursive' => [
                     'name' => $currentTrace['name'],
                     'columns' => $currentTrace['columns'],
@@ -64,25 +64,25 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
                     'nextRows' => $nextTrace['rows'],
                     'currentTraceCount' => count($currentTrace['trace']),
                     'nextTraceCount' => count($nextTrace['trace']),
-                    'currentVisitOrder' => self::columnValuesNext146($currentTrace['rows'], 'name'),
-                    'nextVisitOrder' => self::columnValuesNext146($nextTrace['rows'], 'name'),
-                    'currentQueueAfter' => self::queueAfterNamesNext146($currentTrace['trace']),
-                    'nextQueueAfter' => self::queueAfterNamesNext146($nextTrace['trace']),
-                    'currentLimitRemaining' => self::lastTraceValueNext146($currentTrace['trace'], 'limit_remaining'),
-                    'nextLimitRemaining' => self::lastTraceValueNext146($nextTrace['trace'], 'limit_remaining'),
+                    'currentVisitOrder' => self::columnValues($currentTrace['rows'], 'name'),
+                    'nextVisitOrder' => self::columnValues($nextTrace['rows'], 'name'),
+                    'currentQueueAfter' => self::queueAfterNames($currentTrace['trace']),
+                    'nextQueueAfter' => self::queueAfterNames($nextTrace['trace']),
+                    'currentLimitRemaining' => self::lastTraceValue($currentTrace['trace'], 'limit_remaining'),
+                    'nextLimitRemaining' => self::lastTraceValue($nextTrace['trace'], 'limit_remaining'),
                     'dependencies' => array_values(array_unique(array_merge($currentTrace['dependencies'], $nextTrace['dependencies']))),
                 ],
                 'boundary' => [
-                    'currentLabels' => self::columnValuesNext146($currentRows, 'name'),
-                    'nextLabels' => self::columnValuesNext146($nextRows, 'name'),
-                    'entered' => array_values(array_diff(self::rowSignaturesNext146($nextRows), self::rowSignaturesNext146($currentRows))),
-                    'left' => array_values(array_diff(self::rowSignaturesNext146($currentRows), self::rowSignaturesNext146($nextRows))),
+                    'currentLabels' => self::columnValues($currentRows, 'name'),
+                    'nextLabels' => self::columnValues($nextRows, 'name'),
+                    'entered' => array_values(array_diff(self::rowSignatures($nextRows), self::rowSignatures($currentRows))),
+                    'left' => array_values(array_diff(self::rowSignatures($currentRows), self::rowSignatures($nextRows))),
                 ],
-                'replanReasons' => self::replanReasonsNext146($currentRows, $nextRows, $currentTrace['rows'], $nextTrace['rows']),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentTrace['rows'], $nextTrace['rows']),
             ];
         }
 
-        private static function traceSqlNext146(string $sql): string
+        private static function traceSql(string $sql): string
         {
             $sql = trim(rtrim(trim($sql), ';'));
             if (stripos($sql, 'WITH RECURSIVE') !== 0) {
@@ -99,7 +99,7 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function leftColumnsNext146(array $plan): array
+        private static function leftColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             $arms = is_array($compound) && is_array($compound['arms'] ?? null) ? $compound['arms'] : [];
@@ -129,7 +129,7 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<mixed>
          */
-        private static function columnValuesNext146(array $rows, string $column): array
+        private static function columnValues(array $rows, string $column): array
         {
             return array_values(array_map(static fn (array $row): mixed => $row[$column] ?? null, $rows));
         }
@@ -138,12 +138,12 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @return list<list<mixed>>
          */
-        private static function queueAfterNamesNext146(array $trace): array
+        private static function queueAfterNames(array $trace): array
         {
             $queue = [];
             foreach ($trace as $entry) {
                 $rows = is_array($entry['queue_after'] ?? null) ? $entry['queue_after'] : [];
-                $queue[] = self::columnValuesNext146($rows, 'name');
+                $queue[] = self::columnValues($rows, 'name');
             }
 
             return $queue;
@@ -152,7 +152,7 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $trace
          */
-        private static function lastTraceValueNext146(array $trace, string $key): mixed
+        private static function lastTraceValue(array $trace, string $key): mixed
         {
             $last = $trace[array_key_last($trace)] ?? null;
 
@@ -163,7 +163,7 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext146(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -173,11 +173,11 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext146(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
             return array_values(array_merge(
-                array_diff(self::rowSignaturesNext146($currentRows), self::rowSignaturesNext146($nextRows)),
-                array_diff(self::rowSignaturesNext146($nextRows), self::rowSignaturesNext146($currentRows)),
+                array_diff(self::rowSignatures($currentRows), self::rowSignatures($nextRows)),
+                array_diff(self::rowSignatures($nextRows), self::rowSignatures($currentRows)),
             ));
         }
 
@@ -188,13 +188,13 @@ final class SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRecursiveRows
          * @return list<string>
          */
-        private static function replanReasonsNext146(array $currentRows, array $nextRows, array $currentRecursiveRows, array $nextRecursiveRows): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentRecursiveRows, array $nextRecursiveRows): array
         {
             $reasons = ['recursive-queue-order-limit-before-compound-tail'];
-            if (self::rowSignaturesNext146($currentRows) !== self::rowSignaturesNext146($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'compound-final-limit-boundary-changed';
             }
-            if (self::columnValuesNext146($currentRecursiveRows, 'name') !== self::columnValuesNext146($nextRecursiveRows, 'name')) {
+            if (self::columnValues($currentRecursiveRows, 'name') !== self::columnValues($nextRecursiveRows, 'name')) {
                 $reasons[] = 'recursive-priority-queue-visit-order-changed';
             }
             $reasons[] = 'compound-final-order-after-current-source';

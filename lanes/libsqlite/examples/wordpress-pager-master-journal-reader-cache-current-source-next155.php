@@ -19,7 +19,7 @@ $before = [
     4 => $page('wp next155 unchanged transient reader page'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext155(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::masterJournalRecoveryReaderCachePlan(
     $databasePath,
     $journalPath,
     $masterPath,

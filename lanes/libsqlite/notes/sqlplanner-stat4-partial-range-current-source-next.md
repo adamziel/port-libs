@@ -1,4 +1,4 @@
-# sqlplanner-stat4-partial-range-current-source-next124
+# sqlplanner-stat4-partial-range-current-source-next
 
 Implemented `SQLitePlannerStat4PartialRangeCurrentSourceNextPlan` for a
 current-source STAT4 partial-index range edge: when ANALYZE/schema changes
@@ -8,7 +8,7 @@ reports schema/stat4/index-signature changes, partial range lower/upper deltas,
 stale-range admission risk, STAT4 matched sample deltas, selected root page,
 and current-source detail.
 
-WordPress path: `wordpress-stat4-partial-range-current-source-next124.php`
+WordPress path: `wordpress-stat4-partial-range-current-source-next.php`
 models copied `wp_options` plugin-option imports where a prepared partial
 `option_name >= 'plugin_'` STAT4 index is replaced by a current
 `option_name >= 'plugin_cache' AND option_name < 'plugin_seo'` index after
@@ -17,16 +17,16 @@ ANALYZE.
 Verification:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4PartialRangeCurrentSourceNext124Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4PartialRangeCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 53 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-stat4-partial-range-current-source-next124.php --self-test
-wordpress-stat4-partial-range-current-source-next124 self-test passed
+php lanes/libsqlite/examples/wordpress-stat4-partial-range-current-source-next.php --self-test
+wordpress-stat4-partial-range-current-source-next self-test passed
 
 php -l lanes/libsqlite/src/SQLitePlannerStat4PartialRangeCurrentSourceNextPlan.php
-php -l lanes/libsqlite/tests/SQLitePlannerStat4PartialRangeCurrentSourceNext124Test.php
-php -l lanes/libsqlite/examples/wordpress-stat4-partial-range-current-source-next124.php
+php -l lanes/libsqlite/tests/SQLitePlannerStat4PartialRangeCurrentSourceNextTest.php
+php -l lanes/libsqlite/examples/wordpress-stat4-partial-range-current-source-next.php
 No syntax errors detected in all changed PHP files.
 ```
 

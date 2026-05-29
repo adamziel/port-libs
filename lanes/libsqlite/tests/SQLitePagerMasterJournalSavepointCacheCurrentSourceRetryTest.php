@@ -7,29 +7,29 @@ use PortLibs\LibSqlite\SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPl
 $tests = [];
 
 $pageSize = 512;
-$databasePath = '/srv/wp-content/database/wp-next138.sqlite';
-$masterPath = '/srv/wp-content/database/wp-next138.sqlite-mj';
+$databasePath = '/srv/wp-content/database/wp-current-source-retry.sqlite';
+$masterPath = '/srv/wp-content/database/wp-current-source-retry.sqlite-mj';
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
 $before = [
-    1 => $page('next138 stale schema before master hot recovery'),
-    2 => $page('next138 stale wp_options before master hot recovery'),
-    3 => $page('next138 stale plugin settings before master hot recovery'),
-    4 => $page('next138 stale autoload index before master hot recovery'),
-    5 => $page('next138 stale retry overflow before master hot recovery'),
+    1 => $page('current-source-retry stale schema before master hot recovery'),
+    2 => $page('current-source-retry stale wp_options before master hot recovery'),
+    3 => $page('current-source-retry stale plugin settings before master hot recovery'),
+    4 => $page('current-source-retry stale autoload index before master hot recovery'),
+    5 => $page('current-source-retry stale retry overflow before master hot recovery'),
 ];
 $recovered = [
-    1 => $page('next138 recovered schema current source'),
-    2 => $page('next138 recovered wp_options current source'),
-    3 => $page('next138 recovered plugin settings current source'),
-    4 => $page('next138 recovered autoload index current source'),
-    5 => $page('next138 recovered retry overflow current source'),
+    1 => $page('current-source-retry recovered schema current source'),
+    2 => $page('current-source-retry recovered wp_options current source'),
+    3 => $page('current-source-retry recovered plugin settings current source'),
+    4 => $page('current-source-retry recovered autoload index current source'),
+    5 => $page('current-source-retry recovered retry overflow current source'),
 ];
 $cache = [
-    1 => ['image' => $recovered[1], 'source_id' => 'next138-current-source', 'epoch' => 6, 'source' => 'schema-cache-current'],
-    2 => ['image' => $before[2], 'source_id' => 'next138-current-source', 'epoch' => 6, 'source' => 'clean-stale-options-cache'],
-    3 => ['image' => $before[3], 'source_id' => 'next138-current-source', 'epoch' => 6, 'dirty' => true, 'source' => 'dirty-plugin-cache'],
-    4 => ['image' => $before[4], 'source_id' => 'old-next138-source', 'epoch' => 6, 'source' => 'old-source-autoload-cache'],
+    1 => ['image' => $recovered[1], 'source_id' => 'current-source-retry-current-source', 'epoch' => 6, 'source' => 'schema-cache-current'],
+    2 => ['image' => $before[2], 'source_id' => 'current-source-retry-current-source', 'epoch' => 6, 'source' => 'clean-stale-options-cache'],
+    3 => ['image' => $before[3], 'source_id' => 'current-source-retry-current-source', 'epoch' => 6, 'dirty' => true, 'source' => 'dirty-plugin-cache'],
+    4 => ['image' => $before[4], 'source_id' => 'old-current-source-retry-source', 'epoch' => 6, 'source' => 'old-source-autoload-cache'],
 ];
 
 $plan = static fn (
@@ -40,11 +40,11 @@ $plan = static fn (
     array $reads = null,
     ?string $currentMaster = null,
     bool $release = true,
-): array => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::plan138(
+): array => SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::planHotSavepointRetryCache(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n/old/site.sqlite-journal\n",
-    $currentMaster ?? ($databasePath . "-journal\n/srv/wp-content/database/site-next138.sqlite-journal\n"),
+    $currentMaster ?? ($databasePath . "-journal\n/srv/wp-content/database/site-current-source-retry.sqlite-journal\n"),
     implode('', $before),
     $pageSize,
     $savepoint,
@@ -52,21 +52,21 @@ $plan = static fn (
     $recovered,
     $cache,
     $savepointWrites ?? [
-        2 => $page('next138 failed savepoint options write'),
-        3 => $page('next138 failed savepoint plugin write'),
+        2 => $page('current-source-retry failed savepoint options write'),
+        3 => $page('current-source-retry failed savepoint plugin write'),
     ],
     $retryWrites ?? [
-        2 => $page('next138 retry options write after rollback'),
-        5 => $page('next138 retry overflow write after rollback'),
+        2 => $page('current-source-retry retry options write after rollback'),
+        5 => $page('current-source-retry retry overflow write after rollback'),
     ],
     $reads ?? [1, 2, 3, 4, 5],
-    'next138-current-source',
+    'current-source-retry-current-source',
     6,
     $release,
 );
 
 $cases = [
-    'status' => [static fn (): mixed => $plan()['status'], 'pager-master-journal-savepoint-cache-current-source-next138'],
+    'status' => [static fn (): mixed => $plan()['status'], 'pager-master-journal-savepoint-cache-current-source-retry'],
     'reason' => [static fn (): mixed => $plan()['reason'], 'master_journal_hot_cache_rebases_savepoint_before_retry_statement'],
     'database path' => [static fn (): mixed => $plan()['database_path'], $databasePath],
     'master journal path' => [static fn (): mixed => $plan()['master_journal_path'], $masterPath],
@@ -85,18 +85,18 @@ $cases = [
     'retained cache pages' => [static fn (): mixed => $plan()['retained_cache_page_numbers'], [1]],
     'refreshed cache pages' => [static fn (): mixed => $plan()['refreshed_cache_page_numbers'], [2]],
     'invalidated cache pages' => [static fn (): mixed => $plan()['invalidated_cache_page_numbers'], [3, 4]],
-    'current source id' => [static fn (): mixed => $plan()['current_source']['id'], 'next138-current-source'],
+    'current source id' => [static fn (): mixed => $plan()['current_source']['id'], 'current-source-retry-current-source'],
     'current source epoch' => [static fn (): mixed => $plan()['current_source']['epoch'], 6],
     'next source id prefix' => [static fn (): mixed => str_starts_with($plan()['next_source']['id'], 'master-hot-cache:'), true],
     'next source epoch' => [static fn (): mixed => $plan()['next_source']['epoch'], 7],
-    'savepoint before page two prefix' => [static fn (): mixed => $plan()['savepoint_before_prefixes'][2], 'next138 recovered wp_options current source'],
-    'savepoint before page three prefix' => [static fn (): mixed => $plan()['savepoint_before_prefixes'][3], 'next138 recovered plugin settings current source'],
-    'retry before page two prefix' => [static fn (): mixed => $plan()['retry_statement_before_prefixes'][2], 'next138 recovered wp_options current source'],
-    'retry before page five prefix' => [static fn (): mixed => $plan()['retry_statement_before_prefixes'][5], 'next138 recovered retry overflow current source'],
-    'final page one prefix' => [static fn (): mixed => $plan()['final_prefixes'][1], 'next138 recovered schema current source'],
-    'final page two prefix' => [static fn (): mixed => $plan()['final_prefixes'][2], 'next138 retry options write after rollback'],
-    'final page three prefix' => [static fn (): mixed => $plan()['final_prefixes'][3], 'next138 recovered plugin settings current source'],
-    'final page five prefix' => [static fn (): mixed => $plan()['final_prefixes'][5], 'next138 retry overflow write after rollback'],
+    'savepoint before page two prefix' => [static fn (): mixed => $plan()['savepoint_before_prefixes'][2], 'current-source-retry recovered wp_options current source'],
+    'savepoint before page three prefix' => [static fn (): mixed => $plan()['savepoint_before_prefixes'][3], 'current-source-retry recovered plugin settings current source'],
+    'retry before page two prefix' => [static fn (): mixed => $plan()['retry_statement_before_prefixes'][2], 'current-source-retry recovered wp_options current source'],
+    'retry before page five prefix' => [static fn (): mixed => $plan()['retry_statement_before_prefixes'][5], 'current-source-retry recovered retry overflow current source'],
+    'final page one prefix' => [static fn (): mixed => $plan()['final_prefixes'][1], 'current-source-retry recovered schema current source'],
+    'final page two prefix' => [static fn (): mixed => $plan()['final_prefixes'][2], 'current-source-retry retry options write after rollback'],
+    'final page three prefix' => [static fn (): mixed => $plan()['final_prefixes'][3], 'current-source-retry recovered plugin settings current source'],
+    'final page five prefix' => [static fn (): mixed => $plan()['final_prefixes'][5], 'current-source-retry retry overflow write after rollback'],
     'final source page one' => [static fn (): mixed => $plan()['final_sources'][1], 'master-journal-hot-current-source'],
     'final source page two' => [static fn (): mixed => $plan()['final_sources'][2], 'retry-statement-write-after-savepoint-rollback'],
     'final source page three' => [static fn (): mixed => $plan()['final_sources'][3], 'rollback-to-savepoint-master-hot-before-image'],
@@ -127,19 +127,19 @@ $cases = [
     }, true],
     'operation includes read after retry' => [static fn (): mixed => in_array('read_after_master_hot_savepoint_retry', array_column($plan()['operations'], 'op'), true), true],
     'operation release final' => [static fn (): mixed => end($plan()['operations'])['op'], 'release_savepoint_after_master_hot_retry'],
-    'final bytes page two' => [static fn (): mixed => rtrim(substr($plan()['final_database_bytes'], $pageSize, $pageSize), '.'), 'next138 retry options write after rollback'],
-    'final bytes page three' => [static fn (): mixed => rtrim(substr($plan()['final_database_bytes'], $pageSize * 2, $pageSize), '.'), 'next138 recovered plugin settings current source'],
+    'final bytes page two' => [static fn (): mixed => rtrim(substr($plan()['final_database_bytes'], $pageSize, $pageSize), '.'), 'current-source-retry retry options write after rollback'],
+    'final bytes page three' => [static fn (): mixed => rtrim(substr($plan()['final_database_bytes'], $pageSize * 2, $pageSize), '.'), 'current-source-retry recovered plugin settings current source'],
     'source digest length' => [static fn (): mixed => strlen($plan()['source_digest']), 64],
-    'dependency slice' => [static fn (): mixed => in_array('sqlite-pager-master-journal-savepoint-cache-current-source-next138', $plan()['dependencies'], true), true],
+    'dependency slice' => [static fn (): mixed => in_array('sqlite-pager-master-journal-savepoint-cache-current-source-retry', $plan()['dependencies'], true), true],
     'dependency hot cache' => [static fn (): mixed => in_array('sqlite-pager-master-journal-hot-cache-current-source-next136', $plan()['dependencies'], true), true],
-    'dependency savepoint cache' => [static fn (): mixed => in_array('sqlite-pager-master-journal-savepoint-cache-current-source-next125', $plan()['dependencies'], true), true],
+    'dependency savepoint cache' => [static fn (): mixed => in_array('sqlite-pager-master-journal-savepoint-cache-current-source', $plan()['dependencies'], true), true],
     'dependency rollback source' => [static fn (): mixed => in_array('sqlite-savepoint-rollback-to-rebased-pager-cache-current-source', $plan()['dependencies'], true), true],
     'no release leaves merged pages empty' => [static fn (): mixed => $plan(release: false)['savepoint']['release_merged_page_numbers'], []],
     'no release omits release operation' => [static fn (): mixed => end($plan(release: false)['operations'])['op'], 'read_after_master_hot_savepoint_retry'],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['pager master journal savepoint cache current source next138 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['pager master journal savepoint cache current source retry ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
@@ -158,7 +158,7 @@ $throws = [
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['pager master journal savepoint cache current source next138 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['pager master journal savepoint cache current source retry ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(Throwable::class, $callback);
     };
 }

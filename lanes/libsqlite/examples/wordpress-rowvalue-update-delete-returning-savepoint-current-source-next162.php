@@ -20,7 +20,7 @@ $rows = [
 $failSql = "UPDATE OR FAIL wp_options SET (blog_id, option_name, status, option_value, bytes) = (3, 'siteurl', option_name || ':fail', option_value || ':fail', bytes + 100) WHERE option_id IN (7, 8) RETURNING option_id, blog_id, option_name, status, option_value, bytes, (blog_id, option_name) = (3, 'siteurl') AS key_match ORDER BY option_id";
 $deleteSql = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed'), (1, 'siteurl')) RETURNING option_id, blog_id, option_name ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext162(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeFailConflictRollbackSavepoint(
     ['wp_options' => $rows],
     [$failSql, $deleteSql],
     [['blog_id', 'option_name']],
