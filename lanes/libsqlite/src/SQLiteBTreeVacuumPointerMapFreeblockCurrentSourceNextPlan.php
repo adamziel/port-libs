@@ -719,7 +719,31 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan
      */
     public static function tableLeafFromDeleteResultNext263(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
     {
-        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultNext263($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext264(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(264, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext265(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(265, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext266(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(266, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
     }
 
     /**
@@ -8121,6 +8145,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
     private function __construct(
         public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextVacuumVariant $vacuumPlan,
         private readonly array $freelistRows,
+        private readonly int $sliceNumber = 263,
     ) {
     }
 
@@ -8137,6 +8162,41 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
+        return self::tableLeafFromDeleteResultNext263($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize);
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext263(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::tableLeafFromDeleteResultForSlice(263, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize);
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultForSlice(
+        int $sliceNumber,
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        self::assertFreelistSpliceSlice($sliceNumber);
+
         return self::fromVacuumPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextVacuumVariant::tableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
@@ -8146,18 +8206,27 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
             $parentBtreePageNumber,
             $secureDelete,
             $batchSize,
-        ));
+        ), $sliceNumber);
     }
 
-    public static function fromVacuumPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextVacuumVariant $vacuumPlan): self
+    public static function fromVacuumPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextVacuumVariant $vacuumPlan, int $sliceNumber = 263): self
     {
-        $rows = self::buildFreelistRows($vacuumPlan);
-        $errors = self::freelistErrorsForRows($rows);
+        self::assertFreelistSpliceSlice($sliceNumber);
+
+        $rows = self::buildFreelistRows($vacuumPlan, $sliceNumber);
+        $errors = self::freelistErrorsForRows($rows, $sliceNumber);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next263 freelist splice failed: ' . implode('; ', $errors));
+            throw new \RuntimeException("SQLite b-tree vacuum pointer-map freeblock current-source next{$sliceNumber} freelist splice failed: " . implode('; ', $errors));
         }
 
-        return new self($vacuumPlan, $rows);
+        return new self($vacuumPlan, $rows, $sliceNumber);
+    }
+
+    private static function assertFreelistSpliceSlice(int $sliceNumber): void
+    {
+        if ($sliceNumber < 263 || $sliceNumber > 266) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock freelist splice slice must be next263 through next266');
+        }
     }
 
     /**
@@ -8173,7 +8242,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
      */
     public function freelistErrors(): array
     {
-        return self::freelistErrorsForRows($this->freelistRows);
+        return self::freelistErrorsForRows($this->freelistRows, $this->sliceNumber);
     }
 
     /**
@@ -8263,7 +8332,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
         $vacuumSummary = $this->vacuumPlan->vacuumSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next263-ready',
+            'status' => "btree-vacuum-pointermap-freeblock-current-source-next{$this->sliceNumber}-ready",
             'freelist_row_count' => count($this->freelistRows),
             'freelist_pages' => $this->freelistPages(),
             'trunk_anchor_pages' => $this->trunkAnchorPages(),
@@ -8281,8 +8350,8 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
             'all_freelist_links_valid' => !in_array(false, array_column($this->freelistRows, 'freelist_link_valid'), true),
             'freelist_errors' => $this->freelistErrors(),
             'freelist_signature' => self::signature($this->freelistTokens()),
-            'current_source_next263_token' => self::signature(array_merge(
-                ['next263', $vacuumSummary['current_source_next261_token']],
+            "current_source_next{$this->sliceNumber}_token" => self::signature(array_merge(
+                ["next{$this->sliceNumber}", $vacuumSummary['current_source_next261_token']],
                 $this->trunkAnchorPages(),
                 $this->leafSlotPages(),
                 $this->leafSlotOrdinals(),
@@ -8290,9 +8359,9 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
             )),
             'dependencies' => [
                 'sqlite-btree-vacuum-pointermap-freeblock-current-source-next261',
-                'sqlite-current-source-next263',
+                "sqlite-current-source-next{$this->sliceNumber}",
             ],
-            'dependency_closure' => 'no new support component needed; next263 reuses next261 vacuum finalization rows and seals reusable pages into pointer-map-scoped freelist splice receipts',
+            'dependency_closure' => "no new support component needed; next{$this->sliceNumber} reuses next261 vacuum finalization rows and seals reusable pages into pointer-map-scoped freelist splice receipts",
             'non_overlap' => 'adds freelist splice receipts after next261 pointer-map-scoped finalization; does not repeat next261 reusable-slot finalization, next259 source-next links, overflow freelist release, bulk overflow freeblocks, page relocation, root collapse, VFS, WAL, JSON, SQL, or encoding behavior',
         ];
     }
@@ -8303,7 +8372,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next263',
+            'action' => "btree-vacuum-pointermap-freeblock-current-source-next{$this->sliceNumber}",
             'freelist_summary' => $this->freelistSummary(),
             'freelist_errors' => $this->freelistErrors(),
             'freelist_rows' => $this->freelistRows,
@@ -8330,7 +8399,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildFreelistRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextVacuumVariant $vacuumPlan): array
+    private static function buildFreelistRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextVacuumVariant $vacuumPlan, int $sliceNumber): array
     {
         $rows = [];
         $previousToken = null;
@@ -8355,7 +8424,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
             $channel = $isTrunk ? 'freelist-trunk-anchor' : 'freelist-leaf-slot';
             $writeOffset = (int) $vacuumRow['vacuum_write_offset'];
             $token = self::signature([
-                'next263',
+                "next{$sliceNumber}",
                 $ordinal,
                 $previousToken ?? 'initial',
                 $vacuumRow['vacuum_token'],
@@ -8382,7 +8451,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
                 'offset_matches_vacuum_finalization' => $isTrunk || $writeOffset >= 8,
                 'tail_page_rejected_from_freelist' => !in_array($pageNumber, [109, 110], true),
                 'freelist_link_valid' => $vacuumRow['previous_vacuum_token'] === ($vacuumPlan->vacuumRows()[$index - 1]['vacuum_token'] ?? null),
-                'freelist_state' => 'current-source-next263-freelist-splice-ready',
+                'freelist_state' => "current-source-next{$sliceNumber}-freelist-splice-ready",
                 'freelist_token' => $token,
             ];
 
@@ -8396,14 +8465,14 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
      * @param list<array<string, mixed>> $rows
      * @return list<string>
      */
-    private static function freelistErrorsForRows(array $rows): array
+    private static function freelistErrorsForRows(array $rows, int $sliceNumber): array
     {
         $errors = [];
         $previousToken = null;
         $previousOrdinal = 0;
 
         foreach ($rows as $row) {
-            if ($row['freelist_state'] !== 'current-source-next263-freelist-splice-ready') {
+            if ($row['freelist_state'] !== "current-source-next{$sliceNumber}-freelist-splice-ready") {
                 $errors[] = "freelist row {$row['freelist_ordinal']} is not splice-ready";
             }
             if ((int) $row['freelist_ordinal'] !== $previousOrdinal + 1) {
