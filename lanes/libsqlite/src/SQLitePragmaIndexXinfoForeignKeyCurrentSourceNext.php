@@ -26930,6 +26930,78 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     }
 
     /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page303(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::childKeyDiagnosticPage287($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 303, 'empty_child_column', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page304(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::childKeyDiagnosticPage287($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 304, 'nullable_cascade_child_column', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page305(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::childKeyDiagnosticPage287($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 305, 'child_lookup_collation_mismatch', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page306(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::childKeyDiagnosticPage287($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 306, 'child_lookup_desc_mismatch', $offset, $limit, $resume);
+    }
+
+    /**
      * @param list<SQLiteSchemaRecord> $records
      * @return list<array<string,mixed>>
      */
@@ -27598,6 +27670,9 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      */
     private static function childKeyDiagnosticStatus287(SQLitePragmaSchemaCatalog $catalog, string $table, array $childColumns, array $actions, array $info): string
     {
+        if ($childColumns === [] || array_filter($childColumns, static fn (string $column): bool => trim($column) === '') !== []) {
+            return 'empty_child_column';
+        }
         foreach ($childColumns as $column) {
             if (!isset($info[strtolower($column)])) {
                 return 'missing_child_column';
@@ -27622,6 +27697,13 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                 }
             }
         }
+        if (in_array('CASCADE', $actions, true)) {
+            foreach ($childColumns as $column) {
+                if ((int) ($info[strtolower($column)]['notnull'] ?? 0) === 0) {
+                    return 'nullable_cascade_child_column';
+                }
+            }
+        }
 
         return self::childLookupDiagnosticStatus287($catalog, $table, $childColumns);
     }
@@ -27635,6 +27717,8 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         $sawPartial = false;
         $sawExpression = false;
         $sawOrderMismatch = false;
+        $sawCollationMismatch = false;
+        $sawDescMismatch = false;
         foreach ($catalog->indexList($table) as $index) {
             $keyRows = array_values(array_filter(
                 $catalog->indexXInfo((string) $index['name']),
@@ -27652,6 +27736,17 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                     $sawPartial = true;
                     continue;
                 }
+                $prefixRows = array_slice($keyRows, 0, count($wanted));
+                $collations = array_map(static fn (array $row): string => strtoupper((string) ($row['coll'] ?? 'BINARY')), $prefixRows);
+                if ($collations !== array_fill(0, count($wanted), 'BINARY')) {
+                    $sawCollationMismatch = true;
+                    continue;
+                }
+                $directions = array_map(static fn (array $row): int => (int) ($row['desc'] ?? 0), $prefixRows);
+                if ($directions !== array_fill(0, count($wanted), 0)) {
+                    $sawDescMismatch = true;
+                    continue;
+                }
 
                 return 'ok';
             }
@@ -27661,6 +27756,8 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         }
 
         return match (true) {
+            $sawCollationMismatch => 'child_lookup_collation_mismatch',
+            $sawDescMismatch => 'child_lookup_desc_mismatch',
             $sawPartial => 'child_lookup_partial_index',
             $sawExpression => 'child_lookup_expression_index',
             $sawOrderMismatch => 'child_lookup_order_mismatch',
@@ -27768,21 +27865,25 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @return array{rows:int,blocked:int,missing_child_column:int,generated_child_column:int,nullable_child_column:int,missing_child_default:int,child_lookup_missing_index:int,child_lookup_partial_index:int,child_lookup_expression_index:int,child_lookup_order_mismatch:int}
+     * @return array{rows:int,blocked:int,empty_child_column:int,missing_child_column:int,generated_child_column:int,nullable_child_column:int,missing_child_default:int,nullable_cascade_child_column:int,child_lookup_missing_index:int,child_lookup_partial_index:int,child_lookup_expression_index:int,child_lookup_order_mismatch:int,child_lookup_collation_mismatch:int,child_lookup_desc_mismatch:int}
      */
     private static function childKeyDiagnosticCounts287(array $rows): array
     {
         $counts = [
             'rows' => count($rows),
             'blocked' => 0,
+            'empty_child_column' => 0,
             'missing_child_column' => 0,
             'generated_child_column' => 0,
             'nullable_child_column' => 0,
             'missing_child_default' => 0,
+            'nullable_cascade_child_column' => 0,
             'child_lookup_missing_index' => 0,
             'child_lookup_partial_index' => 0,
             'child_lookup_expression_index' => 0,
             'child_lookup_order_mismatch' => 0,
+            'child_lookup_collation_mismatch' => 0,
+            'child_lookup_desc_mismatch' => 0,
         ];
         foreach ($rows as $row) {
             if (($row['blocked'] ?? false) === true) {
