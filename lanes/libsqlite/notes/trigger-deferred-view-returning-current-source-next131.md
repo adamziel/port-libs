@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for INSTEAD OF view-trigger `RETURNING`
 rows at the current-source/deferred-FK boundary.
 
-This slice adds `SQLiteTriggerDeferredViewReturningCurrentSourceNext131Plan`.
+This slice adds `SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan`.
 It applies bounded view-trigger mutations to copied `wp_options` rows, drains
 current-source `RETURNING` rows, materializes an autoloaded-options view from
 that current source, then performs deferred parent-option validation before
@@ -11,7 +11,7 @@ admitting next-source `RETURNING` rows.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteTriggerDeferredViewReturningCurrentSourceNext131Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerDeferredViewReturningCurrentSourceNext131Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-trigger-deferred-view-returning-current-source-next131.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerDeferredViewReturningCurrentSourceNext131Test.php`

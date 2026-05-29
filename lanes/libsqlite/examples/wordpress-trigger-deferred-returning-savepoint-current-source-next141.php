@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan.php';
+require_once dirname(__DIR__) . '/src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php';
 

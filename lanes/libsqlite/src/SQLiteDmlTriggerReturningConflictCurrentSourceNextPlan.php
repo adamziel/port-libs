@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan
+final class SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $rows

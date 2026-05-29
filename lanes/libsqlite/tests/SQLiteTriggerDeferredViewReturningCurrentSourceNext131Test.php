@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredViewReturningCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan;
 
 $rows131 = [
     ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'parent_name' => null, 'revision' => 1],
@@ -34,7 +34,7 @@ $returning131 = [
     static fn (array $new, ?array $old, array $mutation, string $event, int $ordinal): string => $event . ':' . $ordinal . ':' . ($old['option_name'] ?? 'new') . '>' . $new['option_name'],
 ];
 
-$run131 = static fn (array $rows = null, array $current = null, array $next = null, array $options = [], array $view = null, array $returning = null): array => SQLiteTriggerDeferredViewReturningCurrentSourceNext131Plan::execute(
+$run131 = static fn (array $rows = null, array $current = null, array $next = null, array $options = [], array $view = null, array $returning = null): array => SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan::execute(
     $rows ?? $rows131,
     $current ?? $current131,
     $next ?? $next131,

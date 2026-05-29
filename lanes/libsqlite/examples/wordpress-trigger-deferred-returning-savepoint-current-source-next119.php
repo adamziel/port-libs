@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan;

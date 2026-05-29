@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for recursive trigger-enqueued DML with
 RETURNING and deferred foreign-key checks.
 
 This slice adds
-`SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan`. It models
+`SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan`. It models
 the SQLite ordering needed by copied WordPress imports:
 
 - the top-level parent UPDATE emits its RETURNING image before recursive
@@ -26,7 +26,7 @@ drain, while deferred audit rows are checked at commit.
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan.php
+php -l lanes/libsqlite/src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Test.php
 php -l lanes/libsqlite/examples/wordpress-trigger-deferred-fk-returning-recursive-current-source-next114.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Test.php

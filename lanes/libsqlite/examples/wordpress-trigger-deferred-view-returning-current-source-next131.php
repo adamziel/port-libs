@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredViewReturningCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$plan = SQLiteTriggerDeferredViewReturningCurrentSourceNext131Plan::execute(
+$plan = SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan::execute(
     [
         ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'parent_name' => null, 'revision' => 1],
         ['option_name' => 'theme_mods', 'option_value' => 'old-theme', 'autoload' => 'yes', 'parent_name' => 'siteurl', 'revision' => 2],

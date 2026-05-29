@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 use InvalidArgumentException;
 
-final class SQLiteTriggerDeferredReturningViewCurrentSourceNext127Plan
+final class SQLiteTriggerDeferredReturningViewCurrentSourceNextPlan
 {
     /**
      * @param array<string,list<array<string,mixed>>> $tables

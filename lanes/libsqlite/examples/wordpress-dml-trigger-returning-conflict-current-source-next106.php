@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan.php';
+require __DIR__ . '/../src/SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan;
 
 $options = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 5],
@@ -38,7 +38,7 @@ $triggers = [
     ],
 ];
 
-$plan = SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan::insertRows(
+$plan = SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan::insertRows(
     $options,
     [
         ['option_id' => 10, 'option_name' => 'siteurl_alias', 'option_value' => 'https://new.test', 'autoload' => 'yes', 'revision' => 1],

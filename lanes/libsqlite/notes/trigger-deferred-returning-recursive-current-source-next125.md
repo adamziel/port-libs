@@ -1,6 +1,6 @@
 # Trigger Deferred RETURNING Recursive Current Source Next125
 
-This slice adds `SQLiteTriggerDeferredReturningRecursiveCurrentSourceNext125Plan`
+This slice adds `SQLiteTriggerDeferredReturningRecursiveCurrentSourceNextPlan`
 as a bounded source-barrier planner over the accepted recursive trigger
 RETURNING/deferred-FK executor. It records which RETURNING rows are yielded from
 the current source, which recursive trigger rows would enter the next source,
@@ -9,7 +9,7 @@ and whether the deferred FK barrier admits or suppresses that next-source stream
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteTriggerDeferredReturningRecursiveCurrentSourceNext125Plan.php
+php -l lanes/libsqlite/src/SQLiteTriggerDeferredReturningRecursiveCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerDeferredReturningRecursiveCurrentSourceNext125Test.php
 php -l lanes/libsqlite/examples/wordpress-trigger-deferred-returning-recursive-current-source-next125.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerDeferredReturningRecursiveCurrentSourceNext125Test.php

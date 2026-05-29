@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan;
 
 $parents = [
     ['post_id' => 10, 'post_title' => 'Imported parent', 'slug' => 'parent'],
@@ -53,7 +53,7 @@ $triggers = [
     ],
 ];
 
-$run = static fn (array $updates = [], array $options = [], array $extraTriggers = []) => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents(
+$run = static fn (array $updates = [], array $options = [], array $extraTriggers = []) => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents(
     $parents,
     $children,
     $updates === [] ? [['match' => 10, 'set' => ['post_id' => 110, 'post_title' => 'Rekeyed parent']]] : $updates,
@@ -66,7 +66,7 @@ $run = static fn (array $updates = [], array $options = [], array $extraTriggers
 $recursive = static fn (): array => $run();
 $nonRecursive = static fn (): array => $run([], ['recursive_triggers' => false]);
 $noActionDeferred = static function () use ($parents, $children, $triggers, $returning): array {
-    return SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents(
+    return SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents(
         $parents,
         $children,
         [['match' => 10, 'set' => ['post_id' => 110, 'post_title' => 'Rekeyed parent']]],
@@ -132,16 +132,16 @@ $tests = [
     'no action deferred fk returning still yields recursive returning rows' => [static fn (): mixed => array_column($noActionDeferred()['returning_rows'], 'new_post_id'), [110, 120, 130]],
     'no action deferred fk returning commit status fails' => [static fn (): mixed => $noActionDeferred()['commit_status'], 'deferred-constraint-failed'],
 
-    'recursive deferred fk returning star projection returns new row' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents($parents, $children, [['match' => 10, 'set' => ['post_id' => 110]]], $foreignKey, [], ['*'])['returning_rows'][0]['*']['post_id'], 110],
-    'recursive deferred fk returning missing parent update is skipped' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents($parents, $children, [['match' => 404, 'set' => ['post_id' => 405]]], $foreignKey, [], ['new.post_id'])['returning_rows'], []],
-    'recursive deferred fk returning malformed update throws' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents($parents, $children, [['match' => 10]], $foreignKey), InvalidArgumentException::class],
-    'recursive deferred fk returning empty projection throws' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents($parents, $children, [['match' => 10, 'set' => ['post_id' => 110]]], $foreignKey, [], []), InvalidArgumentException::class],
-    'recursive deferred fk returning bad alias throws' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents($parents, $children, [['match' => 10, 'set' => ['post_id' => 110]]], $foreignKey, [], [['expr' => 'new.post_id', 'as' => 'bad-alias']]), InvalidArgumentException::class],
+    'recursive deferred fk returning star projection returns new row' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents($parents, $children, [['match' => 10, 'set' => ['post_id' => 110]]], $foreignKey, [], ['*'])['returning_rows'][0]['*']['post_id'], 110],
+    'recursive deferred fk returning missing parent update is skipped' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents($parents, $children, [['match' => 404, 'set' => ['post_id' => 405]]], $foreignKey, [], ['new.post_id'])['returning_rows'], []],
+    'recursive deferred fk returning malformed update throws' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents($parents, $children, [['match' => 10]], $foreignKey), InvalidArgumentException::class],
+    'recursive deferred fk returning empty projection throws' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents($parents, $children, [['match' => 10, 'set' => ['post_id' => 110]]], $foreignKey, [], []), InvalidArgumentException::class],
+    'recursive deferred fk returning bad alias throws' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents($parents, $children, [['match' => 10, 'set' => ['post_id' => 110]]], $foreignKey, [], [['expr' => 'new.post_id', 'as' => 'bad-alias']]), InvalidArgumentException::class],
     'recursive deferred fk returning bad trigger action throws' => [static fn (): mixed => $run([], [], [['timing' => 'after', 'event' => 'update', 'action' => 'delete-parent']]), InvalidArgumentException::class],
     'recursive deferred fk returning bad when operator throws' => [static fn (): mixed => $run([], [], [['timing' => 'after', 'event' => 'update', 'when' => ['new.post_id', 'LIKE', 110]]]), InvalidArgumentException::class],
-    'recursive deferred fk returning immediate no action throws' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents($parents, $children, [['match' => 10, 'set' => ['post_id' => 110]]], ['parent_key' => 'post_id', 'child_key' => 'post_id', 'on_update' => 'no action', 'deferred' => false], [], ['new.post_id']), InvalidArgumentException::class],
+    'recursive deferred fk returning immediate no action throws' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents($parents, $children, [['match' => 10, 'set' => ['post_id' => 110]]], ['parent_key' => 'post_id', 'child_key' => 'post_id', 'on_update' => 'no action', 'deferred' => false], [], ['new.post_id']), InvalidArgumentException::class],
     'recursive deferred fk returning max depth throws' => [static fn (): mixed => $run([], ['max_depth' => 1]), InvalidArgumentException::class],
-    'recursive deferred fk returning malformed parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents($parents, $children, [['match' => 10, 'set' => ['post_id' => 110]]], ['parent_key' => 'bad-key', 'child_key' => 'post_id']), InvalidArgumentException::class],
+    'recursive deferred fk returning malformed parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents($parents, $children, [['match' => 10, 'set' => ['post_id' => 110]]], ['parent_key' => 'bad-key', 'child_key' => 'post_id']), InvalidArgumentException::class],
 ];
 
 foreach ($tests as $name => [$callback, $expected]) {

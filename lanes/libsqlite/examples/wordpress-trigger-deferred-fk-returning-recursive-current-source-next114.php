@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan;
 
 $parents = [
     ['post_id' => 10, 'post_title' => 'Imported parent'],
@@ -37,7 +37,7 @@ $triggers = [
     ],
 ];
 
-$plan = SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents(
+$plan = SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents(
     $parents,
     $children,
     [['match' => 10, 'set' => ['post_id' => 110, 'post_title' => 'Rekeyed parent']]],

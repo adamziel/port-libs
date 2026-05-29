@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `UPSERT ... RETURNING` rows yielded before deferred foreign-key commit validation rejects the next source.
 
-This slice adds `SQLiteTriggerDeferredUpsertReturningCurrentSourceNext135Plan`. It composes the accepted trigger/UPSERT/RETURNING statement model with a deferred FK commit gate:
+This slice adds `SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan`. It composes the accepted trigger/UPSERT/RETURNING statement model with a deferred FK commit gate:
 
 - statement `RETURNING` rows are captured from the current row image before AFTER-trigger target mutations;
 - deferred FK violations are evaluated at commit, after all UPSERT and trigger side effects have produced the statement image;

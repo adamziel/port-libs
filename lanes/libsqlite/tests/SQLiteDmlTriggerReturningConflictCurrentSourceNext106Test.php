@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan;
 
 $baseRows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 5],
@@ -53,7 +53,7 @@ $returning = [
 ];
 
 $run = static function (array $incoming, string $conflictAction = 'replace', array $options = [], ?array $projection = null) use ($baseRows, $triggers, $returning): array {
-    return SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan::insertRows(
+    return SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan::insertRows(
         $baseRows,
         $incoming,
         ['option_name'],
@@ -134,16 +134,16 @@ $cases = [
     'fail conflict throws' => [static fn (): mixed => $run([['option_id' => 71, 'option_name' => 'home', 'option_value' => 'fail', 'autoload' => 'no', 'revision' => 1]], 'fail'), InvalidArgumentException::class],
     'rollback conflict throws' => [static fn (): mixed => $run([['option_id' => 72, 'option_name' => 'home', 'option_value' => 'rollback', 'autoload' => 'no', 'revision' => 1]], 'rollback'), InvalidArgumentException::class],
     'unsupported conflict action throws' => [static fn (): mixed => $run([], 'bad'), InvalidArgumentException::class],
-    'empty unique columns throw' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan::insertRows($baseRows, [], []), InvalidArgumentException::class],
-    'malformed unique column throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan::insertRows($baseRows, [], ['bad-column']), InvalidArgumentException::class],
-    'missing current unique column throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan::insertRows([['option_id' => 1]], [['option_id' => 2, 'option_name' => 'x']], ['option_name']), InvalidArgumentException::class],
-    'missing incoming unique column throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan::insertRows($baseRows, [['option_id' => 2]], ['option_name']), InvalidArgumentException::class],
+    'empty unique columns throw' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan::insertRows($baseRows, [], []), InvalidArgumentException::class],
+    'malformed unique column throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan::insertRows($baseRows, [], ['bad-column']), InvalidArgumentException::class],
+    'missing current unique column throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan::insertRows([['option_id' => 1]], [['option_id' => 2, 'option_name' => 'x']], ['option_name']), InvalidArgumentException::class],
+    'missing incoming unique column throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan::insertRows($baseRows, [['option_id' => 2]], ['option_name']), InvalidArgumentException::class],
     'empty returning projection throws' => [static fn (): mixed => $run([['option_id' => 80, 'option_name' => 'empty_projection', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1]], 'replace', [], []), InvalidArgumentException::class],
     'malformed returning alias throws' => [static fn (): mixed => $run([['option_id' => 81, 'option_name' => 'bad_alias', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1]], 'replace', [], [['expr' => 'new.option_name', 'as' => 'bad-alias']]), InvalidArgumentException::class],
     'missing returning column throws' => [static fn (): mixed => $run([['option_id' => 82, 'option_name' => 'missing_returning', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1]], 'replace', [], ['missing_column']), InvalidArgumentException::class],
-    'malformed when clause throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan::insertRows($baseRows, [['option_id' => 83, 'option_name' => 'bad_when', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1]], ['option_name'], [['timing' => 'before', 'event' => 'insert', 'when' => ['new.option_name']]]), InvalidArgumentException::class],
-    'unsupported trigger action throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan::insertRows($baseRows, [['option_id' => 84, 'option_name' => 'bad_action', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1]], ['option_name'], [['timing' => 'before', 'event' => 'insert', 'action' => 'upsert-row']]), InvalidArgumentException::class],
-    'old reference in insert trigger throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNext106Plan::insertRows($baseRows, [['option_id' => 85, 'option_name' => 'bad_old', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1]], ['option_name'], [['timing' => 'before', 'event' => 'insert', 'action' => 'audit', 'values' => ['bad' => 'old.option_name']]]), InvalidArgumentException::class],
+    'malformed when clause throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan::insertRows($baseRows, [['option_id' => 83, 'option_name' => 'bad_when', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1]], ['option_name'], [['timing' => 'before', 'event' => 'insert', 'when' => ['new.option_name']]]), InvalidArgumentException::class],
+    'unsupported trigger action throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan::insertRows($baseRows, [['option_id' => 84, 'option_name' => 'bad_action', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1]], ['option_name'], [['timing' => 'before', 'event' => 'insert', 'action' => 'upsert-row']]), InvalidArgumentException::class],
+    'old reference in insert trigger throws' => [static fn (): mixed => SQLiteDmlTriggerReturningConflictCurrentSourceNextPlan::insertRows($baseRows, [['option_id' => 85, 'option_name' => 'bad_old', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1]], ['option_name'], [['timing' => 'before', 'event' => 'insert', 'action' => 'audit', 'values' => ['bad' => 'old.option_name']]]), InvalidArgumentException::class],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {

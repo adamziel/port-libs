@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningRecursiveCurrentSourceNext125Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningRecursiveCurrentSourceNextPlan;
 
 $parents = [
     ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1],
@@ -15,7 +15,7 @@ $children = [
     ['meta_id' => 12, 'option_id' => 2, 'meta_key' => '_origin'],
 ];
 
-$plan = SQLiteTriggerDeferredReturningRecursiveCurrentSourceNext125Plan::sourceBarrier(
+$plan = SQLiteTriggerDeferredReturningRecursiveCurrentSourceNextPlan::sourceBarrier(
     $parents,
     $children,
     ['parent_key' => 'option_id', 'child_key' => 'option_id', 'deferred' => true],

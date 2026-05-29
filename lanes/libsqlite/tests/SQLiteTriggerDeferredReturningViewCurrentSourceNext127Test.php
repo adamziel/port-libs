@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
-use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningViewCurrentSourceNext127Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningViewCurrentSourceNextPlan;
 
 $record127 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord(
     $type,
@@ -68,7 +68,7 @@ $options127 = [
     ],
 ];
 
-$run127 = static fn (array $tables = null, array $current = null, array $next = null, array $extra = [], array $projection = null, array $fk = null): array => SQLiteTriggerDeferredReturningViewCurrentSourceNext127Plan::execute(
+$run127 = static fn (array $tables = null, array $current = null, array $next = null, array $extra = [], array $projection = null, array $fk = null): array => SQLiteTriggerDeferredReturningViewCurrentSourceNextPlan::execute(
     $catalog127(),
     'wp_option_import_view_insert',
     $tables ?? $tables127,

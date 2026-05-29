@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredUpsertReturningCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan;
 
 $parents135 = [
     ['post_id' => 10, 'post_title' => 'Existing page'],
@@ -65,7 +65,7 @@ $foreignKey135 = [
     'deferred' => true,
 ];
 
-$plan135 = static fn (array $incoming = null, array $parents = null, array $options = [], ?callable $where = null): array => SQLiteTriggerDeferredUpsertReturningCurrentSourceNext135Plan::executeDeferredCommit(
+$plan135 = static fn (array $incoming = null, array $parents = null, array $options = [], ?callable $where = null): array => SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan::executeDeferredCommit(
     $rows135,
     $incoming ?? $incoming135,
     ['meta_key'],
@@ -87,7 +87,7 @@ $valid135 = static fn (): array => $plan135([
     ['meta_id' => 4, 'post_id' => 10, 'meta_key' => '_source', 'meta_value' => 'updated-source', 'revision' => 2, 'source' => 'import'],
 ]);
 $held135 = static fn (): array => $plan135($incoming135, $parents135, ['rollback_transaction' => false]);
-$immediate135 = static fn (): array => SQLiteTriggerDeferredUpsertReturningCurrentSourceNext135Plan::executeDeferredCommit(
+$immediate135 = static fn (): array => SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan::executeDeferredCommit(
     $rows135,
     $incoming135,
     ['meta_key'],
@@ -161,9 +161,9 @@ $cases135 = [
     'where skip records skipped update' => [static fn (): mixed => array_column($plan135($incoming135, $parents135, [], static fn (?array $old, array $incoming): bool => $incoming['meta_key'] !== '_source')['skipped_rows'], 'meta_key'), ['_source']],
     'custom transaction is accepted' => [static fn (): mixed => $plan135($incoming135, $parents135, ['transaction' => 'wp_retry_txn'])['transaction'], 'wp_retry_txn'],
     'bad transaction throws' => [static fn (): mixed => $plan135($incoming135, $parents135, ['transaction' => 'bad-name']), InvalidArgumentException::class],
-    'bad child key throws' => [static fn (): mixed => SQLiteTriggerDeferredUpsertReturningCurrentSourceNext135Plan::executeDeferredCommit($rows135, $incoming135, ['meta_key'], $assignments135, $triggers135, $returning135, $parents135, array_merge($foreignKey135, ['child_key' => 'bad-key'])), InvalidArgumentException::class],
-    'missing parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredUpsertReturningCurrentSourceNext135Plan::executeDeferredCommit($rows135, $incoming135, ['meta_key'], $assignments135, $triggers135, $returning135, [['id' => 10]], $foreignKey135), InvalidArgumentException::class],
-    'missing child key throws' => [static fn (): mixed => SQLiteTriggerDeferredUpsertReturningCurrentSourceNext135Plan::executeDeferredCommit([['meta_id' => 9, 'meta_key' => 'x']], [['meta_id' => 10, 'meta_key' => 'y']], ['meta_key'], [], [], ['meta_key'], $parents135, $foreignKey135), InvalidArgumentException::class],
+    'bad child key throws' => [static fn (): mixed => SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan::executeDeferredCommit($rows135, $incoming135, ['meta_key'], $assignments135, $triggers135, $returning135, $parents135, array_merge($foreignKey135, ['child_key' => 'bad-key'])), InvalidArgumentException::class],
+    'missing parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan::executeDeferredCommit($rows135, $incoming135, ['meta_key'], $assignments135, $triggers135, $returning135, [['id' => 10]], $foreignKey135), InvalidArgumentException::class],
+    'missing child key throws' => [static fn (): mixed => SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan::executeDeferredCommit([['meta_id' => 9, 'meta_key' => 'x']], [['meta_id' => 10, 'meta_key' => 'y']], ['meta_key'], [], [], ['meta_key'], $parents135, $foreignKey135), InvalidArgumentException::class],
 ];
 
 $tests = [];

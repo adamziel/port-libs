@@ -1,6 +1,6 @@
 # trigger-deferred-returning-view-current-source-next127
 
-Adds `SQLiteTriggerDeferredReturningViewCurrentSourceNext127Plan`, a bounded
+Adds `SQLiteTriggerDeferredReturningViewCurrentSourceNextPlan`, a bounded
 current-source behavior helper for `INSTEAD OF` view triggers whose attempted
 `RETURNING` rows cross current/next source phases before a deferred foreign-key
 release check decides whether the next-source rows are admitted, blocked, or

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningRecursiveCurrentSourceNext125Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningRecursiveCurrentSourceNextPlan;
 
 $parents125 = [
     ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1],
@@ -38,7 +38,7 @@ $statement125 = [
     'rollback_on_deferred_violation' => true,
 ];
 
-$plan125 = static fn (array $statement = [], array $children = null): array => SQLiteTriggerDeferredReturningRecursiveCurrentSourceNext125Plan::sourceBarrier(
+$plan125 = static fn (array $statement = [], array $children = null): array => SQLiteTriggerDeferredReturningRecursiveCurrentSourceNextPlan::sourceBarrier(
     $parents125,
     $children ?? $children125,
     $fk125,

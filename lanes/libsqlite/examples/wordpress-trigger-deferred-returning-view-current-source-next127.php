@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
-use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningViewCurrentSourceNext127Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningViewCurrentSourceNextPlan;
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -31,7 +31,7 @@ $tables = [
     ],
 ];
 
-$plan = SQLiteTriggerDeferredReturningViewCurrentSourceNext127Plan::execute(
+$plan = SQLiteTriggerDeferredReturningViewCurrentSourceNextPlan::execute(
     $catalog,
     'wp_option_import_view_insert',
     $tables,

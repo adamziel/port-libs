@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerDeferredUpsertReturningCurrentSourceNext135Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredUpsertReturningCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan;
 
 $parents = [
     ['post_id' => 10, 'post_title' => 'Existing page'],
@@ -21,7 +21,7 @@ $incoming = [
     ['meta_id' => 5, 'post_id' => 999, 'meta_key' => '_missing_parent', 'meta_value' => 'orphan', 'revision' => 1, 'source' => 'import'],
 ];
 
-$plan = SQLiteTriggerDeferredUpsertReturningCurrentSourceNext135Plan::executeDeferredCommit(
+$plan = SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan::executeDeferredCommit(
     $postmeta,
     $incoming,
     ['meta_key'],

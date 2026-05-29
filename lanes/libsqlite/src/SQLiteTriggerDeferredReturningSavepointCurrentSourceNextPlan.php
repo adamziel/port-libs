@@ -34,7 +34,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
 
         $beforeParents = array_values($parents);
         $beforeChildren = array_values($children);
-        $statement = SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan::updateParents(
+        $statement = SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents(
             $beforeParents,
             $beforeChildren,
             $updates,
