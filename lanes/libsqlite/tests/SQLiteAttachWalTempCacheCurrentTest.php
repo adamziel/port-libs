@@ -157,19 +157,19 @@ $cases = [
     'temp shadow table summary' => ['temp_shadow_tables', ['wp_options', 'wp_import_stage']],
     'attached changed tables summary' => ['attached_changed_tables', ['archive.wp_options', 'wp_comments', 'wp_terms']],
     'attached changed indexes summary' => ['attached_changed_indexes', ['wp_options_archive_name', 'wp_terms_slug']],
-    'dependency marker first' => ['dependencies.0', 'sqlite-attach-wal-temp-cache-current-next44'],
+    'dependency marker first' => ['dependencies.0', 'sqlite-attach-wal-temp-cache-current'],
     'dependency includes shared cookie' => ['dependencies.2', 'shared-cache-schema-cookie'],
 ];
 
 $tests = [];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['attach wal temp cache current next44 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['attach wal temp cache current ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['attach wal temp cache current next44 same cookie keeps attach reusable'] = static function (TestRunner $t) use ($makeCatalog, $currentArchiveRecords, $nextArchiveRecords): void {
+$tests['attach wal temp cache current same cookie keeps attach reusable'] = static function (TestRunner $t) use ($makeCatalog, $currentArchiveRecords, $nextArchiveRecords): void {
     $result = SQLiteAttachWalTempCachePlan::currentNext(
         $makeCatalog(),
         new SQLiteAttachUriSchemaCache(),
@@ -187,7 +187,7 @@ $tests['attach wal temp cache current next44 same cookie keeps attach reusable']
     $t->same(true, $result['invalidation']['stale']);
 };
 
-$tests['attach wal temp cache current next44 rejects invalid inputs'] = static function (TestRunner $t) use ($makeCatalog, $currentArchiveRecords, $nextArchiveRecords): void {
+$tests['attach wal temp cache current rejects invalid inputs'] = static function (TestRunner $t) use ($makeCatalog, $currentArchiveRecords, $nextArchiveRecords): void {
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteAttachWalTempCachePlan::currentNext($makeCatalog(), new SQLiteAttachUriSchemaCache(), "ATTACH 'file:/srv/wp/private.sqlite?cache=private' AS archive", static fn (): array => $currentArchiveRecords(), $nextArchiveRecords(), 1, 2, ['archive.wp_options']));
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteAttachWalTempCachePlan::currentNext($makeCatalog(), new SQLiteAttachUriSchemaCache(), "ATTACH 'file:/srv/wp/empty.sqlite?cache=shared' AS archive", static fn (): array => $currentArchiveRecords(), [], 1, 2, ['archive.wp_options']));
     $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteAttachWalTempCachePlan::currentNext($makeCatalog(), new SQLiteAttachUriSchemaCache(), "ATTACH 'file:/srv/wp/lookups.sqlite?cache=shared' AS archive", static fn (): array => $currentArchiveRecords(), $nextArchiveRecords(), 1, 2, []));

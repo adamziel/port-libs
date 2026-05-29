@@ -73,12 +73,12 @@ $tests['compound select window recursive limit current source next240 status dep
     $t->contains('final-page spillover acknowledgement fence', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit current source next240 keeps next237 base fields'] = static function (TestRunner $t) use ($summary240): void {
+$tests['compound select window recursive limit current source next240 keeps current-source-dequeue base fields'] = static function (TestRunner $t) use ($summary240): void {
     $plan = $summary240();
     $t->same(['UNION ALL', 'INTERSECT', 'EXCEPT'], $plan['compound']['operators']);
     $t->same(['home', 'seed:2:3', 'rewrite_rules', 'seed:2:3:4'], array_column($plan['currentRows'], 'label'));
     $t->same(['plugin_prime', 'seed:2:3', 'home', 'seed:2:3:4'], array_column($plan['nextRows'], 'label'));
-    $t->same(6, $plan['currentSourceDequeueNext237']['requiredAckCount']);
+    $t->same(6, $plan['currentSourceDequeue']['requiredAckCount']);
 };
 
 $tests['compound select window recursive limit current source next240 spillover shape'] = static function (TestRunner $t) use ($summary240): void {
@@ -118,7 +118,7 @@ $tests['compound select window recursive limit current source next240 cursor car
 $tests['compound select window recursive limit current source next240 accepts spillover acknowledgements'] = static function (TestRunner $t) use ($summary240): void {
     $plan = $summary240();
     $cursor = $plan['cursor'];
-    $cursor['acknowledgedCurrentDequeueAcksNext237'] = $plan['currentSourceDequeueNext237']['requiredCurrentDequeueAcks'];
+    $cursor['acknowledgedCurrentDequeueAcks'] = $plan['currentSourceDequeue']['requiredCurrentDequeueAcks'];
     $cursor['acknowledgedSpilloverAcksNext240'] = $plan['compoundFinalPageSpilloverDrainNext240']['requiredSpilloverAcks'];
     $again = $summary240($cursor);
     $t->same($plan['compoundFinalPageSpilloverDrainNext240']['spilloverDrainToken'], $again['compoundFinalPageSpilloverDrainNext240']['spilloverDrainToken']);
@@ -150,7 +150,7 @@ $tests['compound select window recursive limit current source next240 executor p
 
 $tests['compound select window recursive limit current source next240 non overlap'] = static function (TestRunner $t) use ($summary240): void {
     $plan = $summary240();
-    $t->contains('extends accepted next237', $plan['non_overlap']);
+    $t->contains('extends accepted current-source-dequeue', $plan['non_overlap']);
     $t->true(in_array('compound-final-limit-spillover-drain-next240', $plan['replanReasons'], true));
     $t->true(in_array('current-source-window-spillover-holds-next-source-next240', $plan['replanReasons'], true));
 };
@@ -170,7 +170,7 @@ foreach (range(1, 64) as $case) {
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (130 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes' INTERSECT SELECT id, label, metric FROM (SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes') EXCEPT SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE option_name IN ('siteurl_{$case}') ORDER BY metric, label LIMIT 4 OFFSET 1";
         $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareFinalPageSpilloverDrain($sql, $tables, $nextTables);
         $cursor = $plan['cursor'];
-        $cursor['acknowledgedCurrentDequeueAcksNext237'] = $plan['currentSourceDequeueNext237']['requiredCurrentDequeueAcks'];
+        $cursor['acknowledgedCurrentDequeueAcks'] = $plan['currentSourceDequeue']['requiredCurrentDequeueAcks'];
         $cursor['acknowledgedSpilloverAcksNext240'] = $plan['compoundFinalPageSpilloverDrainNext240']['requiredSpilloverAcks'];
         $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareFinalPageSpilloverDrain($sql, $tables, $nextTables, $cursor);
 

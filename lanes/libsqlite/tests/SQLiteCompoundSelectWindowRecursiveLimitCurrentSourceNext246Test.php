@@ -134,7 +134,7 @@ $tests['compound select window recursive limit current source next246 cursor car
 $tests['compound select window recursive limit current source next246 accepts complete cursor'] = static function (TestRunner $t) use ($summary246): void {
     $plan = $summary246();
     $cursor = $plan['cursor'];
-    $cursor['acknowledgedCurrentDequeueAcksNext237'] = $plan['currentSourceDequeueNext237']['requiredCurrentDequeueAcks'];
+    $cursor['acknowledgedCurrentDequeueAcks'] = $plan['currentSourceDequeue']['requiredCurrentDequeueAcks'];
     $cursor['acknowledgedSpilloverAcksNext240'] = $plan['compoundFinalPageSpilloverDrainNext240']['requiredSpilloverAcks'];
     $cursor['acknowledgedReplayTicketsNext243'] = $plan['compoundWindowReplayFenceNext243']['requiredReplayTickets'];
     $cursor['acknowledgedSourceHandoffAcksNext246'] = $plan['compoundRecursiveLimitSourceHandoffNext246']['requiredSourceHandoffAcks'];
@@ -201,7 +201,7 @@ foreach (range(1, 64) as $case) {
         $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveLimitSourceHandoff($sql, $tables, $nextTables);
         $handoff = $plan['compoundRecursiveLimitSourceHandoffNext246'];
         $cursor = $plan['cursor'];
-        $cursor['acknowledgedCurrentDequeueAcksNext237'] = $plan['currentSourceDequeueNext237']['requiredCurrentDequeueAcks'];
+        $cursor['acknowledgedCurrentDequeueAcks'] = $plan['currentSourceDequeue']['requiredCurrentDequeueAcks'];
         $cursor['acknowledgedSpilloverAcksNext240'] = $plan['compoundFinalPageSpilloverDrainNext240']['requiredSpilloverAcks'];
         $cursor['acknowledgedReplayTicketsNext243'] = $plan['compoundWindowReplayFenceNext243']['requiredReplayTickets'];
         $cursor['acknowledgedSourceHandoffAcksNext246'] = $handoff['requiredSourceHandoffAcks'];

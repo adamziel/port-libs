@@ -65,6 +65,7 @@ $databaseForFreelistHandoff = static function (int $sliceNumber) use ($makeFirst
 $freelistHandoffPlan = static function (int $sliceNumber, int $batchSize = 2) use ($databaseForFreelistHandoff): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
     $database = $databaseForFreelistHandoff($sliceNumber);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
+
     return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultForCurrentSourceFreelistHandoff(
         $sliceNumber,
         $database,
@@ -84,7 +85,7 @@ $freelistHandoffPlan = static function (int $sliceNumber, int $batchSize = 2) us
 
 $tests = [];
 
-foreach (range(1135, 1182) as $sliceNumber) {
+foreach (array_merge(range(991, 1006), range(1135, 1182)) as $sliceNumber) {
     $tests["btree vacuum pointermap freeblock current source freelist handoff slice {$sliceNumber} preserves receipts"] = static function (TestRunner $t) use ($freelistHandoffPlan, $sliceNumber): void {
         $plan = $freelistHandoffPlan($sliceNumber);
         $summary = $plan->currentSourceSummary();

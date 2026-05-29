@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
-$database = '/srv/wp-content/database/wp-next734.sqlite';
+$database = '/srv/wp-content/database/wp-next750.sqlite';
 $journal = $database . '-journal';
 $master = $database . '-mj';
 $masterBytes = $journal . "\n";
@@ -17,7 +17,7 @@ $formatPage = static function (string $label) use ($pageSize): string {
     $page = substr_replace($page, pack('n', 512), 16, 2);
     $page = substr_replace($page, chr(4), 20, 1);
     $page = substr_replace($page, pack('N', 2), 56, 4);
-    $page = substr_replace($page, pack('N', 734), 60, 4);
+    $page = substr_replace($page, pack('N', 750), 60, 4);
 
     return substr_replace($page, $label, 100, strlen($label));
 };
@@ -189,18 +189,28 @@ $next719734Fields = [
     'reader_cache_stmt_vdbe_notnull_branch_handoff_token', 'reader_cache_stmt_vdbe_ne_branch_handoff_token', 'reader_cache_stmt_vdbe_eq_branch_handoff_token',
     'reader_cache_stmt_vdbe_gt_branch_handoff_token',
 ];
-$variantFields = array_merge($tokenFields, $next639654Fields, $next655670Fields, $next671686Fields, $next687702Fields, $next703718Fields, $next719734Fields);
+$next735750Fields = [
+    'reader_cache_stmt_vdbe_le_branch_handoff_token', 'reader_cache_stmt_vdbe_lt_branch_handoff_token', 'reader_cache_stmt_vdbe_ge_branch_handoff_token',
+    'reader_cache_stmt_vdbe_else_eq_branch_handoff_token', 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff_token',
+    'reader_cache_stmt_vdbe_seek_hit_branch_handoff_token', 'reader_cache_stmt_vdbe_if_not_open_branch_handoff_token',
+    'reader_cache_stmt_vdbe_not_open_branch_handoff_token', 'reader_cache_stmt_vdbe_if_open_branch_handoff_token',
+    'reader_cache_stmt_vdbe_transaction_branch_handoff_token', 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_token',
+    'reader_cache_stmt_vdbe_savepoint_branch_handoff_token', 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_token',
+    'reader_cache_stmt_vdbe_journal_mode_branch_handoff_token', 'reader_cache_stmt_vdbe_vacuum_branch_handoff_token',
+    'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token',
+];
+$variantFields = array_merge($tokenFields, $next639654Fields, $next655670Fields, $next671686Fields, $next687702Fields, $next703718Fields, $next719734Fields, $next735750Fields);
 $before = [1 => $formatPage('stale schema'), 2 => $page('stale options')];
 $recovered = [1 => $formatPage('current schema'), 2 => $page('current options')];
-$tokens = [$journal => 'member-main-current-734'];
-$headers = [$journal => hash('sha256', 'main header next734')];
+$tokens = [$journal => 'member-main-current-750'];
+$headers = [$journal => hash('sha256', 'main header next750')];
 $base = [
-    'source_id' => 'wordpress-pager-reader-cache-next734',
-    'epoch' => 734,
-    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 734, 0])),
-    'publication_generation' => 734,
-    'master_source_digest' => hash('sha256', 'wordpress next734 master source'),
-    'recovery_sequence' => 734,
+    'source_id' => 'wordpress-pager-reader-cache-next750',
+    'epoch' => 750,
+    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 750, 0])),
+    'publication_generation' => 750,
+    'master_source_digest' => hash('sha256', 'wordpress next750 master source'),
+    'recovery_sequence' => 750,
     'recovered_page_set_digest' => $recoveredDigest($recovered),
     'member_journal_tokens' => $tokens,
     'member_journal_header_digests' => $headers,
@@ -208,17 +218,17 @@ $base = [
     'master_journal_bytes_digest' => hash('sha256', $masterBytes),
 ];
 foreach ($variantFields as $field) {
-    $base[$field] = str_replace('_', '-', preg_replace('/_token$/', '', $field)) . '-current-734';
+    $base[$field] = str_replace('_', '-', preg_replace('/_token$/', '', $field)) . '-current-750';
 }
-$cache = [1 => array_merge($base, ['reader_id' => 'wp-options-reader', 'image' => $recovered[1], 'reader_cache_stmt_vdbe_add_imm_branch_handoff_token' => 'stmt-vdbe-add-imm-branch-handoff-old'])];
+$cache = [1 => array_merge($base, ['reader_id' => 'wp-options-reader', 'image' => $recovered[1], 'reader_cache_stmt_vdbe_le_branch_handoff_token' => 'stmt-vdbe-le-branch-handoff-old'])];
 $read = array_merge($base, [
     'reader_id' => 'read-options',
     'page_number' => 1,
     'member_journal_token_digest' => $mapDigest($tokens),
     'member_journal_header_digest' => $mapDigest($headers),
-    'reader_cache_stmt_vdbe_gt_branch_handoff_token' => 'stmt-vdbe-gt-branch-handoff-old',
+    'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token' => 'stmt-vdbe-incr-vacuum-branch-handoff-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext734(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeStatementTransactionBranchFence(
     $database,
     $master,
     $masterBytes,
@@ -228,10 +238,10 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext734
     $cache,
     [$read],
     $base['source_id'],
-    734,
-    734,
+    750,
+    750,
     $base['master_source_digest'],
-    734,
+    750,
     $tokens,
     $headers,
     ...array_map(static fn (string $field): string => $base[$field], $variantFields),
@@ -240,5 +250,5 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext734
 echo json_encode([
     'status' => $plan['status'],
     'reopen_reader_ids' => $plan['reopen_reader_ids'],
-    'next719_invalidated_pages' => $plan['reader_cache_stmt_vdbe_add_imm_branch_handoff_invalidated_cache_page_numbers'],
+    'next735_invalidated_pages' => $plan['reader_cache_stmt_vdbe_le_branch_handoff_invalidated_cache_page_numbers'],
 ], JSON_PRETTY_PRINT) . PHP_EOL;

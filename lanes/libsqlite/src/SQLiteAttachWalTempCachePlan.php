@@ -92,7 +92,7 @@ final class SQLiteAttachWalTempCachePlan
             'attached_changed_tables' => self::changedForSchema($nextInvalidation['table_changes'], $schema),
             'attached_changed_indexes' => self::changedForSchema($nextInvalidation['index_changes'], $schema),
             'dependencies' => [
-                'sqlite-attach-wal-temp-cache-current-next44',
+                'sqlite-attach-wal-temp-cache-current',
                 'attach-uri-schema-cache',
                 'shared-cache-schema-cookie',
                 'sqlite-temp-schema-shadow-resolution',

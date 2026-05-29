@@ -35,7 +35,7 @@ $followingView['source'] = 'main@view-cookie-196-following';
 $followingView['trigger_source'] = 'main@trigger-cookie-196-following';
 $followingView['audit_label'] = 'following-recursive-view-trigger-196';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext196(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeFollowingRecursiveChildDrain(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
@@ -89,12 +89,12 @@ $summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext
 );
 
 if (
-    $summary['status_next196'] !== 'trigger-recursive-view-returning-current-source-next196-next-source-visible'
+    $summary['status_next196'] !== 'trigger-recursive-view-returning-following-child-drain-next-source-visible'
     || $summary['current_source_next_plan_next196']['decision'] !== 'publish-next-after-recursive-child-current-returning-drain'
     || array_column($summary['recursive_child_payloads_next196'], 'name') !== ['blogdescription_child', 'template_child']
 ) {
-    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-next196 self-test failed\n");
+    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-following-child-drain self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-trigger-recursive-view-returning-current-source-next196 self-test passed\n";
+echo "wordpress-trigger-recursive-view-returning-following-child-drain self-test passed\n";

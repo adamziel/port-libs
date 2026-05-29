@@ -84,7 +84,7 @@ $value = static function (array $data, string $path): mixed {
 
 $pathCases = [
     'status planned' => [[], 'status', 'planned'],
-    'operation names slice' => [[], 'operation', 'attach-temp-wal-trigger-cache-current-source-next83'],
+    'operation names slice' => [[], 'operation', 'attach-temp-wal-trigger-cache-current-source'],
     'source defaults main' => [[], 'source_schema', 'main'],
     'trigger count' => [[], 'trigger_count', 3],
     'current programs are kept' => [[], 'active_current_programs_kept', true],
@@ -137,7 +137,7 @@ $pathCases = [
 ];
 
 foreach ($pathCases as $name => $case) {
-    $tests['attach temp wal trigger cache current source next83 ' . $name] = static function (TestRunner $t) use ($plan, $value, $case): void {
+    $tests['attach temp wal trigger cache current source ' . $name] = static function (TestRunner $t) use ($plan, $value, $case): void {
         [$updates, $path, $expected] = $case;
         $triggers = $case[3] ?? ['options_after_update', 'temp_options_after_update', 'site.site_options_after_update'];
         $states = $case[4] ?? null;
@@ -203,7 +203,7 @@ $predicateCases = [
 ];
 
 foreach ($predicateCases as $name => $predicate) {
-    $tests['attach temp wal trigger cache current source next83 ' . $name] = static function (TestRunner $t) use ($predicate): void {
+    $tests['attach temp wal trigger cache current source ' . $name] = static function (TestRunner $t) use ($predicate): void {
         $t->same(true, $predicate());
     };
 }

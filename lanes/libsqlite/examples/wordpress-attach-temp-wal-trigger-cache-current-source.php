@@ -36,12 +36,12 @@ $plan = SQLiteAttachWalTempViewCachePlan::triggerProgramCacheCurrentSourceNext(
 );
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['operation'] === 'attach-temp-wal-trigger-cache-current-source-next83');
+    assert($plan['operation'] === 'attach-temp-wal-trigger-cache-current-source');
     assert($plan['active_current_programs_kept'] === true);
     assert($plan['reprepare_triggers'] === ['options_after_update']);
     assert($plan['triggers']['options_after_update']['before']['trigger']['sql'] !== $plan['triggers']['options_after_update']['after']['trigger']['sql']);
     assert($plan['triggers']['temp_options_after_update']['next_requires_reprepare'] === false);
-    echo "wordpress-attach-temp-wal-trigger-cache-current-source-next83 self-test passed\n";
+    echo "wordpress-attach-temp-wal-trigger-cache-current-source self-test passed\n";
     return;
 }
 

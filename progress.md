@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 15:08 UTC):
+  Thirty-eighth reduced consolidation follow-up is staged and validated in the
+  rolling libsqlite integration worktree. The batch accepts 8 clean
+  ready-marked AY handoffs on top of `29d0addae` while excluding stale worker
+  status edits and incidental shared note hunks: attach detach/temp WAL
+  trigger-cache cleanup, B-tree vacuum pointermap/freeblock handoff cleanup,
+  compound-select recursive-limit dequeue cleanup, pager-master branch-fence
+  cleanup, planner/STAT4 prepared-handoff cleanup, rowvalue savepoint DISTINCT
+  returning cleanup, upstream veryquick prepared-window evidence cleanup, and
+  trigger recursive-view following-child-drain cleanup. JSON AY is deferred
+  because it overlaps JSON renames already integrated in the thirty-seventh
+  batch; patch-only AY artifacts without `.ready` markers were not accepted.
+  Validation passed `47` PHP lints, changed tests
+  `30 test files / 9929 assertions / 0 failures`, `8` changed WordPress
+  examples/self-tests, git diff --check, exact user-named 150 suffix scan clean,
+  production `CurrentSourceNextNNN` file/class audits at `0`, and broad
+  numbered production helper-method audit `3317`. Public pass/mapped counters
+  remain `154019 pass / 0 fail` and `830 / 1589` because this is another
+  suffix/helper consolidation slice.
+
 - 2026-05-29 supervisor continuation (shell samples 15:00 UTC):
   Thirty-seventh reduced consolidation follow-up is staged and validated in the
   rolling libsqlite integration worktree. The batch accepts 8 clean AX handoffs

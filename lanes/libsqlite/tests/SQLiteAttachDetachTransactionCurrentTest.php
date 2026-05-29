@@ -37,7 +37,7 @@ $temp = static fn (): array => SQLiteAttachDetachTransactionPlan::currentNext($s
 $cases = [
     'clean detach status' => [static fn (): mixed => $clean()['status'], 'detached'],
     'clean detach is not blocked' => [static fn (): mixed => $clean()['blocked'], false],
-    'clean operation marker' => [static fn (): mixed => $clean()['operation'], 'attach-detach-transaction-current-next66'],
+    'clean operation marker' => [static fn (): mixed => $clean()['operation'], 'attach-detach-transaction-current'],
     'clean target normalized' => [static fn (): mixed => $clean()['target_schema'], 'analytics'],
     'clean detached schema' => [static fn (): mixed => $clean()['detached_schema'], 'analytics'],
     'clean current database count' => [static fn (): mixed => count($clean()['current_database_list']), 5],
@@ -52,7 +52,7 @@ $cases = [
     'clean first op schema' => [static fn (): mixed => $clean()['operations'][0]['schema'], 'analytics'],
     'clean close btree op present' => [static fn (): mixed => $clean()['operations'][1]['op'], 'close_btree'],
     'clean renumber op present' => [static fn (): mixed => $clean()['operations'][2]['op'], 'renumber_database_array'],
-    'clean dependency marker' => [static fn (): mixed => in_array('sqlite-attach-detach-transaction-current-next66', $clean()['dependencies'], true), true],
+    'clean dependency marker' => [static fn (): mixed => in_array('sqlite-attach-detach-transaction-current', $clean()['dependencies'], true), true],
     'clean database locked dependency marker' => [static fn (): mixed => in_array('sqlite-detach-database-locked-admission', $clean()['dependencies'], true), true],
     'clean array renumber dependency marker' => [static fn (): mixed => in_array('sqlite-attached-database-array-renumber', $clean()['dependencies'], true), true],
     'dirty detach blocks' => [static fn (): mixed => $dirty()['status'], 'blocked'],
@@ -95,20 +95,20 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$actual, $expected]) {
-    $tests['attach detach transaction current next66 ' . $name] = static function (TestRunner $t) use ($actual, $expected): void {
+    $tests['attach detach transaction current ' . $name] = static function (TestRunner $t) use ($actual, $expected): void {
         $t->same($expected, $actual());
     };
 }
 
-$tests['attach detach transaction current next66 invalid dirty page rejects'] = static function (TestRunner $t): void {
+$tests['attach detach transaction current invalid dirty page rejects'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachDetachTransactionPlan::currentNext(['blog' => ['dirty_pages' => [0]]], 'blog'));
 };
 
-$tests['attach detach transaction current next66 invalid active statement count rejects'] = static function (TestRunner $t): void {
+$tests['attach detach transaction current invalid active statement count rejects'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachDetachTransactionPlan::currentNext(['blog' => ['active_statements' => -1]], 'blog'));
 };
 
-$tests['attach detach transaction current next66 invalid savepoint depth rejects'] = static function (TestRunner $t): void {
+$tests['attach detach transaction current invalid savepoint depth rejects'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachDetachTransactionPlan::currentNext(['blog' => ['savepoint_depth' => -1]], 'blog'));
 };
 

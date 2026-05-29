@@ -64,7 +64,7 @@ final class SQLiteAttachDetachTransactionPlan
 
         return [
             'status' => $status,
-            'operation' => 'attach-detach-transaction-current-next66',
+            'operation' => 'attach-detach-transaction-current',
             'target_schema' => $target,
             'blocked' => $status === 'blocked',
             'blocked_reasons' => array_values(array_unique($blockedReasons)),
@@ -79,7 +79,7 @@ final class SQLiteAttachDetachTransactionPlan
                 static fn (string $schema): bool => $schema !== 'main' && $schema !== 'temp',
             )),
             'dependencies' => [
-                'sqlite-attach-detach-transaction-current-next66',
+                'sqlite-attach-detach-transaction-current',
                 'sqlite-detach-database-locked-admission',
                 'sqlite-attached-database-array-renumber',
             ],

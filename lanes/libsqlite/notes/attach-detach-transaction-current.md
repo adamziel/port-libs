@@ -1,4 +1,4 @@
-# ATTACH/DETACH Transaction Current-Next66
+# ATTACH/DETACH Transaction Current
 
 This slice adds `SQLiteAttachDetachTransactionPlan`, a bounded native PHP
 planner for SQLite ATTACH/DETACH transaction admission that is distinct from
@@ -17,9 +17,9 @@ Behavior covered:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachDetachTransactionCurrentNext66Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachDetachTransactionCurrentTest.php`
   passed: `1 test files, 60 assertions, 0 failures`.
-- `php lanes/libsqlite/examples/wordpress-attach-detach-transaction-current-next66.php --self-test`
+- `php lanes/libsqlite/examples/wordpress-attach-detach-transaction-current.php --self-test`
   passed.
 - `php -l` passed for changed PHP files.
 - `git diff --check -- lanes/libsqlite` passed.

@@ -69,7 +69,7 @@ $cases = [
 
     'plan status rolled back distinct returning retried' => [static fn (): mixed => $plan()['status'], 'rolled-back-distinct-returning-retried'],
     'plan rolled back flag true' => [static fn (): mixed => $plan()['rolled_back'], true],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_distinct_next148'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_distinct_current_source'],
     'plan rollback reason records malformed row-value arity' => [static fn (): mixed => $plan()['rollback_reason'], 'SQLite UPDATE/DELETE row-value expressions need at least two columns'],
     'plan rollback statement ordinal one' => [static fn (): mixed => $plan()['rollback_statement_ordinal'], 1],
     'plan distinct columns surfaced' => [static fn (): mixed => $plan()['distinct_columns'], ['status', 'bucket']],
@@ -103,9 +103,9 @@ $cases = [
     'plan changes exclude rolled-back attempted update' => [static fn (): mixed => $plan()['changes'], 8],
     'plan attempted changes before rollback include attempted update' => [static fn (): mixed => $plan()['attempted_changes_before_rollback'], 11],
     'plan row count after retry delete' => [static fn (): mixed => $plan()['row_counts']['wp_options'], 9],
-    'plan dependency marks row-value distinct' => [static fn (): mixed => in_array('sqlite-row-value-is-distinct-from-current-source-next148', $plan()['dependencies'], true), true],
-    'plan dependency marks returning stream distinct' => [static fn (): mixed => in_array('sqlite-returning-distinct-savepoint-stream-next148', $plan()['dependencies'], true), true],
-    'plan non overlap names next143 and next144' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'next143') && str_contains($plan()['non_overlap'], 'next144'), true],
+    'plan dependency marks row-value distinct' => [static fn (): mixed => in_array('sqlite-row-value-is-distinct-from-current-source', $plan()['dependencies'], true), true],
+    'plan dependency marks returning stream distinct' => [static fn (): mixed => in_array('sqlite-returning-distinct-savepoint-stream', $plan()['dependencies'], true), true],
+    'plan non overlap names prior accepted rollback surfaces' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'conflict-retry') && str_contains($plan()['non_overlap'], 'DELETE-only rollback'), true],
 
     'clean plan status released distinct returning retried' => [static fn (): mixed => $cleanPlan()['status'], 'released-distinct-returning-retried'],
     'clean plan not rolled back' => [static fn (): mixed => $cleanPlan()['rolled_back'], false],
@@ -124,7 +124,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['rowvalue savepoint returning distinct current source next148 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue savepoint returning distinct current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

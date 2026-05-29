@@ -1,4 +1,4 @@
-# attach-temp-wal-trigger-cache-current-source-next83
+# attach-temp-wal-trigger-cache-current-source
 
 Status: isolated behavior-backed libsqlite slice for prepared trigger-program cache invalidation across current and next schema sources.
 
@@ -11,12 +11,12 @@ Status: isolated behavior-backed libsqlite slice for prepared trigger-program ca
 
 ## WordPress smoke
 
-- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-trigger-cache-current-source-next83.php --self-test`
-- Result: `wordpress-attach-temp-wal-trigger-cache-current-source-next83 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-trigger-cache-current-source.php --self-test`
+- Result: `wordpress-attach-temp-wal-trigger-cache-current-source self-test passed`
 
 ## Focused evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalTriggerCacheCurrentSourceNext83Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalTriggerCacheCurrentSourceTest.php`
 - Result: `1 test files, 59 assertions, 0 failures`
 - Expected dashboard movement: `phpPass` `31557 -> 31616` from the 59 new focused PASS lines. Mapped upstream coverage remains `465 / 1589`; this is focused PHP behavior for an already mapped ATTACH/temp/WAL trigger-cache surface.
 

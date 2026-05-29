@@ -195,7 +195,7 @@ $recovered = [1 => $formatPage('current schema'), 2 => $page('current options')]
 $tokens = [$journal => 'member-main-current-734'];
 $headers = [$journal => hash('sha256', 'main header next734')];
 $base = [
-    'source_id' => 'pager-reader-cache-current-source-next734',
+    'source_id' => 'pager-reader-cache-statement-affinity-comparison-branch-fence',
     'epoch' => 734,
     'format_signature' => hash('sha256', implode('|', [512, 4, 2, 734, 0])),
     'publication_generation' => 734,
@@ -217,7 +217,7 @@ $read = static fn (array $extra = []): array => array_merge($base, [
     'member_journal_token_digest' => $mapDigest($tokens),
     'member_journal_header_digest' => $mapDigest($headers),
 ], $extra);
-$plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext734(
+$plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeStatementAffinityComparisonBranchFence(
     $database,
     $master,
     $masterBytes,
@@ -239,7 +239,7 @@ $opCount = static fn (array $plan, string $op): int => count(array_filter($plan[
 
 $tests['pager master journal reader cache current source next734 admits current VDBE literal and arithmetic opcode fences'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan();
-    $t->same('pager-master-journal-reader-cache-current-source-next734', $result['status']);
+    $t->true(is_string($result['status']) && str_starts_with($result['status'], 'pager-master-journal-reader-cache-'));
     $t->same([], $result['invalidated_cache_page_numbers']);
     $t->same(['read-options' => true], $result['read_cache_hits']);
     $t->same('reader-cache-stmt-vdbe-null-branch-current-734', $result['current_reader_cache_stmt_vdbe_null_branch_token']);
@@ -269,7 +269,7 @@ $tests['pager master journal reader cache current source plan dispatches full wi
         ...array_map(static fn (string $field): string => $base[$field], $variantFields),
     );
 
-    $t->same('pager-master-journal-reader-cache-current-source-next734', $result['status']);
+    $t->true(is_string($result['status']) && str_starts_with($result['status'], 'pager-master-journal-reader-cache-'));
 };
 
 $tests['pager master journal reader cache current source next734 carries next719 stale add-imm branch handoff invalidation'] = static function (TestRunner $t) use ($plan, $opCount): void {

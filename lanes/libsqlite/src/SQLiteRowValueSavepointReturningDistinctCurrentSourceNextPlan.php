@@ -22,20 +22,20 @@ final class SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         array $distinctColumns,
-        string $savepoint = 'wp_options_rowvalue_distinct_next148',
+        string $savepoint = 'wp_options_rowvalue_distinct_current_source',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($releasedStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING next148 needs released statements');
+            throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING current-source savepoint needs released statements');
         }
         if ($rollbackStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING next148 needs rollback statements');
+            throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING current-source savepoint needs rollback statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING next148 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING current-source savepoint needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING next148 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING current-source savepoint needs unique constraints');
         }
         self::validateDistinctColumns($distinctColumns);
 
@@ -122,11 +122,11 @@ final class SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan
             'attempted_changes_before_rollback' => self::changeCount(array_merge($releasedExecuted, $rollbackExecuted)),
             'row_counts' => self::rowCounts($retryCurrent),
             'dependencies' => [
-                'sqlite-row-value-is-distinct-from-current-source-next148',
-                'sqlite-returning-distinct-savepoint-stream-next148',
-                'sqlite-rollback-to-savepoint-retries-distinct-returning-next148',
+                'sqlite-row-value-is-distinct-from-current-source',
+                'sqlite-returning-distinct-savepoint-stream',
+                'sqlite-rollback-to-savepoint-retries-distinct-returning',
             ],
-            'non_overlap' => 'covers row-value IS DISTINCT FROM / IS NOT DISTINCT FROM RETURNING stream de-duplication across savepoint rollback and retry; avoids accepted next143 conflict retry and next144 DELETE-only rollback surfaces',
+            'non_overlap' => 'covers row-value IS DISTINCT FROM / IS NOT DISTINCT FROM RETURNING stream de-duplication across savepoint rollback and retry; avoids accepted conflict-retry and DELETE-only rollback surfaces',
         ];
     }
 
@@ -245,7 +245,7 @@ final class SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan
         $parts = [];
         foreach ($columns as $column) {
             if (!array_key_exists($column, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value DISTINCT RETURNING next148 column {$column} is missing");
+                throw new \InvalidArgumentException("SQLite row-value DISTINCT RETURNING current-source savepoint column {$column} is missing");
             }
             $value = $row[$column];
             $parts[] = $value === null ? 'null:' : get_debug_type($value) . ':' . (string) $value;
@@ -328,11 +328,11 @@ final class SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan
     private static function validateDistinctColumns(array $columns): void
     {
         if ($columns === []) {
-            throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING next148 needs distinct columns');
+            throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING current-source savepoint needs distinct columns');
         }
         foreach ($columns as $column) {
             if (!is_string($column) || $column === '') {
-                throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING next148 distinct columns must be strings');
+                throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING current-source savepoint distinct columns must be strings');
             }
         }
     }
@@ -345,11 +345,11 @@ final class SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING next148 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING current-source savepoint tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING next148 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value DISTINCT RETURNING current-source savepoint rows must be arrays');
                 }
             }
         }

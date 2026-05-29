@@ -378,7 +378,7 @@ final class SQLiteAttachWalTempViewCachePlan
 
         return [
             'status' => 'planned',
-            'operation' => 'attach-temp-wal-trigger-cache-current-source-next83',
+            'operation' => 'attach-temp-wal-trigger-cache-current-source',
             'source_schema' => $source,
             'trigger_count' => count($triggers),
             'triggers' => $triggerPlans,
@@ -395,7 +395,7 @@ final class SQLiteAttachWalTempViewCachePlan
             'wal_schema_cookie_sources' => $schemaCookies['wal_sources'],
             'invalidation' => $invalidation,
             'dependencies' => [
-                'sqlite-attach-temp-wal-trigger-cache-current-source-next83',
+                'sqlite-attach-temp-wal-trigger-cache-current-source',
                 'sqlite-trigger-program-cache-reprepare',
                 'sqlite-wal-page-one-schema-cookie',
             ],

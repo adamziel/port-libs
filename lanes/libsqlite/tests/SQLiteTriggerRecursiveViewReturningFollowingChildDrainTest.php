@@ -54,7 +54,7 @@ $returning196 = [
     ['expr' => 'spawn_child', 'as' => 'spawn_child'],
 ];
 
-$plan196 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext196(
+$plan196 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeFollowingRecursiveChildDrain(
     $rows196,
     $currentInput196,
     $nextInput196,
@@ -107,11 +107,11 @@ $custom196 = static fn (): array => $plan196([
 ]);
 
 $cases196 = [
-    'admitted status' => [static fn (): mixed => $admitted196()['status_next196'], 'trigger-recursive-view-returning-current-source-next196-next-source-visible'],
-    'partial status' => [static fn (): mixed => $partial196()['status_next196'], 'trigger-recursive-view-returning-current-source-next196-awaiting-recursive-child-acks'],
-    'none status' => [static fn (): mixed => $none196()['status_next196'], 'trigger-recursive-view-returning-current-source-next196-awaiting-recursive-child-acks'],
-    'token held status' => [static fn (): mixed => $tokenHeld196()['status_next196'], 'trigger-recursive-view-returning-current-source-next196-child-token-held'],
-    'following held status' => [static fn (): mixed => $followingHeld196()['status_next196'], 'trigger-recursive-view-returning-current-source-next196-following-current-held'],
+    'admitted status' => [static fn (): mixed => $admitted196()['status_next196'], 'trigger-recursive-view-returning-following-child-drain-next-source-visible'],
+    'partial status' => [static fn (): mixed => $partial196()['status_next196'], 'trigger-recursive-view-returning-following-child-drain-awaiting-recursive-child-acks'],
+    'none status' => [static fn (): mixed => $none196()['status_next196'], 'trigger-recursive-view-returning-following-child-drain-awaiting-recursive-child-acks'],
+    'token held status' => [static fn (): mixed => $tokenHeld196()['status_next196'], 'trigger-recursive-view-returning-following-child-drain-child-token-held'],
+    'following held status' => [static fn (): mixed => $followingHeld196()['status_next196'], 'trigger-recursive-view-returning-following-child-drain-following-current-held'],
     'savepoint retained' => [static fn (): mixed => $admitted196()['savepoint'], 'wp_recursive_view_196'],
     'base next192 admitted' => [static fn (): mixed => $admitted196()['base']['status_next192'], 'trigger-recursive-view-returning-current-source-next192-following-current-visible'],
     'following source visible' => [static fn (): mixed => $admitted196()['following_current_source_visible_next196'], true],
@@ -172,10 +172,10 @@ $cases196 = [
     'plan decision token held' => [static fn (): mixed => $tokenHeld196()['current_source_next_plan_next196']['decision'], 'hold-next-recursive-child-source-token'],
     'plan decision following held' => [static fn (): mixed => $followingHeld196()['current_source_next_plan_next196']['decision'], 'hold-next-until-following-current-visible'],
     'plan resume after child ordinal' => [static fn (): mixed => $admitted196()['current_source_next_plan_next196']['resume_after_recursive_child_ordinal'], 1],
-    'yield boundary admitted' => [static fn (): mixed => $admitted196()['yield_boundary_next196'], 'recursive-view-returning-next196-following-current-child-returning-drained-next-source'],
-    'yield boundary fenced' => [static fn (): mixed => $partial196()['yield_boundary_next196'], 'recursive-view-returning-next196-following-current-child-returning-fences-next-source'],
+    'yield boundary admitted' => [static fn (): mixed => $admitted196()['yield_boundary_next196'], 'recursive-view-returning-following-child-drain-following-current-child-returning-drained-next-source'],
+    'yield boundary fenced' => [static fn (): mixed => $partial196()['yield_boundary_next196'], 'recursive-view-returning-following-child-drain-following-current-child-returning-fences-next-source'],
     'dependency closure marker' => [static fn (): mixed => $admitted196()['dependency_closure_next196'], 'no new support component needed; reuses next192 following-current admission and adds recursive child RETURNING drain fencing before the next source'],
-    'dependency includes next196' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next196', $admitted196()['dependencies_next196'], true), true],
+    'dependency includes following child drain' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-following-child-drain', $admitted196()['dependencies_next196'], true), true],
     'dependency includes child fence' => [static fn (): mixed => in_array('sqlite-returning-recursive-child-current-source-fence', $admitted196()['dependencies_next196'], true), true],
     'dependency includes next192' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next192', $admitted196()['dependencies_next196'], true), true],
     'non overlap mentions next192' => [static fn (): mixed => str_contains($admitted196()['non_overlap_next196'], 'next192 cursor-close'), true],
@@ -191,7 +191,7 @@ $cases196 = [
 
 $tests = [];
 foreach ($cases196 as $name => [$callback, $expected]) {
-    $tests['trigger recursive view returning current source next196 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['trigger recursive view returning following child drain ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

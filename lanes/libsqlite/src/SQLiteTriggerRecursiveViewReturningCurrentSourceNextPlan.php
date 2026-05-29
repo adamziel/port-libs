@@ -8987,7 +8987,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext196(
+    public static function executeFollowingRecursiveChildDrain(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -9006,27 +9006,27 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $followingRows = self::rowsNext196($base['following_current_rows_next192'] ?? [], 'following current rows');
+        $followingRows = self::followingRecursiveChildRowsList($base['following_current_rows_next192'] ?? [], 'following current rows');
         $followingVisible = ($base['status_next192'] ?? '') === 'trigger-recursive-view-returning-current-source-next192-following-current-visible';
-        $recursiveColumn = self::identifierNext196((string) ($options['recursive_child_column'] ?? 'spawn_child'), 'recursive child column');
-        $recursiveSuffix = self::tokenNext196((string) ($options['recursive_child_suffix'] ?? '_child'), 'recursive child suffix');
-        $currentToken = self::tokenNext196((string) ($options['following_current_source_token'] ?? ($base['following_current_source_token_next192'] ?? 'wp.current.source.following.196')), 'following current source token');
-        $childToken = self::tokenNext196((string) ($options['recursive_child_source_token'] ?? 'wp.current.source.recursive.child.196'), 'recursive child source token');
-        $expectedChildToken = self::tokenNext196((string) ($options['expected_recursive_child_source_token'] ?? $childToken), 'expected recursive child source token');
-        $cursor = self::tokenNext196((string) ($options['recursive_child_cursor'] ?? 'wp.returning.recursive.child.cursor.196'), 'recursive child cursor');
-        $generation = self::tokenNext196((string) ($options['recursive_child_generation'] ?? 'wp-recursive-child-current-196'), 'recursive child generation');
+        $recursiveColumn = self::followingRecursiveChildIdentifier((string) ($options['recursive_child_column'] ?? 'spawn_child'), 'recursive child column');
+        $recursiveSuffix = self::followingRecursiveChildToken((string) ($options['recursive_child_suffix'] ?? '_child'), 'recursive child suffix');
+        $currentToken = self::followingRecursiveChildToken((string) ($options['following_current_source_token'] ?? ($base['following_current_source_token_next192'] ?? 'wp.current.source.following.196')), 'following current source token');
+        $childToken = self::followingRecursiveChildToken((string) ($options['recursive_child_source_token'] ?? 'wp.current.source.recursive.child.196'), 'recursive child source token');
+        $expectedChildToken = self::followingRecursiveChildToken((string) ($options['expected_recursive_child_source_token'] ?? $childToken), 'expected recursive child source token');
+        $cursor = self::followingRecursiveChildToken((string) ($options['recursive_child_cursor'] ?? 'wp.returning.recursive.child.cursor.196'), 'recursive child cursor');
+        $generation = self::followingRecursiveChildToken((string) ($options['recursive_child_generation'] ?? 'wp-recursive-child-current-196'), 'recursive child generation');
         $childRows = $followingVisible
-            ? self::childRowsNext196($followingRows, $returning, $currentView, $recursiveColumn, $recursiveSuffix, $currentToken, $childToken, $cursor, $generation)
+            ? self::followingRecursiveChildRows($followingRows, $returning, $currentView, $recursiveColumn, $recursiveSuffix, $currentToken, $childToken, $cursor, $generation)
             : [];
         $required = array_column($childRows, 'returning_row_ordinal');
-        $acknowledged = self::ordinalsNext196($options['recursive_child_acknowledged_ordinals'] ?? []);
-        $childrenAcknowledged = $childRows !== [] && self::sameOrdinalsNext196($required, $acknowledged);
+        $acknowledged = self::followingRecursiveChildOrdinals($options['recursive_child_acknowledged_ordinals'] ?? []);
+        $childrenAcknowledged = $childRows !== [] && self::followingRecursiveChildOrdinalsMatch($required, $acknowledged);
         $tokenMatches = hash_equals($childToken, $expectedChildToken);
         $publishNext = $followingVisible && $childrenAcknowledged && $tokenMatches;
-        $blocked = self::blockedReasonsNext196($base, $followingVisible, $childrenAcknowledged, $tokenMatches);
+        $blocked = self::followingRecursiveChildBlockedReasons($base, $followingVisible, $childrenAcknowledged, $tokenMatches);
 
         return [
-            'status_next196' => self::statusNext196($publishNext, $followingVisible, $childrenAcknowledged, $tokenMatches),
+            'status_next196' => self::followingRecursiveChildStatus($publishNext, $followingVisible, $childrenAcknowledged, $tokenMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'following_current_source_visible_next196' => $followingVisible,
@@ -9052,17 +9052,17 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'recursive_child_rows_acknowledged' => count(array_intersect($required, $acknowledged)),
                 'child_source_token_matches' => $tokenMatches,
                 'next_source_publish_allowed' => $publishNext,
-                'decision' => self::decisionNext196($publishNext, $followingVisible, $childrenAcknowledged, $tokenMatches),
+                'decision' => self::followingRecursiveChildDecision($publishNext, $followingVisible, $childrenAcknowledged, $tokenMatches),
                 'resume_after_recursive_child_ordinal' => $childRows === [] ? null : max($required),
             ],
             'yield_boundary_next196' => $publishNext
-                ? 'recursive-view-returning-next196-following-current-child-returning-drained-next-source'
-                : 'recursive-view-returning-next196-following-current-child-returning-fences-next-source',
+                ? 'recursive-view-returning-following-child-drain-following-current-child-returning-drained-next-source'
+                : 'recursive-view-returning-following-child-drain-following-current-child-returning-fences-next-source',
             'dependency_closure_next196' => 'no new support component needed; reuses next192 following-current admission and adds recursive child RETURNING drain fencing before the next source',
             'dependencies_next196' => array_values(array_unique(array_merge($base['dependencies_next192'], [
-                'sqlite-trigger-recursive-view-returning-current-source-next196',
+                'sqlite-trigger-recursive-view-returning-following-child-drain',
                 'sqlite-returning-recursive-child-current-source-fence',
-                'wordpress-recursive-view-returning-current-source-next196',
+                'wordpress-recursive-view-returning-following-child-drain',
             ]))),
             'non_overlap_next196' => 'extends accepted next192 cursor-close following-current admission with recursive child RETURNING current-source drain fencing; avoids next189 row-ack, next191 fingerprint, next192 cursor-close, row-value RETURNING, UPSERT, schema reparse, FK, WAL, VFS, JSON, planner, and B-tree slices',
         ];
@@ -9073,11 +9073,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      * @return list<array<string,mixed>>
      */
-    private static function childRowsNext196(array $followingRows, array $returning, array $view, string $recursiveColumn, string $suffix, string $currentToken, string $childToken, string $cursor, string $generation): array
+    private static function followingRecursiveChildRows(array $followingRows, array $returning, array $view, string $recursiveColumn, string $suffix, string $currentToken, string $childToken, string $cursor, string $generation): array
     {
         $out = [];
         foreach ($followingRows as $parentOrdinal => $parent) {
-            $payload = self::payloadNext196($parent);
+            $payload = self::followingRecursiveChildPayload($parent);
             $shouldSpawn = (bool) ($payload[$recursiveColumn] ?? $parent[$recursiveColumn] ?? false);
             if (!$shouldSpawn) {
                 continue;
@@ -9091,14 +9091,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'statement_source' => 'recursive-child-current',
                 'parent_returning_row_ordinal' => (int) ($parent['returning_row_ordinal'] ?? $parentOrdinal),
                 'returning_row_ordinal' => count($out),
-                'returning' => self::returningPayloadNext196($returning, $new, $view, count($out)),
+                'returning' => self::followingRecursiveChildReturningPayload($returning, $new, $view, count($out)),
                 'returning_option_name' => $new['option_name'],
                 'parent_following_current_source_token_next196' => $currentToken,
                 'recursive_child_source_token_next196' => $childToken,
                 'recursive_child_cursor_next196' => $cursor,
                 'recursive_child_generation_next196' => $generation,
                 'recursive_depth_next196' => 1,
-                'source_signature_next196' => self::signatureNext196($view, $returning, $childToken),
+                'source_signature_next196' => self::followingRecursiveChildSignature($view, $returning, $childToken),
             ];
         }
 
@@ -9109,7 +9109,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      * @return array<string,mixed>
      */
-    private static function returningPayloadNext196(array $returning, array $new, array $view, int $ordinal): array
+    private static function followingRecursiveChildReturningPayload(array $returning, array $new, array $view, int $ordinal): array
     {
         $payload = [];
         foreach ($returning as $term) {
@@ -9138,7 +9138,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return array<string,mixed>
      */
-    private static function payloadNext196(array $row): array
+    private static function followingRecursiveChildPayload(array $row): array
     {
         $payload = $row['returning'] ?? [];
         if (!is_array($payload)) {
@@ -9151,7 +9151,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext196(mixed $rows, string $label): array
+    private static function followingRecursiveChildRowsList(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next196 {$label} must be a list");
@@ -9168,7 +9168,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<int>
      */
-    private static function ordinalsNext196(mixed $ordinals): array
+    private static function followingRecursiveChildOrdinals(mixed $ordinals): array
     {
         if (!is_array($ordinals) || !array_is_list($ordinals)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next196 acknowledged ordinals must be a list');
@@ -9188,7 +9188,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<int> $required
      * @param list<int> $acknowledged
      */
-    private static function sameOrdinalsNext196(array $required, array $acknowledged): bool
+    private static function followingRecursiveChildOrdinalsMatch(array $required, array $acknowledged): bool
     {
         sort($required);
         sort($acknowledged);
@@ -9199,7 +9199,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function blockedReasonsNext196(array $base, bool $followingVisible, bool $childrenAcknowledged, bool $tokenMatches): array
+    private static function followingRecursiveChildBlockedReasons(array $base, bool $followingVisible, bool $childrenAcknowledged, bool $tokenMatches): array
     {
         $reasons = [];
         if (!$followingVisible) {
@@ -9215,7 +9215,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function decisionNext196(bool $publishNext, bool $followingVisible, bool $childrenAcknowledged, bool $tokenMatches): string
+    private static function followingRecursiveChildDecision(bool $publishNext, bool $followingVisible, bool $childrenAcknowledged, bool $tokenMatches): string
     {
         if ($publishNext) {
             return 'publish-next-after-recursive-child-current-returning-drain';
@@ -9233,25 +9233,25 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'hold-next-source';
     }
 
-    private static function statusNext196(bool $publishNext, bool $followingVisible, bool $childrenAcknowledged, bool $tokenMatches): string
+    private static function followingRecursiveChildStatus(bool $publishNext, bool $followingVisible, bool $childrenAcknowledged, bool $tokenMatches): string
     {
         if ($publishNext) {
-            return 'trigger-recursive-view-returning-current-source-next196-next-source-visible';
+            return 'trigger-recursive-view-returning-following-child-drain-next-source-visible';
         }
         if (!$followingVisible) {
-            return 'trigger-recursive-view-returning-current-source-next196-following-current-held';
+            return 'trigger-recursive-view-returning-following-child-drain-following-current-held';
         }
         if (!$childrenAcknowledged) {
-            return 'trigger-recursive-view-returning-current-source-next196-awaiting-recursive-child-acks';
+            return 'trigger-recursive-view-returning-following-child-drain-awaiting-recursive-child-acks';
         }
         if (!$tokenMatches) {
-            return 'trigger-recursive-view-returning-current-source-next196-child-token-held';
+            return 'trigger-recursive-view-returning-following-child-drain-child-token-held';
         }
 
-        return 'trigger-recursive-view-returning-current-source-next196-held';
+        return 'trigger-recursive-view-returning-following-child-drain-held';
     }
 
-    private static function identifierNext196(string $identifier, string $label): string
+    private static function followingRecursiveChildIdentifier(string $identifier, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next196 {$label} is malformed");
@@ -9260,7 +9260,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $identifier;
     }
 
-    private static function tokenNext196(string $token, string $label): string
+    private static function followingRecursiveChildToken(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next196 {$label} is malformed");
@@ -9272,7 +9272,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      */
-    private static function signatureNext196(array $view, array $returning, string $token): string
+    private static function followingRecursiveChildSignature(array $view, array $returning, string $token): string
     {
         $aliases = [];
         foreach ($returning as $index => $term) {
@@ -9547,7 +9547,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext196(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeFollowingRecursiveChildDrain(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -9621,8 +9621,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-returning-current-view-generation-depth-fence',
                 'wordpress-recursive-view-returning-current-source-generation-depth-fence',
             ]))),
-            'dependency_closure_generationDepthFence' => 'no new support component needed; reuses next196 recursive child drain and adds current view generation/depth acknowledgement fencing',
-            'non_overlap_generationDepthFence' => 'adds current view generation and recursive depth acknowledgement fencing after accepted next196 child-ordinal drains; avoids next195 receipt fences, next196 child drain, row-value RETURNING, schema reparse, FK, WAL, VFS, JSON, planner, and B-tree slices',
+            'dependency_closure_generationDepthFence' => 'no new support component needed; reuses following child drain and adds current view generation/depth acknowledgement fencing',
+            'non_overlap_generationDepthFence' => 'adds current view generation and recursive depth acknowledgement fencing after accepted next196 child-ordinal drains; avoids next195 receipt fences, following child drain, row-value RETURNING, schema reparse, FK, WAL, VFS, JSON, planner, and B-tree slices',
         ];
     }
 
@@ -9764,7 +9764,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $reasons = [];
         if (!$baseAllowsNext) {
             $baseReasons = $base['blocked_reasons_next196'] ?? [];
-            $reasons = is_array($baseReasons) ? array_values(array_map('strval', $baseReasons)) : ['base-next196-held'];
+            $reasons = is_array($baseReasons) ? array_values(array_map('strval', $baseReasons)) : ['base-following-child-drain-held'];
         }
         if (!$generationMatches) {
             $reasons[] = 'current-view-generation-mismatch';
@@ -9800,7 +9800,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             return 'publish-next-after-current-generation-depth-acks';
         }
         if (!$baseAllowsNext) {
-            return 'hold-next-until-next196-child-drain';
+            return 'hold-next-until-following-child-drain';
         }
         if (!$generationMatches) {
             return 'hold-next-current-view-generation';
@@ -9842,7 +9842,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext196(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeFollowingRecursiveChildDrain(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -9962,7 +9962,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-returning-current-source-generation-handoff',
                 'wordpress-recursive-view-returning-current-source-next203',
             ]))),
-            'non_overlap_next203' => 'adds current-source generation handoff receipts after next196 recursive child drain; avoids accepted next196 child drain, next195 receipt fence, next191 fingerprint fencing, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_next203' => 'adds current-source generation handoff receipts after following child drain; avoids accepted following child drain, next195 receipt fence, next191 fingerprint fencing, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -10105,7 +10105,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         }
         $reasons = array_map(static fn (mixed $reason): string => (string) $reason, $baseReasons);
         if (!$basePublishAllowed && $reasons === []) {
-            $reasons[] = 'base-next196-current-source-not-published';
+            $reasons[] = 'base-following-child-drain-current-source-not-published';
         }
         if (!$generationMatches) {
             $reasons[] = 'current-generation-mismatch';
@@ -10285,7 +10285,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-returning-current-source-sequence-fence',
                 'wordpress-recursive-view-returning-current-source-source-sequence',
             ]))),
-            'non_overlap_source_sequence_fence' => 'adds a source-sequence fence after next203 generation receipts; avoids accepted next203 generation handoff, next196 child drain, next195 receipt fence, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_source_sequence_fence' => 'adds a source-sequence fence after next203 generation receipts; avoids accepted next203 generation handoff, following child drain, next195 receipt fence, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -10589,7 +10589,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-returning-current-source-yield-watermark',
                 'wordpress-recursive-view-returning-current-source-next206',
             ]))),
-            'non_overlap_next206' => 'adds current-source yield watermark admission after next203 generation receipts; avoids accepted next203 generation handoff, next196 recursive child drain, next195 receipt fences, next191 fingerprint fencing, row-value RETURNING, DML trigger conflicts, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_next206' => 'adds current-source yield watermark admission after next203 generation receipts; avoids accepted next203 generation handoff, following child drain, next195 receipt fences, next191 fingerprint fencing, row-value RETURNING, DML trigger conflicts, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 

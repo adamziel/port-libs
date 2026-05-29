@@ -65,7 +65,7 @@ $databaseForSlice = static function (int $sliceNumber) use ($makeFirstPage, $put
 };
 
 $rows = [];
-foreach (range(1135, 1182) as $sliceNumber) {
+foreach (array_merge(range(991, 1006), range(1135, 1182)) as $sliceNumber) {
     $database = $databaseForSlice($sliceNumber);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
     $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultForCurrentSourceFreelistHandoff(
@@ -96,7 +96,7 @@ foreach (range(1135, 1182) as $sliceNumber) {
 echo json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 
 if (in_array('--self-test', $argv, true)) {
-    if (count($rows) !== 48) {
+    if (count($rows) !== 64) {
         fwrite(STDERR, "wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff self-test failed\n");
         exit(1);
     }

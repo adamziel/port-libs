@@ -18126,42 +18126,42 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext237($sql, $currentPlan, $nextPlan);
+            self::assertSupportedCurrentSourceDequeue($sql, $currentPlan, $nextPlan);
 
-            $preLimitSql = self::withoutFinalLimitNext237($sql);
-            $traceSql = self::recursiveTraceSqlNext237($sql);
+            $preLimitSql = self::withoutFinalLimitCurrentSourceDequeue($sql);
+            $traceSql = self::recursiveTraceSqlCurrentSourceDequeue($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $currentTables);
             $nextPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $nextTables);
             $currentRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $currentTables);
             $nextRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
-            $currentWindows = self::windowTermsNext237($currentPlan);
-            $nextWindows = self::windowTermsNext237($nextPlan);
-            $currentToken = self::tokenNext237($currentRows, $currentPreLimitRows, $currentRecursive['trace'], $currentWindows);
-            $nextToken = self::tokenNext237($nextRows, $nextPreLimitRows, $nextRecursive['trace'], $nextWindows);
-            $dequeue = self::dequeueFenceNext237($currentRecursive['trace'], $currentRows, $nextRows, $currentToken);
-            self::validateCursorNext237($cursor, $currentToken, $dequeue);
+            $currentWindows = self::windowTermsCurrentSourceDequeue($currentPlan);
+            $nextWindows = self::windowTermsCurrentSourceDequeue($nextPlan);
+            $currentToken = self::tokenCurrentSourceDequeue($currentRows, $currentPreLimitRows, $currentRecursive['trace'], $currentWindows);
+            $nextToken = self::tokenCurrentSourceDequeue($nextRows, $nextPreLimitRows, $nextRecursive['trace'], $nextWindows);
+            $dequeue = self::currentSourceDequeueFence($currentRecursive['trace'], $currentRows, $nextRows, $currentToken);
+            self::validateCurrentSourceDequeueCursor($cursor, $currentToken, $dequeue);
 
-            $offset = self::offsetNext237($currentPlan);
-            $limit = self::limitNext237($currentPlan);
+            $offset = self::offsetCurrentSourceDequeue($currentPlan);
+            $limit = self::limitCurrentSourceDequeue($currentPlan);
 
             return [
-                'status' => 'compound-select-window-recursive-limit-current-source-next237-ready',
+                'status' => 'compound-select-window-recursive-limit-current-source-dequeue-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
                 'currentPreLimitRows' => $currentPreLimitRows,
                 'nextPreLimitRows' => $nextPreLimitRows,
                 'compound' => [
-                    'operators' => self::operatorsNext237($currentPlan),
+                    'operators' => self::operatorsCurrentSourceDequeue($currentPlan),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext237($currentPlan),
+                    'orderColumns' => self::orderColumnsCurrentSourceDequeue($currentPlan),
                     'limit' => $limit,
                     'offset' => $offset,
-                    'hasUnionAllHead' => (self::operatorsNext237($currentPlan)[0] ?? null) === 'UNION ALL',
-                    'hasIntersectMiddle' => in_array('INTERSECT', self::operatorsNext237($currentPlan), true),
-                    'hasExceptTail' => in_array('EXCEPT', self::operatorsNext237($currentPlan), true),
+                    'hasUnionAllHead' => (self::operatorsCurrentSourceDequeue($currentPlan)[0] ?? null) === 'UNION ALL',
+                    'hasIntersectMiddle' => in_array('INTERSECT', self::operatorsCurrentSourceDequeue($currentPlan), true),
+                    'hasExceptTail' => in_array('EXCEPT', self::operatorsCurrentSourceDequeue($currentPlan), true),
                 ],
                 'recursiveQueue' => [
                     'name' => $currentRecursive['name'],
@@ -18169,57 +18169,57 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'operator' => $currentRecursive['operator'],
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
-                    'currentSkippedLabels' => self::traceLabelsNext237($currentRecursive['trace'], false),
-                    'nextSkippedLabels' => self::traceLabelsNext237($nextRecursive['trace'], false),
-                    'currentEmittedLabels' => self::traceLabelsNext237($currentRecursive['trace'], true),
-                    'nextEmittedLabels' => self::traceLabelsNext237($nextRecursive['trace'], true),
-                    'currentLimitRemaining' => self::lastTraceValueNext237($currentRecursive['trace'], 'limit_remaining'),
-                    'currentOffsetRemaining' => self::lastTraceValueNext237($currentRecursive['trace'], 'offset_remaining'),
+                    'currentSkippedLabels' => self::traceLabelsCurrentSourceDequeue($currentRecursive['trace'], false),
+                    'nextSkippedLabels' => self::traceLabelsCurrentSourceDequeue($nextRecursive['trace'], false),
+                    'currentEmittedLabels' => self::traceLabelsCurrentSourceDequeue($currentRecursive['trace'], true),
+                    'nextEmittedLabels' => self::traceLabelsCurrentSourceDequeue($nextRecursive['trace'], true),
+                    'currentLimitRemaining' => self::lastTraceValueCurrentSourceDequeue($currentRecursive['trace'], 'limit_remaining'),
+                    'currentOffsetRemaining' => self::lastTraceValueCurrentSourceDequeue($currentRecursive['trace'], 'offset_remaining'),
                 ],
                 'windows' => [
                     'current' => $currentWindows,
                     'next' => $nextWindows,
                     'functions' => array_values(array_unique(array_column($currentWindows, 'function'))),
-                    'currentMetrics' => self::columnValuesNext237($currentPreLimitRows, 'metric'),
-                    'nextMetrics' => self::columnValuesNext237($nextPreLimitRows, 'metric'),
+                    'currentMetrics' => self::columnValuesCurrentSourceDequeue($currentPreLimitRows, 'metric'),
+                    'nextMetrics' => self::columnValuesCurrentSourceDequeue($nextPreLimitRows, 'metric'),
                 ],
                 'sourceWindow' => [
                     'currentToken' => $currentToken,
                     'nextToken' => $nextToken,
-                    'currentAdmittedLabels' => self::labelsNext237($currentRows),
-                    'nextAdmittedLabels' => self::labelsNext237($nextRows),
-                    'currentSkippedLabels' => self::labelsNext237(array_slice($currentPreLimitRows, 0, $offset)),
-                    'nextSkippedLabels' => self::labelsNext237(array_slice($nextPreLimitRows, 0, $offset)),
-                    'currentTruncatedLabels' => self::labelsNext237(array_slice($currentPreLimitRows, $offset + $limit)),
-                    'nextTruncatedLabels' => self::labelsNext237(array_slice($nextPreLimitRows, $offset + $limit)),
-                    'nextOnlyAdmittedLabels' => self::changedLabelsNext237($currentRows, $nextRows, true),
-                    'currentOnlyAdmittedLabels' => self::changedLabelsNext237($currentRows, $nextRows, false),
+                    'currentAdmittedLabels' => self::labelsCurrentSourceDequeue($currentRows),
+                    'nextAdmittedLabels' => self::labelsCurrentSourceDequeue($nextRows),
+                    'currentSkippedLabels' => self::labelsCurrentSourceDequeue(array_slice($currentPreLimitRows, 0, $offset)),
+                    'nextSkippedLabels' => self::labelsCurrentSourceDequeue(array_slice($nextPreLimitRows, 0, $offset)),
+                    'currentTruncatedLabels' => self::labelsCurrentSourceDequeue(array_slice($currentPreLimitRows, $offset + $limit)),
+                    'nextTruncatedLabels' => self::labelsCurrentSourceDequeue(array_slice($nextPreLimitRows, $offset + $limit)),
+                    'nextOnlyAdmittedLabels' => self::changedLabelsCurrentSourceDequeue($currentRows, $nextRows, true),
+                    'currentOnlyAdmittedLabels' => self::changedLabelsCurrentSourceDequeue($currentRows, $nextRows, false),
                     'intersectExceptBoundaryChanged' => $currentToken !== $nextToken,
                 ],
-                'currentSourceDequeueNext237' => $dequeue,
+                'currentSourceDequeue' => $dequeue,
                 'cursor' => [
                     'currentToken' => $currentToken,
                     'resumeOffset' => $offset + $limit,
                     'limit' => $limit,
                     'currentRowCount' => count($currentRows),
                     'nextRowCount' => count($nextRows),
-                    'currentDequeueTokenNext237' => $dequeue['currentDequeueToken'],
-                    'requiredCurrentDequeueAcksNext237' => $dequeue['requiredCurrentDequeueAcks'],
-                    'nextExposureNext237' => $dequeue['nextExposure'],
+                    'currentDequeueToken' => $dequeue['currentDequeueToken'],
+                    'requiredCurrentDequeueAcks' => $dequeue['requiredCurrentDequeueAcks'],
+                    'nextExposure' => $dequeue['nextExposure'],
                 ],
                 'replanReasons' => [
-                    'compound-union-all-intersect-except-rank-current-source-next237',
-                    'recursive-limit-offset-dequeue-before-window-compound-next237',
-                    'next-source-row-number-shift-held-by-current-dequeue-acks-next237',
-                    'wordpress-option-preview-stale-dequeue-cursor-fence-next237',
+                    'compound-union-all-intersect-except-rank-current-source-dequeue',
+                    'recursive-limit-offset-dequeue-before-window-compound-current-source',
+                    'next-source-row-number-shift-held-by-current-dequeue-acks',
+                    'wordpress-option-preview-stale-dequeue-cursor-fence',
                 ],
                 'dependencies' => [
-                    'sqlite-select-sql-recursive-queue-limit-offset-next237',
-                    'sqlite-select-sql-rank-row-number-window-intersect-except-next237',
-                    'sqlite-compound-current-source-dequeue-token-fence-next237',
+                    'sqlite-select-sql-recursive-queue-limit-offset-current-source-dequeue',
+                    'sqlite-select-sql-rank-row-number-window-intersect-except-current-source-dequeue',
+                    'sqlite-compound-current-source-dequeue-token-fence',
                 ],
-                'dependency_closure' => 'no new support component needed; next237 reuses native SELECT SQL compound execution, recursive queue LIMIT/OFFSET tracing, rank/row_number window output, INTERSECT/EXCEPT membership, and final LIMIT helpers',
-                'non_overlap' => 'next237 adds a current-source recursive dequeue acknowledgement fence for a UNION ALL -> INTERSECT -> EXCEPT chain using rank and row_number window output; it avoids accepted final-order-resume final-order ordinal resume, union-except-dense-rank-limit UNION DISTINCT -> EXCEPT dense_rank, next226 aggregate windows through EXCEPT/INTERSECT, ntileFirstValueUnionDistinct ntile/first_value, JSON, WAL/VFS, B-tree, encoding, trigger, PRAGMA, and suite evidence clusters',
+                'dependency_closure' => 'no new support component needed; current-source-dequeue reuses native SELECT SQL compound execution, recursive queue LIMIT/OFFSET tracing, rank/row_number window output, INTERSECT/EXCEPT membership, and final LIMIT helpers',
+                'non_overlap' => 'current-source-dequeue adds a current-source recursive dequeue acknowledgement fence for a UNION ALL -> INTERSECT -> EXCEPT chain using rank and row_number window output; it avoids accepted final-order-resume final-order ordinal resume, union-except-dense-rank-limit UNION DISTINCT -> EXCEPT dense_rank, next226 aggregate windows through EXCEPT/INTERSECT, ntileFirstValueUnionDistinct ntile/first_value, JSON, WAL/VFS, B-tree, encoding, trigger, PRAGMA, and suite evidence clusters',
             ];
         }
 
@@ -18227,60 +18227,60 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @param array<string,mixed> $nextPlan
          */
-        private static function assertSupportedNext237(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertSupportedCurrentSourceDequeue(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 needs WITH RECURSIVE SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue needs WITH RECURSIVE SQL');
             }
             if (!is_array($currentPlan['compound'] ?? null) || !is_array($nextPlan['compound'] ?? null)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 needs compound SELECT SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue needs compound SELECT SQL');
             }
-            $operators = self::operatorsNext237($currentPlan);
+            $operators = self::operatorsCurrentSourceDequeue($currentPlan);
             foreach (['UNION ALL', 'INTERSECT', 'EXCEPT'] as $operator) {
                 if (!in_array($operator, $operators, true)) {
-                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 needs UNION ALL, INTERSECT, and EXCEPT');
+                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue needs UNION ALL, INTERSECT, and EXCEPT');
                 }
             }
             if (($currentPlan['compound']['limit'] ?? null) === null || (($currentPlan['compound']['offset'] ?? 0) < 1)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 needs final LIMIT/OFFSET');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue needs final LIMIT/OFFSET');
             }
-            if (preg_match('/\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyNext237($sql)) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 needs recursive LIMIT/OFFSET');
+            if (preg_match('/\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyCurrentSourceDequeue($sql)) !== 1) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue needs recursive LIMIT/OFFSET');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext237($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTermsCurrentSourceDequeue($currentPlan), 'function'));
             foreach (['rank', 'row_number'] as $function) {
                 if (!in_array($function, $functions, true)) {
-                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 needs rank and row_number window output');
+                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue needs rank and row_number window output');
                 }
             }
         }
 
-        private static function recursiveBodyNext237(string $sql): string
+        private static function recursiveBodyCurrentSourceDequeue(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^WITH\s+RECURSIVE\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s+AS\s*\((.*)\)\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 cannot isolate recursive CTE body');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue cannot isolate recursive CTE body');
             }
 
             return $match[1];
         }
 
-        private static function recursiveTraceSqlNext237(string $sql): string
+        private static function recursiveTraceSqlCurrentSourceDequeue(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^(WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s+AS\s*\(.*\))\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 cannot isolate recursive CTE');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue cannot isolate recursive CTE');
             }
 
             return $match[1] . ' SELECT * FROM ' . $match[2];
         }
 
-        private static function withoutFinalLimitNext237(string $sql): string
+        private static function withoutFinalLimitCurrentSourceDequeue(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
             if (!is_string($without) || $without === $trimmed) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 cannot isolate final LIMIT');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue cannot isolate final LIMIT');
             }
 
             return $without;
@@ -18290,7 +18290,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function operatorsNext237(array $plan): array
+        private static function operatorsCurrentSourceDequeue(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -18301,7 +18301,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext237(array $plan): array
+        private static function orderColumnsCurrentSourceDequeue(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             if (!is_array($compound['orderBy'] ?? null)) {
@@ -18315,7 +18315,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext237(array $plan): array
+        private static function windowTermsCurrentSourceDequeue(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $windows = [];
@@ -18345,9 +18345,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return array<string,mixed>
          */
-        private static function dequeueFenceNext237(array $trace, array $currentRows, array $nextRows, string $currentToken): array
+        private static function currentSourceDequeueFence(array $trace, array $currentRows, array $nextRows, string $currentToken): array
         {
-            $emitted = self::traceLabelsNext237($trace, true);
+            $emitted = self::traceLabelsCurrentSourceDequeue($trace, true);
             $required = [];
             foreach ($emitted as $index => $label) {
                 $required[] = hash('sha256', json_encode([
@@ -18359,8 +18359,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $dequeueToken = hash('sha256', json_encode([
                 'token' => $currentToken,
                 'emitted' => $emitted,
-                'currentFinalPage' => self::labelsNext237($currentRows),
-                'nextFinalPage' => self::labelsNext237($nextRows),
+                'currentFinalPage' => self::labelsCurrentSourceDequeue($currentRows),
+                'nextFinalPage' => self::labelsCurrentSourceDequeue($nextRows),
             ], JSON_THROW_ON_ERROR));
 
             return [
@@ -18368,12 +18368,12 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'requiredCurrentDequeueAcks' => $required,
                 'requiredAckCount' => count($required),
                 'currentEmittedLabels' => $emitted,
-                'currentFinalPageLabels' => self::labelsNext237($currentRows),
-                'nextFinalPageLabels' => self::labelsNext237($nextRows),
-                'nextOnlyLabels' => self::changedLabelsNext237($currentRows, $nextRows, true),
-                'currentOnlyLabels' => self::changedLabelsNext237($currentRows, $nextRows, false),
+                'currentFinalPageLabels' => self::labelsCurrentSourceDequeue($currentRows),
+                'nextFinalPageLabels' => self::labelsCurrentSourceDequeue($nextRows),
+                'nextOnlyLabels' => self::changedLabelsCurrentSourceDequeue($currentRows, $nextRows, true),
+                'currentOnlyLabels' => self::changedLabelsCurrentSourceDequeue($currentRows, $nextRows, false),
                 'nextExposure' => 'held-until-current-recursive-dequeue-acks',
-                'yieldBoundary' => 'compound-window-next237-current-recursive-dequeue-fences-next-source',
+                'yieldBoundary' => 'compound-window-current-recursive-dequeue-fences-next-source',
             ];
         }
 
@@ -18381,27 +18381,27 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @param array<string,mixed> $dequeue
          */
-        private static function validateCursorNext237(?array $cursor, string $currentToken, array $dequeue): void
+        private static function validateCurrentSourceDequeueCursor(?array $cursor, string $currentToken, array $dequeue): void
         {
             if ($cursor === null) {
                 return;
             }
             if (($cursor['currentToken'] ?? null) !== $currentToken) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 cursor does not match current token');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue cursor does not match current token');
             }
-            if (isset($cursor['currentDequeueTokenNext237']) && $cursor['currentDequeueTokenNext237'] !== $dequeue['currentDequeueToken']) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 cursor does not match current dequeue token');
+            if (isset($cursor['currentDequeueToken']) && $cursor['currentDequeueToken'] !== $dequeue['currentDequeueToken']) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue cursor does not match current dequeue token');
             }
-            if (!array_key_exists('acknowledgedCurrentDequeueAcksNext237', $cursor)) {
+            if (!array_key_exists('acknowledgedCurrentDequeueAcks', $cursor)) {
                 return;
             }
-            if (!is_array($cursor['acknowledgedCurrentDequeueAcksNext237'])) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 acknowledged dequeue acks must be a list');
+            if (!is_array($cursor['acknowledgedCurrentDequeueAcks'])) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue acknowledged dequeue acks must be a list');
             }
-            $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedCurrentDequeueAcksNext237']));
+            $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedCurrentDequeueAcks']));
             $required = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $dequeue['requiredCurrentDequeueAcks']));
             if (array_values(array_diff($required, $acknowledged)) !== [] || array_values(array_diff($acknowledged, $required)) !== []) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next237 current dequeue acknowledgements do not match required set');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-source-dequeue current dequeue acknowledgements do not match required set');
             }
         }
 
@@ -18409,7 +18409,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function labelsNext237(array $rows): array
+        private static function labelsCurrentSourceDequeue(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
         }
@@ -18418,7 +18418,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<mixed>
          */
-        private static function columnValuesNext237(array $rows, string $column): array
+        private static function columnValuesCurrentSourceDequeue(array $rows, string $column): array
         {
             return array_values(array_map(static fn (array $row): mixed => $row[$column] ?? null, $rows));
         }
@@ -18427,7 +18427,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @return list<string>
          */
-        private static function traceLabelsNext237(array $trace, bool $emitted): array
+        private static function traceLabelsCurrentSourceDequeue(array $trace, bool $emitted): array
         {
             $labels = [];
             foreach ($trace as $entry) {
@@ -18444,7 +18444,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $trace
          */
-        private static function lastTraceValueNext237(array $trace, string $key): int
+        private static function lastTraceValueCurrentSourceDequeue(array $trace, string $key): int
         {
             $last = end($trace);
             if (!is_array($last)) {
@@ -18459,10 +18459,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedLabelsNext237(array $currentRows, array $nextRows, bool $nextOnly): array
+        private static function changedLabelsCurrentSourceDequeue(array $currentRows, array $nextRows, bool $nextOnly): array
         {
-            $current = self::labelsNext237($currentRows);
-            $next = self::labelsNext237($nextRows);
+            $current = self::labelsCurrentSourceDequeue($currentRows);
+            $next = self::labelsCurrentSourceDequeue($nextRows);
 
             return array_values(array_diff($nextOnly ? $next : $current, $nextOnly ? $current : $next));
         }
@@ -18473,7 +18473,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @param list<array<string,mixed>> $windows
          */
-        private static function tokenNext237(array $rows, array $preLimitRows, array $trace, array $windows): string
+        private static function tokenCurrentSourceDequeue(array $rows, array $preLimitRows, array $trace, array $windows): string
         {
             return hash('sha256', json_encode([
                 'rows' => $rows,
@@ -18486,7 +18486,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function limitNext237(array $plan): int
+        private static function limitCurrentSourceDequeue(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -18496,7 +18496,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function offsetNext237(array $plan): int
+        private static function offsetCurrentSourceDequeue(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -18942,7 +18942,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['replanReasons'][] = 'current-source-window-spillover-holds-next-source-next240';
             $base['dependencies'][] = 'sqlite-compound-final-page-spillover-drain-next240';
             $base['dependency_closure'] = 'no new support component needed; next240 reuses accepted compound SELECT recursive LIMIT/OFFSET, rank/row_number window dispatch, INTERSECT/EXCEPT membership, and adds a final-page spillover acknowledgement fence before next-source promotion';
-            $base['non_overlap'] = 'next240 extends accepted next237 recursive dequeue fencing by acknowledging current-source compound rows skipped or truncated by the final LIMIT/OFFSET page; it avoids accepted window-metric-fence metric fences, next237 dequeue fences, next226/current-page-drain/union-intersect-except-window-limit/final-order-resume aggregate/window page handoffs, JSON table, WAL/VFS, B-tree, planner, trigger, PRAGMA, encoding, and suite evidence clusters';
+            $base['non_overlap'] = 'next240 extends accepted current-source-dequeue recursive dequeue fencing by acknowledging current-source compound rows skipped or truncated by the final LIMIT/OFFSET page; it avoids accepted window-metric-fence metric fences, current-source-dequeue dequeue fences, next226/current-page-drain/union-intersect-except-window-limit/final-order-resume aggregate/window page handoffs, JSON table, WAL/VFS, B-tree, planner, trigger, PRAGMA, encoding, and suite evidence clusters';
 
             return $base;
         }
@@ -18958,7 +18958,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             }
 
             $base = [];
-            foreach (['currentToken', 'currentDequeueTokenNext237', 'acknowledgedCurrentDequeueAcksNext237'] as $key) {
+            foreach (['currentToken', 'currentDequeueToken', 'acknowledgedCurrentDequeueAcks'] as $key) {
                 if (array_key_exists($key, $cursor)) {
                     $base[$key] = $cursor[$key];
                 }
@@ -19607,7 +19607,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             }
 
             $base = [];
-            foreach (['currentToken', 'currentDequeueTokenNext237', 'acknowledgedCurrentDequeueAcksNext237', 'spilloverDrainTokenNext240', 'acknowledgedSpilloverAcksNext240'] as $key) {
+            foreach (['currentToken', 'currentDequeueToken', 'acknowledgedCurrentDequeueAcks', 'spilloverDrainTokenNext240', 'acknowledgedSpilloverAcksNext240'] as $key) {
                 if (array_key_exists($key, $cursor)) {
                     $base[$key] = $cursor[$key];
                 }
@@ -19997,8 +19997,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -20217,8 +20217,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -20608,8 +20608,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -20827,8 +20827,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -21026,8 +21026,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -21237,8 +21237,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -21464,8 +21464,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -21664,8 +21664,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -21880,8 +21880,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -22085,8 +22085,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -22301,8 +22301,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -22526,8 +22526,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',
@@ -22756,8 +22756,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentDequeueTokenNext237',
-                'acknowledgedCurrentDequeueAcksNext237',
+                'currentDequeueToken',
+                'acknowledgedCurrentDequeueAcks',
                 'spilloverDrainTokenNext240',
                 'acknowledgedSpilloverAcksNext240',
                 'windowReplayTokenNext243',

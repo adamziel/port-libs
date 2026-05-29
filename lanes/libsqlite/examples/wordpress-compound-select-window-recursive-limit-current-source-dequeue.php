@@ -62,32 +62,32 @@ $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCu
 );
 
 $payload = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next237',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-current-source-dequeue',
     'wordpressUse' => 'Copied wp_options preview queries hold next-source compound rows until recursive queue dequeue acknowledgements are sealed for the current source.',
     'status' => $plan['status'],
-    'currentRows' => $plan['currentSourceDequeueNext237']['currentFinalPageLabels'],
-    'nextRows' => $plan['currentSourceDequeueNext237']['nextFinalPageLabels'],
-    'nextOnlyRows' => $plan['currentSourceDequeueNext237']['nextOnlyLabels'],
-    'requiredAckCount' => $plan['currentSourceDequeueNext237']['requiredAckCount'],
-    'dequeueTokenLength' => strlen($plan['currentSourceDequeueNext237']['currentDequeueToken']),
-    'nextExposure' => $plan['currentSourceDequeueNext237']['nextExposure'],
+    'currentRows' => $plan['currentSourceDequeue']['currentFinalPageLabels'],
+    'nextRows' => $plan['currentSourceDequeue']['nextFinalPageLabels'],
+    'nextOnlyRows' => $plan['currentSourceDequeue']['nextOnlyLabels'],
+    'requiredAckCount' => $plan['currentSourceDequeue']['requiredAckCount'],
+    'dequeueTokenLength' => strlen($plan['currentSourceDequeue']['currentDequeueToken']),
+    'nextExposure' => $plan['currentSourceDequeue']['nextExposure'],
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next237-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next237 self-test failed\n");
+if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-dequeue-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-current-source-dequeue self-test failed\n");
     exit(1);
 }
 if ($payload['requiredAckCount'] !== 6) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next237 dequeue guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-current-source-dequeue dequeue guard failed\n");
     exit(1);
 }
 if ($payload['dequeueTokenLength'] !== 64) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next237 token guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-current-source-dequeue token guard failed\n");
     exit(1);
 }
 if ($payload['nextExposure'] !== 'held-until-current-recursive-dequeue-acks') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next237 exposure guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-current-source-dequeue exposure guard failed\n");
     exit(1);
 }
 
