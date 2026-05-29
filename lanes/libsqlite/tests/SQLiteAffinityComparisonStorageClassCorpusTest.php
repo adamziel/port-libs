@@ -29,6 +29,8 @@ $coercionCases = [
     'numeric affinity converts exponent rhs to integer when exact' => [90, '9e1', 'NUMERIC', 'NONE', 90, 90, 'integer', 'integer'],
     'numeric affinity converts exponent rhs to real when fractional' => [95.5, '9.55e1', 'NUMERIC', 'NONE', 95.5, 95.5, 'real', 'real'],
     'numeric affinity leaves partial numeric text rhs unchanged' => [5, '5x', 'NUMERIC', 'NONE', 5, '5x', 'integer', 'text'],
+    'numeric affinity leaves decimal prefix text rhs unchanged' => [5, '5.0x', 'NUMERIC', 'NONE', 5, '5.0x', 'integer', 'text'],
+    'numeric affinity leaves exponent prefix text rhs unchanged' => [5, '5e2x', 'NUMERIC', 'NONE', 5, '5e2x', 'integer', 'text'],
     'numeric affinity leaves non numeric text rhs unchanged' => [0, 'plugin', 'NUMERIC', 'NONE', 0, 'plugin', 'integer', 'text'],
     'numeric affinity converts blob bytes rhs' => [11, new SQLiteBlobValue('11'), 'NUMERIC', 'NONE', 11, 11, 'integer', 'integer'],
     'numeric affinity leaves partial blob rhs unchanged' => [11, new SQLiteBlobValue('11x'), 'NUMERIC', 'NONE', 11, new SQLiteBlobValue('11x'), 'integer', 'blob'],
@@ -70,6 +72,7 @@ $comparisonCases = [
     'numeric affinity orders converted integer' => [5, '6', 'NUMERIC', 'NONE', 'BINARY', -1],
     'numeric affinity orders converted real' => [5.5, '5.25', 'NUMERIC', 'NONE', 'BINARY', 1],
     'numeric affinity leaves partial text above numeric by storage rank' => [5, '5x', 'NUMERIC', 'NONE', 'BINARY', -1],
+    'numeric affinity leaves text numeric prefix above numeric by storage rank' => [500, '5e2x', 'NUMERIC', 'NONE', 'BINARY', -1],
     'no affinity keeps numeric below text' => [100, '2', 'NONE', 'NONE', 'BINARY', -1],
     'text affinity makes lexical order' => ['100', 2, 'TEXT', 'NONE', 'BINARY', -1],
     'text affinity compares converted integer equal' => ['2', 2, 'TEXT', 'NONE', 'BINARY', 0],
@@ -94,6 +97,7 @@ $comparisonCases = [
     'numeric affinity leaves empty text above numeric' => [0, '', 'NUMERIC', 'NONE', 'BINARY', -1],
     'numeric affinity leaves whitespace text above numeric' => [0, '   ', 'NUMERIC', 'NONE', 'BINARY', -1],
     'text storage sorts below blob after no conversion' => ['10', new SQLiteBlobValue('10'), 'NONE', 'NONE', 'BINARY', -1],
+    'null stays unknown against text prefix' => [null, '5x', 'NUMERIC', 'NONE', 'BINARY', null],
     'numeric storage sorts below text after failed conversion' => [10.5, '10.5x', 'REAL', 'NONE', 'BINARY', -1],
     'numeric affinity converts signed exponent equal' => [-900, '-9e2', 'NUMERIC', 'NONE', 'BINARY', 0],
     'numeric affinity converts plus decimal order' => [1.25, '+1.5', 'NUMERIC', 'NONE', 'BINARY', -1],
@@ -112,6 +116,15 @@ foreach ($comparisonCases as $name => [$left, $right, $leftAffinity, $rightAffin
 
 $tests['affinity comparison rejects unsupported affinity'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteAffinityComparison::compare(1, '1', 'GEOMETRY'));
+};
+
+$tests['affinity comparison equals centralizes collation equality'] = static function (TestRunner $t): void {
+    $t->same(false, SQLiteAffinityComparison::equals('Plugin ', 'plugin', 'TEXT', 'NONE', 'NOCASE'));
+    $t->true(SQLiteAffinityComparison::equals('Plugin', 'plugin', 'TEXT', 'NONE', 'NOCASE'));
+    $t->true(SQLiteAffinityComparison::equals('cache  ', 'cache', 'TEXT', 'NONE', 'RTRIM'));
+    $t->true(SQLiteAffinityComparison::equals('9223372036854775808', 9.223372036854776E+18, 'NONE', 'NUMERIC'));
+    $t->same(false, SQLiteAffinityComparison::equals(new SQLiteBlobValue('7'), 7, 'NUMERIC', 'NONE'));
+    $t->true(!SQLiteAffinityComparison::equals(null, null, 'NONE', 'NONE'));
 };
 
 return $tests;

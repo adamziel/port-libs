@@ -6,6 +6,22 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteAffinityComparison
 {
+    public static function equals(mixed $left, mixed $right, string $leftAffinity = 'NONE', string $rightAffinity = 'NONE', string $collation = 'BINARY'): bool
+    {
+        return self::compare($left, $right, $leftAffinity, $rightAffinity, $collation) === 0;
+    }
+
+    public static function applyAffinity(mixed $value, string $affinity): mixed
+    {
+        self::assertComparable($value);
+
+        return match (self::normalizeAffinity($affinity)) {
+            'INTEGER', 'REAL', 'NUMERIC' => self::applyNumericAffinity($value),
+            'TEXT' => self::applyTextAffinity($value),
+            default => $value,
+        };
+    }
+
     /**
      * @return array{left:mixed,right:mixed,leftStorageClass:string,rightStorageClass:string}
      */

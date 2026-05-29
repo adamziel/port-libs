@@ -152,86 +152,15 @@ final class SQLitePragmaForeignKeyCheck
 
     private static function valuesMatch(mixed $child, mixed $parent, string $affinity, string $collation): bool
     {
-        [$child, $parent] = self::applyParentAffinity($child, $parent, $affinity);
+        $affinity = strtoupper($affinity);
 
-        if (is_string($child) && is_string($parent)) {
-            return match ($collation) {
-                'nocase' => strcasecmp($child, $parent) === 0,
-                'rtrim' => rtrim($child, " \t\r\n\0\x0B") === rtrim($parent, " \t\r\n\0\x0B"),
-                default => $child === $parent,
-            };
-        }
-
-        if ((is_int($child) || is_float($child)) && (is_int($parent) || is_float($parent))) {
-            return (float) $child === (float) $parent;
-        }
-
-        return $child === $parent;
-    }
-
-    /**
-     * SQLite compares child values after applying the parent key column affinity.
-     *
-     * @return array{0:mixed,1:mixed}
-     */
-    private static function applyParentAffinity(mixed $child, mixed $parent, string $affinity): array
-    {
-        return match ($affinity) {
-            'integer' => [self::integerAffinity($child), self::integerAffinity($parent)],
-            'numeric' => [self::numericAffinity($child), self::numericAffinity($parent)],
-            'real' => [self::realAffinity($child), self::realAffinity($parent)],
-            'text' => [self::textAffinity($child), self::textAffinity($parent)],
-            default => [$child, $parent],
-        };
-    }
-
-    private static function integerAffinity(mixed $value): mixed
-    {
-        if (is_int($value)) {
-            return $value;
-        }
-        if (is_float($value) && is_finite($value) && floor($value) === $value) {
-            return (int) $value;
-        }
-        if (is_string($value) && preg_match('/^[+-]?\d+$/', trim($value)) === 1) {
-            return (int) trim($value);
-        }
-
-        return $value;
-    }
-
-    private static function numericAffinity(mixed $value): mixed
-    {
-        if (is_int($value) || is_float($value)) {
-            return $value;
-        }
-        if (is_string($value) && is_numeric(trim($value))) {
-            $numeric = trim($value);
-            return preg_match('/^[+-]?\d+$/', $numeric) === 1 ? (int) $numeric : (float) $numeric;
-        }
-
-        return $value;
-    }
-
-    private static function realAffinity(mixed $value): mixed
-    {
-        if (is_int($value) || is_float($value)) {
-            return (float) $value;
-        }
-        if (is_string($value) && is_numeric(trim($value))) {
-            return (float) trim($value);
-        }
-
-        return $value;
-    }
-
-    private static function textAffinity(mixed $value): mixed
-    {
-        if (is_int($value) || is_float($value) || is_string($value)) {
-            return (string) $value;
-        }
-
-        return $value;
+        return SQLiteAffinityComparison::equals(
+            SQLiteAffinityComparison::applyAffinity($child, $affinity),
+            SQLiteAffinityComparison::applyAffinity($parent, $affinity),
+            'NONE',
+            'NONE',
+            strtoupper($collation),
+        );
     }
 
     /**

@@ -105,7 +105,7 @@ final class SQLiteIndexLeafPage
         $cells = SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader);
         $deleteIndex = null;
         foreach ($cells as $index => $cell) {
-            if ($cell->record($textEncoding)->values === $recordValues) {
+            if (self::recordValuesEqual($cell->record($textEncoding)->values, $recordValues)) {
                 $deleteIndex = $index;
                 break;
             }
@@ -177,7 +177,7 @@ final class SQLiteIndexLeafPage
         );
         $deletedCell = null;
         foreach ($cells as $cell) {
-            if ($cell->record($textEncoding)->values === $recordValues) {
+            if (self::recordValuesEqual($cell->record($textEncoding)->values, $recordValues)) {
                 $deletedCell = $cell;
                 break;
             }
@@ -545,13 +545,22 @@ final class SQLiteIndexLeafPage
     {
         $count = min(count($left), count($right));
         for ($index = 0; $index < $count; $index++) {
-            $comparison = $left[$index] <=> $right[$index];
+            $comparison = SQLiteAffinityComparison::compare($left[$index], $right[$index], 'NONE', 'NONE', 'BINARY') ?? 0;
             if ($comparison !== 0) {
                 return $comparison < 0 ? -1 : 1;
             }
         }
 
         return count($left) <=> count($right);
+    }
+
+    /**
+     * @param list<mixed> $left
+     * @param list<mixed> $right
+     */
+    private static function recordValuesEqual(array $left, array $right): bool
+    {
+        return count($left) === count($right) && self::compareRecordValues($left, $right) === 0;
     }
 
     private static function validatePageSize(int $pageSize): void
