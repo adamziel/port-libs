@@ -81,6 +81,31 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
     /**
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
      * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
+     * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext121124(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    {
+        return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next121-124', [
+            'sqlite-attach-temp-wal-schema-cache-current-source-next121',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next122',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next123',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next124',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next118',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next119',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next120',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next117',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next116',
+            'sqlite-indexed-by-schema-cache-expiry',
+            'sqlite-attach-wal-temp-schema-cache-current-source-next92',
+            'sqlite-wal-page-one-schema-cookie-current-source',
+            'sqlite-temp-schema-shadow-cache-expiry',
+        ]);
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
+     * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, file?:string|null, commit?:bool}> $events
      * @param list<string> $dependencies
      * @return array<string,mixed>
@@ -575,6 +600,46 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
                 continue;
             }
 
+            if ($op === 'rename_table') {
+                $schema = self::name((string) ($event['schema'] ?? ''), 'SQLite RENAME TABLE schema');
+                $from = self::name((string) ($event['from'] ?? $event['table'] ?? $event['object'] ?? ''), 'SQLite RENAME TABLE source');
+                $to = self::name((string) ($event['to'] ?? ''), 'SQLite RENAME TABLE target');
+                if (!isset($next[$schema])) {
+                    throw new \InvalidArgumentException("SQLite schema {$schema} is not attached");
+                }
+                $next[$schema]['schema_cookie']++;
+                $next[$schema]['tables'] = array_values(array_filter(
+                    $next[$schema]['tables'],
+                    static fn (string $existing): bool => $existing !== $from,
+                ));
+                if (!in_array($to, $next[$schema]['tables'], true)) {
+                    $next[$schema]['tables'][] = $to;
+                    sort($next[$schema]['tables']);
+                }
+                $log[] = ['index' => $index, 'op' => 'rename_table', 'schema' => $schema, 'from' => $from, 'to' => $to, 'schema_cookie' => $next[$schema]['schema_cookie']];
+                continue;
+            }
+
+            if ($op === 'rename_index') {
+                $schema = self::name((string) ($event['schema'] ?? ''), 'SQLite RENAME INDEX schema');
+                $from = self::name((string) ($event['from'] ?? $event['index'] ?? $event['object'] ?? ''), 'SQLite RENAME INDEX source');
+                $to = self::name((string) ($event['to'] ?? ''), 'SQLite RENAME INDEX target');
+                if (!isset($next[$schema])) {
+                    throw new \InvalidArgumentException("SQLite schema {$schema} is not attached");
+                }
+                $next[$schema]['schema_cookie']++;
+                $next[$schema]['indexes'] = array_values(array_filter(
+                    $next[$schema]['indexes'],
+                    static fn (string $existing): bool => $existing !== $from,
+                ));
+                if (!in_array($to, $next[$schema]['indexes'], true)) {
+                    $next[$schema]['indexes'][] = $to;
+                    sort($next[$schema]['indexes']);
+                }
+                $log[] = ['index' => $index, 'op' => 'rename_index', 'schema' => $schema, 'from' => $from, 'to' => $to, 'schema_cookie' => $next[$schema]['schema_cookie']];
+                continue;
+            }
+
             throw new \InvalidArgumentException("SQLite attach WAL temp schema-cache next92 event {$op} is not supported");
         }
 
@@ -632,7 +697,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
     private static function eventConsolidationKey(array $event): ?string
     {
         $op = strtolower(trim((string) ($event['op'] ?? '')));
-        if (!in_array($op, ['schema_write', 'wal_commit', 'create_index', 'drop_index', 'drop_table'], true)) {
+        if (!in_array($op, ['schema_write', 'wal_commit', 'create_index', 'drop_index', 'drop_table', 'rename_table', 'rename_index'], true)) {
             return null;
         }
 
@@ -640,6 +705,8 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
         $object = match ($op) {
             'create_index', 'drop_index' => self::name((string) ($event['index'] ?? $event['object'] ?? ''), 'SQLite index event object'),
             'drop_table' => self::name((string) ($event['table'] ?? $event['object'] ?? ''), 'SQLite table event object'),
+            'rename_table' => self::name((string) ($event['from'] ?? $event['table'] ?? $event['object'] ?? ''), 'SQLite table event object') . '>' . self::name((string) ($event['to'] ?? ''), 'SQLite table event target'),
+            'rename_index' => self::name((string) ($event['from'] ?? $event['index'] ?? $event['object'] ?? ''), 'SQLite index event object') . '>' . self::name((string) ($event['to'] ?? ''), 'SQLite index event target'),
             default => self::schemaWriteObject($event),
         };
 
