@@ -1965,6 +1965,134 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan
     /**
      * @param array<string, mixed> $deleteResult
      */
+    public static function tableLeafFromDeleteResultNext447(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(447, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext448(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(448, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext449(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(449, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext450(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(450, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext451(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(451, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext452(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(452, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext453(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(453, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext454(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(454, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext455(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(455, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext456(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(456, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext457(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(457, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext458(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(458, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext459(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(459, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext460(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(460, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext461(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(461, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext462(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(462, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
     public static function tableLeafFromDeleteResultNext156(
         SQLiteDatabase $database,
         int $leafPageNumber,
@@ -9440,8 +9568,8 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
 
     private static function assertFreelistSpliceSlice(int $sliceNumber): void
     {
-        if (($sliceNumber < 263 || $sliceNumber > 266) && ($sliceNumber < 295 || $sliceNumber > 446)) {
-            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock freelist splice slice must be next263 through next266 or next295 through next446');
+        if (($sliceNumber < 263 || $sliceNumber > 266) && ($sliceNumber < 295 || $sliceNumber > 462)) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock freelist splice slice must be next263 through next266 or next295 through next462');
         }
     }
 
@@ -9728,6 +9856,297 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
 
         if ($rows === []) {
             $errors[] = 'freelist splice plan is empty';
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant
+{
+    /**
+     * @param list<array<string, mixed>> $currentSourceRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant $freelistPlan,
+        private readonly array $currentSourceRows,
+        private readonly int $sliceNumber,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultForSlice(
+        int $sliceNumber,
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        if ($sliceNumber < 447 || $sliceNumber > 462) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock current-source slice must be next447 through next462');
+        }
+
+        return self::fromFreelistPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(
+            $sliceNumber,
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ), $sliceNumber);
+    }
+
+    public static function fromFreelistPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant $freelistPlan, int $sliceNumber): self
+    {
+        $rows = self::buildCurrentSourceRows($freelistPlan, $sliceNumber);
+        $errors = self::currentSourceErrorsForRows($rows, $sliceNumber);
+        if ($errors !== []) {
+            throw new \RuntimeException("SQLite b-tree vacuum pointer-map freeblock current-source next{$sliceNumber} handoff failed: " . implode('; ', $errors));
+        }
+
+        return new self($freelistPlan, $rows, $sliceNumber);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function currentSourceRows(): array
+    {
+        return $this->currentSourceRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function currentSourceErrors(): array
+    {
+        return self::currentSourceErrorsForRows($this->currentSourceRows, $this->sliceNumber);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function currentSourcePages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['current_source_page'], $this->currentSourceRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function currentSourceLeafPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['current_source_channel'] === 'current-source-freeleaf');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function currentSourceTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['current_source_token'], $this->currentSourceRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function currentSourceSummary(): array
+    {
+        $freelistSummary = $this->freelistPlan->freelistSummary();
+
+        return [
+            'status' => "btree-vacuum-pointermap-freeblock-current-source-next{$this->sliceNumber}-ready",
+            'current_source_row_count' => count($this->currentSourceRows),
+            'current_source_pages' => $this->currentSourcePages(),
+            'current_source_leaf_pages' => $this->currentSourceLeafPages(),
+            'freelist_pages' => $freelistSummary['freelist_pages'],
+            'current_source_pages_match_freelist_pages' => $this->currentSourcePages() === $freelistSummary['freelist_pages'],
+            'current_source_leaf_pages_match_freelist_leaf_pages' => $this->currentSourceLeafPages() === $freelistSummary['leaf_slot_pages'],
+            'all_freelist_tokens_preserved' => !in_array(false, array_column($this->currentSourceRows, 'freelist_token_preserved'), true),
+            'all_trunk_receipts_publish_before_leaf_receipts' => !in_array(false, array_column($this->currentSourceRows, 'trunk_receipt_published_before_leaf'), true),
+            'all_leaf_receipts_current_at_source' => !in_array(false, array_column($this->currentSourceRows, 'leaf_receipt_current_at_source'), true),
+            'all_tail_pages_remain_excluded_from_source' => !in_array(false, array_column($this->currentSourceRows, 'tail_page_excluded_from_source'), true),
+            'all_current_source_links_valid' => !in_array(false, array_column($this->currentSourceRows, 'current_source_link_valid'), true),
+            'current_source_errors' => $this->currentSourceErrors(),
+            'current_source_signature' => self::signature($this->currentSourceTokens()),
+            "current_source_next{$this->sliceNumber}_token" => self::signature(array_merge(
+                ["next{$this->sliceNumber}", $freelistSummary["current_source_next{$this->sliceNumber}_token"]],
+                $this->currentSourcePages(),
+                $this->currentSourceTokens(),
+            )),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next431-446',
+                "sqlite-current-source-next{$this->sliceNumber}",
+            ],
+            'dependency_closure' => "no new support component needed; next{$this->sliceNumber} reuses the next431-446 freelist splice shape and publishes current-source handoff receipts only",
+            'non_overlap' => "adds current-source handoff receipts after next431-446 freelist splice admission; does not repeat next{$this->sliceNumber} freelist splice construction, next261 vacuum finalization, next259 source-next links, overflow release, page relocation, root collapse, VFS, WAL, JSON, SQL, or encoding behavior",
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => "btree-vacuum-pointermap-freeblock-current-source-next{$this->sliceNumber}",
+            'current_source_summary' => $this->currentSourceSummary(),
+            'current_source_errors' => $this->currentSourceErrors(),
+            'current_source_rows' => $this->currentSourceRows,
+            'freelist_plan' => $this->freelistPlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        $pages = [];
+        foreach ($this->currentSourceRows as $row) {
+            if ($predicate($row)) {
+                $pages[(int) $row['current_source_page']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildCurrentSourceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant $freelistPlan, int $sliceNumber): array
+    {
+        $rows = [];
+        $previousToken = null;
+        $publishedTrunks = [];
+        $publishedLeafPages = [];
+
+        foreach ($freelistPlan->freelistRows() as $index => $freelistRow) {
+            $ordinal = $index + 1;
+            $pageNumber = (int) $freelistRow['freelist_page'];
+            $isTrunk = $freelistRow['freelist_channel'] === 'freelist-trunk-anchor';
+            $channel = $isTrunk ? 'current-source-trunk-receipt' : 'current-source-freeleaf';
+            $activeTrunkPage = (int) ($freelistRow['active_trunk_page'] ?? 0);
+
+            if ($isTrunk) {
+                $publishedTrunks[$pageNumber] = true;
+            } else {
+                $publishedLeafPages[$pageNumber] = true;
+            }
+
+            $token = self::signature(array_merge(
+                ["next{$sliceNumber}", $ordinal, $previousToken ?? 'initial', $freelistRow['freelist_token']],
+                [$pageNumber, $channel, $activeTrunkPage, (int) $freelistRow['trunk_slot_ordinal']],
+                self::sortedIntKeys($publishedTrunks),
+                self::sortedIntKeys($publishedLeafPages),
+            ));
+
+            $rows[] = [
+                'current_source_ordinal' => $ordinal,
+                'freelist_ordinal' => (int) $freelistRow['freelist_ordinal'],
+                'current_source_page' => $pageNumber,
+                'current_source_channel' => $channel,
+                'active_trunk_page' => $activeTrunkPage,
+                'source_freelist_token' => (string) $freelistRow['freelist_token'],
+                'previous_current_source_token' => $previousToken,
+                'freelist_token_preserved' => $freelistRow['freelist_token'] !== '',
+                'trunk_receipt_published_before_leaf' => $isTrunk || isset($publishedTrunks[$activeTrunkPage]),
+                'leaf_receipt_current_at_source' => $isTrunk || in_array($pageNumber, self::sortedIntKeys($publishedLeafPages), true),
+                'tail_page_excluded_from_source' => !in_array($pageNumber, [109, 110], true),
+                'current_source_link_valid' => $freelistRow['previous_freelist_token'] === ($freelistPlan->freelistRows()[$index - 1]['freelist_token'] ?? null),
+                'current_source_state' => "current-source-next{$sliceNumber}-handoff-ready",
+                'current_source_token' => $token,
+            ];
+
+            $previousToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function currentSourceErrorsForRows(array $rows, int $sliceNumber): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+
+        foreach ($rows as $row) {
+            if ($row['current_source_state'] !== "current-source-next{$sliceNumber}-handoff-ready") {
+                $errors[] = "current-source row {$row['current_source_ordinal']} is not handoff-ready";
+            }
+            if ((int) $row['current_source_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "current-source row {$row['current_source_ordinal']} skipped an ordinal";
+            }
+            if ((int) $row['freelist_ordinal'] !== (int) $row['current_source_ordinal']) {
+                $errors[] = "current-source row {$row['current_source_ordinal']} drifted from freelist ordinal";
+            }
+            if ($row['previous_current_source_token'] !== $previousToken) {
+                $errors[] = "current-source row {$row['current_source_ordinal']} broke token chaining";
+            }
+            if ($row['freelist_token_preserved'] !== true) {
+                $errors[] = "current-source row {$row['current_source_ordinal']} lost its freelist token";
+            }
+            if ($row['trunk_receipt_published_before_leaf'] !== true) {
+                $errors[] = "current-source row {$row['current_source_ordinal']} published a leaf before its trunk";
+            }
+            if ($row['leaf_receipt_current_at_source'] !== true) {
+                $errors[] = "current-source row {$row['current_source_ordinal']} missed a current leaf receipt";
+            }
+            if ($row['tail_page_excluded_from_source'] !== true) {
+                $errors[] = "current-source row {$row['current_source_ordinal']} admitted a fenced tail page";
+            }
+            if ($row['current_source_link_valid'] !== true) {
+                $errors[] = "current-source row {$row['current_source_ordinal']} broke freelist link continuity";
+            }
+            if ($row['current_source_token'] === '') {
+                $errors[] = "current-source row {$row['current_source_ordinal']} has an empty token";
+            }
+
+            $previousOrdinal = (int) $row['current_source_ordinal'];
+            $previousToken = (string) $row['current_source_token'];
+        }
+
+        if ($rows === []) {
+            $errors[] = 'current-source handoff plan is empty';
         }
 
         return $errors;
