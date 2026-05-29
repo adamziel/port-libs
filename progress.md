@@ -68,7 +68,11 @@
   audit is down to `1850`. Public pass/mapped counters remain `154019 pass / 0
   fail` and `830 / 1589` because this is consolidation-only. The visible pool
   was refilled to 10 active libsqlite workers with 0 long sleepers; the refill
-  queue was extended after the configured slice list was exhausted.
+  queue was extended after the configured slice list was exhausted. Follow-up
+  root dashboard verification exposed and fixed a release-runner test helper
+  redeclare between `SQLiteReleaseRunnerSuiteGapBurnupTest.php` and
+  `SQLiteReleaseRunnerUpstreamBurnupTest.php`; the pair now passes together
+  with `2 files / 887 assertions / 0 failures` as commit `28c4c4720`.
 
 - 2026-05-29 supervisor continuation (shell samples 20:24 UTC):
   Eightieth safe consolidation follow-up is integrated and pushed as
