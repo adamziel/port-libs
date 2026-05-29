@@ -3653,29 +3653,64 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         ],
                     ];
 
+                    $status = $ready
+                        ? 'wal-hot-journal-savepoint-checkpoint-current-source-cache-sealed-next175'
+                        : 'wal-hot-journal-savepoint-checkpoint-current-source-cache-blocked-next175';
+                    $publishApplyStatus = $ready
+                        ? 'wal-hot-journal-savepoint-checkpoint-current-source-cache-sealed-publish-apply'
+                        : 'wal-hot-journal-savepoint-checkpoint-current-source-cache-blocked-publish-apply';
+                    $legacyOperations = array_map(
+                        static fn (array $operation): array => array_replace($operation, [
+                            'op' => str_replace('_publish-apply', '_next175', (string) $operation['op']),
+                        ]),
+                        $operations
+                    );
+                    $operationNames = array_merge($base['operation_names_next172'], array_column($operations, 'op'));
+                    $legacyOperationNames = array_merge($base['operation_names_next172'], array_column($legacyOperations, 'op'));
+                    $dependencies = [
+                        'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next175',
+                        'sqlite-checkpoint-page-cache-seal-before-reader-reuse',
+                        'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next172',
+                    ];
+                    $publishApplyDependencies = [
+                        'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-publish-apply',
+                        'sqlite-checkpoint-page-cache-seal-before-reader-reuse',
+                        'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next172',
+                    ];
+                    $sourceDigest = hash('sha256', $base['source_digest_next172'] . '|' . implode(',', $sealedPages) . '|' . implode(',', $blockedPages));
+                    $dependencyClosure = 'no new support component needed; reuses next172 checkpoint publish receipts and lane-local page-cache source sealing';
+                    $nonOverlap = 'does not repeat next172 database/WAL sync receipt admission or next176 hot-journal delete reader tickets; this slice gates reopened reader-cache reuse on clean page-cache seal receipts';
+
                     return array_merge($base, [
-                        'status' => $ready
-                            ? 'wal-hot-journal-savepoint-checkpoint-current-source-cache-sealed-publish-apply'
-                            : 'wal-hot-journal-savepoint-checkpoint-current-source-cache-blocked-publish-apply',
+                        'status' => $status,
+                        'status_publish-apply' => $publishApplyStatus,
                         'reason' => $ready
                             ? 'checkpoint_page_cache_seals_admit_reader_cache_reuse_after_publish'
                             : 'checkpoint_page_cache_seals_block_reader_cache_reuse_after_publish',
+                        'page_cache_seal_rows_next175' => $rows,
                         'page_cache_seal_rows_publish-apply' => $rows,
+                        'page_cache_sealed_page_numbers_next175' => array_values($sealedPages),
                         'page_cache_sealed_page_numbers_publish-apply' => array_values($sealedPages),
+                        'missing_page_cache_seals_next175' => $missingPages,
                         'missing_page_cache_seals_publish-apply' => $missingPages,
+                        'blocked_page_cache_seals_next175' => $blockedPages,
                         'blocked_page_cache_seals_publish-apply' => $blockedPages,
+                        'page_cache_seals_admitted_next175' => $missingPages === [] && $blockedPages === [],
                         'page_cache_seals_admitted_publish-apply' => $missingPages === [] && $blockedPages === [],
+                        'reader_cache_reuse_ready_next175' => $ready,
                         'reader_cache_reuse_ready_publish-apply' => $ready,
+                        'operations_next175' => $legacyOperations,
                         'operations_publish-apply' => $operations,
-                        'operation_names_publish-apply' => array_merge($base['operation_names_next172'], array_column($operations, 'op')),
-                        'source_digest_publish-apply' => hash('sha256', $base['source_digest_next172'] . '|' . implode(',', $sealedPages) . '|' . implode(',', $blockedPages)),
-                        'dependencies_publish-apply' => [
-                            'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-publish-apply',
-                            'sqlite-checkpoint-page-cache-seal-before-reader-reuse',
-                            'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next172',
-                        ],
-                        'dependency_closure_publish-apply' => 'no new support component needed; reuses next172 checkpoint publish receipts and lane-local page-cache source sealing',
-                        'non_overlap_publish-apply' => 'does not repeat next172 database/WAL sync receipt admission or next176 hot-journal delete reader tickets; this slice gates reopened reader-cache reuse on clean page-cache seal receipts',
+                        'operation_names_next175' => $legacyOperationNames,
+                        'operation_names_publish-apply' => $operationNames,
+                        'source_digest_next175' => $sourceDigest,
+                        'source_digest_publish-apply' => $sourceDigest,
+                        'dependencies_next175' => $dependencies,
+                        'dependencies_publish-apply' => $publishApplyDependencies,
+                        'dependency_closure_next175' => $dependencyClosure,
+                        'dependency_closure_publish-apply' => $dependencyClosure,
+                        'non_overlap_next175' => $nonOverlap,
+                        'non_overlap_publish-apply' => $nonOverlap,
                     ]);
                 }
 
@@ -32411,86 +32446,6 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     public static function next1123AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
     {
         return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1123, 'seal_after_ready_checkpoint_current_source_next1116_1123');
-    }
-
-    public static function next1124AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1124, 'verify_after_ready_checkpoint_restart_salt_database_header');
-    }
-
-    public static function next1125AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1125, 'verify_after_ready_checkpoint_reader_mark_release_source_token');
-    }
-
-    public static function next1126AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1126, 'verify_after_ready_checkpoint_page_cache_database_digest');
-    }
-
-    public static function next1127AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1127, 'verify_after_ready_checkpoint_checkpoint_frame_schema_cookie');
-    }
-
-    public static function next1128AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1128, 'verify_after_ready_checkpoint_commit_generation_checkpoint_frame');
-    }
-
-    public static function next1129AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1129, 'verify_after_ready_checkpoint_hot_journal_delete_page_cache');
-    }
-
-    public static function next1130AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1130, 'verify_after_ready_checkpoint_wal_index_salt_reader_release');
-    }
-
-    public static function next1131AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1131, 'seal_after_ready_checkpoint_current_source_next1124_1131');
-    }
-
-    public static function next1132AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1132, 'verify_after_ready_checkpoint_restart_salt_database_digest');
-    }
-
-    public static function next1133AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1133, 'verify_after_ready_checkpoint_reader_mark_release_checkpoint_frame');
-    }
-
-    public static function next1134AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1134, 'verify_after_ready_checkpoint_page_cache_source_token');
-    }
-
-    public static function next1135AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1135, 'verify_after_ready_checkpoint_schema_cookie_database_header');
-    }
-
-    public static function next1136AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1136, 'verify_after_ready_checkpoint_commit_generation_wal_index_salt');
-    }
-
-    public static function next1137AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1137, 'verify_after_ready_checkpoint_hot_journal_absence_reader_release');
-    }
-
-    public static function next1138AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1138, 'verify_after_ready_checkpoint_wal_index_salt_page_cache');
-    }
-
-    public static function next1139AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1139, 'seal_after_ready_checkpoint_current_source_next1132_1139');
     }
 
     public static function pageCacheSourceTokenAfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array

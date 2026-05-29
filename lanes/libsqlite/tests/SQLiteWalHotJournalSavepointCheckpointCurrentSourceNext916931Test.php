@@ -77,7 +77,7 @@ $tests['wal hot journal savepoint checkpoint current source next916-931 chains f
         920 => 'verify_after_ready_checkpoint_commit_generation_wal_index_salt_complete',
         921 => 'verify_after_ready_checkpoint_hot_journal_absence_reader_release_complete',
         922 => 'verify_after_ready_checkpoint_wal_index_salt_page_cache_complete',
-        923 => 'seal_after_ready_checkpoint_current_source_next916_923_complete',
+        923 => 'seal_after_ready_checkpoint_current_source_statement-rollback6_923_complete',
         924 => 'verify_after_ready_checkpoint_restart_salt_database_header_complete',
         925 => 'verify_after_ready_checkpoint_reader_mark_release_source_token_complete',
         926 => 'verify_after_ready_checkpoint_page_cache_database_digest_complete',
@@ -101,7 +101,7 @@ $tests['wal hot journal savepoint checkpoint current source next916-931 chains f
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-next915', $next916['base_status']);
     $t->same(['next931-current-source-seal'], $next931['accepted_checkpoint_receipt_names']);
     $t->contains('seal_after_ready_checkpoint_current_source_next908_915_next915', implode(',', $next931['operation_names']));
-    $t->contains('seal_after_ready_checkpoint_current_source_next916_923_next923', implode(',', $next931['operation_names']));
+    $t->contains('seal_after_ready_checkpoint_current_source_statement-rollback6_923_next923', implode(',', $next931['operation_names']));
     $t->contains('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next915', implode(',', $next931['dependencies']));
     $t->contains('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next931', implode(',', $next931['dependencies']));
 };
