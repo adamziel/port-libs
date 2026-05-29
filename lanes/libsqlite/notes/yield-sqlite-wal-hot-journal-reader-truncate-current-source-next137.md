@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan`, a bounded current-source WAL behavior that composes existing native primitives:
+Adds `SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan`, a bounded current-source WAL behavior that composes existing native primitives:
 
 - recover a hot rollback journal before using the database image for WAL checkpoint work;
 - verify the current reader WAL source matches the current WAL bytes;

@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -84,7 +84,7 @@ $plan = static fn (
     bool $reservedLock = false,
     array $transactions = null,
     array $pages = null
-): array => SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan(
+): array => SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -167,15 +167,15 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty next transactions rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, [], [1], 1),
-    'empty path rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan('', $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [1], 1),
-    'empty database rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan($databasePath, '', $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [1], 1),
-    'empty journal rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan($databasePath, $dirtyDatabase, '', $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [1], 1),
-    'empty current wal rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, '', $currentWalBytes, $nextTransactions, [1], 1),
-    'empty reader wal rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, '', $nextTransactions, [1], 1),
-    'empty pages rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [], 1),
-    'zero page rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [0], 1),
-    'reader past wal rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [1], 9),
+    'empty next transactions rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, [], [1], 1),
+    'empty path rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan('', $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [1], 1),
+    'empty database rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan($databasePath, '', $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [1], 1),
+    'empty journal rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, '', $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [1], 1),
+    'empty current wal rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, '', $currentWalBytes, $nextTransactions, [1], 1),
+    'empty reader wal rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, '', $nextTransactions, [1], 1),
+    'empty pages rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [], 1),
+    'zero page rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [0], 1),
+    'reader past wal rejected' => static fn () => SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $currentWalBytes, $nextTransactions, [1], 9),
 ];
 
 foreach ($throws as $name => $callback) {

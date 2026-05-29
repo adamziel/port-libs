@@ -7,12 +7,12 @@ require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
 require_once __DIR__ . '/../src/SQLiteWalAppendPlan.php';
 require_once __DIR__ . '/../src/SQLiteSavepointStack.php';
-require_once __DIR__ . '/../src/SQLiteWalReaderRestartSavepointCheckpointCurrentSourceNext147Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalReaderRestartSavepointCheckpointCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderRestartSavepointCheckpointCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderRestartSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -48,7 +48,7 @@ $savepoints->savepoint('autoload-batch');
 $savepoints->recordWalFrameWrite(3, 4);
 $savepoints->recordWalFrameWrite(4, 5, true);
 
-$plan = SQLiteWalReaderRestartSavepointCheckpointCurrentSourceNext147Plan::plan(
+$plan = SQLiteWalReaderRestartSavepointCheckpointCurrentSourceNextPlan::plan(
     $databasePath,
     $databaseBytes,
     SQLiteWal::parse($walBytes, $pageSize, true),

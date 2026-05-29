@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderRestartCheckpointCurrentSourceNext136Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderRestartCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -53,7 +53,7 @@ $secondRestartWalBytes = $makeWal([
     [4, 6, 'next136 cron second restart tail'],
 ], 138, 0x13600103, 0x13600104);
 
-$plan = static fn (int $reader = 2, array $pages = [1, 2, 3, 4, 5, 6], ?string $firstBytes = null, ?string $secondBytes = null): array => SQLiteWalReaderRestartCheckpointCurrentSourceNext136Plan::plan(
+$plan = static fn (int $reader = 2, array $pages = [1, 2, 3, 4, 5, 6], ?string $firstBytes = null, ?string $secondBytes = null): array => SQLiteWalReaderRestartCheckpointCurrentSourceNextPlan::plan(
     $GLOBALS['databasePath'],
     $GLOBALS['currentWal'],
     $GLOBALS['currentWalBytes'],
@@ -144,17 +144,17 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty path rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNext136Plan::plan('', $currentWal, $currentWalBytes, $databaseBytes, $firstRestartWalBytes, $secondRestartWalBytes, [1], 2),
-    'empty current wal rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNext136Plan::plan($databasePath, $currentWal, '', $databaseBytes, $firstRestartWalBytes, $secondRestartWalBytes, [1], 2),
-    'empty first wal rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNext136Plan::plan($databasePath, $currentWal, $currentWalBytes, $databaseBytes, '', $secondRestartWalBytes, [1], 2),
-    'empty second wal rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNext136Plan::plan($databasePath, $currentWal, $currentWalBytes, $databaseBytes, $firstRestartWalBytes, '', [1], 2),
-    'empty database rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNext136Plan::plan($databasePath, $currentWal, $currentWalBytes, '', $firstRestartWalBytes, $secondRestartWalBytes, [1], 2),
+    'empty path rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNextPlan::plan('', $currentWal, $currentWalBytes, $databaseBytes, $firstRestartWalBytes, $secondRestartWalBytes, [1], 2),
+    'empty current wal rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNextPlan::plan($databasePath, $currentWal, '', $databaseBytes, $firstRestartWalBytes, $secondRestartWalBytes, [1], 2),
+    'empty first wal rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNextPlan::plan($databasePath, $currentWal, $currentWalBytes, $databaseBytes, '', $secondRestartWalBytes, [1], 2),
+    'empty second wal rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNextPlan::plan($databasePath, $currentWal, $currentWalBytes, $databaseBytes, $firstRestartWalBytes, '', [1], 2),
+    'empty database rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNextPlan::plan($databasePath, $currentWal, $currentWalBytes, '', $firstRestartWalBytes, $secondRestartWalBytes, [1], 2),
     'empty pages rejected' => static fn () => $plan(2, []),
     'non integer page rejected' => static fn () => $plan(2, ['2']),
     'zero page rejected' => static fn () => $plan(2, [0]),
     'negative reader rejected' => static fn () => $plan(-1),
     'reader past current rejected' => static fn () => $plan(5),
-    'current bytes mismatch rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNext136Plan::plan($databasePath, $currentWal, substr_replace($currentWalBytes, 'x', 100, 1), $databaseBytes, $firstRestartWalBytes, $secondRestartWalBytes, [1], 2),
+    'current bytes mismatch rejected' => static fn () => SQLiteWalReaderRestartCheckpointCurrentSourceNextPlan::plan($databasePath, $currentWal, substr_replace($currentWalBytes, 'x', 100, 1), $databaseBytes, $firstRestartWalBytes, $secondRestartWalBytes, [1], 2),
     'first sequence stale rejected' => static fn () => $plan(2, [1], $makeWal([[2, 6, 'stale next136 first']], 136, 0x13600102, 0x13600103), null),
     'first salt stale rejected' => static fn () => $plan(2, [1], $makeWal([[2, 6, 'same salt next136 first']], 137, 0x13600101, 0x13600102), null),
     'second sequence stale rejected' => static fn () => $plan(2, [1], null, $makeWal([[2, 6, 'stale next136 second']], 137, 0x13600103, 0x13600104)),

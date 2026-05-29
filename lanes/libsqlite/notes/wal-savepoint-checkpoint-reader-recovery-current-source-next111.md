@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for WAL savepoint rollback and checkpoint reader recovery on the current source.
 
-This slice adds `SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan`. It models the current-source order used by WordPress import retries when a reader end-frame points beyond the durable committed WAL prefix: first recover/clamp the reader to the committed prefix, then apply `ROLLBACK TO` savepoint WAL truncation, then compare pinned-reader checkpoint behavior against the released-reader restart/truncate result.
+This slice adds `SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan`. It models the current-source order used by WordPress import retries when a reader end-frame points beyond the durable committed WAL prefix: first recover/clamp the reader to the committed prefix, then apply `ROLLBACK TO` savepoint WAL truncation, then compare pinned-reader checkpoint behavior against the released-reader restart/truncate result.
 
 Focused evidence:
 

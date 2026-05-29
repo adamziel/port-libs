@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalRecoveryCheckpointSavepointCurrentSourceNext100Plan;
+use PortLibs\LibSqlite\SQLiteWalRecoveryCheckpointSavepointCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -45,7 +45,7 @@ $stack->recordWalFrameWrite(3, 3);
 $stack->recordWalFrameWrite(4, 4, true);
 $stack->recordWalFrameWrite(5, 5);
 
-$plan = SQLiteWalRecoveryCheckpointSavepointCurrentSourceNext100Plan::plan(
+$plan = SQLiteWalRecoveryCheckpointSavepointCurrentSourceNextPlan::plan(
     $stack,
     'plugin-settings',
     $walBytes,

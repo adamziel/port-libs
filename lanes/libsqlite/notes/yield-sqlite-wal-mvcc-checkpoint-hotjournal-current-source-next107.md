@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalMvccCheckpointHotJournalCurrentSourceNext107Plan`, a bounded current-source WAL/pager plan for a copied WordPress SQLite database that has both:
+Adds `SQLiteWalMvccCheckpointHotJournalCurrentSourceNextPlan`, a bounded current-source WAL/pager plan for a copied WordPress SQLite database that has both:
 
 - a hot rollback journal from a crashed rollback-mode transaction; and
 - a WAL sidecar with committed frames plus an uncommitted tail.

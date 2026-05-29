@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan
+final class SQLiteWalReaderSavepointRestartCurrentSourceNextPlan
 {
     /**
      * @param list<int> $pageNumbers

@@ -4,14 +4,14 @@ Status: focused PHP behavior growth for WAL readers after `ROLLBACK TO` savepoin
 
 ## Change
 
-- Adds `SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan`.
+- Adds `SQLiteWalReaderSavepointRestartCurrentSourceNextPlan`.
 - The planner verifies that retry writer WAL bytes begin with the retained savepoint prefix, that new writer frames restart at the first frame after that prefix, and that stale reader tail frames discarded by `ROLLBACK TO` do not become the current source.
 - Adds a WordPress smoke showing a failed `wp_options` import savepoint where stale plugin/transient frames are ignored and a retry writer appends current-source frames for `active_plugins`, autoload, and plugin-settings pages.
 
 ## Verification
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan.php
+php -l lanes/libsqlite/src/SQLiteWalReaderSavepointRestartCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalReaderSavepointRestartCurrentSourceNext121Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-reader-savepoint-restart-current-source-next121.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderSavepointRestartCurrentSourceNext121Test.php

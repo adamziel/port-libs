@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for a WAL recovery edge where SHM read marks must be evaluated against the recovered WAL generation, not blindly carried across a restarted WAL salt.
 
-This slice adds `SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan`. It composes existing WAL transaction checksum recovery with SHM read-mark recovery:
+This slice adds `SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan`. It composes existing WAL transaction checksum recovery with SHM read-mark recovery:
 
 - recover the current WAL to its committed prefix before preserving current read marks;
 - checkpoint that recovered current source before opening the next WAL generation;

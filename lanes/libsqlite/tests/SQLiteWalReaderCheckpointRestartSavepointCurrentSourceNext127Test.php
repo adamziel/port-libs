@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -70,7 +70,7 @@ $nextTransactions = static fn (): array => [[
 ]];
 
 $plan = static function (int $reader = 6, ?string $readerBytes = null, array $pages = [1, 2, 3, 4, 5, 6], bool $syncWal = true, bool $syncDirectory = true) use ($makeStack, $wal, $walBytes, $databaseBytes, $databasePath, $nextTransactions): array {
-    return SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan(
+    return SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan(
         $makeStack(),
         'plugin-settings-next127',
         $wal,
@@ -163,16 +163,16 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty savepoint rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan($makeStack(), '', $wal, $walBytes, $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [1], 2),
-    'empty wal bytes rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan($makeStack(), 'plugin-settings-next127', $wal, '', $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [1], 2),
-    'empty reader wal bytes rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, '', $databaseBytes, $databasePath, $nextTransactions(), [1], 2),
-    'empty database rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, '', $databasePath, $nextTransactions(), [1], 2),
-    'empty path rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, $databaseBytes, '', $nextTransactions(), [1], 2),
-    'empty pages rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [], 2),
-    'negative reader rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [1], -1),
-    'source mismatch rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan($makeStack(), 'plugin-settings-next127', $wal, substr_replace($walBytes, 'x', 1600, 1), $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [1], 2),
-    'reader past wal rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [1], 7),
-    'non integer page rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, $databaseBytes, $databasePath, $nextTransactions(), ['1'], 2),
+    'empty savepoint rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan($makeStack(), '', $wal, $walBytes, $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [1], 2),
+    'empty wal bytes rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next127', $wal, '', $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [1], 2),
+    'empty reader wal bytes rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, '', $databaseBytes, $databasePath, $nextTransactions(), [1], 2),
+    'empty database rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, '', $databasePath, $nextTransactions(), [1], 2),
+    'empty path rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, $databaseBytes, '', $nextTransactions(), [1], 2),
+    'empty pages rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [], 2),
+    'negative reader rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [1], -1),
+    'source mismatch rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next127', $wal, substr_replace($walBytes, 'x', 1600, 1), $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [1], 2),
+    'reader past wal rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, $databaseBytes, $databasePath, $nextTransactions(), [1], 7),
+    'non integer page rejected' => static fn () => SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next127', $wal, $walBytes, $walBytes, $databaseBytes, $databasePath, $nextTransactions(), ['1'], 2),
 ];
 
 foreach ($throws as $name => $callback) {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan;
+use PortLibs\LibSqlite\SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -63,7 +63,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (string $mode = 'restart', ?int $reader = null, array $pages = [1, 2, 3, 4, 5]): array => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan::plan(
+$plan = static fn (string $mode = 'restart', ?int $reader = null, array $pages = [1, 2, 3, 4, 5]): array => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan::plan(
     $makeStack(),
     'plugin-settings-next111',
     $walBytes,
@@ -156,27 +156,27 @@ foreach ($cases as $name => [$actual, $expected]) {
 }
 
 $tests['wal savepoint checkpoint reader recovery current source next111 rejects empty savepoint'] = static function (TestRunner $t) use ($makeStack, $walBytes, $databaseBytes, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan::plan($makeStack(), '', $walBytes, $databaseBytes, [1], 'restart', null, $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan::plan($makeStack(), '', $walBytes, $databaseBytes, [1], 'restart', null, $pageSize));
 };
 
 $tests['wal savepoint checkpoint reader recovery current source next111 rejects empty wal bytes'] = static function (TestRunner $t) use ($makeStack, $databaseBytes, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan::plan($makeStack(), 'plugin-settings-next111', '', $databaseBytes, [1], 'restart', null, $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next111', '', $databaseBytes, [1], 'restart', null, $pageSize));
 };
 
 $tests['wal savepoint checkpoint reader recovery current source next111 rejects empty pages'] = static function (TestRunner $t) use ($makeStack, $walBytes, $databaseBytes, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan::plan($makeStack(), 'plugin-settings-next111', $walBytes, $databaseBytes, [], 'restart', null, $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next111', $walBytes, $databaseBytes, [], 'restart', null, $pageSize));
 };
 
 $tests['wal savepoint checkpoint reader recovery current source next111 rejects passive mode'] = static function (TestRunner $t) use ($makeStack, $walBytes, $databaseBytes, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan::plan($makeStack(), 'plugin-settings-next111', $walBytes, $databaseBytes, [1], 'passive', null, $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next111', $walBytes, $databaseBytes, [1], 'passive', null, $pageSize));
 };
 
 $tests['wal savepoint checkpoint reader recovery current source next111 rejects negative reader'] = static function (TestRunner $t) use ($makeStack, $walBytes, $databaseBytes, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan::plan($makeStack(), 'plugin-settings-next111', $walBytes, $databaseBytes, [1], 'restart', -1, $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next111', $walBytes, $databaseBytes, [1], 'restart', -1, $pageSize));
 };
 
 $tests['wal savepoint checkpoint reader recovery current source next111 rejects non integer page'] = static function (TestRunner $t) use ($makeStack, $walBytes, $databaseBytes, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan::plan($makeStack(), 'plugin-settings-next111', $walBytes, $databaseBytes, ['1'], 'restart', null, $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next111', $walBytes, $databaseBytes, ['1'], 'restart', null, $pageSize));
 };
 
 return $tests;

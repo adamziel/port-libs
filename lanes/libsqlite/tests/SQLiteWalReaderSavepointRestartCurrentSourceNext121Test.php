@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderSavepointRestartCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -68,7 +68,7 @@ $makeStack = static function (): SQLiteSavepointStack {
 };
 
 $plan = static function (?int $readerEndFrame = 5, ?string $readerBytes = null, array $pages = [1, 2, 3, 4, 5]) use ($makeStack, $wal, $walBytes, $restartedWalBytes, $databaseBytes): array {
-    return SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan::plan(
+    return SQLiteWalReaderSavepointRestartCurrentSourceNextPlan::plan(
         $makeStack(),
         'plugin-settings-next121',
         $wal,
@@ -147,27 +147,27 @@ foreach ($cases as $name => [$actual, $expected]) {
 }
 
 $tests['wal reader savepoint restart current source next121 rejects empty savepoint'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $restartedWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan::plan($makeStack(), '', $wal, $walBytes, $walBytes, $restartedWalBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNextPlan::plan($makeStack(), '', $wal, $walBytes, $walBytes, $restartedWalBytes, $databaseBytes, [1]));
 };
 
 $tests['wal reader savepoint restart current source next121 rejects empty reader bytes'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $restartedWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes, '', $restartedWalBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes, '', $restartedWalBytes, $databaseBytes, [1]));
 };
 
 $tests['wal reader savepoint restart current source next121 rejects empty pages'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $restartedWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes, $walBytes, $restartedWalBytes, $databaseBytes, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes, $walBytes, $restartedWalBytes, $databaseBytes, []));
 };
 
 $tests['wal reader savepoint restart current source next121 rejects mismatched source bytes'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $restartedWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes . 'x', $walBytes, $restartedWalBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes . 'x', $walBytes, $restartedWalBytes, $databaseBytes, [1]));
 };
 
 $tests['wal reader savepoint restart current source next121 rejects non integer page'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $restartedWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes, $walBytes, $restartedWalBytes, $databaseBytes, ['1']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes, $walBytes, $restartedWalBytes, $databaseBytes, ['1']));
 };
 
 $tests['wal reader savepoint restart current source next121 rejects negative reader frame'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $restartedWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes, $walBytes, $restartedWalBytes, $databaseBytes, [1], -1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes, $walBytes, $restartedWalBytes, $databaseBytes, [1], -1));
 };
 
 $tests['wal reader savepoint restart current source next121 rejects non prefix restarted wal'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $makeWalBytes, $staleFrames): void {
@@ -176,7 +176,7 @@ $tests['wal reader savepoint restart current source next121 rejects non prefix r
         [3, 5, 'next121 wrong retained second frame'],
         [4, 5, 'next121 writer after wrong prefix'],
     ]);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes, $walBytes, $badRestart, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderSavepointRestartCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next121', $wal, $walBytes, $walBytes, $badRestart, $databaseBytes, [1]));
 };
 
 return $tests;

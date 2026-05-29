@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteShmIndex;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan;
+use PortLibs\LibSqlite\SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -73,7 +73,7 @@ $nextWal = $makeWal(116, $newSalt1, $newSalt2, [
     [2, 5, 'wp next115 next active commit'],
 ]) . substr($currentWal, 32 + (2 * (24 + $pageSize)));
 
-$plan = SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan::currentSourceNext(
+$plan = SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan::currentSourceNext(
     $currentWal,
     $makeShm($oldSalt1, $oldSalt2, 115, 3, [0, 2, 3, null, null], [false, true, true, false, false], 1, 2),
     $nextWal,

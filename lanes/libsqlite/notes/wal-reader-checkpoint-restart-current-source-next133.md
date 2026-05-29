@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for WAL reader source-handle identity after a RESTART checkpoint.
 
-This slice adds `SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan`, a bounded native PHP planner for the SQLite edge where a current reader has an open WAL source, all readers then release, a RESTART checkpoint replaces the `-wal` path with a new generation, and the next writer appends frames to that restarted generation. The plan proves that the current reader must keep resolving pages from its original WAL bytes instead of reopening the replaced path, while the next reader sees the restarted generation.
+This slice adds `SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan`, a bounded native PHP planner for the SQLite edge where a current reader has an open WAL source, all readers then release, a RESTART checkpoint replaces the `-wal` path with a new generation, and the next writer appends frames to that restarted generation. The plan proves that the current reader must keep resolving pages from its original WAL bytes instead of reopening the replaced path, while the next reader sees the restarted generation.
 
 Focused evidence:
 
@@ -22,7 +22,7 @@ wordpress-wal-reader-checkpoint-restart-current-source-next133 self-test passed
 Additional verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan.php
+php -l lanes/libsqlite/src/SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalReaderCheckpointRestartCurrentSourceNext133Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-restart-current-source-next133.php
 git diff --check -- lanes/libsqlite

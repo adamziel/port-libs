@@ -6,12 +6,12 @@ require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
 require_once __DIR__ . '/../src/SQLiteSavepointStack.php';
-require_once __DIR__ . '/../src/SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalReaderSavepointRestartCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderSavepointRestartCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -62,7 +62,7 @@ $savepoints->recordWalFrameWrite(3, 4);
 $savepoints->recordWalFrameWrite(4, 5, true);
 $savepoints->recordWalFrameWrite(5, 2, true);
 
-$summary = SQLiteWalReaderSavepointRestartCurrentSourceNext121Plan::plan(
+$summary = SQLiteWalReaderSavepointRestartCurrentSourceNextPlan::plan(
     $savepoints,
     'plugin-settings',
     SQLiteWal::parse($staleWalBytes, $pageSize, true),

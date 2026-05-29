@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderRestartSavepointCheckpointCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderRestartSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -76,7 +76,7 @@ $plan = static function (
     ?string $dbBytes = null,
     ?string $sourceWalBytes = null
 ) use ($databasePath, $databaseBytes, $wal, $walBytes, $savepoints, $nextTransactions): array {
-    return SQLiteWalReaderRestartSavepointCheckpointCurrentSourceNext147Plan::plan(
+    return SQLiteWalReaderRestartSavepointCheckpointCurrentSourceNextPlan::plan(
         $dbPath ?? $databasePath,
         $dbBytes ?? $databaseBytes,
         $wal,

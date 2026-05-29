@@ -7,12 +7,12 @@ require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
 require_once __DIR__ . '/../src/SQLiteSavepointStack.php';
 require_once __DIR__ . '/../src/SQLiteWalSavepointCheckpointPlan.php';
-require_once __DIR__ . '/../src/SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan;
+use PortLibs\LibSqlite\SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -56,7 +56,7 @@ $stack->recordWalFrameWrite(4, 4);
 $stack->recordWalFrameWrite(5, 4, true);
 $stack->recordWalFrameWrite(6, 5);
 
-$summary = SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNext111Plan::plan(
+$summary = SQLiteWalSavepointCheckpointReaderRecoveryCurrentSourceNextPlan::plan(
     $stack,
     'plugin-settings-next111',
     $walBytes,

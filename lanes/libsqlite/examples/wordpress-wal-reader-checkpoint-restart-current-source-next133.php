@@ -5,11 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
@@ -48,7 +48,7 @@ $nextWalBytes = $makeWal([
     [4, 5, 'wp cron next generation tail'],
 ], 134, 0x13300102, 0x13300103);
 
-$plan = SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan::plan(
+$plan = SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan::plan(
     $databasePath,
     SQLiteWal::parse($currentWalBytes, $pageSize, true),
     $currentWalBytes,

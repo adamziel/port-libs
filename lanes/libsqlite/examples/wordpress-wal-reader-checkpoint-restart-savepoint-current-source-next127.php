@@ -7,12 +7,12 @@ require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
 require_once __DIR__ . '/../src/SQLiteSavepointStack.php';
 require_once __DIR__ . '/../src/SQLiteWalAppendPlan.php';
-require_once __DIR__ . '/../src/SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -60,7 +60,7 @@ $stack->recordWalFrameWrite(4, 5, true);
 $stack->recordWalFrameWrite(5, 2, true);
 $stack->recordWalFrameWrite(6, 6, true);
 
-$plan = SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNext127Plan::plan(
+$plan = SQLiteWalReaderCheckpointRestartSavepointCurrentSourceNextPlan::plan(
     $stack,
     'plugin-settings-next127',
     $wal,

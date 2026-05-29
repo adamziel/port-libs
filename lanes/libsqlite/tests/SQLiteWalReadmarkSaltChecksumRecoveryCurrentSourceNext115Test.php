@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteShmIndex;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan;
+use PortLibs\LibSqlite\SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -96,7 +96,7 @@ $sameSaltNextWal = $makeWal(117, $oldSalt1, $oldSalt2, [
 ]);
 $sameSaltShm = $makeShm($oldSalt1, $oldSalt2, 117, 1, 5, [0, 1, null, null, null], [false, true, false, false, false], 0, 1);
 
-$rebuilt = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan::currentSourceNext(
+$rebuilt = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan::currentSourceNext(
     $currentWal,
     $currentShm,
     $nextWalWithOldSaltTail,
@@ -105,7 +105,7 @@ $rebuilt = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSo
     [1, 2, 3, 4, 5],
     $pageSize
 );
-$preserved = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan::currentSourceNext(
+$preserved = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan::currentSourceNext(
     $currentWal,
     $currentShm,
     $nextCleanWal,
@@ -114,7 +114,7 @@ $preserved = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurrent
     [2, 3, 4, 5],
     $pageSize
 );
-$staleHeader = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan::currentSourceNext(
+$staleHeader = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan::currentSourceNext(
     $currentWal,
     $currentShm,
     $nextCleanWal,
@@ -123,7 +123,7 @@ $staleHeader = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurre
     [2, 4],
     $pageSize
 );
-$sameSalt = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan::currentSourceNext(
+$sameSalt = static fn (): array => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan::currentSourceNext(
     $currentWal,
     $currentShm,
     $sameSaltNextWal,
@@ -211,19 +211,19 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal readmark salt checksum recovery current source next115 rejects empty pages'] = static function (TestRunner $t) use ($currentWal, $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan::currentSourceNext($currentWal, $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, [], $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, [], $pageSize));
 };
 
 $tests['wal readmark salt checksum recovery current source next115 rejects bad page'] = static function (TestRunner $t) use ($currentWal, $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan::currentSourceNext($currentWal, $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, [0], $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, [0], $pageSize));
 };
 
 $tests['wal readmark salt checksum recovery current source next115 rejects non integer page'] = static function (TestRunner $t) use ($currentWal, $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan::currentSourceNext($currentWal, $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, [1, '2'], $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, [1, '2'], $pageSize));
 };
 
 $tests['wal readmark salt checksum recovery current source next115 rejects corrupt current header'] = static function (TestRunner $t) use ($currentWal, $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan::currentSourceNext(substr_replace($currentWal, pack('N', 0), 0, 4), $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, [1], $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan::currentSourceNext(substr_replace($currentWal, pack('N', 0), 0, 4), $currentShm, $nextCleanWal, $freshNextShm, $databaseBytes, [1], $pageSize));
 };
 
 return $tests;

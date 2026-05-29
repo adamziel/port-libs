@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNext115Plan
+final class SQLiteWalReadmarkSaltChecksumRecoveryCurrentSourceNextPlan
 {
     /**
      * @param list<int> $pageNumbers

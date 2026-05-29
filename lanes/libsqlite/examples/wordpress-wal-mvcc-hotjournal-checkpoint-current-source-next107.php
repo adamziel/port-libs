@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalMvccCheckpointHotJournalCurrentSourceNext107Plan;
+use PortLibs\LibSqlite\SQLiteWalMvccCheckpointHotJournalCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -50,7 +50,7 @@ $walBytes = $append($walBytes, $seed, 3, 0, 'next107 copied active_plugins WAL d
 $walBytes = $append($walBytes, $seed, 4, 4, 'next107 copied autoload committed WAL row');
 $walBytes = $append($walBytes, $seed, 2, 0, 'next107 copied uncommitted option overwrite');
 
-$plan = SQLiteWalMvccCheckpointHotJournalCurrentSourceNext107Plan::plan(
+$plan = SQLiteWalMvccCheckpointHotJournalCurrentSourceNextPlan::plan(
     $journal,
     $dirtyDatabase,
     $journalBytes,

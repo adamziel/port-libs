@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan
+final class SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan
 {
     /**
      * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $nextTransactions

@@ -1,6 +1,6 @@
 # WAL savepoint reader checkpoint current source next117
 
-This slice adds `SQLiteWalSavepointReaderCheckpointCurrentSourceNext117Plan`.
+This slice adds `SQLiteWalSavepointReaderCheckpointCurrentSourceNextPlan`.
 It models the retry boundary where a reader still advertises the pre-rollback
 WAL source after `ROLLBACK TO`, but checkpoint planning must use the retained
 current WAL prefix rather than stale reader tail frames.
@@ -8,7 +8,7 @@ current WAL prefix rather than stale reader tail frames.
 Focused verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalSavepointReaderCheckpointCurrentSourceNext117Plan.php
+php -l lanes/libsqlite/src/SQLiteWalSavepointReaderCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalSavepointReaderCheckpointCurrentSourceNext117Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-savepoint-reader-checkpoint-current-source-next117.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalSavepointReaderCheckpointCurrentSourceNext117Test.php

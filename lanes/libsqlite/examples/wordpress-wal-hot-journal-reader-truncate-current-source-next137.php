@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan;
 
 $pageSize = 512;
 $sectorSize = 512;
@@ -54,7 +54,7 @@ $currentWalBytes = $makeWalBytes([
     [3, 3, 'wp next137 current reader active_plugins commit'],
 ], 137, 0x13713701, 0x13713702);
 
-$plan = SQLiteWalHotJournalReaderTruncateCurrentSourceNext137Plan::plan(
+$plan = SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan::plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

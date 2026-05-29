@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -47,7 +47,7 @@ $nextWalBytes = $makeWal([
     [4, 5, 'next133 cron next generation tail'],
 ], 134, 0x13300102, 0x13300103);
 
-$plan = static fn (int $reader = 2, array $pages = [1, 2, 3, 4, 5], ?string $nextBytes = null): array => SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan::plan(
+$plan = static fn (int $reader = 2, array $pages = [1, 2, 3, 4, 5], ?string $nextBytes = null): array => SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan::plan(
     $GLOBALS['databasePath'],
     $GLOBALS['currentWal'],
     $GLOBALS['currentWalBytes'],
@@ -135,16 +135,16 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty path rejected' => static fn () => SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan::plan('', $currentWal, $currentWalBytes, $databaseBytes, $nextWalBytes, [1], 2),
-    'empty current wal rejected' => static fn () => SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan::plan($databasePath, $currentWal, '', $databaseBytes, $nextWalBytes, [1], 2),
-    'empty database rejected' => static fn () => SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan::plan($databasePath, $currentWal, $currentWalBytes, '', $nextWalBytes, [1], 2),
-    'empty next wal rejected' => static fn () => SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan::plan($databasePath, $currentWal, $currentWalBytes, $databaseBytes, '', [1], 2),
+    'empty path rejected' => static fn () => SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan::plan('', $currentWal, $currentWalBytes, $databaseBytes, $nextWalBytes, [1], 2),
+    'empty current wal rejected' => static fn () => SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan::plan($databasePath, $currentWal, '', $databaseBytes, $nextWalBytes, [1], 2),
+    'empty database rejected' => static fn () => SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan::plan($databasePath, $currentWal, $currentWalBytes, '', $nextWalBytes, [1], 2),
+    'empty next wal rejected' => static fn () => SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan::plan($databasePath, $currentWal, $currentWalBytes, $databaseBytes, '', [1], 2),
     'empty pages rejected' => static fn () => $plan(2, []),
     'non integer page rejected' => static fn () => $plan(2, ['2']),
     'zero page rejected' => static fn () => $plan(2, [0]),
     'negative reader rejected' => static fn () => $plan(-1),
     'reader past current rejected' => static fn () => $plan(6),
-    'current bytes mismatch rejected' => static fn () => SQLiteWalReaderCheckpointRestartCurrentSourceNext133Plan::plan($databasePath, $currentWal, substr_replace($currentWalBytes, 'x', 100, 1), $databaseBytes, $nextWalBytes, [1], 2),
+    'current bytes mismatch rejected' => static fn () => SQLiteWalReaderCheckpointRestartCurrentSourceNextPlan::plan($databasePath, $currentWal, substr_replace($currentWalBytes, 'x', 100, 1), $databaseBytes, $nextWalBytes, [1], 2),
     'non advancing sequence rejected' => static fn () => $plan(2, [1], $makeWal([[2, 5, 'stale next133 frame']], 133, 0x13300102, 0x13300103)),
     'same salt rejected' => static fn () => $plan(2, [1], $makeWal([[2, 5, 'same salt next133 frame']], 134, 0x13300101, 0x13300102)),
 ];

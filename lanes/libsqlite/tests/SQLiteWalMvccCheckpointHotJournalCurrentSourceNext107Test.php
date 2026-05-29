@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalMvccCheckpointHotJournalCurrentSourceNext107Plan;
+use PortLibs\LibSqlite\SQLiteWalMvccCheckpointHotJournalCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -76,7 +76,7 @@ $plan = static fn (
     bool $reservedLock = false,
     bool $requiresSuper = false,
     ?bool $superExists = null,
-): array => SQLiteWalMvccCheckpointHotJournalCurrentSourceNext107Plan::plan(
+): array => SQLiteWalMvccCheckpointHotJournalCurrentSourceNextPlan::plan(
     $journalInput ?? $journal,
     $dirtyDatabase,
     $journalBytesInput ?? $journalBytes,
@@ -158,8 +158,8 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty database path rejected' => static fn () => SQLiteWalMvccCheckpointHotJournalCurrentSourceNext107Plan::plan($journal, $dirtyDatabase, $journalBytes, $walBytes, '', [1], $pageSize),
-    'empty pages rejected' => static fn () => SQLiteWalMvccCheckpointHotJournalCurrentSourceNext107Plan::plan($journal, $dirtyDatabase, $journalBytes, $walBytes, $databasePath, [], $pageSize),
+    'empty database path rejected' => static fn () => SQLiteWalMvccCheckpointHotJournalCurrentSourceNextPlan::plan($journal, $dirtyDatabase, $journalBytes, $walBytes, '', [1], $pageSize),
+    'empty pages rejected' => static fn () => SQLiteWalMvccCheckpointHotJournalCurrentSourceNextPlan::plan($journal, $dirtyDatabase, $journalBytes, $walBytes, $databasePath, [], $pageSize),
     'zero page rejected' => static fn () => $plan([0]),
     'string page rejected' => static fn () => $plan(['1']),
     'mismatched journal bytes rejected' => static fn () => $plan([1], null, substr($journalBytes, 0, -1) . 'x'),
