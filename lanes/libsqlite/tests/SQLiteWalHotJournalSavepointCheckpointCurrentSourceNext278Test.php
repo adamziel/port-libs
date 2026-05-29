@@ -1,0 +1,66 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
+
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
+
+$tests = [];
+
+$digest = static fn (string $value): string => hash('sha256', $value);
+$base = [
+    'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next277',
+    'database_path' => '/srv/www/wp-content/database/wp-next278.sqlite',
+    'journal_path' => '/srv/www/wp-content/database/wp-next278.sqlite-journal',
+    'wal_path' => '/srv/www/wp-content/database/wp-next278.sqlite-wal',
+    'source_token' => 'wp-next278-current-source',
+    'database_digest' => $digest('next278 database header'),
+    'page_cache_digest' => $digest('next278 page cache'),
+    'commit_generation' => 278,
+    'schema_cookie' => 1278,
+    'checkpoint_frame' => 278,
+    'operation_names' => ['verify_reader_marks_after_wal_index_salt_next266'],
+    'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next277'],
+];
+$receipt = [
+    'name' => 'next278-after-current-seal',
+    'source_token' => $base['source_token'],
+    'database_digest' => $base['database_digest'],
+    'page_cache_digest' => $base['page_cache_digest'],
+    'commit_generation' => 278,
+    'schema_cookie' => 1278,
+    'checkpoint_frame' => 278,
+    'database_header_synced' => true,
+    'wal_index_salt_synced' => true,
+    'reader_marks_released' => true,
+    'hot_journal_visible' => false,
+];
+
+$plan = static fn (?array $inputBase = null, ?array $receipts = null): array =>
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next278AfterCurrentCheckpoint($inputBase ?? $base, $receipts ?? [$receipt]);
+
+$tests['wal hot journal savepoint checkpoint current source next278 seals after-current chain'] = static function (TestRunner $t) use ($plan): void {
+    $record = $plan();
+
+    $t->same('wal-hot-journal-savepoint-checkpoint-current-source-next278', $record['status']);
+    $t->same('verify_after_ready_hot_journal_retirement_complete', $record['reason']);
+    $t->same(['next278-after-current-seal'], $record['accepted_checkpoint_receipt_names']);
+    $t->same([], $record['blocked_reasons']);
+    $t->contains('verify_after_ready_hot_journal_retirement_next278', implode(',', $record['operation_names']));
+    $t->contains('does not repeat next260 admission', $record['non_overlap']);
+};
+
+$tests['wal hot journal savepoint checkpoint current source next278 blocks duplicate receipts'] = static function (TestRunner $t) use ($plan, $receipt): void {
+    $record = $plan(receipts: [$receipt, $receipt]);
+
+    $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next278', $record['status']);
+    $t->same(['next278-after-current-seal'], $record['duplicate_checkpoint_receipt_names']);
+    $t->contains('checkpoint_receipt_name_duplicate:next278-after-current-seal', implode(',', $record['blocked_reasons']));
+};
+
+$tests['wal hot journal savepoint checkpoint current source next278 rejects wrong base'] = static function (TestRunner $t) use ($plan, $base): void {
+    $t->throws(Throwable::class, static fn () => $plan(array_replace($base, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next276'])));
+};
+
+return $tests;
