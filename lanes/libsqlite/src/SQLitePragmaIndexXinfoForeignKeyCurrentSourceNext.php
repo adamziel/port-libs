@@ -27002,6 +27002,78 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     }
 
     /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page307(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::relationshipDiagnosticPage295($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 307, 'set_null_notnull_child_column', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page308(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::relationshipDiagnosticPage295($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 308, 'set_default_missing_child_default', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page309(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::relationshipDiagnosticPage295($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 309, 'cascade_without_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page310(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::relationshipDiagnosticPage295($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 310, 'set_default_without_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
      * @param list<SQLiteSchemaRecord> $records
      * @return list<array<string,mixed>>
      */
@@ -27808,6 +27880,22 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             }
         }
 
+        if (in_array('SET NULL', $actions, true)) {
+            foreach ($childColumns as $column) {
+                if ((int) ($childInfo[strtolower($column)]['notnull'] ?? 0) === 1) {
+                    return 'set_null_notnull_child_column';
+                }
+            }
+        }
+
+        if (in_array('SET DEFAULT', $actions, true)) {
+            foreach ($childColumns as $column) {
+                if (($childInfo[strtolower($column)]['dflt_value'] ?? null) === null) {
+                    return 'set_default_missing_child_default';
+                }
+            }
+        }
+
         $selfReferential = strcasecmp($table, $parent) === 0;
         if ($selfReferential && (in_array('CASCADE', $actions, true) || in_array('SET NULL', $actions, true) || in_array('SET DEFAULT', $actions, true))) {
             return 'cascading_self_reference';
@@ -27819,6 +27907,12 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         if (self::childLookupDiagnosticStatus287($catalog, $table, $childColumns) === 'child_lookup_missing_index') {
             if (in_array('RESTRICT', $actions, true)) {
                 return 'restrict_without_child_lookup_index';
+            }
+            if (in_array('CASCADE', $actions, true)) {
+                return 'cascade_without_child_lookup_index';
+            }
+            if (in_array('SET DEFAULT', $actions, true)) {
+                return 'set_default_without_child_lookup_index';
             }
             if ($actions === [] || in_array('NO ACTION', $actions, true)) {
                 return 'no_action_without_child_lookup_index';
@@ -27900,7 +27994,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @return array{rows:int,blocked:int,child_parent_affinity_mismatch:int,child_parent_collation_mismatch:int,composite_child_nullable_partial_key:int,self_referential_foreign_key:int,cascading_self_reference:int,restrict_without_child_lookup_index:int,no_action_without_child_lookup_index:int,deferrable_foreign_key_clause:int}
+     * @return array{rows:int,blocked:int,child_parent_affinity_mismatch:int,child_parent_collation_mismatch:int,composite_child_nullable_partial_key:int,self_referential_foreign_key:int,cascading_self_reference:int,restrict_without_child_lookup_index:int,no_action_without_child_lookup_index:int,deferrable_foreign_key_clause:int,set_null_notnull_child_column:int,set_default_missing_child_default:int,cascade_without_child_lookup_index:int,set_default_without_child_lookup_index:int}
      */
     private static function relationshipDiagnosticCounts295(array $rows): array
     {
@@ -27915,6 +28009,10 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             'restrict_without_child_lookup_index' => 0,
             'no_action_without_child_lookup_index' => 0,
             'deferrable_foreign_key_clause' => 0,
+            'set_null_notnull_child_column' => 0,
+            'set_default_missing_child_default' => 0,
+            'cascade_without_child_lookup_index' => 0,
+            'set_default_without_child_lookup_index' => 0,
         ];
         foreach ($rows as $row) {
             if (($row['blocked'] ?? false) === true) {
