@@ -132,7 +132,7 @@ $tests['compound select window recursive limit current source source-switch-chec
     $cursor['acknowledgedCurrentDequeueAcksNext237'] = $plan['currentSourceDequeueNext237']['requiredCurrentDequeueAcks'];
     $cursor['acknowledgedSpilloverAcksNext240'] = $plan['compoundFinalPageSpilloverDrainNext240']['requiredSpilloverAcks'];
     $cursor['acknowledgedReplayTicketsNext243'] = $plan['compoundWindowReplayFenceNext243']['requiredReplayTickets'];
-    $cursor['acknowledgedPromotionTicketsNext245'] = $plan['compoundNextSourcePromotionSnapshotNext245']['requiredPromotionTickets'];
+    $cursor['acknowledgedPromotionTickets'] = $plan['compoundNextSourcePromotionSnapshot']['requiredPromotionTickets'];
     $cursor['acknowledgedPromotionEpochAcksRecursiveWindowPromotionEpoch'] = $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['requiredPromotionEpochAcks'];
     $cursor['acknowledgedFinalPageYieldAcksFinalPageYieldWatermark'] = $plan['compoundFinalPageYieldWatermarkFinalPageYieldWatermark']['requiredFinalPageYieldAcks'];
     $cursor['acknowledgedSourceSwitchReceiptsSourceSwitchCheckpoint'] = $plan['compoundSourceSwitchCheckpointSourceSwitchCheckpoint']['requiredSourceSwitchReceipts'];
@@ -194,7 +194,7 @@ foreach (range(1, 72) as $case) {
         $cursor['acknowledgedCurrentDequeueAcksNext237'] = $plan['currentSourceDequeueNext237']['requiredCurrentDequeueAcks'];
         $cursor['acknowledgedSpilloverAcksNext240'] = $plan['compoundFinalPageSpilloverDrainNext240']['requiredSpilloverAcks'];
         $cursor['acknowledgedReplayTicketsNext243'] = $plan['compoundWindowReplayFenceNext243']['requiredReplayTickets'];
-        $cursor['acknowledgedPromotionTicketsNext245'] = $plan['compoundNextSourcePromotionSnapshotNext245']['requiredPromotionTickets'];
+        $cursor['acknowledgedPromotionTickets'] = $plan['compoundNextSourcePromotionSnapshot']['requiredPromotionTickets'];
         $cursor['acknowledgedPromotionEpochAcksRecursiveWindowPromotionEpoch'] = $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['requiredPromotionEpochAcks'];
         $cursor['acknowledgedFinalPageYieldAcksFinalPageYieldWatermark'] = $plan['compoundFinalPageYieldWatermarkFinalPageYieldWatermark']['requiredFinalPageYieldAcks'];
         $cursor['acknowledgedSourceSwitchReceiptsSourceSwitchCheckpoint'] = $plan['compoundSourceSwitchCheckpointSourceSwitchCheckpoint']['requiredSourceSwitchReceipts'];

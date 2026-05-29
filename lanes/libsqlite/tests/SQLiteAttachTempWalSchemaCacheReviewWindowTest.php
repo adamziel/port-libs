@@ -70,7 +70,7 @@ $plan877892 = static fn (array $events, ?array $statements = null, ?array $schem
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next877-892 extends next861-876 handoff'] = static function (TestRunner $t) use ($plan877892): void {
+$tests['attach temp wal schema cache review window extends rollout-window handoff'] = static function (TestRunner $t) use ($plan877892): void {
     $result = $plan877892([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 878, 'table' => 'wp_navigation_rule_locale_publish_delta_next878', 'indexes' => ['wp_navigation_rule_locale_publish_delta_key_next878'], 'commit' => true],
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 880, 'table' => 'wp_theme_stage_publish_notice_next880', 'commit' => true],
@@ -108,7 +108,7 @@ $tests['attach temp wal schema cache current source next877-892 extends next861-
     $t->same(['temp-notice-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next877-892 ignores detached transient archive'] = static function (TestRunner $t) use ($plan877892): void {
+$tests['attach temp wal schema cache review window ignores detached transient archive'] = static function (TestRunner $t) use ($plan877892): void {
     $result = $plan877892([
         ['op' => 'attach', 'schema' => 'transient', 'schema_cookie' => 877, 'tables' => ['wp_transient_archive_next877'], 'indexes' => ['wp_transient_archive_key_next877'], 'file' => '/srv/wp/transient-next877.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'transient', 'schema_cookie' => 878, 'table' => 'wp_transient_archive_meta_next878', 'indexes' => ['wp_transient_archive_meta_key_next878'], 'commit' => false],

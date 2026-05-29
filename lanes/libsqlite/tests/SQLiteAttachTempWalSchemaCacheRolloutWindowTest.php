@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas861876 = [
+$schemasRolloutWindow = [
     'main' => [
         'schema_cookie' => 860,
         'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next860', 'wp_navigation_rule_locale_publish_receipt_next876'],
@@ -51,7 +51,7 @@ $schemas861876 = [
     ],
 ];
 
-$statements861876 = [
+$statementsRolloutWindow = [
     ['name' => 'main-receipt-reader', 'sql' => 'SELECT receipt_id FROM main.wp_navigation_rule_locale_publish_receipt_next876 INDEXED BY wp_navigation_rule_locale_publish_receipt_key_next876 WHERE receipt_key = ?', 'active' => true],
     ['name' => 'publish-receipt-reader', 'sql' => 'SELECT publish_id FROM publish.wp_schema_publish_receipt_next858 INDEXED BY wp_schema_publish_receipt_key_next858 WHERE publish_key = ?'],
     ['name' => 'queue-archive-reader', 'sql' => 'SELECT job_id FROM queue.wp_job_retry_checkpoint_archive_next850 INDEXED BY wp_job_retry_checkpoint_archive_key_next854 WHERE job_id = ?'],
@@ -62,16 +62,16 @@ $statements861876 = [
     ['name' => 'temp-gate-reader', 'sql' => 'SELECT gate_id FROM temp.wp_theme_stage_publish_gate_next864 WHERE cache_key = ?'],
 ];
 
-$plan861876 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
-    $schemas ?? $schemas861876,
-    $statements ?? $statements861876,
+$planRolloutWindow = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
+    $schemas ?? $schemasRolloutWindow,
+    $statements ?? $statementsRolloutWindow,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next861-876 extends next845-860 handoff'] = static function (TestRunner $t) use ($plan861876): void {
-    $result = $plan861876([
+$tests['attach temp wal schema cache rollout window extends consolidated handoff'] = static function (TestRunner $t) use ($planRolloutWindow): void {
+    $result = $planRolloutWindow([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 862, 'table' => 'wp_navigation_rule_locale_publish_delta_next862', 'indexes' => ['wp_navigation_rule_locale_publish_delta_key_next862'], 'commit' => true],
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 864, 'table' => 'wp_theme_stage_publish_gate_next864', 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'audit', 'from' => 'wp_schema_audit_replay_key_next869', 'to' => 'wp_schema_audit_replay_key_next870'],
@@ -108,8 +108,8 @@ $tests['attach temp wal schema cache current source next861-876 extends next845-
     $t->same(['temp-gate-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next861-876 ignores detached transient rollout'] = static function (TestRunner $t) use ($plan861876): void {
-    $result = $plan861876([
+$tests['attach temp wal schema cache rollout window ignores detached transient rollout'] = static function (TestRunner $t) use ($planRolloutWindow): void {
+    $result = $planRolloutWindow([
         ['op' => 'attach', 'schema' => 'transient', 'schema_cookie' => 861, 'tables' => ['wp_transient_rollout_next861'], 'indexes' => ['wp_transient_rollout_key_next861'], 'file' => '/srv/wp/transient-next861.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'transient', 'schema_cookie' => 862, 'table' => 'wp_transient_rollout_meta_next862', 'indexes' => ['wp_transient_rollout_meta_key_next862'], 'commit' => false],
         ['op' => 'detach', 'schema' => 'transient'],

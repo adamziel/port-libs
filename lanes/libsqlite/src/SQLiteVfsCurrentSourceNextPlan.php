@@ -65,9 +65,9 @@ final class SQLiteVfsCurrentSourceNextPlan
             'next514-529' => self::run514529($operations, $options),
             'next530-545' => self::run530545($operations, $options),
             'next546-561' => self::run546561($operations, $options),
-            'next562-577' => self::run562577($operations, $options),
-            'next578-593' => self::run578593($operations, $options),
-            'next594-609' => self::run594609($operations, $options),
+            'next562-577' => self::runInitialPublishedReuseSnapshotFence($operations, $options),
+            'next578-593' => self::runPriorPublishedReuseSnapshotFence($operations, $options),
+            'next594-609' => self::runPrePublishedReuseSnapshotFence($operations, $options),
             'next610-625' => self::runPublishedReuseSnapshotFence($operations, $options),
             'next626-641' => self::runExtendedPublishedReuseSnapshotFence($operations, $options),
             default => throw new \InvalidArgumentException('SQLite VFS current-source stable helper does not support slice ' . $slice),
@@ -21205,52 +21205,52 @@ private static function run158161(array $operations, array $options = []): array
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run562577(array $operations, array $options = []): array
+    private static function runInitialPublishedReuseSnapshotFence(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next562-577 requires operations');
         }
 
-        $state = self::hydrate562577($options['current'] ?? []);
-        $current = self::summary562577($state);
+        $state = self::hydrateInitialPublishedReuseSnapshotFence($options['current'] ?? []);
+        $current = self::summaryInitialPublishedReuseSnapshotFence($state);
         $events = [];
 
         foreach ($operations as $operation) {
-            $op = self::operation562577($operation);
-            $source = self::sourceFor562577($state, $op['source'] ?? null);
-            $before = self::summary562577($state);
+            $op = self::operationInitialPublishedReuseSnapshotFence($operation);
+            $source = self::sourceForInitialPublishedReuseSnapshotFence($state, $op['source'] ?? null);
+            $before = self::summaryInitialPublishedReuseSnapshotFence($state);
 
             if ($op['kind'] === 'snapshot') {
-                $events[] = self::snapshot562577(
+                $events[] = self::snapshotInitialPublishedReuseSnapshotFence(
                     $state,
                     $source,
-                    self::token562577((string) ($op['snapshot'] ?? ''), 'snapshot name'),
-                    self::token562577((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
+                    self::tokenInitialPublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name'),
+                    self::tokenInitialPublishedReuseSnapshotFence((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
                     $before
                 );
                 continue;
             }
 
             if ($op['kind'] === 'claim') {
-                $snapshot = self::token562577((string) ($op['snapshot'] ?? ''), 'snapshot name');
-                $events[] = self::claim562577(
+                $snapshot = self::tokenInitialPublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name');
+                $events[] = self::claimInitialPublishedReuseSnapshotFence(
                     $state,
                     $source,
                     $snapshot,
-                    self::token562577((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
-                    self::token562577((string) ($op['claim'] ?? $snapshot . '-claim'), 'reuse claim'),
+                    self::tokenInitialPublishedReuseSnapshotFence((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
+                    self::tokenInitialPublishedReuseSnapshotFence((string) ($op['claim'] ?? $snapshot . '-claim'), 'reuse claim'),
                     $before
                 );
                 continue;
             }
 
             if ($op['kind'] === 'publish') {
-                $events[] = self::publish562577(
+                $events[] = self::publishInitialPublishedReuseSnapshotFence(
                     $state,
                     $source,
-                    self::token562577((string) ($op['snapshot'] ?? ''), 'snapshot name'),
-                    self::token562577((string) ($op['claim'] ?? ''), 'reuse claim'),
-                    self::token562577((string) ($op['token'] ?? 'publish'), 'publish token'),
+                    self::tokenInitialPublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name'),
+                    self::tokenInitialPublishedReuseSnapshotFence((string) ($op['claim'] ?? ''), 'reuse claim'),
+                    self::tokenInitialPublishedReuseSnapshotFence((string) ($op['token'] ?? 'publish'), 'publish token'),
                     $before
                 );
                 continue;
@@ -21262,7 +21262,7 @@ private static function run158161(array $operations, array $options = []): array
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => $current,
-            'next' => self::summary562577($state),
+            'next' => self::summaryInitialPublishedReuseSnapshotFence($state),
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-snapshot-reuse-next206-209',
@@ -21300,10 +21300,10 @@ private static function run158161(array $operations, array $options = []): array
         ];
     }
 
-    private static function snapshot562577(array &$state, string $source, string $snapshot, string $ack, array $before): array
+    private static function snapshotInitialPublishedReuseSnapshotFence(array &$state, string $source, string $snapshot, string $ack, array $before): array
     {
         if (!isset($state['sources'][$source])) {
-            return self::event562577('snapshot', 'missing-source', $source, $before, self::summary562577($state), [
+            return self::eventInitialPublishedReuseSnapshotFence('snapshot', 'missing-source', $source, $before, self::summaryInitialPublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'ack' => $ack,
             ]);
@@ -21317,7 +21317,7 @@ private static function run158161(array $operations, array $options = []): array
         if ($sourceState['dirty_pages'] !== []) {
             $blockers[] = 'dirty-pages-present';
         }
-        if (self::lastReceiptToken562577($sourceState) !== $ack) {
+        if (self::lastReceiptTokenInitialPublishedReuseSnapshotFence($sourceState) !== $ack) {
             $blockers[] = 'ack-not-latest-publish';
         }
         if (isset($state['snapshots'][$snapshot])) {
@@ -21332,18 +21332,18 @@ private static function run158161(array $operations, array $options = []): array
                 'owner' => $sourceState['owner'],
                 'data_version' => $sourceState['data_version'],
                 'published_count' => count($sourceState['published']),
-                'receipt_digest' => self::receiptDigest562577($sourceState['published']),
+                'receipt_digest' => self::receiptDigestInitialPublishedReuseSnapshotFence($sourceState['published']),
             ];
             $state['sources'][$source]['reuse_acks'][] = [
                 'snapshot' => $snapshot,
                 'receipt' => $ack,
                 'data_version' => $sourceState['data_version'],
                 'published_count' => count($sourceState['published']),
-                'receipt_digest' => self::receiptDigest562577($sourceState['published']),
+                'receipt_digest' => self::receiptDigestInitialPublishedReuseSnapshotFence($sourceState['published']),
             ];
         }
 
-        return self::event562577('snapshot', $blockers === [] ? 'snapshotted-current-source' : 'blocked-stale', $source, $before, self::summary562577($state), [
+        return self::eventInitialPublishedReuseSnapshotFence('snapshot', $blockers === [] ? 'snapshotted-current-source' : 'blocked-stale', $source, $before, self::summaryInitialPublishedReuseSnapshotFence($state), [
             'snapshot' => $snapshot,
             'ack' => $ack,
             'blocked_reasons' => $blockers,
@@ -21351,10 +21351,10 @@ private static function run158161(array $operations, array $options = []): array
         ]);
     }
 
-    private static function claim562577(array &$state, string $source, string $snapshot, string $ack, string $claim, array $before): array
+    private static function claimInitialPublishedReuseSnapshotFence(array &$state, string $source, string $snapshot, string $ack, string $claim, array $before): array
     {
         if (!isset($state['sources'][$source]) || !isset($state['snapshots'][$snapshot])) {
-            return self::event562577('claim', 'missing-source-or-snapshot', $source, $before, self::summary562577($state), [
+            return self::eventInitialPublishedReuseSnapshotFence('claim', 'missing-source-or-snapshot', $source, $before, self::summaryInitialPublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'ack' => $ack,
                 'claim' => $claim,
@@ -21363,8 +21363,8 @@ private static function run158161(array $operations, array $options = []): array
 
         $sourceState = $state['sources'][$source];
         $snapshotState = $state['snapshots'][$snapshot];
-        $blockers = self::reuseBlockers562577($snapshotState, $sourceState);
-        $ackState = self::lastReuseAck562577($sourceState, $snapshot);
+        $blockers = self::reuseBlockersInitialPublishedReuseSnapshotFence($snapshotState, $sourceState);
+        $ackState = self::lastReuseAckInitialPublishedReuseSnapshotFence($sourceState, $snapshot);
         if ($ackState === null || $ackState['receipt'] !== $ack) {
             $blockers[] = 'missing-reuse-ack';
         } elseif (
@@ -21382,11 +21382,11 @@ private static function run158161(array $operations, array $options = []): array
                 'ack' => $ack,
                 'data_version' => $sourceState['data_version'],
                 'published_count' => count($sourceState['published']),
-                'receipt_digest' => self::receiptDigest562577($sourceState['published']),
+                'receipt_digest' => self::receiptDigestInitialPublishedReuseSnapshotFence($sourceState['published']),
             ];
         }
 
-        return self::event562577('claim', $blockers === [] ? 'claimed-reusable-current-source' : 'blocked-stale', $source, $before, self::summary562577($state), [
+        return self::eventInitialPublishedReuseSnapshotFence('claim', $blockers === [] ? 'claimed-reusable-current-source' : 'blocked-stale', $source, $before, self::summaryInitialPublishedReuseSnapshotFence($state), [
             'snapshot' => $snapshot,
             'ack' => $ack,
             'claim' => $claim,
@@ -21395,10 +21395,10 @@ private static function run158161(array $operations, array $options = []): array
         ]);
     }
 
-    private static function publish562577(array &$state, string $source, string $snapshot, string $claim, string $token, array $before): array
+    private static function publishInitialPublishedReuseSnapshotFence(array &$state, string $source, string $snapshot, string $claim, string $token, array $before): array
     {
         if (!isset($state['sources'][$source]) || !isset($state['snapshots'][$snapshot])) {
-            return self::event562577('publish', 'missing-source-or-snapshot', $source, $before, self::summary562577($state), [
+            return self::eventInitialPublishedReuseSnapshotFence('publish', 'missing-source-or-snapshot', $source, $before, self::summaryInitialPublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'claim' => $claim,
                 'token' => $token,
@@ -21407,20 +21407,20 @@ private static function run158161(array $operations, array $options = []): array
 
         $sourceState = $state['sources'][$source];
         $snapshotState = $state['snapshots'][$snapshot];
-        $blockers = self::reuseBlockers562577($snapshotState, $sourceState);
-        $claimState = self::lastReuseClaim562577($sourceState, $snapshot);
+        $blockers = self::reuseBlockersInitialPublishedReuseSnapshotFence($snapshotState, $sourceState);
+        $claimState = self::lastReuseClaimInitialPublishedReuseSnapshotFence($sourceState, $snapshot);
         if ($claimState === null || $claimState['token'] !== $claim) {
             $blockers[] = 'missing-reuse-claim';
         } elseif (
             $claimState['data_version'] !== $sourceState['data_version']
             || $claimState['published_count'] !== count($sourceState['published'])
-            || $claimState['receipt_digest'] !== self::receiptDigest562577($sourceState['published'])
+            || $claimState['receipt_digest'] !== self::receiptDigestInitialPublishedReuseSnapshotFence($sourceState['published'])
         ) {
             $blockers[] = 'stale-reuse-claim';
         }
 
         if ($blockers !== []) {
-            return self::event562577('publish', 'blocked-stale', $source, $before, self::summary562577($state), [
+            return self::eventInitialPublishedReuseSnapshotFence('publish', 'blocked-stale', $source, $before, self::summaryInitialPublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'claim' => $claim,
                 'token' => $token,
@@ -21436,7 +21436,7 @@ private static function run158161(array $operations, array $options = []): array
             'reuse_ack' => $claimState['ack'],
         ];
 
-        return self::event562577('publish', 'published-reused-current-source', $source, $before, self::summary562577($state), [
+        return self::eventInitialPublishedReuseSnapshotFence('publish', 'published-reused-current-source', $source, $before, self::summaryInitialPublishedReuseSnapshotFence($state), [
             'snapshot' => $snapshot,
             'claim' => $claim,
             'token' => $token,
@@ -21445,7 +21445,7 @@ private static function run158161(array $operations, array $options = []): array
         ]);
     }
 
-    private static function hydrate562577(mixed $current): array
+    private static function hydrateInitialPublishedReuseSnapshotFence(mixed $current): array
     {
         $state = ['current_source' => null, 'sources' => [], 'snapshots' => []];
         if (!is_array($current)) {
@@ -21456,17 +21456,17 @@ private static function run158161(array $operations, array $options = []): array
             if (!is_array($source)) {
                 continue;
             }
-            $sourceName = self::token562577((string) $name, 'source name');
+            $sourceName = self::tokenInitialPublishedReuseSnapshotFence((string) $name, 'source name');
             $state['sources'][$sourceName] = [
-                'handle' => self::token562577((string) ($source['handle'] ?? $sourceName), 'handle'),
-                'path' => self::path562577((string) ($source['path'] ?? '')),
-                'owner' => self::path562577((string) ($source['owner'] ?? $source['path'] ?? '')),
+                'handle' => self::tokenInitialPublishedReuseSnapshotFence((string) ($source['handle'] ?? $sourceName), 'handle'),
+                'path' => self::pathInitialPublishedReuseSnapshotFence((string) ($source['path'] ?? '')),
+                'owner' => self::pathInitialPublishedReuseSnapshotFence((string) ($source['owner'] ?? $source['path'] ?? '')),
                 'closed' => (bool) ($source['closed'] ?? false),
-                'data_version' => self::nonNegativeInt562577($source['data_version'] ?? 0, 'data version'),
-                'dirty_pages' => self::receiptList562577($source['dirty_pages'] ?? []),
-                'published' => self::receiptMetadataList562577($source['published'] ?? []),
-                'reuse_acks' => self::reuseAckList562577($source['reuse_acks'] ?? []),
-                'reuse_claims' => self::reuseClaimList562577($source['reuse_claims'] ?? []),
+                'data_version' => self::nonNegativeIntInitialPublishedReuseSnapshotFence($source['data_version'] ?? 0, 'data version'),
+                'dirty_pages' => self::receiptListInitialPublishedReuseSnapshotFence($source['dirty_pages'] ?? []),
+                'published' => self::receiptMetadataListInitialPublishedReuseSnapshotFence($source['published'] ?? []),
+                'reuse_acks' => self::reuseAckListInitialPublishedReuseSnapshotFence($source['reuse_acks'] ?? []),
+                'reuse_claims' => self::reuseClaimListInitialPublishedReuseSnapshotFence($source['reuse_claims'] ?? []),
             ];
         }
 
@@ -21474,24 +21474,24 @@ private static function run158161(array $operations, array $options = []): array
             if (!is_array($snapshot)) {
                 continue;
             }
-            $state['snapshots'][self::token562577((string) $name, 'snapshot name')] = [
-                'source' => self::token562577((string) ($snapshot['source'] ?? 'main'), 'snapshot source'),
-                'handle' => self::token562577((string) ($snapshot['handle'] ?? $name), 'snapshot handle'),
-                'path' => self::path562577((string) ($snapshot['path'] ?? '')),
-                'owner' => self::path562577((string) ($snapshot['owner'] ?? $snapshot['path'] ?? '')),
-                'data_version' => self::nonNegativeInt562577($snapshot['data_version'] ?? 0, 'snapshot data version'),
-                'published_count' => self::nonNegativeInt562577($snapshot['published_count'] ?? 0, 'snapshot published count'),
-                'receipt_digest' => self::token562577((string) ($snapshot['receipt_digest'] ?? 'empty'), 'receipt digest'),
+            $state['snapshots'][self::tokenInitialPublishedReuseSnapshotFence((string) $name, 'snapshot name')] = [
+                'source' => self::tokenInitialPublishedReuseSnapshotFence((string) ($snapshot['source'] ?? 'main'), 'snapshot source'),
+                'handle' => self::tokenInitialPublishedReuseSnapshotFence((string) ($snapshot['handle'] ?? $name), 'snapshot handle'),
+                'path' => self::pathInitialPublishedReuseSnapshotFence((string) ($snapshot['path'] ?? '')),
+                'owner' => self::pathInitialPublishedReuseSnapshotFence((string) ($snapshot['owner'] ?? $snapshot['path'] ?? '')),
+                'data_version' => self::nonNegativeIntInitialPublishedReuseSnapshotFence($snapshot['data_version'] ?? 0, 'snapshot data version'),
+                'published_count' => self::nonNegativeIntInitialPublishedReuseSnapshotFence($snapshot['published_count'] ?? 0, 'snapshot published count'),
+                'receipt_digest' => self::tokenInitialPublishedReuseSnapshotFence((string) ($snapshot['receipt_digest'] ?? 'empty'), 'receipt digest'),
             ];
         }
 
         if (isset($current['current_source'])) {
-            $state['current_source'] = self::token562577((string) $current['current_source'], 'current source');
+            $state['current_source'] = self::tokenInitialPublishedReuseSnapshotFence((string) $current['current_source'], 'current source');
         }
         return $state;
     }
 
-    private static function operation562577(string|array $operation): array
+    private static function operationInitialPublishedReuseSnapshotFence(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -21516,7 +21516,7 @@ private static function run158161(array $operations, array $options = []): array
         throw new \InvalidArgumentException('SQLite VFS current-source next562-577 operation is unsupported');
     }
 
-    private static function summary562577(array $state): array
+    private static function summaryInitialPublishedReuseSnapshotFence(array $state): array
     {
         return [
             'current_source' => $state['current_source'],
@@ -21528,7 +21528,7 @@ private static function run158161(array $operations, array $options = []): array
     }
 
     /** @return list<string> */
-    private static function reuseBlockers562577(array $snapshot, array $source): array
+    private static function reuseBlockersInitialPublishedReuseSnapshotFence(array $snapshot, array $source): array
     {
         $blockers = [];
         foreach (['handle', 'path', 'owner', 'data_version'] as $key) {
@@ -21539,7 +21539,7 @@ private static function run158161(array $operations, array $options = []): array
         if ($snapshot['published_count'] !== count($source['published'])) {
             $blockers[] = 'published-count-changed';
         }
-        if ($snapshot['receipt_digest'] !== self::receiptDigest562577($source['published'])) {
+        if ($snapshot['receipt_digest'] !== self::receiptDigestInitialPublishedReuseSnapshotFence($source['published'])) {
             $blockers[] = 'publish-receipt-digest-changed';
         }
         if ($source['dirty_pages'] !== []) {
@@ -21548,7 +21548,7 @@ private static function run158161(array $operations, array $options = []): array
         return $blockers;
     }
 
-    private static function lastReuseAck562577(array $source, string $snapshot): ?array
+    private static function lastReuseAckInitialPublishedReuseSnapshotFence(array $source, string $snapshot): ?array
     {
         for ($i = count($source['reuse_acks']) - 1; $i >= 0; --$i) {
             if ($source['reuse_acks'][$i]['snapshot'] === $snapshot) {
@@ -21558,7 +21558,7 @@ private static function run158161(array $operations, array $options = []): array
         return null;
     }
 
-    private static function lastReuseClaim562577(array $source, string $snapshot): ?array
+    private static function lastReuseClaimInitialPublishedReuseSnapshotFence(array $source, string $snapshot): ?array
     {
         for ($i = count($source['reuse_claims']) - 1; $i >= 0; --$i) {
             if ($source['reuse_claims'][$i]['snapshot'] === $snapshot) {
@@ -21568,32 +21568,32 @@ private static function run158161(array $operations, array $options = []): array
         return null;
     }
 
-    private static function sourceFor562577(array $state, mixed $source): string
+    private static function sourceForInitialPublishedReuseSnapshotFence(array $state, mixed $source): string
     {
         if ($source !== null && $source !== '') {
-            return self::token562577((string) $source, 'source name');
+            return self::tokenInitialPublishedReuseSnapshotFence((string) $source, 'source name');
         }
         return is_string($state['current_source']) ? $state['current_source'] : 'main';
     }
 
-    private static function event562577(string $kind, string $status, string $source, array $before, array $next, array $extra): array
+    private static function eventInitialPublishedReuseSnapshotFence(string $kind, string $status, string $source, array $before, array $next, array $extra): array
     {
         return ['kind' => $kind, 'status' => $status, 'source' => $source, 'before' => $before, 'next' => $next] + $extra;
     }
 
-    private static function receiptDigest562577(array $receipts): string
+    private static function receiptDigestInitialPublishedReuseSnapshotFence(array $receipts): string
     {
         $tokens = array_map(static fn (array $receipt): string => (string) $receipt['token'], $receipts);
         return $tokens === [] ? 'empty' : hash('sha256', implode('|', $tokens));
     }
 
-    private static function lastReceiptToken562577(array $source): ?string
+    private static function lastReceiptTokenInitialPublishedReuseSnapshotFence(array $source): ?string
     {
         $last = $source['published'][array_key_last($source['published'])] ?? null;
         return is_array($last) ? (string) $last['token'] : null;
     }
 
-    private static function path562577(string $path): string
+    private static function pathInitialPublishedReuseSnapshotFence(string $path): string
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
@@ -21602,7 +21602,7 @@ private static function run158161(array $operations, array $options = []): array
         return $path;
     }
 
-    private static function token562577(string $token, string $label): string
+    private static function tokenInitialPublishedReuseSnapshotFence(string $token, string $label): string
     {
         $token = trim($token);
         if ($token === '' || preg_match('/^[A-Za-z0-9_.:\/-]+$/', $token) !== 1) {
@@ -21611,7 +21611,7 @@ private static function run158161(array $operations, array $options = []): array
         return $token;
     }
 
-    private static function nonNegativeInt562577(mixed $value, string $label): int
+    private static function nonNegativeIntInitialPublishedReuseSnapshotFence(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
             throw new \InvalidArgumentException('SQLite VFS current-source next562-577 requires non-negative ' . $label);
@@ -21620,7 +21620,7 @@ private static function run158161(array $operations, array $options = []): array
     }
 
     /** @return list<array{page:int, bytes:int, digest:string}> */
-    private static function receiptList562577(mixed $receipts): array
+    private static function receiptListInitialPublishedReuseSnapshotFence(mixed $receipts): array
     {
         $result = [];
         foreach (is_array($receipts) ? $receipts : [] as $receipt) {
@@ -21628,16 +21628,16 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'page' => self::positiveInt562577($receipt['page'] ?? null, 'receipt page'),
-                'bytes' => self::positiveInt562577($receipt['bytes'] ?? null, 'receipt bytes'),
-                'digest' => self::token562577((string) ($receipt['digest'] ?? ''), 'receipt digest'),
+                'page' => self::positiveIntInitialPublishedReuseSnapshotFence($receipt['page'] ?? null, 'receipt page'),
+                'bytes' => self::positiveIntInitialPublishedReuseSnapshotFence($receipt['bytes'] ?? null, 'receipt bytes'),
+                'digest' => self::tokenInitialPublishedReuseSnapshotFence((string) ($receipt['digest'] ?? ''), 'receipt digest'),
             ];
         }
         return $result;
     }
 
     /** @return list<array{token:string, data_version:int}> */
-    private static function receiptMetadataList562577(mixed $receipts): array
+    private static function receiptMetadataListInitialPublishedReuseSnapshotFence(mixed $receipts): array
     {
         $result = [];
         foreach (is_array($receipts) ? $receipts : [] as $receipt) {
@@ -21645,15 +21645,15 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'token' => self::token562577((string) ($receipt['token'] ?? ''), 'receipt token'),
-                'data_version' => self::nonNegativeInt562577($receipt['data_version'] ?? 0, 'receipt data version'),
+                'token' => self::tokenInitialPublishedReuseSnapshotFence((string) ($receipt['token'] ?? ''), 'receipt token'),
+                'data_version' => self::nonNegativeIntInitialPublishedReuseSnapshotFence($receipt['data_version'] ?? 0, 'receipt data version'),
             ];
         }
         return $result;
     }
 
     /** @return list<array{snapshot:string, receipt:string, data_version:int, published_count:int, receipt_digest:string}> */
-    private static function reuseAckList562577(mixed $acks): array
+    private static function reuseAckListInitialPublishedReuseSnapshotFence(mixed $acks): array
     {
         $result = [];
         foreach (is_array($acks) ? $acks : [] as $ack) {
@@ -21661,18 +21661,18 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'snapshot' => self::token562577((string) ($ack['snapshot'] ?? ''), 'reuse ack snapshot'),
-                'receipt' => self::token562577((string) ($ack['receipt'] ?? ''), 'reuse ack receipt'),
-                'data_version' => self::nonNegativeInt562577($ack['data_version'] ?? 0, 'reuse ack data version'),
-                'published_count' => self::nonNegativeInt562577($ack['published_count'] ?? 0, 'reuse ack published count'),
-                'receipt_digest' => self::token562577((string) ($ack['receipt_digest'] ?? 'empty'), 'reuse ack receipt digest'),
+                'snapshot' => self::tokenInitialPublishedReuseSnapshotFence((string) ($ack['snapshot'] ?? ''), 'reuse ack snapshot'),
+                'receipt' => self::tokenInitialPublishedReuseSnapshotFence((string) ($ack['receipt'] ?? ''), 'reuse ack receipt'),
+                'data_version' => self::nonNegativeIntInitialPublishedReuseSnapshotFence($ack['data_version'] ?? 0, 'reuse ack data version'),
+                'published_count' => self::nonNegativeIntInitialPublishedReuseSnapshotFence($ack['published_count'] ?? 0, 'reuse ack published count'),
+                'receipt_digest' => self::tokenInitialPublishedReuseSnapshotFence((string) ($ack['receipt_digest'] ?? 'empty'), 'reuse ack receipt digest'),
             ];
         }
         return $result;
     }
 
     /** @return list<array{token:string, snapshot:string, ack:string, data_version:int, published_count:int, receipt_digest:string}> */
-    private static function reuseClaimList562577(mixed $claims): array
+    private static function reuseClaimListInitialPublishedReuseSnapshotFence(mixed $claims): array
     {
         $result = [];
         foreach (is_array($claims) ? $claims : [] as $claim) {
@@ -21680,18 +21680,18 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'token' => self::token562577((string) ($claim['token'] ?? ''), 'reuse claim token'),
-                'snapshot' => self::token562577((string) ($claim['snapshot'] ?? ''), 'reuse claim snapshot'),
-                'ack' => self::token562577((string) ($claim['ack'] ?? ''), 'reuse claim ack'),
-                'data_version' => self::nonNegativeInt562577($claim['data_version'] ?? 0, 'reuse claim data version'),
-                'published_count' => self::nonNegativeInt562577($claim['published_count'] ?? 0, 'reuse claim published count'),
-                'receipt_digest' => self::token562577((string) ($claim['receipt_digest'] ?? 'empty'), 'reuse claim receipt digest'),
+                'token' => self::tokenInitialPublishedReuseSnapshotFence((string) ($claim['token'] ?? ''), 'reuse claim token'),
+                'snapshot' => self::tokenInitialPublishedReuseSnapshotFence((string) ($claim['snapshot'] ?? ''), 'reuse claim snapshot'),
+                'ack' => self::tokenInitialPublishedReuseSnapshotFence((string) ($claim['ack'] ?? ''), 'reuse claim ack'),
+                'data_version' => self::nonNegativeIntInitialPublishedReuseSnapshotFence($claim['data_version'] ?? 0, 'reuse claim data version'),
+                'published_count' => self::nonNegativeIntInitialPublishedReuseSnapshotFence($claim['published_count'] ?? 0, 'reuse claim published count'),
+                'receipt_digest' => self::tokenInitialPublishedReuseSnapshotFence((string) ($claim['receipt_digest'] ?? 'empty'), 'reuse claim receipt digest'),
             ];
         }
         return $result;
     }
 
-    private static function positiveInt562577(mixed $value, string $label): int
+    private static function positiveIntInitialPublishedReuseSnapshotFence(mixed $value, string $label): int
     {
         if (!is_int($value) || $value <= 0) {
             throw new \InvalidArgumentException('SQLite VFS current-source next562-577 requires positive ' . $label);
@@ -21705,52 +21705,52 @@ private static function run158161(array $operations, array $options = []): array
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run578593(array $operations, array $options = []): array
+    private static function runPriorPublishedReuseSnapshotFence(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next578-593 requires operations');
         }
 
-        $state = self::hydrate578593($options['current'] ?? []);
-        $current = self::summary578593($state);
+        $state = self::hydratePriorPublishedReuseSnapshotFence($options['current'] ?? []);
+        $current = self::summaryPriorPublishedReuseSnapshotFence($state);
         $events = [];
 
         foreach ($operations as $operation) {
-            $op = self::operation578593($operation);
-            $source = self::sourceFor578593($state, $op['source'] ?? null);
-            $before = self::summary578593($state);
+            $op = self::operationPriorPublishedReuseSnapshotFence($operation);
+            $source = self::sourceForPriorPublishedReuseSnapshotFence($state, $op['source'] ?? null);
+            $before = self::summaryPriorPublishedReuseSnapshotFence($state);
 
             if ($op['kind'] === 'snapshot') {
-                $events[] = self::snapshot578593(
+                $events[] = self::snapshotPriorPublishedReuseSnapshotFence(
                     $state,
                     $source,
-                    self::token578593((string) ($op['snapshot'] ?? ''), 'snapshot name'),
-                    self::token578593((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
+                    self::tokenPriorPublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name'),
+                    self::tokenPriorPublishedReuseSnapshotFence((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
                     $before
                 );
                 continue;
             }
 
             if ($op['kind'] === 'claim') {
-                $snapshot = self::token578593((string) ($op['snapshot'] ?? ''), 'snapshot name');
-                $events[] = self::claim578593(
+                $snapshot = self::tokenPriorPublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name');
+                $events[] = self::claimPriorPublishedReuseSnapshotFence(
                     $state,
                     $source,
                     $snapshot,
-                    self::token578593((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
-                    self::token578593((string) ($op['claim'] ?? $snapshot . '-claim'), 'reuse claim'),
+                    self::tokenPriorPublishedReuseSnapshotFence((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
+                    self::tokenPriorPublishedReuseSnapshotFence((string) ($op['claim'] ?? $snapshot . '-claim'), 'reuse claim'),
                     $before
                 );
                 continue;
             }
 
             if ($op['kind'] === 'publish') {
-                $events[] = self::publish578593(
+                $events[] = self::publishPriorPublishedReuseSnapshotFence(
                     $state,
                     $source,
-                    self::token578593((string) ($op['snapshot'] ?? ''), 'snapshot name'),
-                    self::token578593((string) ($op['claim'] ?? ''), 'reuse claim'),
-                    self::token578593((string) ($op['token'] ?? 'publish'), 'publish token'),
+                    self::tokenPriorPublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name'),
+                    self::tokenPriorPublishedReuseSnapshotFence((string) ($op['claim'] ?? ''), 'reuse claim'),
+                    self::tokenPriorPublishedReuseSnapshotFence((string) ($op['token'] ?? 'publish'), 'publish token'),
                     $before
                 );
                 continue;
@@ -21762,7 +21762,7 @@ private static function run158161(array $operations, array $options = []): array
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => $current,
-            'next' => self::summary578593($state),
+            'next' => self::summaryPriorPublishedReuseSnapshotFence($state),
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-snapshot-reuse-next206-209',
@@ -21801,10 +21801,10 @@ private static function run158161(array $operations, array $options = []): array
         ];
     }
 
-    private static function snapshot578593(array &$state, string $source, string $snapshot, string $ack, array $before): array
+    private static function snapshotPriorPublishedReuseSnapshotFence(array &$state, string $source, string $snapshot, string $ack, array $before): array
     {
         if (!isset($state['sources'][$source])) {
-            return self::event578593('snapshot', 'missing-source', $source, $before, self::summary578593($state), [
+            return self::eventPriorPublishedReuseSnapshotFence('snapshot', 'missing-source', $source, $before, self::summaryPriorPublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'ack' => $ack,
             ]);
@@ -21818,7 +21818,7 @@ private static function run158161(array $operations, array $options = []): array
         if ($sourceState['dirty_pages'] !== []) {
             $blockers[] = 'dirty-pages-present';
         }
-        if (self::lastReceiptToken578593($sourceState) !== $ack) {
+        if (self::lastReceiptTokenPriorPublishedReuseSnapshotFence($sourceState) !== $ack) {
             $blockers[] = 'ack-not-latest-publish';
         }
         if (isset($state['snapshots'][$snapshot])) {
@@ -21833,18 +21833,18 @@ private static function run158161(array $operations, array $options = []): array
                 'owner' => $sourceState['owner'],
                 'data_version' => $sourceState['data_version'],
                 'published_count' => count($sourceState['published']),
-                'receipt_digest' => self::receiptDigest578593($sourceState['published']),
+                'receipt_digest' => self::receiptDigestPriorPublishedReuseSnapshotFence($sourceState['published']),
             ];
             $state['sources'][$source]['reuse_acks'][] = [
                 'snapshot' => $snapshot,
                 'receipt' => $ack,
                 'data_version' => $sourceState['data_version'],
                 'published_count' => count($sourceState['published']),
-                'receipt_digest' => self::receiptDigest578593($sourceState['published']),
+                'receipt_digest' => self::receiptDigestPriorPublishedReuseSnapshotFence($sourceState['published']),
             ];
         }
 
-        return self::event578593('snapshot', $blockers === [] ? 'snapshotted-current-source' : 'blocked-stale', $source, $before, self::summary578593($state), [
+        return self::eventPriorPublishedReuseSnapshotFence('snapshot', $blockers === [] ? 'snapshotted-current-source' : 'blocked-stale', $source, $before, self::summaryPriorPublishedReuseSnapshotFence($state), [
             'snapshot' => $snapshot,
             'ack' => $ack,
             'blocked_reasons' => $blockers,
@@ -21852,10 +21852,10 @@ private static function run158161(array $operations, array $options = []): array
         ]);
     }
 
-    private static function claim578593(array &$state, string $source, string $snapshot, string $ack, string $claim, array $before): array
+    private static function claimPriorPublishedReuseSnapshotFence(array &$state, string $source, string $snapshot, string $ack, string $claim, array $before): array
     {
         if (!isset($state['sources'][$source]) || !isset($state['snapshots'][$snapshot])) {
-            return self::event578593('claim', 'missing-source-or-snapshot', $source, $before, self::summary578593($state), [
+            return self::eventPriorPublishedReuseSnapshotFence('claim', 'missing-source-or-snapshot', $source, $before, self::summaryPriorPublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'ack' => $ack,
                 'claim' => $claim,
@@ -21864,8 +21864,8 @@ private static function run158161(array $operations, array $options = []): array
 
         $sourceState = $state['sources'][$source];
         $snapshotState = $state['snapshots'][$snapshot];
-        $blockers = self::reuseBlockers578593($snapshotState, $sourceState);
-        $ackState = self::lastReuseAck578593($sourceState, $snapshot);
+        $blockers = self::reuseBlockersPriorPublishedReuseSnapshotFence($snapshotState, $sourceState);
+        $ackState = self::lastReuseAckPriorPublishedReuseSnapshotFence($sourceState, $snapshot);
         if ($ackState === null || $ackState['receipt'] !== $ack) {
             $blockers[] = 'missing-reuse-ack';
         } elseif (
@@ -21883,11 +21883,11 @@ private static function run158161(array $operations, array $options = []): array
                 'ack' => $ack,
                 'data_version' => $sourceState['data_version'],
                 'published_count' => count($sourceState['published']),
-                'receipt_digest' => self::receiptDigest578593($sourceState['published']),
+                'receipt_digest' => self::receiptDigestPriorPublishedReuseSnapshotFence($sourceState['published']),
             ];
         }
 
-        return self::event578593('claim', $blockers === [] ? 'claimed-reusable-current-source' : 'blocked-stale', $source, $before, self::summary578593($state), [
+        return self::eventPriorPublishedReuseSnapshotFence('claim', $blockers === [] ? 'claimed-reusable-current-source' : 'blocked-stale', $source, $before, self::summaryPriorPublishedReuseSnapshotFence($state), [
             'snapshot' => $snapshot,
             'ack' => $ack,
             'claim' => $claim,
@@ -21896,10 +21896,10 @@ private static function run158161(array $operations, array $options = []): array
         ]);
     }
 
-    private static function publish578593(array &$state, string $source, string $snapshot, string $claim, string $token, array $before): array
+    private static function publishPriorPublishedReuseSnapshotFence(array &$state, string $source, string $snapshot, string $claim, string $token, array $before): array
     {
         if (!isset($state['sources'][$source]) || !isset($state['snapshots'][$snapshot])) {
-            return self::event578593('publish', 'missing-source-or-snapshot', $source, $before, self::summary578593($state), [
+            return self::eventPriorPublishedReuseSnapshotFence('publish', 'missing-source-or-snapshot', $source, $before, self::summaryPriorPublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'claim' => $claim,
                 'token' => $token,
@@ -21908,20 +21908,20 @@ private static function run158161(array $operations, array $options = []): array
 
         $sourceState = $state['sources'][$source];
         $snapshotState = $state['snapshots'][$snapshot];
-        $blockers = self::reuseBlockers578593($snapshotState, $sourceState);
-        $claimState = self::lastReuseClaim578593($sourceState, $snapshot);
+        $blockers = self::reuseBlockersPriorPublishedReuseSnapshotFence($snapshotState, $sourceState);
+        $claimState = self::lastReuseClaimPriorPublishedReuseSnapshotFence($sourceState, $snapshot);
         if ($claimState === null || $claimState['token'] !== $claim) {
             $blockers[] = 'missing-reuse-claim';
         } elseif (
             $claimState['data_version'] !== $sourceState['data_version']
             || $claimState['published_count'] !== count($sourceState['published'])
-            || $claimState['receipt_digest'] !== self::receiptDigest578593($sourceState['published'])
+            || $claimState['receipt_digest'] !== self::receiptDigestPriorPublishedReuseSnapshotFence($sourceState['published'])
         ) {
             $blockers[] = 'stale-reuse-claim';
         }
 
         if ($blockers !== []) {
-            return self::event578593('publish', 'blocked-stale', $source, $before, self::summary578593($state), [
+            return self::eventPriorPublishedReuseSnapshotFence('publish', 'blocked-stale', $source, $before, self::summaryPriorPublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'claim' => $claim,
                 'token' => $token,
@@ -21937,7 +21937,7 @@ private static function run158161(array $operations, array $options = []): array
             'reuse_ack' => $claimState['ack'],
         ];
 
-        return self::event578593('publish', 'published-reused-current-source', $source, $before, self::summary578593($state), [
+        return self::eventPriorPublishedReuseSnapshotFence('publish', 'published-reused-current-source', $source, $before, self::summaryPriorPublishedReuseSnapshotFence($state), [
             'snapshot' => $snapshot,
             'claim' => $claim,
             'token' => $token,
@@ -21946,7 +21946,7 @@ private static function run158161(array $operations, array $options = []): array
         ]);
     }
 
-    private static function hydrate578593(mixed $current): array
+    private static function hydratePriorPublishedReuseSnapshotFence(mixed $current): array
     {
         $state = ['current_source' => null, 'sources' => [], 'snapshots' => []];
         if (!is_array($current)) {
@@ -21957,17 +21957,17 @@ private static function run158161(array $operations, array $options = []): array
             if (!is_array($source)) {
                 continue;
             }
-            $sourceName = self::token578593((string) $name, 'source name');
+            $sourceName = self::tokenPriorPublishedReuseSnapshotFence((string) $name, 'source name');
             $state['sources'][$sourceName] = [
-                'handle' => self::token578593((string) ($source['handle'] ?? $sourceName), 'handle'),
-                'path' => self::path578593((string) ($source['path'] ?? '')),
-                'owner' => self::path578593((string) ($source['owner'] ?? $source['path'] ?? '')),
+                'handle' => self::tokenPriorPublishedReuseSnapshotFence((string) ($source['handle'] ?? $sourceName), 'handle'),
+                'path' => self::pathPriorPublishedReuseSnapshotFence((string) ($source['path'] ?? '')),
+                'owner' => self::pathPriorPublishedReuseSnapshotFence((string) ($source['owner'] ?? $source['path'] ?? '')),
                 'closed' => (bool) ($source['closed'] ?? false),
-                'data_version' => self::nonNegativeInt578593($source['data_version'] ?? 0, 'data version'),
-                'dirty_pages' => self::receiptList578593($source['dirty_pages'] ?? []),
-                'published' => self::receiptMetadataList578593($source['published'] ?? []),
-                'reuse_acks' => self::reuseAckList578593($source['reuse_acks'] ?? []),
-                'reuse_claims' => self::reuseClaimList578593($source['reuse_claims'] ?? []),
+                'data_version' => self::nonNegativeIntPriorPublishedReuseSnapshotFence($source['data_version'] ?? 0, 'data version'),
+                'dirty_pages' => self::receiptListPriorPublishedReuseSnapshotFence($source['dirty_pages'] ?? []),
+                'published' => self::receiptMetadataListPriorPublishedReuseSnapshotFence($source['published'] ?? []),
+                'reuse_acks' => self::reuseAckListPriorPublishedReuseSnapshotFence($source['reuse_acks'] ?? []),
+                'reuse_claims' => self::reuseClaimListPriorPublishedReuseSnapshotFence($source['reuse_claims'] ?? []),
             ];
         }
 
@@ -21975,24 +21975,24 @@ private static function run158161(array $operations, array $options = []): array
             if (!is_array($snapshot)) {
                 continue;
             }
-            $state['snapshots'][self::token578593((string) $name, 'snapshot name')] = [
-                'source' => self::token578593((string) ($snapshot['source'] ?? 'main'), 'snapshot source'),
-                'handle' => self::token578593((string) ($snapshot['handle'] ?? $name), 'snapshot handle'),
-                'path' => self::path578593((string) ($snapshot['path'] ?? '')),
-                'owner' => self::path578593((string) ($snapshot['owner'] ?? $snapshot['path'] ?? '')),
-                'data_version' => self::nonNegativeInt578593($snapshot['data_version'] ?? 0, 'snapshot data version'),
-                'published_count' => self::nonNegativeInt578593($snapshot['published_count'] ?? 0, 'snapshot published count'),
-                'receipt_digest' => self::token578593((string) ($snapshot['receipt_digest'] ?? 'empty'), 'receipt digest'),
+            $state['snapshots'][self::tokenPriorPublishedReuseSnapshotFence((string) $name, 'snapshot name')] = [
+                'source' => self::tokenPriorPublishedReuseSnapshotFence((string) ($snapshot['source'] ?? 'main'), 'snapshot source'),
+                'handle' => self::tokenPriorPublishedReuseSnapshotFence((string) ($snapshot['handle'] ?? $name), 'snapshot handle'),
+                'path' => self::pathPriorPublishedReuseSnapshotFence((string) ($snapshot['path'] ?? '')),
+                'owner' => self::pathPriorPublishedReuseSnapshotFence((string) ($snapshot['owner'] ?? $snapshot['path'] ?? '')),
+                'data_version' => self::nonNegativeIntPriorPublishedReuseSnapshotFence($snapshot['data_version'] ?? 0, 'snapshot data version'),
+                'published_count' => self::nonNegativeIntPriorPublishedReuseSnapshotFence($snapshot['published_count'] ?? 0, 'snapshot published count'),
+                'receipt_digest' => self::tokenPriorPublishedReuseSnapshotFence((string) ($snapshot['receipt_digest'] ?? 'empty'), 'receipt digest'),
             ];
         }
 
         if (isset($current['current_source'])) {
-            $state['current_source'] = self::token578593((string) $current['current_source'], 'current source');
+            $state['current_source'] = self::tokenPriorPublishedReuseSnapshotFence((string) $current['current_source'], 'current source');
         }
         return $state;
     }
 
-    private static function operation578593(string|array $operation): array
+    private static function operationPriorPublishedReuseSnapshotFence(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -22017,7 +22017,7 @@ private static function run158161(array $operations, array $options = []): array
         throw new \InvalidArgumentException('SQLite VFS current-source next578-593 operation is unsupported');
     }
 
-    private static function summary578593(array $state): array
+    private static function summaryPriorPublishedReuseSnapshotFence(array $state): array
     {
         return [
             'current_source' => $state['current_source'],
@@ -22029,7 +22029,7 @@ private static function run158161(array $operations, array $options = []): array
     }
 
     /** @return list<string> */
-    private static function reuseBlockers578593(array $snapshot, array $source): array
+    private static function reuseBlockersPriorPublishedReuseSnapshotFence(array $snapshot, array $source): array
     {
         $blockers = [];
         foreach (['handle', 'path', 'owner', 'data_version'] as $key) {
@@ -22040,7 +22040,7 @@ private static function run158161(array $operations, array $options = []): array
         if ($snapshot['published_count'] !== count($source['published'])) {
             $blockers[] = 'published-count-changed';
         }
-        if ($snapshot['receipt_digest'] !== self::receiptDigest578593($source['published'])) {
+        if ($snapshot['receipt_digest'] !== self::receiptDigestPriorPublishedReuseSnapshotFence($source['published'])) {
             $blockers[] = 'publish-receipt-digest-changed';
         }
         if ($source['dirty_pages'] !== []) {
@@ -22049,7 +22049,7 @@ private static function run158161(array $operations, array $options = []): array
         return $blockers;
     }
 
-    private static function lastReuseAck578593(array $source, string $snapshot): ?array
+    private static function lastReuseAckPriorPublishedReuseSnapshotFence(array $source, string $snapshot): ?array
     {
         for ($i = count($source['reuse_acks']) - 1; $i >= 0; --$i) {
             if ($source['reuse_acks'][$i]['snapshot'] === $snapshot) {
@@ -22059,7 +22059,7 @@ private static function run158161(array $operations, array $options = []): array
         return null;
     }
 
-    private static function lastReuseClaim578593(array $source, string $snapshot): ?array
+    private static function lastReuseClaimPriorPublishedReuseSnapshotFence(array $source, string $snapshot): ?array
     {
         for ($i = count($source['reuse_claims']) - 1; $i >= 0; --$i) {
             if ($source['reuse_claims'][$i]['snapshot'] === $snapshot) {
@@ -22069,32 +22069,32 @@ private static function run158161(array $operations, array $options = []): array
         return null;
     }
 
-    private static function sourceFor578593(array $state, mixed $source): string
+    private static function sourceForPriorPublishedReuseSnapshotFence(array $state, mixed $source): string
     {
         if ($source !== null && $source !== '') {
-            return self::token578593((string) $source, 'source name');
+            return self::tokenPriorPublishedReuseSnapshotFence((string) $source, 'source name');
         }
         return is_string($state['current_source']) ? $state['current_source'] : 'main';
     }
 
-    private static function event578593(string $kind, string $status, string $source, array $before, array $next, array $extra): array
+    private static function eventPriorPublishedReuseSnapshotFence(string $kind, string $status, string $source, array $before, array $next, array $extra): array
     {
         return ['kind' => $kind, 'status' => $status, 'source' => $source, 'before' => $before, 'next' => $next] + $extra;
     }
 
-    private static function receiptDigest578593(array $receipts): string
+    private static function receiptDigestPriorPublishedReuseSnapshotFence(array $receipts): string
     {
         $tokens = array_map(static fn (array $receipt): string => (string) $receipt['token'], $receipts);
         return $tokens === [] ? 'empty' : hash('sha256', implode('|', $tokens));
     }
 
-    private static function lastReceiptToken578593(array $source): ?string
+    private static function lastReceiptTokenPriorPublishedReuseSnapshotFence(array $source): ?string
     {
         $last = $source['published'][array_key_last($source['published'])] ?? null;
         return is_array($last) ? (string) $last['token'] : null;
     }
 
-    private static function path578593(string $path): string
+    private static function pathPriorPublishedReuseSnapshotFence(string $path): string
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
@@ -22103,7 +22103,7 @@ private static function run158161(array $operations, array $options = []): array
         return $path;
     }
 
-    private static function token578593(string $token, string $label): string
+    private static function tokenPriorPublishedReuseSnapshotFence(string $token, string $label): string
     {
         $token = trim($token);
         if ($token === '' || preg_match('/^[A-Za-z0-9_.:\/-]+$/', $token) !== 1) {
@@ -22112,7 +22112,7 @@ private static function run158161(array $operations, array $options = []): array
         return $token;
     }
 
-    private static function nonNegativeInt578593(mixed $value, string $label): int
+    private static function nonNegativeIntPriorPublishedReuseSnapshotFence(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
             throw new \InvalidArgumentException('SQLite VFS current-source next578-593 requires non-negative ' . $label);
@@ -22121,7 +22121,7 @@ private static function run158161(array $operations, array $options = []): array
     }
 
     /** @return list<array{page:int, bytes:int, digest:string}> */
-    private static function receiptList578593(mixed $receipts): array
+    private static function receiptListPriorPublishedReuseSnapshotFence(mixed $receipts): array
     {
         $result = [];
         foreach (is_array($receipts) ? $receipts : [] as $receipt) {
@@ -22129,16 +22129,16 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'page' => self::positiveInt578593($receipt['page'] ?? null, 'receipt page'),
-                'bytes' => self::positiveInt578593($receipt['bytes'] ?? null, 'receipt bytes'),
-                'digest' => self::token578593((string) ($receipt['digest'] ?? ''), 'receipt digest'),
+                'page' => self::positiveIntPriorPublishedReuseSnapshotFence($receipt['page'] ?? null, 'receipt page'),
+                'bytes' => self::positiveIntPriorPublishedReuseSnapshotFence($receipt['bytes'] ?? null, 'receipt bytes'),
+                'digest' => self::tokenPriorPublishedReuseSnapshotFence((string) ($receipt['digest'] ?? ''), 'receipt digest'),
             ];
         }
         return $result;
     }
 
     /** @return list<array{token:string, data_version:int}> */
-    private static function receiptMetadataList578593(mixed $receipts): array
+    private static function receiptMetadataListPriorPublishedReuseSnapshotFence(mixed $receipts): array
     {
         $result = [];
         foreach (is_array($receipts) ? $receipts : [] as $receipt) {
@@ -22146,15 +22146,15 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'token' => self::token578593((string) ($receipt['token'] ?? ''), 'receipt token'),
-                'data_version' => self::nonNegativeInt578593($receipt['data_version'] ?? 0, 'receipt data version'),
+                'token' => self::tokenPriorPublishedReuseSnapshotFence((string) ($receipt['token'] ?? ''), 'receipt token'),
+                'data_version' => self::nonNegativeIntPriorPublishedReuseSnapshotFence($receipt['data_version'] ?? 0, 'receipt data version'),
             ];
         }
         return $result;
     }
 
     /** @return list<array{snapshot:string, receipt:string, data_version:int, published_count:int, receipt_digest:string}> */
-    private static function reuseAckList578593(mixed $acks): array
+    private static function reuseAckListPriorPublishedReuseSnapshotFence(mixed $acks): array
     {
         $result = [];
         foreach (is_array($acks) ? $acks : [] as $ack) {
@@ -22162,18 +22162,18 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'snapshot' => self::token578593((string) ($ack['snapshot'] ?? ''), 'reuse ack snapshot'),
-                'receipt' => self::token578593((string) ($ack['receipt'] ?? ''), 'reuse ack receipt'),
-                'data_version' => self::nonNegativeInt578593($ack['data_version'] ?? 0, 'reuse ack data version'),
-                'published_count' => self::nonNegativeInt578593($ack['published_count'] ?? 0, 'reuse ack published count'),
-                'receipt_digest' => self::token578593((string) ($ack['receipt_digest'] ?? 'empty'), 'reuse ack receipt digest'),
+                'snapshot' => self::tokenPriorPublishedReuseSnapshotFence((string) ($ack['snapshot'] ?? ''), 'reuse ack snapshot'),
+                'receipt' => self::tokenPriorPublishedReuseSnapshotFence((string) ($ack['receipt'] ?? ''), 'reuse ack receipt'),
+                'data_version' => self::nonNegativeIntPriorPublishedReuseSnapshotFence($ack['data_version'] ?? 0, 'reuse ack data version'),
+                'published_count' => self::nonNegativeIntPriorPublishedReuseSnapshotFence($ack['published_count'] ?? 0, 'reuse ack published count'),
+                'receipt_digest' => self::tokenPriorPublishedReuseSnapshotFence((string) ($ack['receipt_digest'] ?? 'empty'), 'reuse ack receipt digest'),
             ];
         }
         return $result;
     }
 
     /** @return list<array{token:string, snapshot:string, ack:string, data_version:int, published_count:int, receipt_digest:string}> */
-    private static function reuseClaimList578593(mixed $claims): array
+    private static function reuseClaimListPriorPublishedReuseSnapshotFence(mixed $claims): array
     {
         $result = [];
         foreach (is_array($claims) ? $claims : [] as $claim) {
@@ -22181,18 +22181,18 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'token' => self::token578593((string) ($claim['token'] ?? ''), 'reuse claim token'),
-                'snapshot' => self::token578593((string) ($claim['snapshot'] ?? ''), 'reuse claim snapshot'),
-                'ack' => self::token578593((string) ($claim['ack'] ?? ''), 'reuse claim ack'),
-                'data_version' => self::nonNegativeInt578593($claim['data_version'] ?? 0, 'reuse claim data version'),
-                'published_count' => self::nonNegativeInt578593($claim['published_count'] ?? 0, 'reuse claim published count'),
-                'receipt_digest' => self::token578593((string) ($claim['receipt_digest'] ?? 'empty'), 'reuse claim receipt digest'),
+                'token' => self::tokenPriorPublishedReuseSnapshotFence((string) ($claim['token'] ?? ''), 'reuse claim token'),
+                'snapshot' => self::tokenPriorPublishedReuseSnapshotFence((string) ($claim['snapshot'] ?? ''), 'reuse claim snapshot'),
+                'ack' => self::tokenPriorPublishedReuseSnapshotFence((string) ($claim['ack'] ?? ''), 'reuse claim ack'),
+                'data_version' => self::nonNegativeIntPriorPublishedReuseSnapshotFence($claim['data_version'] ?? 0, 'reuse claim data version'),
+                'published_count' => self::nonNegativeIntPriorPublishedReuseSnapshotFence($claim['published_count'] ?? 0, 'reuse claim published count'),
+                'receipt_digest' => self::tokenPriorPublishedReuseSnapshotFence((string) ($claim['receipt_digest'] ?? 'empty'), 'reuse claim receipt digest'),
             ];
         }
         return $result;
     }
 
-    private static function positiveInt578593(mixed $value, string $label): int
+    private static function positiveIntPriorPublishedReuseSnapshotFence(mixed $value, string $label): int
     {
         if (!is_int($value) || $value <= 0) {
             throw new \InvalidArgumentException('SQLite VFS current-source next578-593 requires positive ' . $label);
@@ -22206,52 +22206,52 @@ private static function run158161(array $operations, array $options = []): array
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run594609(array $operations, array $options = []): array
+    private static function runPrePublishedReuseSnapshotFence(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next594-609 requires operations');
         }
 
-        $state = self::hydrate594609($options['current'] ?? []);
-        $current = self::summary594609($state);
+        $state = self::hydratePrePublishedReuseSnapshotFence($options['current'] ?? []);
+        $current = self::summaryPrePublishedReuseSnapshotFence($state);
         $events = [];
 
         foreach ($operations as $operation) {
-            $op = self::operation594609($operation);
-            $source = self::sourceFor594609($state, $op['source'] ?? null);
-            $before = self::summary594609($state);
+            $op = self::operationPrePublishedReuseSnapshotFence($operation);
+            $source = self::sourceForPrePublishedReuseSnapshotFence($state, $op['source'] ?? null);
+            $before = self::summaryPrePublishedReuseSnapshotFence($state);
 
             if ($op['kind'] === 'snapshot') {
-                $events[] = self::snapshot594609(
+                $events[] = self::snapshotPrePublishedReuseSnapshotFence(
                     $state,
                     $source,
-                    self::token594609((string) ($op['snapshot'] ?? ''), 'snapshot name'),
-                    self::token594609((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
+                    self::tokenPrePublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name'),
+                    self::tokenPrePublishedReuseSnapshotFence((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
                     $before
                 );
                 continue;
             }
 
             if ($op['kind'] === 'claim') {
-                $snapshot = self::token594609((string) ($op['snapshot'] ?? ''), 'snapshot name');
-                $events[] = self::claim594609(
+                $snapshot = self::tokenPrePublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name');
+                $events[] = self::claimPrePublishedReuseSnapshotFence(
                     $state,
                     $source,
                     $snapshot,
-                    self::token594609((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
-                    self::token594609((string) ($op['claim'] ?? $snapshot . '-claim'), 'reuse claim'),
+                    self::tokenPrePublishedReuseSnapshotFence((string) ($op['ack'] ?? ''), 'reuse acknowledgement'),
+                    self::tokenPrePublishedReuseSnapshotFence((string) ($op['claim'] ?? $snapshot . '-claim'), 'reuse claim'),
                     $before
                 );
                 continue;
             }
 
             if ($op['kind'] === 'publish') {
-                $events[] = self::publish594609(
+                $events[] = self::publishPrePublishedReuseSnapshotFence(
                     $state,
                     $source,
-                    self::token594609((string) ($op['snapshot'] ?? ''), 'snapshot name'),
-                    self::token594609((string) ($op['claim'] ?? ''), 'reuse claim'),
-                    self::token594609((string) ($op['token'] ?? 'publish'), 'publish token'),
+                    self::tokenPrePublishedReuseSnapshotFence((string) ($op['snapshot'] ?? ''), 'snapshot name'),
+                    self::tokenPrePublishedReuseSnapshotFence((string) ($op['claim'] ?? ''), 'reuse claim'),
+                    self::tokenPrePublishedReuseSnapshotFence((string) ($op['token'] ?? 'publish'), 'publish token'),
                     $before
                 );
                 continue;
@@ -22263,7 +22263,7 @@ private static function run158161(array $operations, array $options = []): array
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => $current,
-            'next' => self::summary594609($state),
+            'next' => self::summaryPrePublishedReuseSnapshotFence($state),
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-snapshot-reuse-next206-209',
@@ -22303,10 +22303,10 @@ private static function run158161(array $operations, array $options = []): array
         ];
     }
 
-    private static function snapshot594609(array &$state, string $source, string $snapshot, string $ack, array $before): array
+    private static function snapshotPrePublishedReuseSnapshotFence(array &$state, string $source, string $snapshot, string $ack, array $before): array
     {
         if (!isset($state['sources'][$source])) {
-            return self::event594609('snapshot', 'missing-source', $source, $before, self::summary594609($state), [
+            return self::eventPrePublishedReuseSnapshotFence('snapshot', 'missing-source', $source, $before, self::summaryPrePublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'ack' => $ack,
             ]);
@@ -22320,7 +22320,7 @@ private static function run158161(array $operations, array $options = []): array
         if ($sourceState['dirty_pages'] !== []) {
             $blockers[] = 'dirty-pages-present';
         }
-        if (self::lastReceiptToken594609($sourceState) !== $ack) {
+        if (self::lastReceiptTokenPrePublishedReuseSnapshotFence($sourceState) !== $ack) {
             $blockers[] = 'ack-not-latest-publish';
         }
         if (isset($state['snapshots'][$snapshot])) {
@@ -22335,18 +22335,18 @@ private static function run158161(array $operations, array $options = []): array
                 'owner' => $sourceState['owner'],
                 'data_version' => $sourceState['data_version'],
                 'published_count' => count($sourceState['published']),
-                'receipt_digest' => self::receiptDigest594609($sourceState['published']),
+                'receipt_digest' => self::receiptDigestPrePublishedReuseSnapshotFence($sourceState['published']),
             ];
             $state['sources'][$source]['reuse_acks'][] = [
                 'snapshot' => $snapshot,
                 'receipt' => $ack,
                 'data_version' => $sourceState['data_version'],
                 'published_count' => count($sourceState['published']),
-                'receipt_digest' => self::receiptDigest594609($sourceState['published']),
+                'receipt_digest' => self::receiptDigestPrePublishedReuseSnapshotFence($sourceState['published']),
             ];
         }
 
-        return self::event594609('snapshot', $blockers === [] ? 'snapshotted-current-source' : 'blocked-stale', $source, $before, self::summary594609($state), [
+        return self::eventPrePublishedReuseSnapshotFence('snapshot', $blockers === [] ? 'snapshotted-current-source' : 'blocked-stale', $source, $before, self::summaryPrePublishedReuseSnapshotFence($state), [
             'snapshot' => $snapshot,
             'ack' => $ack,
             'blocked_reasons' => $blockers,
@@ -22354,10 +22354,10 @@ private static function run158161(array $operations, array $options = []): array
         ]);
     }
 
-    private static function claim594609(array &$state, string $source, string $snapshot, string $ack, string $claim, array $before): array
+    private static function claimPrePublishedReuseSnapshotFence(array &$state, string $source, string $snapshot, string $ack, string $claim, array $before): array
     {
         if (!isset($state['sources'][$source]) || !isset($state['snapshots'][$snapshot])) {
-            return self::event594609('claim', 'missing-source-or-snapshot', $source, $before, self::summary594609($state), [
+            return self::eventPrePublishedReuseSnapshotFence('claim', 'missing-source-or-snapshot', $source, $before, self::summaryPrePublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'ack' => $ack,
                 'claim' => $claim,
@@ -22366,8 +22366,8 @@ private static function run158161(array $operations, array $options = []): array
 
         $sourceState = $state['sources'][$source];
         $snapshotState = $state['snapshots'][$snapshot];
-        $blockers = self::reuseBlockers594609($snapshotState, $sourceState);
-        $ackState = self::lastReuseAck594609($sourceState, $snapshot);
+        $blockers = self::reuseBlockersPrePublishedReuseSnapshotFence($snapshotState, $sourceState);
+        $ackState = self::lastReuseAckPrePublishedReuseSnapshotFence($sourceState, $snapshot);
         if ($ackState === null || $ackState['receipt'] !== $ack) {
             $blockers[] = 'missing-reuse-ack';
         } elseif (
@@ -22385,11 +22385,11 @@ private static function run158161(array $operations, array $options = []): array
                 'ack' => $ack,
                 'data_version' => $sourceState['data_version'],
                 'published_count' => count($sourceState['published']),
-                'receipt_digest' => self::receiptDigest594609($sourceState['published']),
+                'receipt_digest' => self::receiptDigestPrePublishedReuseSnapshotFence($sourceState['published']),
             ];
         }
 
-        return self::event594609('claim', $blockers === [] ? 'claimed-reusable-current-source' : 'blocked-stale', $source, $before, self::summary594609($state), [
+        return self::eventPrePublishedReuseSnapshotFence('claim', $blockers === [] ? 'claimed-reusable-current-source' : 'blocked-stale', $source, $before, self::summaryPrePublishedReuseSnapshotFence($state), [
             'snapshot' => $snapshot,
             'ack' => $ack,
             'claim' => $claim,
@@ -22398,10 +22398,10 @@ private static function run158161(array $operations, array $options = []): array
         ]);
     }
 
-    private static function publish594609(array &$state, string $source, string $snapshot, string $claim, string $token, array $before): array
+    private static function publishPrePublishedReuseSnapshotFence(array &$state, string $source, string $snapshot, string $claim, string $token, array $before): array
     {
         if (!isset($state['sources'][$source]) || !isset($state['snapshots'][$snapshot])) {
-            return self::event594609('publish', 'missing-source-or-snapshot', $source, $before, self::summary594609($state), [
+            return self::eventPrePublishedReuseSnapshotFence('publish', 'missing-source-or-snapshot', $source, $before, self::summaryPrePublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'claim' => $claim,
                 'token' => $token,
@@ -22410,20 +22410,20 @@ private static function run158161(array $operations, array $options = []): array
 
         $sourceState = $state['sources'][$source];
         $snapshotState = $state['snapshots'][$snapshot];
-        $blockers = self::reuseBlockers594609($snapshotState, $sourceState);
-        $claimState = self::lastReuseClaim594609($sourceState, $snapshot);
+        $blockers = self::reuseBlockersPrePublishedReuseSnapshotFence($snapshotState, $sourceState);
+        $claimState = self::lastReuseClaimPrePublishedReuseSnapshotFence($sourceState, $snapshot);
         if ($claimState === null || $claimState['token'] !== $claim) {
             $blockers[] = 'missing-reuse-claim';
         } elseif (
             $claimState['data_version'] !== $sourceState['data_version']
             || $claimState['published_count'] !== count($sourceState['published'])
-            || $claimState['receipt_digest'] !== self::receiptDigest594609($sourceState['published'])
+            || $claimState['receipt_digest'] !== self::receiptDigestPrePublishedReuseSnapshotFence($sourceState['published'])
         ) {
             $blockers[] = 'stale-reuse-claim';
         }
 
         if ($blockers !== []) {
-            return self::event594609('publish', 'blocked-stale', $source, $before, self::summary594609($state), [
+            return self::eventPrePublishedReuseSnapshotFence('publish', 'blocked-stale', $source, $before, self::summaryPrePublishedReuseSnapshotFence($state), [
                 'snapshot' => $snapshot,
                 'claim' => $claim,
                 'token' => $token,
@@ -22439,7 +22439,7 @@ private static function run158161(array $operations, array $options = []): array
             'reuse_ack' => $claimState['ack'],
         ];
 
-        return self::event594609('publish', 'published-reused-current-source', $source, $before, self::summary594609($state), [
+        return self::eventPrePublishedReuseSnapshotFence('publish', 'published-reused-current-source', $source, $before, self::summaryPrePublishedReuseSnapshotFence($state), [
             'snapshot' => $snapshot,
             'claim' => $claim,
             'token' => $token,
@@ -22448,7 +22448,7 @@ private static function run158161(array $operations, array $options = []): array
         ]);
     }
 
-    private static function hydrate594609(mixed $current): array
+    private static function hydratePrePublishedReuseSnapshotFence(mixed $current): array
     {
         $state = ['current_source' => null, 'sources' => [], 'snapshots' => []];
         if (!is_array($current)) {
@@ -22459,17 +22459,17 @@ private static function run158161(array $operations, array $options = []): array
             if (!is_array($source)) {
                 continue;
             }
-            $sourceName = self::token594609((string) $name, 'source name');
+            $sourceName = self::tokenPrePublishedReuseSnapshotFence((string) $name, 'source name');
             $state['sources'][$sourceName] = [
-                'handle' => self::token594609((string) ($source['handle'] ?? $sourceName), 'handle'),
-                'path' => self::path594609((string) ($source['path'] ?? '')),
-                'owner' => self::path594609((string) ($source['owner'] ?? $source['path'] ?? '')),
+                'handle' => self::tokenPrePublishedReuseSnapshotFence((string) ($source['handle'] ?? $sourceName), 'handle'),
+                'path' => self::pathPrePublishedReuseSnapshotFence((string) ($source['path'] ?? '')),
+                'owner' => self::pathPrePublishedReuseSnapshotFence((string) ($source['owner'] ?? $source['path'] ?? '')),
                 'closed' => (bool) ($source['closed'] ?? false),
-                'data_version' => self::nonNegativeInt594609($source['data_version'] ?? 0, 'data version'),
-                'dirty_pages' => self::receiptList594609($source['dirty_pages'] ?? []),
-                'published' => self::receiptMetadataList594609($source['published'] ?? []),
-                'reuse_acks' => self::reuseAckList594609($source['reuse_acks'] ?? []),
-                'reuse_claims' => self::reuseClaimList594609($source['reuse_claims'] ?? []),
+                'data_version' => self::nonNegativeIntPrePublishedReuseSnapshotFence($source['data_version'] ?? 0, 'data version'),
+                'dirty_pages' => self::receiptListPrePublishedReuseSnapshotFence($source['dirty_pages'] ?? []),
+                'published' => self::receiptMetadataListPrePublishedReuseSnapshotFence($source['published'] ?? []),
+                'reuse_acks' => self::reuseAckListPrePublishedReuseSnapshotFence($source['reuse_acks'] ?? []),
+                'reuse_claims' => self::reuseClaimListPrePublishedReuseSnapshotFence($source['reuse_claims'] ?? []),
             ];
         }
 
@@ -22477,24 +22477,24 @@ private static function run158161(array $operations, array $options = []): array
             if (!is_array($snapshot)) {
                 continue;
             }
-            $state['snapshots'][self::token594609((string) $name, 'snapshot name')] = [
-                'source' => self::token594609((string) ($snapshot['source'] ?? 'main'), 'snapshot source'),
-                'handle' => self::token594609((string) ($snapshot['handle'] ?? $name), 'snapshot handle'),
-                'path' => self::path594609((string) ($snapshot['path'] ?? '')),
-                'owner' => self::path594609((string) ($snapshot['owner'] ?? $snapshot['path'] ?? '')),
-                'data_version' => self::nonNegativeInt594609($snapshot['data_version'] ?? 0, 'snapshot data version'),
-                'published_count' => self::nonNegativeInt594609($snapshot['published_count'] ?? 0, 'snapshot published count'),
-                'receipt_digest' => self::token594609((string) ($snapshot['receipt_digest'] ?? 'empty'), 'receipt digest'),
+            $state['snapshots'][self::tokenPrePublishedReuseSnapshotFence((string) $name, 'snapshot name')] = [
+                'source' => self::tokenPrePublishedReuseSnapshotFence((string) ($snapshot['source'] ?? 'main'), 'snapshot source'),
+                'handle' => self::tokenPrePublishedReuseSnapshotFence((string) ($snapshot['handle'] ?? $name), 'snapshot handle'),
+                'path' => self::pathPrePublishedReuseSnapshotFence((string) ($snapshot['path'] ?? '')),
+                'owner' => self::pathPrePublishedReuseSnapshotFence((string) ($snapshot['owner'] ?? $snapshot['path'] ?? '')),
+                'data_version' => self::nonNegativeIntPrePublishedReuseSnapshotFence($snapshot['data_version'] ?? 0, 'snapshot data version'),
+                'published_count' => self::nonNegativeIntPrePublishedReuseSnapshotFence($snapshot['published_count'] ?? 0, 'snapshot published count'),
+                'receipt_digest' => self::tokenPrePublishedReuseSnapshotFence((string) ($snapshot['receipt_digest'] ?? 'empty'), 'receipt digest'),
             ];
         }
 
         if (isset($current['current_source'])) {
-            $state['current_source'] = self::token594609((string) $current['current_source'], 'current source');
+            $state['current_source'] = self::tokenPrePublishedReuseSnapshotFence((string) $current['current_source'], 'current source');
         }
         return $state;
     }
 
-    private static function operation594609(string|array $operation): array
+    private static function operationPrePublishedReuseSnapshotFence(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -22519,7 +22519,7 @@ private static function run158161(array $operations, array $options = []): array
         throw new \InvalidArgumentException('SQLite VFS current-source next594-609 operation is unsupported');
     }
 
-    private static function summary594609(array $state): array
+    private static function summaryPrePublishedReuseSnapshotFence(array $state): array
     {
         return [
             'current_source' => $state['current_source'],
@@ -22531,7 +22531,7 @@ private static function run158161(array $operations, array $options = []): array
     }
 
     /** @return list<string> */
-    private static function reuseBlockers594609(array $snapshot, array $source): array
+    private static function reuseBlockersPrePublishedReuseSnapshotFence(array $snapshot, array $source): array
     {
         $blockers = [];
         foreach (['handle', 'path', 'owner', 'data_version'] as $key) {
@@ -22542,7 +22542,7 @@ private static function run158161(array $operations, array $options = []): array
         if ($snapshot['published_count'] !== count($source['published'])) {
             $blockers[] = 'published-count-changed';
         }
-        if ($snapshot['receipt_digest'] !== self::receiptDigest594609($source['published'])) {
+        if ($snapshot['receipt_digest'] !== self::receiptDigestPrePublishedReuseSnapshotFence($source['published'])) {
             $blockers[] = 'publish-receipt-digest-changed';
         }
         if ($source['dirty_pages'] !== []) {
@@ -22551,7 +22551,7 @@ private static function run158161(array $operations, array $options = []): array
         return $blockers;
     }
 
-    private static function lastReuseAck594609(array $source, string $snapshot): ?array
+    private static function lastReuseAckPrePublishedReuseSnapshotFence(array $source, string $snapshot): ?array
     {
         for ($i = count($source['reuse_acks']) - 1; $i >= 0; --$i) {
             if ($source['reuse_acks'][$i]['snapshot'] === $snapshot) {
@@ -22561,7 +22561,7 @@ private static function run158161(array $operations, array $options = []): array
         return null;
     }
 
-    private static function lastReuseClaim594609(array $source, string $snapshot): ?array
+    private static function lastReuseClaimPrePublishedReuseSnapshotFence(array $source, string $snapshot): ?array
     {
         for ($i = count($source['reuse_claims']) - 1; $i >= 0; --$i) {
             if ($source['reuse_claims'][$i]['snapshot'] === $snapshot) {
@@ -22571,32 +22571,32 @@ private static function run158161(array $operations, array $options = []): array
         return null;
     }
 
-    private static function sourceFor594609(array $state, mixed $source): string
+    private static function sourceForPrePublishedReuseSnapshotFence(array $state, mixed $source): string
     {
         if ($source !== null && $source !== '') {
-            return self::token594609((string) $source, 'source name');
+            return self::tokenPrePublishedReuseSnapshotFence((string) $source, 'source name');
         }
         return is_string($state['current_source']) ? $state['current_source'] : 'main';
     }
 
-    private static function event594609(string $kind, string $status, string $source, array $before, array $next, array $extra): array
+    private static function eventPrePublishedReuseSnapshotFence(string $kind, string $status, string $source, array $before, array $next, array $extra): array
     {
         return ['kind' => $kind, 'status' => $status, 'source' => $source, 'before' => $before, 'next' => $next] + $extra;
     }
 
-    private static function receiptDigest594609(array $receipts): string
+    private static function receiptDigestPrePublishedReuseSnapshotFence(array $receipts): string
     {
         $tokens = array_map(static fn (array $receipt): string => (string) $receipt['token'], $receipts);
         return $tokens === [] ? 'empty' : hash('sha256', implode('|', $tokens));
     }
 
-    private static function lastReceiptToken594609(array $source): ?string
+    private static function lastReceiptTokenPrePublishedReuseSnapshotFence(array $source): ?string
     {
         $last = $source['published'][array_key_last($source['published'])] ?? null;
         return is_array($last) ? (string) $last['token'] : null;
     }
 
-    private static function path594609(string $path): string
+    private static function pathPrePublishedReuseSnapshotFence(string $path): string
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
@@ -22605,7 +22605,7 @@ private static function run158161(array $operations, array $options = []): array
         return $path;
     }
 
-    private static function token594609(string $token, string $label): string
+    private static function tokenPrePublishedReuseSnapshotFence(string $token, string $label): string
     {
         $token = trim($token);
         if ($token === '' || preg_match('/^[A-Za-z0-9_.:\/-]+$/', $token) !== 1) {
@@ -22614,7 +22614,7 @@ private static function run158161(array $operations, array $options = []): array
         return $token;
     }
 
-    private static function nonNegativeInt594609(mixed $value, string $label): int
+    private static function nonNegativeIntPrePublishedReuseSnapshotFence(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
             throw new \InvalidArgumentException('SQLite VFS current-source next594-609 requires non-negative ' . $label);
@@ -22623,7 +22623,7 @@ private static function run158161(array $operations, array $options = []): array
     }
 
     /** @return list<array{page:int, bytes:int, digest:string}> */
-    private static function receiptList594609(mixed $receipts): array
+    private static function receiptListPrePublishedReuseSnapshotFence(mixed $receipts): array
     {
         $result = [];
         foreach (is_array($receipts) ? $receipts : [] as $receipt) {
@@ -22631,16 +22631,16 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'page' => self::positiveInt594609($receipt['page'] ?? null, 'receipt page'),
-                'bytes' => self::positiveInt594609($receipt['bytes'] ?? null, 'receipt bytes'),
-                'digest' => self::token594609((string) ($receipt['digest'] ?? ''), 'receipt digest'),
+                'page' => self::positiveIntPrePublishedReuseSnapshotFence($receipt['page'] ?? null, 'receipt page'),
+                'bytes' => self::positiveIntPrePublishedReuseSnapshotFence($receipt['bytes'] ?? null, 'receipt bytes'),
+                'digest' => self::tokenPrePublishedReuseSnapshotFence((string) ($receipt['digest'] ?? ''), 'receipt digest'),
             ];
         }
         return $result;
     }
 
     /** @return list<array{token:string, data_version:int}> */
-    private static function receiptMetadataList594609(mixed $receipts): array
+    private static function receiptMetadataListPrePublishedReuseSnapshotFence(mixed $receipts): array
     {
         $result = [];
         foreach (is_array($receipts) ? $receipts : [] as $receipt) {
@@ -22648,15 +22648,15 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'token' => self::token594609((string) ($receipt['token'] ?? ''), 'receipt token'),
-                'data_version' => self::nonNegativeInt594609($receipt['data_version'] ?? 0, 'receipt data version'),
+                'token' => self::tokenPrePublishedReuseSnapshotFence((string) ($receipt['token'] ?? ''), 'receipt token'),
+                'data_version' => self::nonNegativeIntPrePublishedReuseSnapshotFence($receipt['data_version'] ?? 0, 'receipt data version'),
             ];
         }
         return $result;
     }
 
     /** @return list<array{snapshot:string, receipt:string, data_version:int, published_count:int, receipt_digest:string}> */
-    private static function reuseAckList594609(mixed $acks): array
+    private static function reuseAckListPrePublishedReuseSnapshotFence(mixed $acks): array
     {
         $result = [];
         foreach (is_array($acks) ? $acks : [] as $ack) {
@@ -22664,18 +22664,18 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'snapshot' => self::token594609((string) ($ack['snapshot'] ?? ''), 'reuse ack snapshot'),
-                'receipt' => self::token594609((string) ($ack['receipt'] ?? ''), 'reuse ack receipt'),
-                'data_version' => self::nonNegativeInt594609($ack['data_version'] ?? 0, 'reuse ack data version'),
-                'published_count' => self::nonNegativeInt594609($ack['published_count'] ?? 0, 'reuse ack published count'),
-                'receipt_digest' => self::token594609((string) ($ack['receipt_digest'] ?? 'empty'), 'reuse ack receipt digest'),
+                'snapshot' => self::tokenPrePublishedReuseSnapshotFence((string) ($ack['snapshot'] ?? ''), 'reuse ack snapshot'),
+                'receipt' => self::tokenPrePublishedReuseSnapshotFence((string) ($ack['receipt'] ?? ''), 'reuse ack receipt'),
+                'data_version' => self::nonNegativeIntPrePublishedReuseSnapshotFence($ack['data_version'] ?? 0, 'reuse ack data version'),
+                'published_count' => self::nonNegativeIntPrePublishedReuseSnapshotFence($ack['published_count'] ?? 0, 'reuse ack published count'),
+                'receipt_digest' => self::tokenPrePublishedReuseSnapshotFence((string) ($ack['receipt_digest'] ?? 'empty'), 'reuse ack receipt digest'),
             ];
         }
         return $result;
     }
 
     /** @return list<array{token:string, snapshot:string, ack:string, data_version:int, published_count:int, receipt_digest:string}> */
-    private static function reuseClaimList594609(mixed $claims): array
+    private static function reuseClaimListPrePublishedReuseSnapshotFence(mixed $claims): array
     {
         $result = [];
         foreach (is_array($claims) ? $claims : [] as $claim) {
@@ -22683,18 +22683,18 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'token' => self::token594609((string) ($claim['token'] ?? ''), 'reuse claim token'),
-                'snapshot' => self::token594609((string) ($claim['snapshot'] ?? ''), 'reuse claim snapshot'),
-                'ack' => self::token594609((string) ($claim['ack'] ?? ''), 'reuse claim ack'),
-                'data_version' => self::nonNegativeInt594609($claim['data_version'] ?? 0, 'reuse claim data version'),
-                'published_count' => self::nonNegativeInt594609($claim['published_count'] ?? 0, 'reuse claim published count'),
-                'receipt_digest' => self::token594609((string) ($claim['receipt_digest'] ?? 'empty'), 'reuse claim receipt digest'),
+                'token' => self::tokenPrePublishedReuseSnapshotFence((string) ($claim['token'] ?? ''), 'reuse claim token'),
+                'snapshot' => self::tokenPrePublishedReuseSnapshotFence((string) ($claim['snapshot'] ?? ''), 'reuse claim snapshot'),
+                'ack' => self::tokenPrePublishedReuseSnapshotFence((string) ($claim['ack'] ?? ''), 'reuse claim ack'),
+                'data_version' => self::nonNegativeIntPrePublishedReuseSnapshotFence($claim['data_version'] ?? 0, 'reuse claim data version'),
+                'published_count' => self::nonNegativeIntPrePublishedReuseSnapshotFence($claim['published_count'] ?? 0, 'reuse claim published count'),
+                'receipt_digest' => self::tokenPrePublishedReuseSnapshotFence((string) ($claim['receipt_digest'] ?? 'empty'), 'reuse claim receipt digest'),
             ];
         }
         return $result;
     }
 
-    private static function positiveInt594609(mixed $value, string $label): int
+    private static function positiveIntPrePublishedReuseSnapshotFence(mixed $value, string $label): int
     {
         if (!is_int($value) || $value <= 0) {
             throw new \InvalidArgumentException('SQLite VFS current-source next594-609 requires positive ' . $label);

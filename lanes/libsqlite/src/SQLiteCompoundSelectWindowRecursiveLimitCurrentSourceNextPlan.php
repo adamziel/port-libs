@@ -19965,21 +19965,21 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         public static function compareNextSourcePromotionSnapshot(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCompoundWindowReplayFence($sql, $currentTables, $nextTables, self::baseCursorNext245($cursor));
-            $promotion = self::promotionSnapshotNext245($base);
-            self::validateCursorNext245($cursor, $promotion);
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCompoundWindowReplayFence($sql, $currentTables, $nextTables, self::basePromotionCursor($cursor));
+            $promotion = self::nextSourcePromotionSnapshot($base);
+            self::validatePromotionCursor($cursor, $promotion);
 
-            $base['status'] = 'compound-select-window-recursive-limit-current-source-next245-ready';
-            $base['compoundNextSourcePromotionSnapshotNext245'] = $promotion;
-            $base['cursor']['promotionSnapshotTokenNext245'] = $promotion['promotionSnapshotToken'];
-            $base['cursor']['nextSourceDeltaTokenNext245'] = $promotion['nextSourceDeltaToken'];
-            $base['cursor']['requiredPromotionTicketsNext245'] = $promotion['requiredPromotionTickets'];
-            $base['cursor']['nextExposureNext245'] = $promotion['nextExposure'];
-            $base['replanReasons'][] = 'compound-window-recursive-next-source-promotion-snapshot-next245';
-            $base['replanReasons'][] = 'next-source-held-until-current-replay-and-delta-snapshot-next245';
-            $base['dependencies'][] = 'sqlite-compound-window-recursive-next-source-promotion-snapshot-next245';
-            $base['dependency_closure'] = 'no new support component needed; next245 reuses accepted compound SELECT recursive LIMIT/OFFSET, window replay tickets, and final-page spillover fences, then adds a next-source promotion snapshot for changed WordPress option rows';
-            $base['non_overlap'] = 'next245 extends accepted next243 replay-ticket behavior by binding the next-source row delta to a promotion snapshot after current replay is acknowledged; it avoids accepted next242 commit fences, next243 replay tickets alone, batch212 next242/next243 behavior, JSON table, WAL/VFS, B-tree, planner, PRAGMA, trigger, row-value, encoding, and suite evidence clusters';
+            $base['status'] = 'compound-select-window-recursive-limit-next-source-promotion-ready';
+            $base['compoundNextSourcePromotionSnapshot'] = $promotion;
+            $base['cursor']['promotionSnapshotToken'] = $promotion['promotionSnapshotToken'];
+            $base['cursor']['nextSourceDeltaToken'] = $promotion['nextSourceDeltaToken'];
+            $base['cursor']['requiredPromotionTickets'] = $promotion['requiredPromotionTickets'];
+            $base['cursor']['nextExposure'] = $promotion['nextExposure'];
+            $base['replanReasons'][] = 'compound-window-recursive-next-source-promotion-snapshot';
+            $base['replanReasons'][] = 'next-source-held-until-current-replay-and-delta-snapshot';
+            $base['dependencies'][] = 'sqlite-compound-window-recursive-next-source-promotion-snapshot';
+            $base['dependency_closure'] = 'no new support component needed; next-source-promotion reuses accepted compound SELECT recursive LIMIT/OFFSET, window replay tickets, and final-page spillover fences, then adds a next-source promotion snapshot for changed WordPress option rows';
+            $base['non_overlap'] = 'next-source-promotion extends accepted next243 replay-ticket behavior by binding the next-source row delta to a promotion snapshot after current replay is acknowledged; it avoids accepted next242 commit fences, next243 replay tickets alone, batch212 next242/next243 behavior, JSON table, WAL/VFS, B-tree, planner, PRAGMA, trigger, row-value, encoding, and suite evidence clusters';
 
             return $base;
         }
@@ -19988,7 +19988,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>|null
          */
-        private static function baseCursorNext245(?array $cursor): ?array
+        private static function basePromotionCursor(?array $cursor): ?array
         {
             if ($cursor === null) {
                 return null;
@@ -20017,45 +20017,45 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function promotionSnapshotNext245(array $plan): array
+        private static function nextSourcePromotionSnapshot(array $plan): array
         {
             $replay = is_array($plan['compoundWindowReplayFenceNext243'] ?? null) ? $plan['compoundWindowReplayFenceNext243'] : [];
             $spillover = is_array($plan['compoundFinalPageSpilloverDrainNext240'] ?? null) ? $plan['compoundFinalPageSpilloverDrainNext240'] : [];
             $sourceWindow = is_array($plan['sourceWindow'] ?? null) ? $plan['sourceWindow'] : [];
-            $currentRows = self::rowsNext245($plan['currentRows'] ?? []);
-            $nextRows = self::rowsNext245($plan['nextRows'] ?? []);
-            $nextOnly = self::stringListNext245($sourceWindow['nextOnlyAdmittedLabels'] ?? []);
-            $currentOnly = self::stringListNext245($sourceWindow['currentOnlyAdmittedLabels'] ?? []);
+            $currentRows = self::promotionRows($plan['currentRows'] ?? []);
+            $nextRows = self::promotionRows($plan['nextRows'] ?? []);
+            $nextOnly = self::promotionStringList($sourceWindow['nextOnlyAdmittedLabels'] ?? []);
+            $currentOnly = self::promotionStringList($sourceWindow['currentOnlyAdmittedLabels'] ?? []);
             $changed = [
                 'nextOnlyLabels' => $nextOnly,
                 'currentOnlyLabels' => $currentOnly,
-                'currentLabels' => self::labelsNext245($currentRows),
-                'nextLabels' => self::labelsNext245($nextRows),
+                'currentLabels' => self::promotionLabels($currentRows),
+                'nextLabels' => self::promotionLabels($nextRows),
             ];
-            $deltaToken = self::tokenNext245([
+            $deltaToken = self::promotionToken([
                 'changed' => $changed,
-                'currentRows' => self::rowFramesNext245($currentRows),
-                'nextRows' => self::rowFramesNext245($nextRows),
+                'currentRows' => self::promotionRowFrames($currentRows),
+                'nextRows' => self::promotionRowFrames($nextRows),
                 'spilloverToken' => (string) ($spillover['spilloverDrainToken'] ?? ''),
                 'replayToken' => (string) ($replay['windowReplayToken'] ?? ''),
             ]);
-            $promotionToken = self::tokenNext245([
+            $promotionToken = self::promotionToken([
                 'deltaToken' => $deltaToken,
                 'replaySignature' => (string) ($replay['currentReplaySignature'] ?? ''),
-                'requiredReplayTickets' => self::stringListNext245($replay['requiredReplayTickets'] ?? []),
+                'requiredReplayTickets' => self::promotionStringList($replay['requiredReplayTickets'] ?? []),
                 'changed' => $changed,
             ]);
 
             $tickets = [];
             foreach ($nextOnly as $index => $label) {
-                $tickets[] = 'next:' . self::tokenNext245([
+                $tickets[] = 'next:' . self::promotionToken([
                     'promotionToken' => $promotionToken,
                     'ordinal' => $index + 1,
                     'label' => $label,
                 ]);
             }
             foreach ($currentOnly as $index => $label) {
-                $tickets[] = 'current:' . self::tokenNext245([
+                $tickets[] = 'current:' . self::promotionToken([
                     'promotionToken' => $promotionToken,
                     'ordinal' => $index + 1,
                     'label' => $label,
@@ -20076,7 +20076,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'spilloverDrainToken' => (string) ($spillover['spilloverDrainToken'] ?? ''),
                 'changedRowCount' => count($nextOnly) + count($currentOnly),
                 'nextExposure' => 'held-until-current-replay-and-next-delta-snapshot-match',
-                'yieldBoundary' => 'compound-window-recursive-next245-next-source-promotion-snapshot',
+                'yieldBoundary' => 'compound-window-recursive-next-source-promotion-snapshot',
             ];
         }
 
@@ -20084,37 +20084,37 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @param array<string,mixed> $promotion
          */
-        private static function validateCursorNext245(?array $cursor, array $promotion): void
+        private static function validatePromotionCursor(?array $cursor, array $promotion): void
         {
             if ($cursor === null) {
                 return;
             }
             foreach ([
-                'promotionSnapshotTokenNext245' => 'promotionSnapshotToken',
-                'nextSourceDeltaTokenNext245' => 'nextSourceDeltaToken',
+                'promotionSnapshotToken' => 'promotionSnapshotToken',
+                'nextSourceDeltaToken' => 'nextSourceDeltaToken',
             ] as $cursorKey => $promotionKey) {
                 if (isset($cursor[$cursorKey]) && $cursor[$cursorKey] !== $promotion[$promotionKey]) {
-                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next245 cursor does not match next-source promotion snapshot');
+                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next-source-promotion cursor does not match next-source promotion snapshot');
                 }
             }
-            if (!array_key_exists('acknowledgedPromotionTicketsNext245', $cursor)) {
+            if (!array_key_exists('acknowledgedPromotionTickets', $cursor)) {
                 return;
             }
-            if (!is_array($cursor['acknowledgedPromotionTicketsNext245'])) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next245 promotion tickets must be a list');
+            if (!is_array($cursor['acknowledgedPromotionTickets'])) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next-source-promotion promotion tickets must be a list');
             }
 
-            $acknowledged = array_values(array_map(static fn (mixed $ticket): string => (string) $ticket, $cursor['acknowledgedPromotionTicketsNext245']));
-            $required = self::stringListNext245($promotion['requiredPromotionTickets'] ?? []);
+            $acknowledged = array_values(array_map(static fn (mixed $ticket): string => (string) $ticket, $cursor['acknowledgedPromotionTickets']));
+            $required = self::promotionStringList($promotion['requiredPromotionTickets'] ?? []);
             $missing = array_values(array_diff($required, $acknowledged));
             $unexpected = array_values(array_diff($acknowledged, $required));
             if ($missing !== [] || $unexpected !== []) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next245 promotion tickets do not match changed next-source row set');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next-source-promotion promotion tickets do not match changed next-source row set');
             }
         }
 
         /** @param mixed $value @return list<array<string,mixed>> */
-        private static function rowsNext245(mixed $value): array
+        private static function promotionRows(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -20131,20 +20131,20 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
-        private static function labelsNext245(array $rows): array
+        private static function promotionLabels(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => self::labelNext245($row), $rows));
+            return array_values(array_map(static fn (array $row): string => self::promotionLabel($row), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
-        private static function rowFramesNext245(array $rows): array
+        private static function promotionRowFrames(array $rows): array
         {
             $frames = [];
             foreach ($rows as $index => $row) {
                 $frames[] = [
                     'ordinal' => $index + 1,
                     'id' => $row['id'] ?? $row['option_id'] ?? null,
-                    'label' => self::labelNext245($row),
+                    'label' => self::promotionLabel($row),
                     'metric' => $row['metric'] ?? $row['rn'] ?? $row['rank'] ?? null,
                 ];
             }
@@ -20153,13 +20153,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function labelNext245(array $row): string
+        private static function promotionLabel(array $row): string
         {
             return (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? '');
         }
 
         /** @param mixed $value @return list<string> */
-        private static function stringListNext245(mixed $value): array
+        private static function promotionStringList(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -20169,7 +20169,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $payload */
-        private static function tokenNext245(array $payload): string
+        private static function promotionToken(array $payload): string
         {
             return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
         }
@@ -20590,7 +20590,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['replanReasons'][] = 'next-source-held-until-current-replay-and-next-delta-receipts-match-next-source-promotion-fence';
             $base['dependencies'][] = 'sqlite-compound-window-recursive-next-source-promotion-next-source-promotion-fence';
             $base['dependency_closure'] = 'no new support component needed; next-source-promotion-fence reuses accepted compound SELECT recursive LIMIT/OFFSET, current window replay tickets, spillover drains, and adds a next-source promotion receipt keyed to the next result delta';
-            $base['non_overlap'] = 'next-source-promotion-fence extends accepted next243 current-row replay tickets by admitting next-source rows only after next-only/current-only delta receipts match the replay and spillover tokens; it avoids accepted next245 compound behavior, next246/next247 storage/window handoffs, JSON table, WAL/VFS, B-tree, planner, PRAGMA, trigger, encoding, and suite evidence clusters';
+            $base['non_overlap'] = 'next-source-promotion-fence extends accepted next243 current-row replay tickets by admitting next-source rows only after next-only/current-only delta receipts match the replay and spillover tokens; it avoids accepted next-source-promotion compound behavior, next246/next247 storage/window handoffs, JSON table, WAL/VFS, B-tree, planner, PRAGMA, trigger, encoding, and suite evidence clusters';
 
             return $base;
         }
@@ -20808,8 +20808,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['replanReasons'][] = 'compound-window-recursive-promotion-epoch-recursive-window-promotion-epoch';
             $base['replanReasons'][] = 'next-source-held-until-recursive-lineage-and-window-metrics-recursive-window-promotion-epoch';
             $base['dependencies'][] = 'sqlite-compound-window-recursive-promotion-epoch-recursive-window-promotion-epoch';
-            $base['dependency_closure'] = 'no new support component needed; recursive-window-promotion-epoch reuses accepted compound SELECT recursive LIMIT/OFFSET, per-arm window output, spillover drain, replay tickets, and next245 promotion snapshots, then adds a recursive-lineage/window-metric epoch fence before next-source admission';
-            $base['non_overlap'] = 'recursive-window-promotion-epoch extends accepted next245 next-source promotion snapshots by binding promotion acknowledgements to recursive skipped/truncated lineage and current/next window metrics; it avoids accepted next238 source-generation seals, next240 spillover drains, next243 replay tickets alone, next245 delta snapshots alone, accepted batch214 next245 behavior, JSON table, WAL/VFS, B-tree, planner, PRAGMA, trigger, row-value, encoding, VDBE, and suite evidence clusters';
+            $base['dependency_closure'] = 'no new support component needed; recursive-window-promotion-epoch reuses accepted compound SELECT recursive LIMIT/OFFSET, per-arm window output, spillover drain, replay tickets, and next-source-promotion snapshots, then adds a recursive-lineage/window-metric epoch fence before next-source admission';
+            $base['non_overlap'] = 'recursive-window-promotion-epoch extends accepted next-source-promotion next-source promotion snapshots by binding promotion acknowledgements to recursive skipped/truncated lineage and current/next window metrics; it avoids accepted next238 source-generation seals, next240 spillover drains, next243 replay tickets alone, next-source-promotion delta snapshots alone, accepted batch214 next-source-promotion behavior, JSON table, WAL/VFS, B-tree, planner, PRAGMA, trigger, row-value, encoding, VDBE, and suite evidence clusters';
 
             return $base;
         }
@@ -20834,9 +20834,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'windowReplayTokenNext243',
                 'currentReplaySignatureNext243',
                 'acknowledgedReplayTicketsNext243',
-                'promotionSnapshotTokenNext245',
-                'nextSourceDeltaTokenNext245',
-                'acknowledgedPromotionTicketsNext245',
+                'promotionSnapshotToken',
+                'nextSourceDeltaToken',
+                'acknowledgedPromotionTickets',
             ] as $key) {
                 if (array_key_exists($key, $cursor)) {
                     $base[$key] = $cursor[$key];
@@ -20849,7 +20849,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /** @param array<string,mixed> $plan @return array<string,mixed> */
         private static function promotionEpochRecursiveWindowPromotionEpoch(array $plan): array
         {
-            $promotion = is_array($plan['compoundNextSourcePromotionSnapshotNext245'] ?? null) ? $plan['compoundNextSourcePromotionSnapshotNext245'] : [];
+            $promotion = is_array($plan['compoundNextSourcePromotionSnapshot'] ?? null) ? $plan['compoundNextSourcePromotionSnapshot'] : [];
             $sourceWindow = is_array($plan['sourceWindow'] ?? null) ? $plan['sourceWindow'] : [];
             $recursiveQueue = is_array($plan['recursiveQueue'] ?? null) ? $plan['recursiveQueue'] : [];
             $currentRows = self::rowsRecursiveWindowPromotionEpoch($plan['currentRows'] ?? []);
@@ -21471,9 +21471,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'windowReplayTokenNext243',
                 'currentReplaySignatureNext243',
                 'acknowledgedReplayTicketsNext243',
-                'promotionSnapshotTokenNext245',
-                'nextSourceDeltaTokenNext245',
-                'acknowledgedPromotionTicketsNext245',
+                'promotionSnapshotToken',
+                'nextSourceDeltaToken',
+                'acknowledgedPromotionTickets',
                 'promotionEpochTokenRecursiveWindowPromotionEpoch',
                 'recursiveLineageTokenRecursiveWindowPromotionEpoch',
                 'windowMetricTokenRecursiveWindowPromotionEpoch',
@@ -21671,9 +21671,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'windowReplayTokenNext243',
                 'currentReplaySignatureNext243',
                 'acknowledgedReplayTicketsNext243',
-                'promotionSnapshotTokenNext245',
-                'nextSourceDeltaTokenNext245',
-                'acknowledgedPromotionTicketsNext245',
+                'promotionSnapshotToken',
+                'nextSourceDeltaToken',
+                'acknowledgedPromotionTickets',
                 'promotionEpochTokenRecursiveWindowPromotionEpoch',
                 'recursiveLineageTokenRecursiveWindowPromotionEpoch',
                 'windowMetricTokenRecursiveWindowPromotionEpoch',
@@ -22533,9 +22533,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'windowReplayTokenNext243',
                 'currentReplaySignatureNext243',
                 'acknowledgedReplayTicketsNext243',
-                'promotionSnapshotTokenNext245',
-                'nextSourceDeltaTokenNext245',
-                'acknowledgedPromotionTicketsNext245',
+                'promotionSnapshotToken',
+                'nextSourceDeltaToken',
+                'acknowledgedPromotionTickets',
                 'promotionEpochTokenRecursiveWindowPromotionEpoch',
                 'recursiveLineageTokenRecursiveWindowPromotionEpoch',
                 'windowMetricTokenRecursiveWindowPromotionEpoch',

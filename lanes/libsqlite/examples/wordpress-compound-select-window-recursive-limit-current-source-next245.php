@@ -63,7 +63,7 @@ SELECT option_id AS id,
 SQL;
 
 $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNextSourcePromotionSnapshot($sql, $current, $next);
-$promotion = $plan['compoundNextSourcePromotionSnapshotNext245'];
+$promotion = $plan['compoundNextSourcePromotionSnapshot'];
 
 echo json_encode([
     'status' => $plan['status'],

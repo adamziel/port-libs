@@ -14310,6 +14310,46 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<int,array<string,mixed>>
+     */
+    public static function executeReadyPublicationRange(
+        int $firstPublicationStep,
+        int $lastPublicationStep,
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        ?string $savepoint = null,
+        string $rowIdColumn = 'option_id',
+    ): array {
+        if ($firstPublicationStep < 734 || $lastPublicationStep > 1181 || $firstPublicationStep > $lastPublicationStep) {
+            throw new \InvalidArgumentException('SQLite row-value window ready-publication range must be ordered between 734 and 1181');
+        }
+
+        $plans = [];
+        for ($step = $firstPublicationStep; $step <= $lastPublicationStep; $step++) {
+            $plans[$step] = self::executeReadyPublicationContinuation(
+                $step,
+                $tables,
+                $yieldStatements,
+                $attemptStatements,
+                $retryStatements,
+                $uniqueConstraints,
+                $savepoint,
+                $rowIdColumn,
+            );
+        }
+
+        return $plans;
+    }
+
+    /**
      * @param array<string,mixed> $base
      * @return array<string,mixed>
      */

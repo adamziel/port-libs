@@ -102,12 +102,12 @@ if (in_array('--self-test', $argv, true)) {
     assert($plan['status'] === 'stat4-expression-partial-current-source-next942-957-prepared');
     assert($plan['stat4Next942957PreparationFence']['preparedSlices'] === range(942, 957));
     assert($plan['stat4Next942957PreparationFence']['handoffWindows'][0]['continuesSlice'] === 926);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next942-957 self-test passed\n";
+    echo "wordpress-sqlplanner-stat4-expression-partial-penultimate-prepared-handoff self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next942-957',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-penultimate-prepared-handoff',
     'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next926-941 current-source STAT4 handoff into next942-957 only when projected current rows still match.',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
