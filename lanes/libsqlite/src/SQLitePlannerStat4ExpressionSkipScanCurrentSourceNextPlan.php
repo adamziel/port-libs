@@ -17,7 +17,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext137(
+        public static function materializeCurrentSource(
             array $preparedSource,
             array $currentSource,
             SQLiteIndexPredicate $partialPredicate,
@@ -42,10 +42,10 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
                 $neededColumns,
             );
 
-            $selectedPlan = self::arrayValueNext137($currentView, 'selectedPlan');
-            $preparedPlan = self::arrayValueNext137($preparedView, 'selectedPlan');
-            $preparedRowids = self::intListNext137($preparedPlan['rowids'] ?? []);
-            $currentRowids = self::intListNext137($selectedPlan['rowids'] ?? []);
+            $selectedPlan = self::arrayValue($currentView, 'selectedPlan');
+            $preparedPlan = self::arrayValue($preparedView, 'selectedPlan');
+            $preparedRowids = self::intList($preparedPlan['rowids'] ?? []);
+            $currentRowids = self::intList($selectedPlan['rowids'] ?? []);
             $stat4Changed = (bool) ($currentView['stat4GenerationChanged'] ?? false);
             $stale = (bool) ($currentView['stalePreparedStatement'] ?? false);
             $skipScanReady = ($currentView['status'] ?? null) === 'usable'
@@ -57,30 +57,30 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
 
             return array_replace($currentView, [
                 'status' => $skipScanReady ? 'stat4-expression-skipscan-current-source-next137-ready' : 'requires-next-stage',
-                'preparedStat4Signature' => self::stat4SignatureNext137($preparedSource),
-                'currentStat4Signature' => self::stat4SignatureNext137($currentSource),
-                'stat4SignatureChanged' => self::stat4SignatureNext137($preparedSource) !== self::stat4SignatureNext137($currentSource),
+                'preparedStat4Signature' => self::stat4Signature($preparedSource),
+                'currentStat4Signature' => self::stat4Signature($currentSource),
+                'stat4SignatureChanged' => self::stat4Signature($preparedSource) !== self::stat4Signature($currentSource),
                 'preparedSkipScanRowids' => $preparedRowids,
                 'currentSkipScanRowids' => $currentRowids,
                 'staleSkipScanRejectedRowids' => array_values(array_diff($preparedRowids, $currentRowids)),
                 'currentSkipScanAdmittedRowids' => array_values(array_diff($currentRowids, $preparedRowids)),
                 'stableSkipScanRowids' => array_values(array_intersect($currentRowids, $preparedRowids)),
-                'stat4PrefixDelta' => self::prefixDeltaNext137(
-                    self::stat4ByPrefixNext137($preparedPlan['stat4CurrentNextByPrefix'] ?? []),
-                    self::stat4ByPrefixNext137($selectedPlan['stat4CurrentNextByPrefix'] ?? []),
+                'stat4PrefixDelta' => self::prefixDelta(
+                    self::stat4ByPrefix($preparedPlan['stat4CurrentNextByPrefix'] ?? []),
+                    self::stat4ByPrefix($selectedPlan['stat4CurrentNextByPrefix'] ?? []),
                 ),
                 'skipScanCostDelta' => (int) ($selectedPlan['estimatedCost'] ?? 0) - (int) ($preparedPlan['estimatedCost'] ?? 0),
                 'skipScanRowEstimateDelta' => (int) ($selectedPlan['estimatedRows'] ?? 0) - (int) ($preparedPlan['estimatedRows'] ?? 0),
                 'currentSourceFence' => array_replace(
-                    self::arrayValueNext137($currentView, 'currentSourceFence'),
+                    self::arrayValue($currentView, 'currentSourceFence'),
                     [
-                        'stat4Signature' => self::stat4SignatureNext137($currentSource),
+                        'stat4Signature' => self::stat4Signature($currentSource),
                         'skipScanOpcode' => 'SeekScan',
-                        'rangeRecheckOpcode' => self::rangeRecheckOpcodeNext137($selectedPlan),
-                        'skipScanLoopCount' => count(self::arrayListNext137($selectedPlan['loops'] ?? [])),
+                        'rangeRecheckOpcode' => self::rangeRecheckOpcode($selectedPlan),
+                        'skipScanLoopCount' => count(self::arrayList($selectedPlan['loops'] ?? [])),
                     ],
                 ),
-                'cursorTape' => self::cursorTapeNext137($selectedPlan, $preparedPlan, $currentSource),
+                'cursorTape' => self::cursorTape($selectedPlan, $preparedPlan, $currentSource),
                 'dependencies' => [
                     'SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScan',
                     'SQLiteIndexSkipScanPlan STAT4 per-prefix current/next samples',
@@ -97,15 +97,15 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
          * @param array<string,mixed> $currentSource
          * @return array<string,mixed>
          */
-        private static function cursorTapeNext137(array $plan, array $preparedPlan, array $currentSource): array
+        private static function cursorTape(array $plan, array $preparedPlan, array $currentSource): array
         {
-            $loops = self::arrayListNext137($plan['loops'] ?? []);
+            $loops = self::arrayList($plan['loops'] ?? []);
             $program = [
                 [
                     'opcode' => 'ReprepareIfStale',
-                    'source' => self::stringValueNext137($currentSource, 'name'),
-                    'schemaCookie' => self::nonNegativeIntNext137($currentSource, 'schemaCookie'),
-                    'stat4Generation' => self::nonNegativeIntNext137($currentSource, 'stat4Generation'),
+                    'source' => self::stringValue($currentSource, 'name'),
+                    'schemaCookie' => self::nonNegativeInt($currentSource, 'schemaCookie'),
+                    'stat4Generation' => self::nonNegativeInt($currentSource, 'stat4Generation'),
                 ],
                 [
                     'opcode' => 'SeekScan',
@@ -115,7 +115,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
                     'loopCount' => count($loops),
                 ],
                 [
-                    'opcode' => self::rangeRecheckOpcodeNext137($plan),
+                    'opcode' => self::rangeRecheckOpcode($plan),
                     'column' => (string) ($plan['rangeExpressionColumn'] ?? $plan['rangeColumn'] ?? ''),
                     'lower' => $plan['lowerInclusive'] ?? null,
                     'upper' => $plan['upperBound'] ?? null,
@@ -124,7 +124,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
                 [
                     'opcode' => 'Column',
                     'source' => 'index',
-                    'columns' => self::stringListNext137($plan['neededColumns'] ?? []),
+                    'columns' => self::stringList($plan['neededColumns'] ?? []),
                 ],
                 [
                     'opcode' => ($plan['reverseScan'] ?? false) === true ? 'Prev' : 'Next',
@@ -135,10 +135,10 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
             return [
                 'source' => 'current',
                 'program' => $program,
-                'preparedLoops' => self::loopSummaryNext137(self::arrayListNext137($preparedPlan['loops'] ?? [])),
-                'currentLoops' => self::loopSummaryNext137($loops),
-                'stat4CurrentNextByPrefix' => self::arrayListNext137($plan['stat4CurrentNextByPrefix'] ?? []),
-                'rowids' => self::intListNext137($plan['rowids'] ?? []),
+                'preparedLoops' => self::loopSummary(self::arrayList($preparedPlan['loops'] ?? [])),
+                'currentLoops' => self::loopSummary($loops),
+                'stat4CurrentNextByPrefix' => self::arrayList($plan['stat4CurrentNextByPrefix'] ?? []),
+                'rowids' => self::intList($plan['rowids'] ?? []),
                 'estimatedRows' => (int) ($plan['estimatedRows'] ?? 0),
                 'estimatedCost' => (int) ($plan['estimatedCost'] ?? 0),
                 'blockSortRequired' => (bool) ($plan['blockSortRequired'] ?? false),
@@ -149,14 +149,14 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
          * @param list<array<string,mixed>> $loops
          * @return list<array{prefix:mixed,matched:int,rowids:list<int>}>
          */
-        private static function loopSummaryNext137(array $loops): array
+        private static function loopSummary(array $loops): array
         {
             $summary = [];
             foreach ($loops as $loop) {
                 $summary[] = [
                     'prefix' => $loop['prefix'] ?? null,
                     'matched' => (int) ($loop['matched'] ?? 0),
-                    'rowids' => self::intListNext137($loop['rowids'] ?? []),
+                    'rowids' => self::intList($loop['rowids'] ?? []),
                 ];
             }
 
@@ -168,7 +168,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
          * @param array<string,array<string,mixed>> $current
          * @return list<array<string,mixed>>
          */
-        private static function prefixDeltaNext137(array $prepared, array $current): array
+        private static function prefixDelta(array $prepared, array $current): array
         {
             $prefixes = array_values(array_unique(array_merge(array_keys($prepared), array_keys($current))));
             usort(
@@ -199,11 +199,11 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
          * @param mixed $entries
          * @return array<string,array<string,mixed>>
          */
-        private static function stat4ByPrefixNext137(mixed $entries): array
+        private static function stat4ByPrefix(mixed $entries): array
         {
             $map = [];
-            foreach (self::arrayListNext137($entries) as $entry) {
-                $map[self::keyNext137($entry['prefix'] ?? null)] = $entry;
+            foreach (self::arrayList($entries) as $entry) {
+                $map[self::prefixMapKey($entry['prefix'] ?? null)] = $entry;
             }
 
             return $map;
@@ -212,7 +212,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function stat4SignatureNext137(array $source): string
+        private static function stat4Signature(array $source): string
         {
             return hash('sha256', serialize($source['stat4Samples'] ?? []));
         }
@@ -220,7 +220,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function rangeRecheckOpcodeNext137(array $plan): string
+        private static function rangeRecheckOpcode(array $plan): string
         {
             return ($plan['upperInclusive'] ?? true) === true ? 'IdxGT' : 'IdxGE';
         }
@@ -228,7 +228,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
         /**
          * @return array<string,mixed>
          */
-        private static function arrayValueNext137(array $data, string $key): array
+        private static function arrayValue(array $data, string $key): array
         {
             $value = $data[$key] ?? [];
             if (!is_array($value)) {
@@ -241,7 +241,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
         /**
          * @return list<array<string,mixed>>
          */
-        private static function arrayListNext137(mixed $value): array
+        private static function arrayList(mixed $value): array
         {
             if (!is_array($value) || !array_is_list($value)) {
                 return [];
@@ -258,7 +258,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
         /**
          * @return list<int>
          */
-        private static function intListNext137(mixed $value): array
+        private static function intList(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -270,7 +270,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
         /**
          * @return list<string>
          */
-        private static function stringListNext137(mixed $value): array
+        private static function stringList(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -282,7 +282,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $data
          */
-        private static function stringValueNext137(array $data, string $key): string
+        private static function stringValue(array $data, string $key): string
         {
             $value = $data[$key] ?? null;
             if (!is_string($value) || $value === '') {
@@ -295,7 +295,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $data
          */
-        private static function nonNegativeIntNext137(array $data, string $key): int
+        private static function nonNegativeInt(array $data, string $key): int
         {
             $value = $data[$key] ?? null;
             if (!is_int($value) || $value < 0) {
@@ -305,7 +305,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
             return $value;
         }
 
-        private static function keyNext137(mixed $value): string
+        private static function prefixMapKey(mixed $value): string
         {
             return get_debug_type($value) . ':' . serialize($value);
         }

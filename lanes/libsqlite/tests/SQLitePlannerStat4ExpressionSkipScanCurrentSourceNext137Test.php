@@ -91,7 +91,7 @@ $order137 = [
     ['expression' => 'lower(option_name)'],
 ];
 $needed137 = ['option_name', 'option_value', 'kind'];
-$plan137 = static fn (?array $prepared = null, ?array $current = null, ?array $order = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan::materializeNext137(
+$plan137 = static fn (?array $prepared = null, ?array $current = null, ?array $order = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan::materializeCurrentSource(
     $prepared ?? $source137(),
     $current ?? $currentSource137(),
     $partial137,

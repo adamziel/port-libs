@@ -74,11 +74,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
 
         if (count($args) < 105) {
-            return self::variantNext350(...$args);
+            return self::currentSourceReaderCacheMemoryAlarmFence(...$args);
         }
 
         if (count($args) < 113) {
-            return self::variantNext358(...$args);
+            return self::currentSourceReaderCacheMemoryUsedFence(...$args);
         }
 
         if (count($args) < 121) {
@@ -26785,7 +26785,6 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
 
         $replace = static fn (string $value): string => str_replace($numberedLabel, $stableLabel, $value);
-
         if (isset($plan['status']) && is_string($plan['status'])) {
             $plan['status'] = $replace($plan['status']);
         }
@@ -27630,7 +27629,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext350(mixed ...$args): array
+    public static function currentSourceReaderCacheMemoryAlarmFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
@@ -27642,97 +27641,97 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext351(mixed ...$args): array
+    public static function currentSourceReaderCacheStatusCounterFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next351 requires status-counter token');
         }
-        $base = self::variantNext350(...$args);
+        $base = self::currentSourceReaderCacheMemoryAlarmFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_status_counter_token', $currentToken, 351, 'reader_cache_status_counter', 'reader_cache_status_counter_must_match_current_status_counter_state');
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext352(mixed ...$args): array
+    public static function currentSourceReaderCachePagecacheSizeFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next352 requires pagecache-size token');
         }
-        $base = self::variantNext351(...$args);
+        $base = self::currentSourceReaderCacheStatusCounterFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_pagecache_size_token', $currentToken, 352, 'reader_cache_pagecache_size', 'reader_cache_pagecache_size_must_match_current_pagecache_size_state');
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext353(mixed ...$args): array
+    public static function currentSourceReaderCachePagecacheRecycleFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next353 requires pagecache-recycle token');
         }
-        $base = self::variantNext352(...$args);
+        $base = self::currentSourceReaderCachePagecacheSizeFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_pagecache_recycle_token', $currentToken, 353, 'reader_cache_pagecache_recycle', 'reader_cache_pagecache_recycle_must_match_current_pagecache_recycle_state');
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext354(mixed ...$args): array
+    public static function currentSourceReaderCacheScratchSpillFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next354 requires scratch-spill token');
         }
-        $base = self::variantNext353(...$args);
+        $base = self::currentSourceReaderCachePagecacheRecycleFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_scratch_spill_token', $currentToken, 354, 'reader_cache_scratch_spill', 'reader_cache_scratch_spill_must_match_current_scratch_spill_state');
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext355(mixed ...$args): array
+    public static function currentSourceReaderCacheLookasideHitFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next355 requires lookaside-hit token');
         }
-        $base = self::variantNext354(...$args);
+        $base = self::currentSourceReaderCacheScratchSpillFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_lookaside_hit_token', $currentToken, 355, 'reader_cache_lookaside_hit', 'reader_cache_lookaside_hit_must_match_current_lookaside_hit_state');
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext356(mixed ...$args): array
+    public static function currentSourceReaderCacheLookasideMissSizeFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next356 requires lookaside-miss-size token');
         }
-        $base = self::variantNext355(...$args);
+        $base = self::currentSourceReaderCacheLookasideHitFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_lookaside_miss_size_token', $currentToken, 356, 'reader_cache_lookaside_miss_size', 'reader_cache_lookaside_miss_size_must_match_current_lookaside_miss_size_state');
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext357(mixed ...$args): array
+    public static function currentSourceReaderCachePcacheRefcountFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next357 requires pcache-refcount token');
         }
-        $base = self::variantNext356(...$args);
+        $base = self::currentSourceReaderCacheLookasideMissSizeFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_pcache_refcount_token', $currentToken, 357, 'reader_cache_pcache_refcount', 'reader_cache_pcache_refcount_must_match_current_pcache_refcount_state');
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext358(mixed ...$args): array
+    public static function currentSourceReaderCacheMemoryUsedFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next358 requires memory-used token');
         }
-        $base = self::variantNext357(...$args);
+        $base = self::currentSourceReaderCachePcacheRefcountFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_memory_used_token', $currentToken, 358, 'reader_cache_memory_used', 'reader_cache_memory_used_must_match_current_memory_used_state');
     }
@@ -27744,7 +27743,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next359 requires memory-highwater token');
         }
-        $base = self::variantNext358(...$args);
+        $base = self::currentSourceReaderCacheMemoryUsedFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_memory_highwater_token', $currentToken, 359, 'reader_cache_memory_highwater', 'reader_cache_memory_highwater_must_match_current_memory_highwater_state');
     }

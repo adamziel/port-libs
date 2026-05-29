@@ -49,7 +49,7 @@ $current['rootPage'] = 13719;
 $current['rows'][] = ['rowid' => 9, 'autoload' => 'no', 'option_name' => 'PLUGIN_SECURITY', 'option_value' => 'a:7', 'kind' => 'plugin'];
 $current['stat4Samples'][] = ['prefix' => 'no', 'suffix' => 'plugin_security', 'nEq' => 1, 'nLt' => 1, 'nDLt' => 1];
 
-$plan = SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan::materializeNext137(
+$plan = SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan::materializeCurrentSource(
     $prepared,
     $current,
     $partial,

@@ -2761,3 +2761,27 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   coverage because this is consolidation-only. The visible worker pool remains
   active on current-base and stale-base consolidation lanes; stale markers must
   be rebased or rejected instead of applied directly.
+
+## Supervisor Rolling Integration 2026-05-29T18:55Z Shell Sample
+
+- Cleared `/tmp` inode exhaustion that was blocking bounded status checks by
+  removing only stale top-level project scratch artifacts older than two hours;
+  `/tmp` inode use dropped from 58% to 36% and available space rose to 8.7G.
+- Preflighted three current-base CI/CJ consolidation markers against dashboard
+  head `30496131`: pager reader-cache next350/358 suffix cleanup, STAT4
+  expression skip-scan next137 helper cleanup, and STAT4 expression-partial
+  prepared-handoff bridge-middle cleanup. Worker `lane-status.json` edits were
+  excluded and status was updated manually from supervisor evidence.
+- Validation for the sixty-eighth reduced consolidation follow-up passed: 7
+  changed PHP files linted, direct affected tests passed with 5 files / 392
+  assertions / 0 failures, the STAT4 expression-partial family passed with 133
+  files / 7,537 assertions / 0 failures, the broader STAT4 family passed with
+  164 files / 9,386 assertions / 0 failures, the changed WordPress example
+  self-test passed, `git diff --check` passed, exact user-named 150 suffix scan
+  stayed clean in src/tests/examples, production numbered file/class audits
+  stayed at 0, numbered production helper methods reduced to 1,791, and unique
+  numbered production symbols reduced to 2,026.
+- Public libsqlite counts remain 154,019 pass / 0 fail and 830 / 1,589 mapped
+  coverage because this is consolidation-only. The pager broad family remains
+  unsuitable as a standalone acceptance gate until unrelated later dispatch
+  failures are baseline-compared or repaired.
