@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext233Plan
      * @param list<array<string, mixed>> $checkpointRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext229Plan $resumePlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $resumePlan,
         private readonly array $checkpointRows,
     ) {
     }
@@ -28,7 +28,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext233Plan
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromResumePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext229Plan::tableLeafFromDeleteResult(
+        return self::fromResumePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext229(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -40,7 +40,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext233Plan
         ));
     }
 
-    public static function fromResumePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext229Plan $resumePlan): self
+    public static function fromResumePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $resumePlan): self
     {
         $rows = self::buildCheckpointRows($resumePlan);
         $errors = self::checkpointErrorsForRows($rows);
@@ -170,7 +170,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext233Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildCheckpointRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext229Plan $resumePlan): array
+    private static function buildCheckpointRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $resumePlan): array
     {
         $resumeRows = $resumePlan->resumeRows();
         $resumeTokens = $resumePlan->resumeTokens();

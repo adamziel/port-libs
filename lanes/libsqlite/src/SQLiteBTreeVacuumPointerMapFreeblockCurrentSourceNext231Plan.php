@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext231Plan
      * @param list<array<string, mixed>> $handoffRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext227Plan $basePlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan,
         private readonly array $handoffRows,
     ) {
     }
@@ -28,7 +28,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext231Plan
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext227Plan::tableLeafFromDeleteResult(
+        return self::fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext227(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -40,7 +40,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext231Plan
         ));
     }
 
-    public static function fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext227Plan $basePlan): self
+    public static function fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): self
     {
         $rows = self::buildHandoffRows($basePlan);
         $errors = self::handoffErrorsForRows($rows);
@@ -201,7 +201,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext231Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildHandoffRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext227Plan $basePlan): array
+    private static function buildHandoffRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): array
     {
         $sealRows = $basePlan->sealRows();
         $sealTokens = $basePlan->sealTokens();
