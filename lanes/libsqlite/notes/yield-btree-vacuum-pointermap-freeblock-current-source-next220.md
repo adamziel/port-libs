@@ -2,7 +2,7 @@
 
 ## Behavior
 
-This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext220Plan`, a commit-fenced layer over the accepted next217 page-write materialization.
+This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`, a commit-fenced layer over the accepted next217 page-write materialization.
 
 The plan preserves the current-source B-tree vacuum flow for deleting an overflow-backed copied `wp_options` transient:
 
@@ -26,7 +26,7 @@ Focused test run: 1 selected test files (root lock skipped)
 PHP lint:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext220Plan.php
+php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext220Test.php
 php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next220.php
 ```

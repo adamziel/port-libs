@@ -2,13 +2,13 @@
 
 ## Behavior
 
-- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext215Plan`.
+- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`.
 - Builds on next212 current-source page apply rows and records commit receipts for only the pages that were applied from the current source.
 - Verifies pointer-map pages commit before payload/freeblock pages, the deleted leaf freeblock receipt remains committed, and truncated tail overflow pages 109-110 stay fenced from the next writer commit set.
 
 ## Verification
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext215Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext215Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next215.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext215Test.php`

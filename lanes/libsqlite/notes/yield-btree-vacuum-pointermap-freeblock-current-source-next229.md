@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext229Plan`, a focused follow-up to next224 current-source cursor sequencing. The new plan builds resumable source-window receipts over the vacuum pointer-map/freeblock rows and validates that:
+Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`, a focused follow-up to next224 current-source cursor sequencing. The new plan builds resumable source-window receipts over the vacuum pointer-map/freeblock rows and validates that:
 
 - resume pages match the current-source cursor pages exactly;
 - pointer-map resume pages are visible before payload resume pages;
@@ -15,7 +15,7 @@ Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext229Plan`, a focused f
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext229Test.php`
   - `1 test files, 1184 assertions, 0 failures`
   - `144` PASS lines
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext229Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext229Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next229.php`
 

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext224Plan`.
+- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`.
 - Composes accepted `next218` write receipts and adds current-source next-page cursor sequencing for vacuumed pointer-map/freeblock writes.
 - Proves pointer-map source pages are visible before payload source pages advance, freeblock receipts remain carried, and fenced tail pages stay out of the source cursor.
 

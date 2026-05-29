@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext153Plan;
+use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -72,7 +72,7 @@ foreach ([
     $putPointerMapEntry($pages, $pageNumber, $type, $parent);
 }
 
-$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext153Plan::tableAndIndexFromCurrentSourceDeleteResults(
+$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableAndIndexFromCurrentSourceDeleteResultsNext153(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [

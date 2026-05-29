@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
-use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Plan;
+use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -72,7 +72,7 @@ $database155 = static function () use ($makeFirstPage155, $putPointerMapEntry155
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$plan155 = static function (int $maxTruncatedPages = 4, ?int $parentPage = 3): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Plan {
+$plan155 = static function (int $maxTruncatedPages = 4, ?int $parentPage = 3): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
     global $database155;
 
     $database = $database155();
@@ -82,7 +82,7 @@ $plan155 = static function (int $maxTruncatedPages = 4, ?int $parentPage = 3): S
         SQLiteTableLeafCell::encode(41, SQLiteRecord::encode([null, '_transient_feed_next155', 'cached'])),
     ]);
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Plan::tableLeafFromDeleteResult(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext155(
         $database,
         3,
         [
@@ -153,7 +153,7 @@ $cases155 = [
         $database = $database155();
         $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-        return $message155(static fn () => SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Plan::tableLeafFromDeleteResult(
+        return $message155(static fn () => SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext155(
             $database,
             3,
             ['page' => $deletedPage, 'rowid' => 2, 'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110]],
@@ -167,7 +167,7 @@ $cases155 = [
         $database = $database155();
         $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-        return $message155(static fn () => SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Plan::tableLeafFromDeleteResult(
+        return $message155(static fn () => SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext155(
             $database,
             3,
             ['page' => $deletedPage, 'rowid' => 2, 'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110]],

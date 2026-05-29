@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext219Plan`, a post-write current-source readback verifier for the existing vacuum pointer-map/freeblock chain. It consumes the accepted next217 write rows and verifies that the publishable readback stream:
+Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`, a post-write current-source readback verifier for the existing vacuum pointer-map/freeblock chain. It consumes the accepted next217 write rows and verifies that the publishable readback stream:
 
 - preserves pointer-map-before-payload ordering;
 - keeps duplicate pointer-map rewrites visible for page 105;

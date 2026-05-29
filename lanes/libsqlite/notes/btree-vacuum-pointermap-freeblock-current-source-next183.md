@@ -1,6 +1,6 @@
 # B-tree Vacuum Pointer-Map Freeblock Current Source Next183
 
-This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext183Plan`,
+This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`,
 which wraps the accepted next180 apply-order plan with current-source commit
 receipts. The new receipts prove that pointer-map dependency pages are committed
 before page images, the secure-delete table leaf freeblock reaches the current
@@ -11,7 +11,7 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext183Test.php`
 - `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next183.php`
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext183Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext183Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next183.php`
 - `git diff --check -- lanes/libsqlite`

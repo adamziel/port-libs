@@ -1,6 +1,6 @@
 # B-tree Vacuum Pointer-Map Freeblock Current Source Next186
 
-This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext186Plan`,
+This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`,
 which wraps the accepted next183 commit receipts with a post-commit
 current-source cursor. The cursor exposes deterministic resume tokens and
 visibility rows for pointer-map pages, the secure-delete table leaf freeblock,
@@ -11,7 +11,7 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext186Test.php`
 - `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next186.php`
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext186Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext186Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next186.php`
 - `git diff --check -- lanes/libsqlite`

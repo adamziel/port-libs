@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Plan;
+use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -24,7 +24,7 @@ require_once __DIR__ . '/../src/SQLiteBTreeDeleteRebalanceFreeblockApplyPlan.php
 require_once __DIR__ . '/../src/SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan.php';
-require_once __DIR__ . '/../src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteRecord.php';
 require_once __DIR__ . '/../src/SQLiteVarint.php';
 require_once __DIR__ . '/../src/SQLiteTableLeafCell.php';
@@ -95,7 +95,7 @@ $newLeaf = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(41, SQLiteRecord::encode([null, '_transient_feed_next155', 'cached'])),
 ]);
 
-$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Plan::tableLeafFromDeleteResult(
+$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext155(
     $database,
     3,
     [

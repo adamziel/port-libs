@@ -1,6 +1,6 @@
 # B-tree Vacuum Pointer-map Freeblock Current-source Next216
 
-This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext216Plan`, a commit-receipt layer over the accepted next212 current-source apply rows. It records ordered page-write receipts for pointer-map and payload/freeblock pages, hashes each receipted page batch, preserves the pointer-map-before-payload barrier, carries leaf freeblock receipts, and keeps vacuum-truncated tail pages out of the receipted writer set.
+This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`, a commit-receipt layer over the accepted next212 current-source apply rows. It records ordered page-write receipts for pointer-map and payload/freeblock pages, hashes each receipted page batch, preserves the pointer-map-before-payload barrier, carries leaf freeblock receipts, and keeps vacuum-truncated tail pages out of the receipted writer set.
 
 WordPress smoke:
 
@@ -8,7 +8,7 @@ WordPress smoke:
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext216Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext216Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next216.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext216Test.php`

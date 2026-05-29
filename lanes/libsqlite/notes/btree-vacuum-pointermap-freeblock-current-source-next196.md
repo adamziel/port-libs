@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for source-next writer handoff after current-source reader validation.
 
-This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext196Plan`. It builds on the accepted next192 reader-validation rows and admits the next writer only after validation tokens still match, pointer-map pages are carried forward before payload pages, leaf freeblock receipts survive the handoff, token chains remain continuous, and fenced tail pages remain blocked from the next writable source.
+This slice adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`. It builds on the accepted next192 reader-validation rows and admits the next writer only after validation tokens still match, pointer-map pages are carried forward before payload pages, leaf freeblock receipts survive the handoff, token chains remain continuous, and fenced tail pages remain blocked from the next writable source.
 
 WordPress smoke: `wordpress-btree-vacuum-pointermap-freeblock-current-source-next196.php` models deleting an overflow-backed copied `wp_options` transient, validating the post-vacuum current source, and carrying the validated header, pointer-map, leaf freeblock, and replacement overflow pages into the next writer source.
 
