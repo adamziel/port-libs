@@ -23,7 +23,16 @@ $retryStatements = [
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
 $plans = [];
 for ($step = 374; $step <= 381; $step++) {
-    $plans[$step] = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourceReadySealStep($step, ...$args);
+    $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourceReadySealStep($step, ...$args);
+    $plans[$step] = array_intersect_key($plan, array_flip([
+        'status',
+        'next' . $step . '_handoff',
+        'next' . $step . '_source_audit',
+        'next' . $step . '_preflight',
+        'next' . $step . '_final',
+        'next' . $step . '_ready',
+    ]));
+    unset($plan);
 }
 
 $statuses = [
