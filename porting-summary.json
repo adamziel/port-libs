@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 17:23:13 UTC",
-    "sourceCommit": "b5e81214bcf2be3c1147d2be713122dc22bfdd14",
-    "sourceCommitShort": "b5e81214bcf2",
+    "generated": "2026-05-29 17:28:08 UTC",
+    "sourceCommit": "83916f6ad41a32795b86f2b91649797c0410e3b7",
+    "sourceCommitShort": "83916f6ad41a",
     "sourceBranch": "unknown",
-    "dashboardCommit": "b5e81214bcf2be3c1147d2be713122dc22bfdd14",
-    "dashboardCommitShort": "b5e81214bcf2",
+    "dashboardCommit": "83916f6ad41a32795b86f2b91649797c0410e3b7",
+    "dashboardCommitShort": "83916f6ad41a",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted eight ready-marked BV consolidat...",
-            "currentWork": "Consolidated eight BV numbered method/helper cleanup handoffs across compound recursive-l...",
-            "nextTarget": "Keep the visible pool at 10-11 active current-base libsqlite lanes, triage BW/BX ready ma...",
+            "audit": "Accepted six ready-marked BX consolidatio...",
+            "currentWork": "Consolidated six BX numbered method/helper cleanup handoffs across planner STAT4 prepared...",
+            "nextTarget": "Keep the visible pool at 10-11 active current-base libsqlite lanes, triage BY ready marke...",
             "blocker": "No blocker for the accepted reduced consolidation slice.",
-            "commit": "sixtiet"
+            "commit": "sixty-f"
         },
         {
             "library": "LightningCSS",
