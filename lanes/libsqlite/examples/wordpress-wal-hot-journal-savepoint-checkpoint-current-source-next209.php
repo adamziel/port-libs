@@ -28,7 +28,7 @@ $statementPlan = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next206'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next209Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writerGenerationAdvancePlan(
     $statementPlan,
     [
         [

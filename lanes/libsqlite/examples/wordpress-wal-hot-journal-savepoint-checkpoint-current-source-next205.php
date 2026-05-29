@@ -47,7 +47,7 @@ $reader = static function (string $name, int $page, string $digest, array $overr
     ], $override);
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($checkpoint, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointReaderLeasePlan($checkpoint, [
     $reader('wp-options-schema-reader', 1, $checkpoint['page_digests'][1]),
     $reader('wp-options-current-reader', 2, $checkpoint['page_digests'][2]),
     $reader('wp-options-stale-page-reader', 2, $hash('wp next205 stale wp_options root before checkpoint')),

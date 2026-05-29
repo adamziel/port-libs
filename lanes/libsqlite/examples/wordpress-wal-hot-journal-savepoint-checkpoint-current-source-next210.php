@@ -29,7 +29,7 @@ $writerPlan = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next209'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::appendBatchCommitAdmissionPlan(
     $writerPlan,
     [
         [

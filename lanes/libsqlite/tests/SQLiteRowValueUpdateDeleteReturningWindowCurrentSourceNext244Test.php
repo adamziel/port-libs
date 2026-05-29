@@ -43,13 +43,13 @@ $retryDelete244 = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SEL
 
 $attemptUpdateResult244 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptUpdate244, $tables244, 'option_id', $unique244);
 $retryUpdateResult244 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate244, $tables244, 'option_id', $unique244);
-$plan244 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext244(
+$plan244 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeTransitionChainWindow(
     $tables244,
     [$attemptUpdate244, $attemptDelete244],
     [$retryUpdate244, $retryDelete244],
     $unique244,
 );
-$customPlan244 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext244(
+$customPlan244 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeTransitionChainWindow(
     $tables244,
     [$attemptUpdate244],
     [$retryUpdate244],
@@ -133,11 +133,11 @@ $cases244 = [
     'custom replay ids' => [static fn (): mixed => $customPlan244()['window_transition_replayed_ids_next244'], [8, 9]],
     'custom discarded ids' => [static fn (): mixed => $customPlan244()['window_transition_discarded_ids_next244'], [7]],
     'custom restart ids' => [static fn (): mixed => $customPlan244()['window_transition_restart_ids_next244'], [10]],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext244($tables244, [], [$retryUpdate244], $unique244), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext244($tables244, [$attemptUpdate244], [], $unique244), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext244($tables244, [$attemptUpdate244], [$retryUpdate244], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext244($tables244, [$attemptUpdate244], [$retryUpdate244], $unique244, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext244(['wp_options' => ['bad']], [$attemptUpdate244], [$retryUpdate244], $unique244), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeTransitionChainWindow($tables244, [], [$retryUpdate244], $unique244), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeTransitionChainWindow($tables244, [$attemptUpdate244], [], $unique244), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeTransitionChainWindow($tables244, [$attemptUpdate244], [$retryUpdate244], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeTransitionChainWindow($tables244, [$attemptUpdate244], [$retryUpdate244], $unique244, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeTransitionChainWindow(['wp_options' => ['bad']], [$attemptUpdate244], [$retryUpdate244], $unique244), InvalidArgumentException::class],
 ];
 
 $tests = [];

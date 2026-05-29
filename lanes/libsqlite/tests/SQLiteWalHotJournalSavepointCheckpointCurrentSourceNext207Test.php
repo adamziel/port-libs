@@ -214,9 +214,9 @@ $cursors = [
     ],
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, $cursors, $lockToken, 208);
-$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($blockedBase, [$cursors[0], $cursors[2]], $lockToken, 208);
-$allCurrent = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [$cursors[0], $cursors[1]], $lockToken, 208);
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, $cursors, $lockToken, 208);
+$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($blockedBase, [$cursors[0], $cursors[2]], $lockToken, 208);
+$allCurrent = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [$cursors[0], $cursors[1]], $lockToken, 208);
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next207'],
@@ -283,23 +283,23 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan(['status' => 'bad'], $cursors, $lockToken, 208),
-    'empty cursors rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [], $lockToken, 208),
-    'empty lock token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, $cursors, '', 208),
-    'negative generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, $cursors, $lockToken, -1),
-    'missing database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan(array_merge($base, ['checkpointed_database_digest' => 'short']), $cursors, $lockToken, 208),
-    'missing wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan(array_merge($base, ['expected_wal_digest' => 'short']), $cursors, $lockToken, 208),
-    'missing page digests rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($missingPagesBase, $cursors, $lockToken, 208),
-    'missing admitted consumers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($missingConsumersBase, $cursors, $lockToken, 208),
-    'missing name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [array_merge($cursors[0], ['name' => ''])], $lockToken, 208),
-    'missing consumer rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [array_merge($cursors[0], ['consumer_name' => ''])], $lockToken, 208),
-    'bad generation row rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [array_merge($cursors[0], ['commit_generation' => -1])], $lockToken, 208),
-    'empty row lock token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [array_merge($cursors[0], ['write_lock_token' => ''])], $lockToken, 208),
-    'bad observed digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [array_merge($cursors[0], ['observed_wal_digest' => 'short'])], $lockToken, 208),
-    'missing root pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [array_merge($cursors[0], ['root_pages' => []])], $lockToken, 208),
-    'bad root page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [array_merge($cursors[0], ['root_pages' => [0]])], $lockToken, 208),
-    'bad page digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [array_merge($cursors[0], ['observed_page_digests' => [1 => 'short']])], $lockToken, 208),
-    'bad hot journal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next207Plan($base, [array_merge($cursors[0], ['hot_journal_digest' => 'short'])], $lockToken, 208),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan(['status' => 'bad'], $cursors, $lockToken, 208),
+    'empty cursors rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [], $lockToken, 208),
+    'empty lock token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, $cursors, '', 208),
+    'negative generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, $cursors, $lockToken, -1),
+    'missing database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan(array_merge($base, ['checkpointed_database_digest' => 'short']), $cursors, $lockToken, 208),
+    'missing wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan(array_merge($base, ['expected_wal_digest' => 'short']), $cursors, $lockToken, 208),
+    'missing page digests rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($missingPagesBase, $cursors, $lockToken, 208),
+    'missing admitted consumers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($missingConsumersBase, $cursors, $lockToken, 208),
+    'missing name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [array_merge($cursors[0], ['name' => ''])], $lockToken, 208),
+    'missing consumer rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [array_merge($cursors[0], ['consumer_name' => ''])], $lockToken, 208),
+    'bad generation row rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [array_merge($cursors[0], ['commit_generation' => -1])], $lockToken, 208),
+    'empty row lock token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [array_merge($cursors[0], ['write_lock_token' => ''])], $lockToken, 208),
+    'bad observed digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [array_merge($cursors[0], ['observed_wal_digest' => 'short'])], $lockToken, 208),
+    'missing root pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [array_merge($cursors[0], ['root_pages' => []])], $lockToken, 208),
+    'bad root page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [array_merge($cursors[0], ['root_pages' => [0]])], $lockToken, 208),
+    'bad page digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [array_merge($cursors[0], ['observed_page_digests' => [1 => 'short']])], $lockToken, 208),
+    'bad hot journal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::writeCursorAdmissionPlan($base, [array_merge($cursors[0], ['hot_journal_digest' => 'short'])], $lockToken, 208),
 ];
 
 foreach ($throws as $name => $callback) {

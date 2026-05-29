@@ -45,7 +45,7 @@ $reader = static function (string $name, int $page, array $override = []) use ($
         'image_sha256' => $checkpoint['page_digests'][$page],
     ], $override);
 };
-$readerPlan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($checkpoint, [
+$readerPlan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointReaderLeasePlan($checkpoint, [
     $reader('wp-schema-reader', 1),
     $reader('wp-options-reader', 2),
     $reader('wp-old-plugin-reader', 2, ['source_id' => 'before-hot-journal-checkpoint']),
@@ -64,7 +64,7 @@ foreach ($readerPlan['reader_rows'] as $row) {
         'reopen_fenced' => !$row['admitted'],
     ];
 }
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next211Plan($readerPlan, $acks);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::readerAcknowledgementFencePlan($readerPlan, $acks);
 $summary = [
     'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next211',
     'wordpressUse' => 'A copied WordPress plugin import publishes a hot-journal checkpoint only after current readers acknowledge matching page images and stale readers are fenced for reopen.',

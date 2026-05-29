@@ -16,7 +16,7 @@ $pageDigests = [
     2 => $digest($page('wp next206 option checkpoint')),
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::statementConsumerAdmissionPlan(
     [
         'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next203',
         'database_path' => '/srv/www/wp-content/database/wp-options.sqlite',

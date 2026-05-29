@@ -9076,7 +9076,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($sidecarPublication, $checkpointedDatabaseBytes, $hotJournalBytes, $savepointReleased, $exclusiveCheckpointLock, $databaseSyncReceipt, $walSyncReceipt, $directorySyncReceipt, $handles);
     }
 
-    public static function next203Plan(array $basePlan, string $checkpointedDatabaseBytes, array $leases): array
+    public static function checkpointPageCacheLeasePlan(array $basePlan, string $checkpointedDatabaseBytes, array $leases): array
     {
         $impl = new class {
                 /**
@@ -9297,7 +9297,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($basePlan, $checkpointedDatabaseBytes, $leases);
     }
 
-    public static function next205Plan(array $checkpoint, array $readers): array
+    public static function checkpointReaderLeasePlan(array $checkpoint, array $readers): array
     {
         $impl = new class {
                 /**
@@ -9538,7 +9538,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($checkpoint, $readers);
     }
 
-    public static function next206Plan(array $leasePlan, array $consumers, int $minimumStatementGeneration): array
+    public static function statementConsumerAdmissionPlan(array $leasePlan, array $consumers, int $minimumStatementGeneration): array
     {
         $impl = new class {
                 /**
@@ -9791,7 +9791,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($leasePlan, $consumers, $minimumStatementGeneration);
     }
 
-    public static function next207Plan(array $consumerPlan, array $writeCursors, string $expectedWriteLockToken, int $minimumCommitGeneration): array
+    public static function writeCursorAdmissionPlan(array $consumerPlan, array $writeCursors, string $expectedWriteLockToken, int $minimumCommitGeneration): array
     {
         $impl = new class {
                 /**
@@ -10077,7 +10077,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($consumerPlan, $writeCursors, $expectedWriteLockToken, $minimumCommitGeneration);
     }
 
-    public static function next208Plan(array $consumerPlan, array $readerSlots, int $checkpointFrame): array
+    public static function readerSlotCheckpointAdmissionPlan(array $consumerPlan, array $readerSlots, int $checkpointFrame): array
     {
         $impl = new class {
                 /**
@@ -10388,7 +10388,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($consumerPlan, $readerSlots, $checkpointFrame);
     }
 
-    public static function next209Plan(array $statementPlan, array $writers, int $nextWriterGeneration): array
+    public static function writerGenerationAdvancePlan(array $statementPlan, array $writers, int $nextWriterGeneration): array
     {
         $impl = new class {
                 /**
@@ -10671,7 +10671,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($statementPlan, $writers, $nextWriterGeneration);
     }
 
-    public static function next210Plan(array $writerPlan, array $appendBatches, int $nextCommitFrame): array
+    public static function appendBatchCommitAdmissionPlan(array $writerPlan, array $appendBatches, int $nextCommitFrame): array
     {
         $impl = new class {
                 /**
@@ -10991,7 +10991,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($writerPlan, $appendBatches, $nextCommitFrame);
     }
 
-    public static function next211Plan(array $readerPlan, array $acknowledgements): array
+    public static function readerAcknowledgementFencePlan(array $readerPlan, array $acknowledgements): array
     {
         $impl = new class {
                 /**

@@ -42,13 +42,13 @@ $attemptUpdateResult234 = static fn (): array => SQLiteUpdateDeleteReturningSql:
 $attemptDeleteResult234 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptDelete234, $attemptUpdateResult234()['tables'], 'option_id', $unique234);
 $retryUpdateResult234 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate234, $tables234, 'option_id', $unique234);
 $retryDeleteResult234 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete234, $retryUpdateResult234()['tables'], 'option_id', $unique234);
-$plan234 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext234(
+$plan234 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePartitionedRetryWindow(
     $tables234,
     [$attemptUpdate234, $attemptDelete234],
     [$retryUpdate234, $retryDelete234],
     $unique234,
 );
-$customPlan234 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext234(
+$customPlan234 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePartitionedRetryWindow(
     $tables234,
     [$attemptUpdate234],
     [$retryUpdate234],
@@ -127,13 +127,13 @@ $cases234 = [
     'custom order column' => [static fn (): mixed => $customPlan234()['order_column'], 'option_name'],
     'custom window count' => [static fn (): mixed => $customPlan234()['window_row_count'], 4],
     'custom status partition summary' => [static fn (): mixed => $customPlan234()['window_partition_summary']['retry234']['count'], 4],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext234($tables234, [], [$retryUpdate234], $unique234), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext234($tables234, [$attemptUpdate234], [], $unique234), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext234($tables234, [$attemptUpdate234], [$retryUpdate234], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext234($tables234, [$attemptUpdate234], [$retryUpdate234], $unique234, 'blog_id', 'option_id', 'option_id', 'bad-name'), InvalidArgumentException::class],
-    'malformed partition rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext234($tables234, [$attemptUpdate234], [$retryUpdate234], $unique234, 'bad column'), InvalidArgumentException::class],
-    'malformed missing partition column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext234($tables234, [$attemptUpdate234], [$retryUpdate234], $unique234, 'missing_column'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext234(['wp_options' => ['bad']], [$attemptUpdate234], [$retryUpdate234], $unique234), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePartitionedRetryWindow($tables234, [], [$retryUpdate234], $unique234), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePartitionedRetryWindow($tables234, [$attemptUpdate234], [], $unique234), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePartitionedRetryWindow($tables234, [$attemptUpdate234], [$retryUpdate234], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePartitionedRetryWindow($tables234, [$attemptUpdate234], [$retryUpdate234], $unique234, 'blog_id', 'option_id', 'option_id', 'bad-name'), InvalidArgumentException::class],
+    'malformed partition rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePartitionedRetryWindow($tables234, [$attemptUpdate234], [$retryUpdate234], $unique234, 'bad column'), InvalidArgumentException::class],
+    'malformed missing partition column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePartitionedRetryWindow($tables234, [$attemptUpdate234], [$retryUpdate234], $unique234, 'missing_column'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePartitionedRetryWindow(['wp_options' => ['bad']], [$attemptUpdate234], [$retryUpdate234], $unique234), InvalidArgumentException::class],
 ];
 
 $tests = [];

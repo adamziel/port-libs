@@ -82,7 +82,7 @@ return [
             ],
         ];
 
-        $record = $evidence->upstreamVeryquickShardCurrentSourceNext171(
+        $record = $evidence->upstreamVeryquickShardFocusedAdmission(
             $rows,
             604,
             44622,
@@ -158,7 +158,7 @@ return [
         ]);
         $processSnapshot = '54321 1 S 00:10 0.0 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error all';
 
-        $record = $evidence->upstreamVeryquickShardCurrentSourceNext171(
+        $record = $evidence->upstreamVeryquickShardFocusedAdmission(
             [
                 [
                     'unit' => 'stale-next171-release-claim',

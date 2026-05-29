@@ -80,7 +80,7 @@ final class SQLiteAttachWalTempStatementLifecyclePlan
 
         return [
             'status' => $expired === [] ? 'stable' : 'schema_changed',
-            'operation' => 'attach-wal-temp-statement-lifecycle-current-next67',
+            'operation' => 'attach-wal-temp-statement-lifecycle',
             'source' => $cache['source'],
             'search_order' => $cache['search_order'],
             'schema_cookies_current' => $cache['schema_cookies_current'],
@@ -93,9 +93,9 @@ final class SQLiteAttachWalTempStatementLifecyclePlan
             'statements' => $statementPlans,
             'requires_reprepare' => $expired !== [],
             'dependencies' => [
-                'sqlite-attach-wal-temp-current-next67',
+                'sqlite-attach-wal-temp-statement-lifecycle',
                 'sqlite-schema-cookie-expire-prepared-statements',
-                'sqlite-wal-ddl-current-next-statement-lifecycle',
+                'sqlite-wal-ddl-statement-lifecycle',
             ],
         ];
     }

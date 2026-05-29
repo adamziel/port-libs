@@ -68,7 +68,7 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
             'wal_schema_cookie_sources' => $walDependencies,
             'database_list' => self::databaseList($normalized, $order),
             'dependencies' => [
-                'attach-temp-main-wal-schema-cache-current-next',
+                'attach-temp-main-wal-schema-cache',
                 'sqlite-wal-page-one-schema-cookie',
                 'sqlite-temp-main-name-resolution',
             ],
@@ -122,7 +122,7 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
         $plan['operation'] = 'attach-temp-main-wal-schema-cache-sql';
         $plan['statement_count'] = count($statementPlans);
         $plan['statements'] = $statementPlans;
-        $plan['dependencies'][] = 'sqlite-attach-temp-wal-schema-cache-sql-current-next53';
+        $plan['dependencies'][] = 'sqlite-attach-temp-wal-schema-cache-sql';
 
         return $plan;
     }
@@ -200,7 +200,7 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
 
         return [
             'status' => 'ok',
-            'operation' => 'attach-temp-main-wal-current-next-objects',
+            'operation' => 'attach-temp-main-wal-schema-cache-objects',
             'source' => $source,
             'search_order' => $order,
             'schema_cookies_current' => $current,
@@ -211,7 +211,7 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
             'requires_reprepare' => $reprepare,
             'database_list' => self::databaseList($normalized, $order),
             'dependencies' => [
-                'sqlite-attach-wal-temp-current-next64',
+                'sqlite-attach-temp-main-wal-schema-cache',
                 'sqlite-wal-ddl-object-resolution',
                 'sqlite-temp-main-name-resolution',
             ],

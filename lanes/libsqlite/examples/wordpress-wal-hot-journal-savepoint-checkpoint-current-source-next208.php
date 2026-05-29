@@ -32,7 +32,7 @@ $consumerPlan = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next206'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next208Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::readerSlotCheckpointAdmissionPlan(
     $consumerPlan,
     [
         [

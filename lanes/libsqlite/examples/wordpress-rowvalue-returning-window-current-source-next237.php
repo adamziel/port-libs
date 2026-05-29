@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/SQLiteUpdateDeleteLimitPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteAffinityComparison.php';
 require_once dirname(__DIR__) . '/src/SQLiteSelectResult.php';
 require_once dirname(__DIR__) . '/src/SQLiteUpdateDeleteReturningSql.php';
 require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
@@ -30,7 +31,7 @@ $attempt = "UPDATE wp_options SET (status, option_value, bytes) = ('attempt237',
 $retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry237', option_value || ':retry237', bytes + 3) WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'retry_batch' ORDER BY priority ASC LIMIT -1) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'retry_cleanup' ORDER BY priority ASC) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext237(
+$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeExcludeCurrentRetryWindow(
     ['wp_options' => $rows, 'wp_optionmeta' => $meta],
     [$attempt],
     [$retryUpdate, $retryDelete],

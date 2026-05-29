@@ -27,14 +27,14 @@ $attemptDelete239 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3,
 $retryUpdate239 = "UPDATE wp_options SET (status, option_value, bytes) = ('retry239', option_value || ':retry239', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete239 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan239 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext239(
+$plan239 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics(
     $tables239,
     [$yieldUpdate239, $yieldDelete239],
     [$attemptUpdate239, $attemptDelete239],
     [$retryUpdate239, $retryDelete239],
     $unique239,
 );
-$customPlan239 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext239(
+$customPlan239 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics(
     $tables239,
     [$yieldUpdate239],
     [$attemptUpdate239],
@@ -116,10 +116,10 @@ $cases239 = [
     'dependency closure' => [static fn (): mixed => str_contains($plan239()['dependency_closure_next239'], 'no new support component needed'), true],
     'non overlap mentions next236' => [static fn (): mixed => str_contains($plan239()['non_overlap_next239'], 'next236 current-row frames'), true],
     'non overlap mentions row value upsert' => [static fn (): mixed => str_contains($plan239()['non_overlap_next239'], 'row-value UPSERT'), true],
-    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext239($tables239, [], [$attemptUpdate239], [$retryUpdate239], $unique239), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext239($tables239, [$yieldUpdate239], [], [$retryUpdate239], $unique239), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext239($tables239, [$yieldUpdate239], [$attemptUpdate239], [], $unique239), InvalidArgumentException::class],
-    'malformed rowid rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext239($tables239, [$yieldUpdate239], [$attemptUpdate239], [$retryUpdate239], $unique239, 'sp239', 'missing_rowid'), InvalidArgumentException::class],
+    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics($tables239, [], [$attemptUpdate239], [$retryUpdate239], $unique239), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics($tables239, [$yieldUpdate239], [], [$retryUpdate239], $unique239), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics($tables239, [$yieldUpdate239], [$attemptUpdate239], [], $unique239), InvalidArgumentException::class],
+    'malformed rowid rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics($tables239, [$yieldUpdate239], [$attemptUpdate239], [$retryUpdate239], $unique239, 'sp239', 'missing_rowid'), InvalidArgumentException::class],
 ];
 
 $tests = [];

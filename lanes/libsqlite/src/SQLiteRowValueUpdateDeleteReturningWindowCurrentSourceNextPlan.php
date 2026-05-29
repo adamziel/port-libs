@@ -480,7 +480,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext234(
+    public static function executePartitionedRetryWindow(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -490,23 +490,23 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $rowIdColumn = 'option_id',
         string $savepoint = 'wp_options_rowvalue_returning_window_next234',
     ): array {
-        self::validateTablesNext234($tables);
-        self::validateStatementsNext234($attemptStatements, 'attempt');
-        self::validateStatementsNext234($retryStatements, 'retry');
-        self::validateUniqueConstraintsNext234($uniqueConstraints);
-        self::validateIdentifierNext234($partitionColumn, 'partition column');
-        self::validateIdentifierNext234($orderColumn, 'order column');
-        self::validateIdentifierNext234($rowIdColumn, 'rowid column');
+        self::validateTablesPartitionedRetryWindow($tables);
+        self::validateStatementsPartitionedRetryWindow($attemptStatements, 'attempt');
+        self::validateStatementsPartitionedRetryWindow($retryStatements, 'retry');
+        self::validateUniqueConstraintsPartitionedRetryWindow($uniqueConstraints);
+        self::validateIdentifierPartitionedRetryWindow($partitionColumn, 'partition column');
+        self::validateIdentifierPartitionedRetryWindow($orderColumn, 'order column');
+        self::validateIdentifierPartitionedRetryWindow($rowIdColumn, 'rowid column');
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
             throw new \InvalidArgumentException('SQLite row-value RETURNING window next234 savepoint must be an identifier');
         }
 
         $savepointImage = $tables;
-        $attempt = self::runStatementsNext234($tables, $attemptStatements, $uniqueConstraints, $rowIdColumn, 'attempt-next234');
+        $attempt = self::runStatementsPartitionedRetryWindow($tables, $attemptStatements, $uniqueConstraints, $rowIdColumn, 'attempt-next234');
         $rollback = $savepointImage;
-        $retry = self::runStatementsNext234($rollback, $retryStatements, $uniqueConstraints, $rowIdColumn, 'retry-next234');
-        $windowRows = self::windowRowsNext234($retry['returning_rows'], $partitionColumn, $orderColumn);
-        $partitionSummary = self::partitionSummaryNext234($windowRows, $partitionColumn);
+        $retry = self::runStatementsPartitionedRetryWindow($rollback, $retryStatements, $uniqueConstraints, $rowIdColumn, 'retry-next234');
+        $windowRows = self::windowRowsPartitionedRetryWindow($retry['returning_rows'], $partitionColumn, $orderColumn);
+        $partitionSummary = self::partitionSummaryPartitionedRetryWindow($windowRows, $partitionColumn);
 
         return [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next234',
@@ -532,10 +532,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'rolled_back_to_savepoint' => true,
             'retry_reads_savepoint_image' => true,
             'savepoint_released_after_retry' => true,
-            'current_source_token' => self::sourceTokenNext234($retry['tables']),
-            'window_token' => self::sourceTokenNext234($windowRows),
-            'changed_tables_after_retry' => self::changedTablesNext234($savepointImage, $retry['tables']),
-            'row_counts' => self::rowCountsNext234($retry['tables']),
+            'current_source_token' => self::sourceTokenPartitionedRetryWindow($retry['tables']),
+            'window_token' => self::sourceTokenPartitionedRetryWindow($windowRows),
+            'changed_tables_after_retry' => self::changedTablesPartitionedRetryWindow($savepointImage, $retry['tables']),
+            'row_counts' => self::rowCountsPartitionedRetryWindow($retry['tables']),
             'dependencies' => [
                 'sqlite-rowvalue-update-returning-current-source-window-next234',
                 'sqlite-rowvalue-delete-returning-current-source-window-next234',
@@ -552,7 +552,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{tables:array<string,list<array<string,mixed>>>,statements:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>}
      */
-    private static function runStatementsNext234(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    private static function runStatementsPartitionedRetryWindow(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
     {
         $current = $tables;
         $summaries = [];
@@ -563,7 +563,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $current = $result['tables'];
             $rows = [];
             foreach ($result['returning'] as $ordinal => $row) {
-                $rows[] = self::tagReturningRowNext234($row, $phase, $index, $ordinal);
+                $rows[] = self::tagReturningRowPartitionedRetryWindow($row, $phase, $index, $ordinal);
             }
             $returningRows = array_merge($returningRows, $rows);
             $summaries[] = [
@@ -577,7 +577,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'source_rows' => $result['plan']->selectedRows,
                 'returning_rows' => $rows,
                 'returning_count' => count($rows),
-                'changed_tables' => self::changedTablesNext234($before, $current),
+                'changed_tables' => self::changedTablesPartitionedRetryWindow($before, $current),
             ];
         }
 
@@ -588,7 +588,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,mixed> $row
      * @return array<string,mixed>
      */
-    private static function tagReturningRowNext234(array $row, string $phase, int $statementOrdinal, int $returningOrdinal): array
+    private static function tagReturningRowPartitionedRetryWindow(array $row, string $phase, int $statementOrdinal, int $returningOrdinal): array
     {
         $row['returning_phase'] = $phase;
         $row['statement_ordinal'] = $statementOrdinal;
@@ -601,7 +601,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function windowRowsNext234(array $rows, string $partitionColumn, string $orderColumn): array
+    private static function windowRowsPartitionedRetryWindow(array $rows, string $partitionColumn, string $orderColumn): array
     {
         $indexed = [];
         foreach ($rows as $index => $row) {
@@ -614,11 +614,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $indexed[] = ['index' => $index, 'row' => $row];
         }
         usort($indexed, static function (array $left, array $right) use ($partitionColumn, $orderColumn): int {
-            $partition = self::compareValuesNext234($left['row'][$partitionColumn], $right['row'][$partitionColumn]);
+            $partition = self::compareValuesPartitionedRetryWindow($left['row'][$partitionColumn], $right['row'][$partitionColumn]);
             if ($partition !== 0) {
                 return $partition;
             }
-            $order = self::compareValuesNext234($left['row'][$orderColumn], $right['row'][$orderColumn]);
+            $order = self::compareValuesPartitionedRetryWindow($left['row'][$orderColumn], $right['row'][$orderColumn]);
             if ($order !== 0) {
                 return $order;
             }
@@ -628,7 +628,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 
         $byPartition = [];
         foreach ($indexed as $entry) {
-            $key = self::valueKeyNext234($entry['row'][$partitionColumn]);
+            $key = self::valueKeyPartitionedRetryWindow($entry['row'][$partitionColumn]);
             $byPartition[$key][] = $entry['row'];
         }
 
@@ -638,7 +638,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $previousOrderKey = null;
             $count = count($partitionRows);
             foreach ($partitionRows as $position => $row) {
-                $orderKey = self::valueKeyNext234($row[$orderColumn]);
+                $orderKey = self::valueKeyPartitionedRetryWindow($row[$orderColumn]);
                 if ($previousOrderKey !== $orderKey) {
                     $denseRank++;
                     $previousOrderKey = $orderKey;
@@ -651,7 +651,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 $row['window_lag_option_name'] = $lag['option_name'] ?? null;
                 $row['window_lead_option_name'] = $lead['option_name'] ?? null;
                 $row['window_current_row'] = true;
-                $row['window_frame_rowids'] = self::frameRowidsNext234($partitionRows, max(0, $position - 1), min($count - 1, $position + 1));
+                $row['window_frame_rowids'] = self::frameRowidsPartitionedRetryWindow($partitionRows, max(0, $position - 1), min($count - 1, $position + 1));
                 $windowRows[] = $row;
             }
         }
@@ -663,7 +663,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<int|string>
      */
-    private static function frameRowidsNext234(array $rows, int $start, int $end): array
+    private static function frameRowidsPartitionedRetryWindow(array $rows, int $start, int $end): array
     {
         $ids = [];
         for ($i = $start; $i <= $end; $i++) {
@@ -682,11 +682,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,array{count:int,row_numbers:list<int>,rowids:list<int|string>}>
      */
-    private static function partitionSummaryNext234(array $rows, string $partitionColumn): array
+    private static function partitionSummaryPartitionedRetryWindow(array $rows, string $partitionColumn): array
     {
         $summary = [];
         foreach ($rows as $row) {
-            $key = self::valueKeyNext234($row[$partitionColumn] ?? null);
+            $key = self::valueKeyPartitionedRetryWindow($row[$partitionColumn] ?? null);
             if (!isset($summary[$key])) {
                 $summary[$key] = ['count' => 0, 'row_numbers' => [], 'rowids' => []];
             }
@@ -700,7 +700,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $summary;
     }
 
-    private static function compareValuesNext234(mixed $left, mixed $right): int
+    private static function compareValuesPartitionedRetryWindow(mixed $left, mixed $right): int
     {
         if ($left === $right) {
             return 0;
@@ -718,7 +718,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return strcmp((string) $left, (string) $right);
     }
 
-    private static function valueKeyNext234(mixed $value): string
+    private static function valueKeyPartitionedRetryWindow(mixed $value): string
     {
         if ($value === null) {
             return 'NULL';
@@ -738,7 +738,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext234(array $before, array $after): array
+    private static function changedTablesPartitionedRetryWindow(array $before, array $after): array
     {
         $changed = [];
         foreach (array_unique(array_merge(array_keys($before), array_keys($after))) as $table) {
@@ -755,7 +755,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext234(array $tables): array
+    private static function rowCountsPartitionedRetryWindow(array $tables): array
     {
         $counts = [];
         foreach ($tables as $table => $rows) {
@@ -766,7 +766,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $counts;
     }
 
-    private static function sourceTokenNext234(array $value): string
+    private static function sourceTokenPartitionedRetryWindow(array $value): string
     {
         return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
     }
@@ -774,7 +774,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      */
-    private static function validateTablesNext234(array $tables): void
+    private static function validateTablesPartitionedRetryWindow(array $tables): void
     {
         if ($tables === []) {
             throw new \InvalidArgumentException('SQLite row-value RETURNING window next234 needs tables');
@@ -794,7 +794,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<string> $statements
      */
-    private static function validateStatementsNext234(array $statements, string $label): void
+    private static function validateStatementsPartitionedRetryWindow(array $statements, string $label): void
     {
         if ($statements === []) {
             throw new \InvalidArgumentException("SQLite row-value RETURNING window next234 {$label} statements must not be empty");
@@ -809,7 +809,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<list<string>> $uniqueConstraints
      */
-    private static function validateUniqueConstraintsNext234(array $uniqueConstraints): void
+    private static function validateUniqueConstraintsPartitionedRetryWindow(array $uniqueConstraints): void
     {
         if ($uniqueConstraints === []) {
             throw new \InvalidArgumentException('SQLite row-value RETURNING window next234 needs unique constraints');
@@ -819,12 +819,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite row-value RETURNING window next234 unique constraints need columns');
             }
             foreach ($columns as $column) {
-                self::validateIdentifierNext234($column, 'unique column');
+                self::validateIdentifierPartitionedRetryWindow($column, 'unique column');
             }
         }
     }
 
-    private static function validateIdentifierNext234(string $identifier, string $label): void
+    private static function validateIdentifierPartitionedRetryWindow(string $identifier, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier) !== 1) {
             throw new \InvalidArgumentException("SQLite row-value RETURNING window next234 {$label} must be an identifier");
@@ -840,7 +840,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext235(
+    public static function executeReturningWindowDigests(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -857,8 +857,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $discarded = self::windowRowsNext235($plan['discarded_attempt_returning'], 'discarded-attempt-window-next235', $rowIdColumn);
-        $yielded = self::windowRowsNext235($plan['yielded_after_retry_returning'], 'yielded-retry-window-next235', $rowIdColumn);
+        $discarded = self::windowRowsReturningWindowDigests($plan['discarded_attempt_returning'], 'discarded-attempt-window-next235', $rowIdColumn);
+        $yielded = self::windowRowsReturningWindowDigests($plan['yielded_after_retry_returning'], 'yielded-retry-window-next235', $rowIdColumn);
 
         $plan['status'] = 'rowvalue-update-delete-returning-window-current-source-next235';
         $plan['savepoint'] = $savepoint;
@@ -871,8 +871,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $plan['yielded_retry_window_count_next235'] = count($yielded);
         $plan['discarded_attempt_window_ids_next235'] = array_column($discarded, $rowIdColumn);
         $plan['yielded_retry_window_ids_next235'] = array_column($yielded, $rowIdColumn);
-        $plan['discarded_attempt_window_digest_next235'] = self::digestNext235($discarded, $rowIdColumn);
-        $plan['yielded_retry_window_digest_next235'] = self::digestNext235($yielded, $rowIdColumn);
+        $plan['discarded_attempt_window_digest_next235'] = self::digestReturningWindowDigests($discarded, $rowIdColumn);
+        $plan['yielded_retry_window_digest_next235'] = self::digestReturningWindowDigests($yielded, $rowIdColumn);
         $plan['window_yield_boundary_next235'] = [
             'discarded_attempt_rows' => count($discarded),
             'yielded_retry_rows' => count($yielded),
@@ -894,7 +894,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}> $streams
      * @return list<array<string,mixed>>
      */
-    private static function windowRowsNext235(array $streams, string $streamName, string $rowIdColumn): array
+    private static function windowRowsReturningWindowDigests(array $streams, string $streamName, string $rowIdColumn): array
     {
         $rows = [];
         $partitionOrdinals = [];
@@ -940,7 +940,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function digestNext235(array $rows, string $rowIdColumn): string
+    private static function digestReturningWindowDigests(array $rows, string $rowIdColumn): string
     {
         $parts = [];
         foreach ($rows as $row) {
@@ -964,7 +964,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext236(
+    public static function executeCurrentRowWindowFrames(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -983,9 +983,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $yieldFrame = self::currentRowFramesNext236($base['yield_window'], $rowIdColumn);
-        $suppressedFrame = self::currentRowFramesNext236($base['suppressed_attempt_window'], $rowIdColumn);
-        $retryFrame = self::currentRowFramesNext236($base['retry_window'], $rowIdColumn);
+        $yieldFrame = self::currentRowFramesCurrentRowWindowFrames($base['yield_window'], $rowIdColumn);
+        $suppressedFrame = self::currentRowFramesCurrentRowWindowFrames($base['suppressed_attempt_window'], $rowIdColumn);
+        $retryFrame = self::currentRowFramesCurrentRowWindowFrames($base['retry_window'], $rowIdColumn);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next236',
@@ -1001,7 +1001,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 static fn (array $row): array => [$row['lag_name'], $row['option_name'], $row['lead_name']],
                 $retryFrame,
             ),
-            'current_source_receipt_next236' => self::currentSourceReceiptNext236($base, $retryFrame, $rowIdColumn),
+            'current_source_receipt_next236' => self::currentSourceReceiptCurrentRowWindowFrames($base, $retryFrame, $rowIdColumn),
             'dependency_closure_next236' => 'no new support component needed; next236 reuses native PHP row-value UPDATE/DELETE RETURNING execution, savepoint row images, and window metadata from next233 while adding current-row frame receipts',
             'dependencies_next236' => [
                 'sqlite-rowvalue-update-delete-returning-window-current-row-next236',
@@ -1016,36 +1016,36 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $windowRows
      * @return list<array<string,mixed>>
      */
-    private static function currentRowFramesNext236(array $windowRows, string $rowIdColumn): array
+    private static function currentRowFramesCurrentRowWindowFrames(array $windowRows, string $rowIdColumn): array
     {
         $frames = [];
         $running = 0;
         $total = 0;
         foreach ($windowRows as $row) {
-            $total += self::numericValueNext236($row['bytes'] ?? null);
+            $total += self::numericValueCurrentRowWindowFrames($row['bytes'] ?? null);
         }
 
         foreach (array_values($windowRows) as $index => $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
                 throw new \InvalidArgumentException("SQLite row-value current-row window next236 rowid column {$rowIdColumn} is missing");
             }
-            $bytes = self::numericValueNext236($row['bytes'] ?? null);
+            $bytes = self::numericValueCurrentRowWindowFrames($row['bytes'] ?? null);
             $running += $bytes;
             $lag = $windowRows[$index - 1] ?? null;
             $lead = $windowRows[$index + 1] ?? null;
 
             $frames[] = [
-                $rowIdColumn => self::rowIdValueNext236($row, $rowIdColumn),
+                $rowIdColumn => self::rowIdValueCurrentRowWindowFrames($row, $rowIdColumn),
                 'option_name' => (string) ($row['option_name'] ?? ''),
                 'status' => $row['status'] ?? null,
-                'row_number' => self::numericValueNext236($row['row_number'] ?? null),
-                'dense_rank' => self::numericValueNext236($row['dense_rank'] ?? null),
+                'row_number' => self::numericValueCurrentRowWindowFrames($row['row_number'] ?? null),
+                'dense_rank' => self::numericValueCurrentRowWindowFrames($row['dense_rank'] ?? null),
                 'current_row_value' => $bytes,
                 'current_row_count' => 1,
                 'running_bytes' => $running,
                 'following_bytes' => $total - $running,
-                'lag_id' => $lag === null ? null : self::rowIdValueNext236($lag, $rowIdColumn),
-                'lead_id' => $lead === null ? null : self::rowIdValueNext236($lead, $rowIdColumn),
+                'lag_id' => $lag === null ? null : self::rowIdValueCurrentRowWindowFrames($lag, $rowIdColumn),
+                'lead_id' => $lead === null ? null : self::rowIdValueCurrentRowWindowFrames($lead, $rowIdColumn),
                 'lag_name' => $lag['option_name'] ?? null,
                 'lead_name' => $lead['option_name'] ?? null,
                 'frame_token' => ($row['option_name'] ?? '') . ':' . $bytes . ':' . $running,
@@ -1060,7 +1060,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $retryFrame
      * @return array<string,mixed>
      */
-    private static function currentSourceReceiptNext236(array $base, array $retryFrame, string $rowIdColumn): array
+    private static function currentSourceReceiptCurrentRowWindowFrames(array $base, array $retryFrame, string $rowIdColumn): array
     {
         return [
             'savepoint' => $base['savepoint'],
@@ -1074,7 +1074,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ];
     }
 
-    private static function numericValueNext236(mixed $value): int
+    private static function numericValueCurrentRowWindowFrames(mixed $value): int
     {
         if (is_int($value)) {
             return $value;
@@ -1092,7 +1092,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $row
      */
-    private static function rowIdValueNext236(array $row, string $rowIdColumn): int|string
+    private static function rowIdValueCurrentRowWindowFrames(array $row, string $rowIdColumn): int|string
     {
         $id = $row[$rowIdColumn];
         if (!is_int($id) && !is_string($id)) {
@@ -1111,7 +1111,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext237(
+    public static function executeExcludeCurrentRetryWindow(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -1121,20 +1121,20 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $rowIdColumn = 'option_id',
         string $savepoint = 'wp_options_rowvalue_returning_window_next237',
     ): array {
-        self::validateTablesNext237($tables);
-        self::validateStatementsNext237($attemptStatements, 'attempt');
-        self::validateStatementsNext237($retryStatements, 'retry');
-        self::validateUniqueConstraintsNext237($uniqueConstraints);
-        self::validateIdentifierNext237($partitionColumn, 'partition column');
-        self::validateIdentifierNext237($orderColumn, 'order column');
-        self::validateIdentifierNext237($rowIdColumn, 'rowid column');
-        self::validateIdentifierNext237($savepoint, 'savepoint');
+        self::validateTablesExcludeCurrentRetryWindow($tables);
+        self::validateStatementsExcludeCurrentRetryWindow($attemptStatements, 'attempt');
+        self::validateStatementsExcludeCurrentRetryWindow($retryStatements, 'retry');
+        self::validateUniqueConstraintsExcludeCurrentRetryWindow($uniqueConstraints);
+        self::validateIdentifierExcludeCurrentRetryWindow($partitionColumn, 'partition column');
+        self::validateIdentifierExcludeCurrentRetryWindow($orderColumn, 'order column');
+        self::validateIdentifierExcludeCurrentRetryWindow($rowIdColumn, 'rowid column');
+        self::validateIdentifierExcludeCurrentRetryWindow($savepoint, 'savepoint');
 
         $savepointImage = $tables;
-        $attempt = self::runStatementsNext237($savepointImage, $attemptStatements, $uniqueConstraints, $rowIdColumn, 'attempt-before-rollback-next237');
+        $attempt = self::runStatementsExcludeCurrentRetryWindow($savepointImage, $attemptStatements, $uniqueConstraints, $rowIdColumn, 'attempt-before-rollback-next237');
         $rollback = $savepointImage;
-        $retry = self::runStatementsNext237($rollback, $retryStatements, $uniqueConstraints, $rowIdColumn, 'retry-after-rollback-next237');
-        $windowRows = self::excludeCurrentWindowRowsNext237($retry['returning_rows'], $partitionColumn, $orderColumn, $rowIdColumn);
+        $retry = self::runStatementsExcludeCurrentRetryWindow($rollback, $retryStatements, $uniqueConstraints, $rowIdColumn, 'retry-after-rollback-next237');
+        $windowRows = self::excludeCurrentWindowRowsExcludeCurrentRetryWindow($retry['returning_rows'], $partitionColumn, $orderColumn, $rowIdColumn);
 
         return [
             'status' => 'rowvalue-update-delete-returning-window-exclude-current-source-next237',
@@ -1155,15 +1155,15 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'yielded_returning_count' => count($retry['returning_rows']),
             'exclude_current_window_rows' => $windowRows,
             'exclude_current_window_count' => count($windowRows),
-            'exclude_current_partition_summary' => self::partitionSummaryNext237($windowRows, $partitionColumn, $rowIdColumn),
+            'exclude_current_partition_summary' => self::partitionSummaryExcludeCurrentRetryWindow($windowRows, $partitionColumn, $rowIdColumn),
             'rolled_back_to_savepoint' => true,
             'retry_reads_savepoint_image' => true,
             'savepoint_released_after_retry' => true,
             'attempt_returning_suppressed_after_rollback' => true,
-            'changed_tables_after_retry' => self::changedTablesNext237($savepointImage, $retry['tables']),
-            'row_counts' => self::rowCountsNext237($retry['tables']),
-            'current_source_token' => self::sourceTokenNext237($retry['tables']),
-            'window_token' => self::sourceTokenNext237($windowRows),
+            'changed_tables_after_retry' => self::changedTablesExcludeCurrentRetryWindow($savepointImage, $retry['tables']),
+            'row_counts' => self::rowCountsExcludeCurrentRetryWindow($retry['tables']),
+            'current_source_token' => self::sourceTokenExcludeCurrentRetryWindow($retry['tables']),
+            'window_token' => self::sourceTokenExcludeCurrentRetryWindow($windowRows),
             'dependencies' => [
                 'sqlite-rowvalue-returning-window-exclude-current-next237',
                 'sqlite-rowvalue-delete-returning-window-peer-frame-next237',
@@ -1180,7 +1180,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{tables:array<string,list<array<string,mixed>>>,statements:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>}
      */
-    private static function runStatementsNext237(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    private static function runStatementsExcludeCurrentRetryWindow(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
     {
         $current = $tables;
         $summaries = [];
@@ -1208,7 +1208,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'source_rows' => $result['plan']->selectedRows,
                 'returning_rows' => $rows,
                 'returning_count' => count($rows),
-                'changed_tables' => self::changedTablesNext237($before, $current),
+                'changed_tables' => self::changedTablesExcludeCurrentRetryWindow($before, $current),
             ];
         }
 
@@ -1219,7 +1219,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function excludeCurrentWindowRowsNext237(array $rows, string $partitionColumn, string $orderColumn, string $rowIdColumn): array
+    private static function excludeCurrentWindowRowsExcludeCurrentRetryWindow(array $rows, string $partitionColumn, string $orderColumn, string $rowIdColumn): array
     {
         $indexed = [];
         foreach ($rows as $index => $row) {
@@ -1232,15 +1232,15 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         }
 
         usort($indexed, static function (array $left, array $right) use ($partitionColumn, $orderColumn, $rowIdColumn): int {
-            $partition = self::compareValuesNext237($left['row'][$partitionColumn], $right['row'][$partitionColumn]);
+            $partition = self::compareValuesExcludeCurrentRetryWindow($left['row'][$partitionColumn], $right['row'][$partitionColumn]);
             if ($partition !== 0) {
                 return $partition;
             }
-            $order = self::compareValuesNext237($left['row'][$orderColumn], $right['row'][$orderColumn]);
+            $order = self::compareValuesExcludeCurrentRetryWindow($left['row'][$orderColumn], $right['row'][$orderColumn]);
             if ($order !== 0) {
                 return $order;
             }
-            $rowid = self::compareValuesNext237($left['row'][$rowIdColumn], $right['row'][$rowIdColumn]);
+            $rowid = self::compareValuesExcludeCurrentRetryWindow($left['row'][$rowIdColumn], $right['row'][$rowIdColumn]);
             if ($rowid !== 0) {
                 return $rowid;
             }
@@ -1250,7 +1250,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 
         $partitions = [];
         foreach ($indexed as $entry) {
-            $partitions[self::valueKeyNext237($entry['row'][$partitionColumn])][] = $entry['row'];
+            $partitions[self::valueKeyExcludeCurrentRetryWindow($entry['row'][$partitionColumn])][] = $entry['row'];
         }
 
         $windowRows = [];
@@ -1268,9 +1268,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 $row['window_partition_size'] = $partitionSize;
                 $row['window_exclude_current'] = true;
                 $row['window_peer_count_excluding_current'] = count($frameRows);
-                $row['window_peer_rowids_excluding_current'] = self::rowIdsNext237($frameRows, $rowIdColumn);
+                $row['window_peer_rowids_excluding_current'] = self::rowIdsExcludeCurrentRetryWindow($frameRows, $rowIdColumn);
                 $row['window_peer_names_excluding_current'] = array_values(array_map(static fn (array $peer): string => (string) ($peer['option_name'] ?? ''), $frameRows));
-                $row['window_peer_bytes_excluding_current'] = array_sum(array_map(static fn (array $peer): int => self::intValueNext237($peer['bytes'] ?? 0), $frameRows));
+                $row['window_peer_bytes_excluding_current'] = array_sum(array_map(static fn (array $peer): int => self::intValueExcludeCurrentRetryWindow($peer['bytes'] ?? 0), $frameRows));
                 $row['window_peer_first_name'] = $frameRows[0]['option_name'] ?? null;
                 $row['window_peer_last_name'] = $frameRows === [] ? null : ($frameRows[array_key_last($frameRows)]['option_name'] ?? null);
                 $windowRows[] = $row;
@@ -1284,11 +1284,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,array{count:int,rowids:list<int|string>,peer_counts:list<int>,peer_rowids:list<list<int|string>>}>
      */
-    private static function partitionSummaryNext237(array $rows, string $partitionColumn, string $rowIdColumn): array
+    private static function partitionSummaryExcludeCurrentRetryWindow(array $rows, string $partitionColumn, string $rowIdColumn): array
     {
         $summary = [];
         foreach ($rows as $row) {
-            $key = self::valueKeyNext237($row[$partitionColumn] ?? null);
+            $key = self::valueKeyExcludeCurrentRetryWindow($row[$partitionColumn] ?? null);
             if (!isset($summary[$key])) {
                 $summary[$key] = ['count' => 0, 'rowids' => [], 'peer_counts' => [], 'peer_rowids' => []];
             }
@@ -1305,7 +1305,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<int|string>
      */
-    private static function rowIdsNext237(array $rows, string $rowIdColumn): array
+    private static function rowIdsExcludeCurrentRetryWindow(array $rows, string $rowIdColumn): array
     {
         $ids = [];
         foreach ($rows as $row) {
@@ -1321,7 +1321,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      */
-    private static function validateTablesNext237(array $tables): void
+    private static function validateTablesExcludeCurrentRetryWindow(array $tables): void
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !array_is_list($rows)) {
@@ -1338,7 +1338,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<string> $statements
      */
-    private static function validateStatementsNext237(array $statements, string $label): void
+    private static function validateStatementsExcludeCurrentRetryWindow(array $statements, string $label): void
     {
         if ($statements === []) {
             throw new \InvalidArgumentException("SQLite row-value RETURNING window next237 needs {$label} statements");
@@ -1353,7 +1353,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<list<string>> $uniqueConstraints
      */
-    private static function validateUniqueConstraintsNext237(array $uniqueConstraints): void
+    private static function validateUniqueConstraintsExcludeCurrentRetryWindow(array $uniqueConstraints): void
     {
         if ($uniqueConstraints === []) {
             throw new \InvalidArgumentException('SQLite row-value RETURNING window next237 needs unique constraints');
@@ -1363,12 +1363,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite row-value RETURNING window next237 unique constraints must be non-empty lists');
             }
             foreach ($constraint as $column) {
-                self::validateIdentifierNext237($column, 'unique column');
+                self::validateIdentifierExcludeCurrentRetryWindow($column, 'unique column');
             }
         }
     }
 
-    private static function validateIdentifierNext237(string $name, string $label): void
+    private static function validateIdentifierExcludeCurrentRetryWindow(string $name, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
             throw new \InvalidArgumentException("SQLite row-value RETURNING window next237 {$label} must be an identifier");
@@ -1380,7 +1380,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext237(array $before, array $after): array
+    private static function changedTablesExcludeCurrentRetryWindow(array $before, array $after): array
     {
         $changed = [];
         foreach ($after as $table => $rows) {
@@ -1396,7 +1396,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext237(array $tables): array
+    private static function rowCountsExcludeCurrentRetryWindow(array $tables): array
     {
         $counts = [];
         foreach ($tables as $table => $rows) {
@@ -1407,7 +1407,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $counts;
     }
 
-    private static function compareValuesNext237(mixed $left, mixed $right): int
+    private static function compareValuesExcludeCurrentRetryWindow(mixed $left, mixed $right): int
     {
         if ($left === $right) {
             return 0;
@@ -1425,7 +1425,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return strcmp((string) $left, (string) $right);
     }
 
-    private static function intValueNext237(mixed $value): int
+    private static function intValueExcludeCurrentRetryWindow(mixed $value): int
     {
         if (is_int($value)) {
             return $value;
@@ -1437,7 +1437,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return 0;
     }
 
-    private static function valueKeyNext237(mixed $value): string
+    private static function valueKeyExcludeCurrentRetryWindow(mixed $value): string
     {
         if ($value === null) {
             return 'NULL';
@@ -1449,7 +1449,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return (string) $value;
     }
 
-    private static function sourceTokenNext237(mixed $value): string
+    private static function sourceTokenExcludeCurrentRetryWindow(mixed $value): string
     {
         return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
     }
@@ -1463,7 +1463,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext238(
+    public static function executeReplayPairWindow(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -1471,7 +1471,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_returning_window_next238',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext235(
+        $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowDigests(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -1480,18 +1480,18 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $discarded = self::tagSourceRowsNext238(
+        $discarded = self::tagSourceRowsReplayPairWindow(
             $plan['discarded_attempt_window_rows_next235'],
             'discarded-current-source-next238',
             $rowIdColumn,
         );
-        $yielded = self::tagSourceRowsNext238(
+        $yielded = self::tagSourceRowsReplayPairWindow(
             $plan['yielded_retry_window_rows_next235'],
             'yielded-next-source-next238',
             $rowIdColumn,
         );
-        $pairs = self::pairRowsNext238($discarded, $yielded, $rowIdColumn);
-        $summary = self::summaryNext238($pairs);
+        $pairs = self::pairRowsReplayPairWindow($discarded, $yielded, $rowIdColumn);
+        $summary = self::summaryReplayPairWindow($pairs);
 
         $plan['status'] = 'rowvalue-update-delete-returning-window-current-source-next238';
         $plan['savepoint'] = $savepoint;
@@ -1503,16 +1503,16 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $plan['window_pair_summary_next238'] = $summary;
         $plan['window_current_source_ids_next238'] = array_column($discarded, $rowIdColumn);
         $plan['window_next_source_ids_next238'] = array_column($yielded, $rowIdColumn);
-        $plan['window_replayed_rowids_next238'] = self::idsForClassNext238($pairs, 'replayed-after-rollback');
-        $plan['window_restart_only_rowids_next238'] = self::idsForClassNext238($pairs, 'restart-only');
-        $plan['window_discarded_only_rowids_next238'] = self::idsForClassNext238($pairs, 'discarded-only');
+        $plan['window_replayed_rowids_next238'] = self::idsForClassReplayPairWindow($pairs, 'replayed-after-rollback');
+        $plan['window_restart_only_rowids_next238'] = self::idsForClassReplayPairWindow($pairs, 'restart-only');
+        $plan['window_discarded_only_rowids_next238'] = self::idsForClassReplayPairWindow($pairs, 'discarded-only');
         $plan['window_source_fence_next238'] = [
             'savepoint' => $savepoint,
             'rolled_back_to_savepoint' => $plan['rolled_back_to_savepoint'],
             'retry_reads_savepoint_image' => $plan['retry_reads_savepoint_image'],
-            'current_source_digest' => self::digestNext238($discarded, $rowIdColumn),
-            'next_source_digest' => self::digestNext238($yielded, $rowIdColumn),
-            'pair_digest' => self::digestNext238($pairs, 'pair_key_next238'),
+            'current_source_digest' => self::digestReplayPairWindow($discarded, $rowIdColumn),
+            'next_source_digest' => self::digestReplayPairWindow($yielded, $rowIdColumn),
+            'pair_digest' => self::digestReplayPairWindow($pairs, 'pair_key_next238'),
         ];
         $plan['dependencies'] = [
             'sqlite-rowvalue-returning-window-current-source-fence-next238',
@@ -1529,7 +1529,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function tagSourceRowsNext238(array $rows, string $source, string $rowIdColumn): array
+    private static function tagSourceRowsReplayPairWindow(array $rows, string $source, string $rowIdColumn): array
     {
         $tagged = [];
         foreach ($rows as $row) {
@@ -1560,14 +1560,14 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $yielded
      * @return list<array<string,mixed>>
      */
-    private static function pairRowsNext238(array $discarded, array $yielded, string $rowIdColumn): array
+    private static function pairRowsReplayPairWindow(array $discarded, array $yielded, string $rowIdColumn): array
     {
-        $discardedByKey = self::rowsByKeyNext238($discarded);
-        $yieldedByKey = self::rowsByKeyNext238($yielded);
+        $discardedByKey = self::rowsByKeyReplayPairWindow($discarded);
+        $yieldedByKey = self::rowsByKeyReplayPairWindow($yielded);
         $keys = array_values(array_unique(array_merge(array_keys($discardedByKey), array_keys($yieldedByKey))));
         usort($keys, static function (string $left, string $right): int {
-            [$leftAction, $leftId] = self::splitPairKeyNext238($left);
-            [$rightAction, $rightId] = self::splitPairKeyNext238($right);
+            [$leftAction, $leftId] = self::splitPairKeyReplayPairWindow($left);
+            [$rightAction, $rightId] = self::splitPairKeyReplayPairWindow($right);
             $action = $leftAction <=> $rightAction;
             if ($action !== 0) {
                 return $action;
@@ -1583,9 +1583,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         foreach ($keys as $ordinal => $key) {
             $current = $discardedByKey[$key] ?? null;
             $next = $yieldedByKey[$key] ?? null;
-            $class = self::pairClassNext238($current, $next);
-            $rowId = self::pairRowIdNext238($current, $next, $rowIdColumn);
-            $action = self::pairActionNext238($current, $next);
+            $class = self::pairClassReplayPairWindow($current, $next);
+            $rowId = self::pairRowIdReplayPairWindow($current, $next, $rowIdColumn);
+            $action = self::pairActionReplayPairWindow($current, $next);
 
             $pairs[] = [
                 'pair_ordinal_next238' => $ordinal,
@@ -1616,7 +1616,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,array<string,mixed>>
      */
-    private static function rowsByKeyNext238(array $rows): array
+    private static function rowsByKeyReplayPairWindow(array $rows): array
     {
         $indexed = [];
         foreach ($rows as $row) {
@@ -1634,7 +1634,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,mixed>|null $current
      * @param array<string,mixed>|null $next
      */
-    private static function pairClassNext238(?array $current, ?array $next): string
+    private static function pairClassReplayPairWindow(?array $current, ?array $next): string
     {
         if ($current !== null && $next !== null) {
             return 'replayed-after-rollback';
@@ -1652,7 +1652,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @return array{0:string,1:string}
      */
-    private static function splitPairKeyNext238(string $key): array
+    private static function splitPairKeyReplayPairWindow(string $key): array
     {
         $parts = explode(':', $key, 2);
         if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
@@ -1666,7 +1666,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,mixed>|null $current
      * @param array<string,mixed>|null $next
      */
-    private static function pairRowIdNext238(?array $current, ?array $next, string $rowIdColumn): int|string
+    private static function pairRowIdReplayPairWindow(?array $current, ?array $next, string $rowIdColumn): int|string
     {
         $row = $current ?? $next;
         if ($row === null || !array_key_exists($rowIdColumn, $row)) {
@@ -1684,7 +1684,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,mixed>|null $current
      * @param array<string,mixed>|null $next
      */
-    private static function pairActionNext238(?array $current, ?array $next): string
+    private static function pairActionReplayPairWindow(?array $current, ?array $next): string
     {
         $row = $current ?? $next;
         $action = $row['window_action_next235'] ?? null;
@@ -1699,7 +1699,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $pairs
      * @return array<string,int>
      */
-    private static function summaryNext238(array $pairs): array
+    private static function summaryReplayPairWindow(array $pairs): array
     {
         $summary = [
             'replayed-after-rollback' => 0,
@@ -1722,7 +1722,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $pairs
      * @return list<int|string>
      */
-    private static function idsForClassNext238(array $pairs, string $class): array
+    private static function idsForClassReplayPairWindow(array $pairs, string $class): array
     {
         $ids = [];
         foreach ($pairs as $pair) {
@@ -1740,7 +1740,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function digestNext238(array $rows, string $keyColumn): string
+    private static function digestReplayPairWindow(array $rows, string $keyColumn): string
     {
         $parts = [];
         foreach ($rows as $row) {
@@ -1764,7 +1764,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext239(
+    public static function executeStatementWindowMetrics(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -1773,7 +1773,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next239',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext236(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -1783,10 +1783,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $retryPartitions = self::statementPartitionsNext239($base['retry_returning'], $rowIdColumn);
-        $suppressedPartitions = self::statementPartitionsNext239($base['suppressed_attempt_returning'], $rowIdColumn);
-        $yieldPartitions = self::statementPartitionsNext239($base['yield_returning'], $rowIdColumn);
-        $releaseSeal = self::releaseSealNext239($base, $retryPartitions, $suppressedPartitions, $rowIdColumn);
+        $retryPartitions = self::statementPartitionsStatementWindowMetrics($base['retry_returning'], $rowIdColumn);
+        $suppressedPartitions = self::statementPartitionsStatementWindowMetrics($base['suppressed_attempt_returning'], $rowIdColumn);
+        $yieldPartitions = self::statementPartitionsStatementWindowMetrics($base['yield_returning'], $rowIdColumn);
+        $releaseSeal = self::releaseSealStatementWindowMetrics($base, $retryPartitions, $suppressedPartitions, $rowIdColumn);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next239',
@@ -1794,12 +1794,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'yield_statement_windows_next239' => $yieldPartitions,
             'suppressed_statement_windows_next239' => $suppressedPartitions,
             'retry_statement_windows_next239' => $retryPartitions,
-            'retry_statement_window_ids_next239' => self::partitionIdsNext239($retryPartitions, $rowIdColumn),
-            'retry_statement_window_tiles_next239' => self::partitionColumnNext239($retryPartitions, 'ntile_2'),
-            'retry_statement_window_exclude_ids_next239' => self::partitionColumnNext239($retryPartitions, 'exclude_current_neighbor_ids'),
-            'retry_statement_window_percent_rank_next239' => self::partitionColumnNext239($retryPartitions, 'percent_rank_milli'),
-            'retry_statement_window_cume_dist_next239' => self::partitionColumnNext239($retryPartitions, 'cume_dist_milli'),
-            'retry_statement_window_edges_next239' => self::partitionEdgesNext239($retryPartitions),
+            'retry_statement_window_ids_next239' => self::partitionIdsStatementWindowMetrics($retryPartitions, $rowIdColumn),
+            'retry_statement_window_tiles_next239' => self::partitionColumnStatementWindowMetrics($retryPartitions, 'ntile_2'),
+            'retry_statement_window_exclude_ids_next239' => self::partitionColumnStatementWindowMetrics($retryPartitions, 'exclude_current_neighbor_ids'),
+            'retry_statement_window_percent_rank_next239' => self::partitionColumnStatementWindowMetrics($retryPartitions, 'percent_rank_milli'),
+            'retry_statement_window_cume_dist_next239' => self::partitionColumnStatementWindowMetrics($retryPartitions, 'cume_dist_milli'),
+            'retry_statement_window_edges_next239' => self::partitionEdgesStatementWindowMetrics($retryPartitions),
             'release_window_seal_next239' => $releaseSeal,
             'dependency_closure_next239' => 'no new support component needed; next239 reuses native PHP row-value UPDATE/DELETE RETURNING execution, savepoint current-source images, and lane-local window rows while adding statement-partitioned retry release seals.',
             'dependencies_next239' => [
@@ -1815,28 +1815,28 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}> $returning
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function statementPartitionsNext239(array $returning, string $rowIdColumn): array
+    private static function statementPartitionsStatementWindowMetrics(array $returning, string $rowIdColumn): array
     {
         $partitions = [];
         foreach ($returning as $statement) {
             if (!isset($statement['rows']) || !is_array($statement['rows'])) {
                 throw new \InvalidArgumentException('SQLite row-value statement window next239 returning rows are malformed');
             }
-            $key = self::partitionKeyNext239($statement);
+            $key = self::partitionKeyStatementWindowMetrics($statement);
             $rows = $statement['rows'];
             usort($rows, static function (array $left, array $right) use ($rowIdColumn): int {
-                $bytes = self::numericValueNext239($right['bytes'] ?? null) <=> self::numericValueNext239($left['bytes'] ?? null);
+                $bytes = self::numericValueStatementWindowMetrics($right['bytes'] ?? null) <=> self::numericValueStatementWindowMetrics($left['bytes'] ?? null);
                 if ($bytes !== 0) {
                     return $bytes;
                 }
 
-                return self::rowIdValueNext239($left, $rowIdColumn) <=> self::rowIdValueNext239($right, $rowIdColumn);
+                return self::rowIdValueStatementWindowMetrics($left, $rowIdColumn) <=> self::rowIdValueStatementWindowMetrics($right, $rowIdColumn);
             });
 
             $count = count($rows);
             $sum = 0;
             foreach ($rows as $row) {
-                $sum += self::numericValueNext239($row['bytes'] ?? null);
+                $sum += self::numericValueStatementWindowMetrics($row['bytes'] ?? null);
             }
 
             $windowRows = [];
@@ -1844,7 +1844,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rank = 1;
             $denseRank = 0;
             foreach ($rows as $index => $row) {
-                $bytes = self::numericValueNext239($row['bytes'] ?? null);
+                $bytes = self::numericValueStatementWindowMetrics($row['bytes'] ?? null);
                 if ($previousBytes === null || $bytes !== $previousBytes) {
                     $rank = $index + 1;
                     ++$denseRank;
@@ -1852,7 +1852,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 }
 
                 $windowRows[] = [
-                    $rowIdColumn => self::rowIdValueNext239($row, $rowIdColumn),
+                    $rowIdColumn => self::rowIdValueStatementWindowMetrics($row, $rowIdColumn),
                     'option_name' => (string) ($row['option_name'] ?? ''),
                     'status' => $row['status'] ?? null,
                     'bytes' => $bytes,
@@ -1864,13 +1864,13 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'dense_rank' => $denseRank,
                     'partition_count' => $count,
                     'partition_sum' => $sum,
-                    'ntile_2' => self::ntileNext239($index, $count, 2),
-                    'percent_rank_milli' => self::percentRankMilliNext239($rank, $count),
-                    'cume_dist_milli' => self::cumeDistMilliNext239($rows, $bytes),
+                    'ntile_2' => self::ntileStatementWindowMetrics($index, $count, 2),
+                    'percent_rank_milli' => self::percentRankMilliStatementWindowMetrics($rank, $count),
+                    'cume_dist_milli' => self::cumeDistMilliStatementWindowMetrics($rows, $bytes),
                     'first_value_name' => (string) ($rows[0]['option_name'] ?? ''),
                     'last_value_name' => (string) ($rows[$count - 1]['option_name'] ?? ''),
-                    'exclude_current_neighbor_ids' => self::neighborIdsNext239($rows, $index, $rowIdColumn),
-                    'window_token' => $key . ':' . self::rowIdValueNext239($row, $rowIdColumn) . ':' . $bytes . ':' . $sum,
+                    'exclude_current_neighbor_ids' => self::neighborIdsStatementWindowMetrics($rows, $index, $rowIdColumn),
+                    'window_token' => $key . ':' . self::rowIdValueStatementWindowMetrics($row, $rowIdColumn) . ':' . $bytes . ':' . $sum,
                 ];
             }
 
@@ -1886,7 +1886,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $suppressedPartitions
      * @return array<string,mixed>
      */
-    private static function releaseSealNext239(array $base, array $retryPartitions, array $suppressedPartitions, string $rowIdColumn): array
+    private static function releaseSealStatementWindowMetrics(array $base, array $retryPartitions, array $suppressedPartitions, string $rowIdColumn): array
     {
         $retryIds = [];
         foreach ($retryPartitions as $rows) {
@@ -1904,7 +1904,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'retry_ids' => $retryIds,
             'suppressed_ids' => $suppressedIds,
             'suppressed_ids_excluded_from_release' => array_values(array_diff($suppressedIds, $retryIds)),
-            'retry_window_tokens' => self::partitionColumnNext239($retryPartitions, 'window_token'),
+            'retry_window_tokens' => self::partitionColumnStatementWindowMetrics($retryPartitions, 'window_token'),
             'current_source_token' => hash('sha256', json_encode($base['current_source_tables'], JSON_THROW_ON_ERROR)),
             'next_source_matches_current' => $base['next_source_tables'] === $base['current_source_tables'],
             'attempt_tables_suppressed' => $base['attempt_current_source_tables'] !== $base['current_source_tables'],
@@ -1915,7 +1915,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array{phase?:mixed,ordinal?:mixed,action?:mixed} $statement
      */
-    private static function partitionKeyNext239(array $statement): string
+    private static function partitionKeyStatementWindowMetrics(array $statement): string
     {
         return (string) ($statement['phase'] ?? 'phase') . '#' . (int) ($statement['ordinal'] ?? 0) . '#' . (string) ($statement['action'] ?? 'statement');
     }
@@ -1924,7 +1924,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $partitions
      * @return array<string,list<int|string>>
      */
-    private static function partitionIdsNext239(array $partitions, string $rowIdColumn): array
+    private static function partitionIdsStatementWindowMetrics(array $partitions, string $rowIdColumn): array
     {
         $ids = [];
         foreach ($partitions as $key => $rows) {
@@ -1938,7 +1938,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $partitions
      * @return array<string,list<mixed>>
      */
-    private static function partitionColumnNext239(array $partitions, string $column): array
+    private static function partitionColumnStatementWindowMetrics(array $partitions, string $column): array
     {
         $values = [];
         foreach ($partitions as $key => $rows) {
@@ -1952,7 +1952,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $partitions
      * @return array<string,array{first:?string,last:?string,count:int,sum:int}>
      */
-    private static function partitionEdgesNext239(array $partitions): array
+    private static function partitionEdgesStatementWindowMetrics(array $partitions): array
     {
         $edges = [];
         foreach ($partitions as $key => $rows) {
@@ -1967,7 +1967,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $edges;
     }
 
-    private static function ntileNext239(int $index, int $count, int $buckets): int
+    private static function ntileStatementWindowMetrics(int $index, int $count, int $buckets): int
     {
         if ($count <= 0 || $buckets <= 0) {
             return 0;
@@ -1976,7 +1976,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return intdiv($index * $buckets, $count) + 1;
     }
 
-    private static function percentRankMilliNext239(int $rank, int $count): int
+    private static function percentRankMilliStatementWindowMetrics(int $rank, int $count): int
     {
         if ($count <= 1) {
             return 0;
@@ -1988,7 +1988,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function cumeDistMilliNext239(array $rows, int $bytes): int
+    private static function cumeDistMilliStatementWindowMetrics(array $rows, int $bytes): int
     {
         $count = count($rows);
         if ($count === 0) {
@@ -1996,7 +1996,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         }
         $lessOrEqual = 0;
         foreach ($rows as $row) {
-            if (self::numericValueNext239($row['bytes'] ?? null) >= $bytes) {
+            if (self::numericValueStatementWindowMetrics($row['bytes'] ?? null) >= $bytes) {
                 ++$lessOrEqual;
             }
         }
@@ -2008,19 +2008,19 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<int|string>
      */
-    private static function neighborIdsNext239(array $rows, int $index, string $rowIdColumn): array
+    private static function neighborIdsStatementWindowMetrics(array $rows, int $index, string $rowIdColumn): array
     {
         $ids = [];
         foreach ([$index - 1, $index + 1] as $neighbor) {
             if (isset($rows[$neighbor])) {
-                $ids[] = self::rowIdValueNext239($rows[$neighbor], $rowIdColumn);
+                $ids[] = self::rowIdValueStatementWindowMetrics($rows[$neighbor], $rowIdColumn);
             }
         }
 
         return $ids;
     }
 
-    private static function numericValueNext239(mixed $value): int
+    private static function numericValueStatementWindowMetrics(mixed $value): int
     {
         if (is_int($value)) {
             return $value;
@@ -2038,7 +2038,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $row
      */
-    private static function rowIdValueNext239(array $row, string $rowIdColumn): int|string
+    private static function rowIdValueStatementWindowMetrics(array $row, string $rowIdColumn): int|string
     {
         if (!array_key_exists($rowIdColumn, $row)) {
             throw new \InvalidArgumentException("SQLite row-value statement window next239 rowid column {$rowIdColumn} is missing");
@@ -2061,7 +2061,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext240(
+    public static function executePeerGroupWindowReceipt(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -2070,7 +2070,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_groups_next240',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext236(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -2080,9 +2080,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $yieldGroups = self::peerGroupRowsNext240($base['yield_current_row_frames_next236'], $rowIdColumn);
-        $suppressedGroups = self::peerGroupRowsNext240($base['suppressed_current_row_frames_next236'], $rowIdColumn);
-        $retryGroups = self::peerGroupRowsNext240($base['retry_current_row_frames_next236'], $rowIdColumn);
+        $yieldGroups = self::peerGroupRowsPeerGroupWindowReceipt($base['yield_current_row_frames_next236'], $rowIdColumn);
+        $suppressedGroups = self::peerGroupRowsPeerGroupWindowReceipt($base['suppressed_current_row_frames_next236'], $rowIdColumn);
+        $retryGroups = self::peerGroupRowsPeerGroupWindowReceipt($base['retry_current_row_frames_next236'], $rowIdColumn);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next240',
@@ -2094,7 +2094,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'retry_peer_group_numbers_next240' => array_column($retryGroups, 'peer_group_number'),
             'retry_exclude_current_sums_next240' => array_column($retryGroups, 'exclude_current_sum'),
             'retry_exclude_ties_sums_next240' => array_column($retryGroups, 'exclude_ties_sum'),
-            'retry_peer_group_receipt_next240' => self::receiptNext240($base, $retryGroups, $rowIdColumn),
+            'retry_peer_group_receipt_next240' => self::receiptPeerGroupWindowReceipt($base, $retryGroups, $rowIdColumn),
             'dependency_closure_next240' => 'no new support component needed; next240 reuses native PHP row-value UPDATE/DELETE RETURNING execution, savepoint row images, and next236 current-row window metadata while adding peer-group exclusion receipts',
             'dependencies_next240' => [
                 'sqlite-rowvalue-returning-window-peer-groups-next240',
@@ -2110,17 +2110,17 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $frames
      * @return list<array<string,mixed>>
      */
-    private static function peerGroupRowsNext240(array $frames, string $rowIdColumn): array
+    private static function peerGroupRowsPeerGroupWindowReceipt(array $frames, string $rowIdColumn): array
     {
         $totalRows = count($frames);
-        $totalBytes = array_sum(array_map(static fn (array $row): int => self::intValueNext240($row['current_row_value'] ?? null), $frames));
+        $totalBytes = array_sum(array_map(static fn (array $row): int => self::intValuePeerGroupWindowReceipt($row['current_row_value'] ?? null), $frames));
         $peerCounts = [];
         $peerSums = [];
 
         foreach ($frames as $row) {
-            $key = self::peerKeyNext240($row);
+            $key = self::peerKeyPeerGroupWindowReceipt($row);
             $peerCounts[$key] = ($peerCounts[$key] ?? 0) + 1;
-            $peerSums[$key] = ($peerSums[$key] ?? 0) + self::intValueNext240($row['current_row_value'] ?? null);
+            $peerSums[$key] = ($peerSums[$key] ?? 0) + self::intValuePeerGroupWindowReceipt($row['current_row_value'] ?? null);
         }
 
         $groupNumbers = [];
@@ -2145,9 +2145,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite row-value peer window next240 rowid column {$rowIdColumn} must be int or string");
             }
 
-            $key = self::peerKeyNext240($row);
+            $key = self::peerKeyPeerGroupWindowReceipt($row);
             $seenInGroup[$key] = ($seenInGroup[$key] ?? 0) + 1;
-            $value = self::intValueNext240($row['current_row_value'] ?? null);
+            $value = self::intValuePeerGroupWindowReceipt($row['current_row_value'] ?? null);
             $rank = $rankByGroup[$key];
             $cumeRows = $rank + $peerCounts[$key] - 1;
 
@@ -2179,9 +2179,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $row
      */
-    private static function peerKeyNext240(array $row): string
+    private static function peerKeyPeerGroupWindowReceipt(array $row): string
     {
-        return ((string) ($row['status'] ?? '')) . '|' . self::intValueNext240($row['current_row_value'] ?? null);
+        return ((string) ($row['status'] ?? '')) . '|' . self::intValuePeerGroupWindowReceipt($row['current_row_value'] ?? null);
     }
 
     /**
@@ -2189,7 +2189,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $retryGroups
      * @return array<string,mixed>
      */
-    private static function receiptNext240(array $base, array $retryGroups, string $rowIdColumn): array
+    private static function receiptPeerGroupWindowReceipt(array $base, array $retryGroups, string $rowIdColumn): array
     {
         return [
             'savepoint' => $base['savepoint'],
@@ -2203,7 +2203,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ];
     }
 
-    private static function intValueNext240(mixed $value): int
+    private static function intValuePeerGroupWindowReceipt(mixed $value): int
     {
         if (is_int($value)) {
             return $value;
@@ -2227,7 +2227,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext241(
+    public static function executePairCurrentRowFrames(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -2235,7 +2235,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_returning_window_next241',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext238(
+        $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReplayPairWindow(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -2244,14 +2244,14 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $frames = self::currentRowFramesNext241($plan['window_pair_rows_next238'], $rowIdColumn);
-        $summary = self::frameSummaryNext241($frames);
+        $frames = self::currentRowFramesPairCurrentRowFrames($plan['window_pair_rows_next238'], $rowIdColumn);
+        $summary = self::frameSummaryPairCurrentRowFrames($frames);
         $fence = [
             'savepoint' => $savepoint,
             'frame_mode' => 'ROWS BETWEEN CURRENT ROW AND CURRENT ROW',
             'pair_count' => count($plan['window_pair_rows_next238']),
             'frame_count' => count($frames),
-            'frame_digest' => self::digestNext241($frames, 'frame_key_next241'),
+            'frame_digest' => self::digestPairCurrentRowFrames($frames, 'frame_key_next241'),
             'source_pair_digest' => $plan['window_source_fence_next238']['pair_digest'],
             'current_source_digest' => $plan['window_source_fence_next238']['current_source_digest'],
             'next_source_digest' => $plan['window_source_fence_next238']['next_source_digest'],
@@ -2266,9 +2266,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $plan['window_current_row_frame_count_next241'] = count($frames);
         $plan['window_current_row_summary_next241'] = $summary;
         $plan['window_current_row_fence_next241'] = $fence;
-        $plan['window_current_row_replayed_ids_next241'] = self::idsForFrameClassNext241($frames, 'replayed-after-rollback');
-        $plan['window_current_row_restart_ids_next241'] = self::idsForFrameClassNext241($frames, 'restart-only');
-        $plan['window_current_row_discarded_ids_next241'] = self::idsForFrameClassNext241($frames, 'discarded-only');
+        $plan['window_current_row_replayed_ids_next241'] = self::idsForFrameClassPairCurrentRowFrames($frames, 'replayed-after-rollback');
+        $plan['window_current_row_restart_ids_next241'] = self::idsForFrameClassPairCurrentRowFrames($frames, 'restart-only');
+        $plan['window_current_row_discarded_ids_next241'] = self::idsForFrameClassPairCurrentRowFrames($frames, 'discarded-only');
         $plan['window_current_row_actions_next241'] = array_values(array_unique(array_column($frames, 'frame_action_next241')));
         $plan['window_current_row_classes_next241'] = array_values(array_unique(array_column($frames, 'frame_class_next241')));
         $plan['dependencies'] = [
@@ -2286,7 +2286,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $pairs
      * @return list<array<string,mixed>>
      */
-    private static function currentRowFramesNext241(array $pairs, string $rowIdColumn): array
+    private static function currentRowFramesPairCurrentRowFrames(array $pairs, string $rowIdColumn): array
     {
         $ordered = $pairs;
         usort($ordered, static function (array $left, array $right): int {
@@ -2295,7 +2295,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 return $action;
             }
 
-            return self::compareRowIdsNext241($left['rowid_next238'], $right['rowid_next238']);
+            return self::compareRowIdsPairCurrentRowFrames($left['rowid_next238'], $right['rowid_next238']);
         });
 
         $actionOrdinals = [];
@@ -2342,7 +2342,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $frames
      * @return array<string,mixed>
      */
-    private static function frameSummaryNext241(array $frames): array
+    private static function frameSummaryPairCurrentRowFrames(array $frames): array
     {
         $summary = [
             'frame_count' => count($frames),
@@ -2373,7 +2373,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $frames
      * @return list<int|string>
      */
-    private static function idsForFrameClassNext241(array $frames, string $class): array
+    private static function idsForFrameClassPairCurrentRowFrames(array $frames, string $class): array
     {
         $ids = [];
         foreach ($frames as $frame) {
@@ -2388,7 +2388,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $ids;
     }
 
-    private static function compareRowIdsNext241(mixed $left, mixed $right): int
+    private static function compareRowIdsPairCurrentRowFrames(mixed $left, mixed $right): int
     {
         if ((is_int($left) || ctype_digit((string) $left)) && (is_int($right) || ctype_digit((string) $right))) {
             return (int) $left <=> (int) $right;
@@ -2400,7 +2400,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function digestNext241(array $rows, string $keyColumn): string
+    private static function digestPairCurrentRowFrames(array $rows, string $keyColumn): string
     {
         $parts = [];
         foreach ($rows as $row) {
@@ -2425,7 +2425,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext242(
+    public static function executeChainedStatementWindows(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -2434,7 +2434,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next242',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext239(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -2444,10 +2444,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $retryWindows = self::chainedWindowsNext242($base['retry_statement_windows_next239'], $rowIdColumn);
-        $suppressedWindows = self::chainedWindowsNext242($base['suppressed_statement_windows_next239'], $rowIdColumn);
-        $yieldWindows = self::chainedWindowsNext242($base['yield_statement_windows_next239'], $rowIdColumn);
-        $seal = self::sourceSealNext242($base, $retryWindows, $suppressedWindows, $yieldWindows, $rowIdColumn);
+        $retryWindows = self::chainedWindowsChainedStatementWindows($base['retry_statement_windows_next239'], $rowIdColumn);
+        $suppressedWindows = self::chainedWindowsChainedStatementWindows($base['suppressed_statement_windows_next239'], $rowIdColumn);
+        $yieldWindows = self::chainedWindowsChainedStatementWindows($base['yield_statement_windows_next239'], $rowIdColumn);
+        $seal = self::sourceSealChainedStatementWindows($base, $retryWindows, $suppressedWindows, $yieldWindows, $rowIdColumn);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next242',
@@ -2455,13 +2455,13 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'retry_chained_windows_next242' => $retryWindows,
             'suppressed_chained_windows_next242' => $suppressedWindows,
             'yield_chained_windows_next242' => $yieldWindows,
-            'retry_lag_ids_next242' => self::partitionColumnNext242($retryWindows, 'lag_id'),
-            'retry_lead_ids_next242' => self::partitionColumnNext242($retryWindows, 'lead_id'),
-            'retry_rows_frame_ids_next242' => self::partitionColumnNext242($retryWindows, 'rows_frame_ids'),
-            'retry_groups_frame_ids_next242' => self::partitionColumnNext242($retryWindows, 'groups_frame_ids'),
-            'retry_frame_sums_next242' => self::partitionColumnNext242($retryWindows, 'rows_frame_sum'),
-            'retry_group_sums_next242' => self::partitionColumnNext242($retryWindows, 'groups_frame_sum'),
-            'retry_source_ordinals_next242' => self::partitionColumnNext242($retryWindows, 'source_ordinal'),
+            'retry_lag_ids_next242' => self::partitionColumnChainedStatementWindows($retryWindows, 'lag_id'),
+            'retry_lead_ids_next242' => self::partitionColumnChainedStatementWindows($retryWindows, 'lead_id'),
+            'retry_rows_frame_ids_next242' => self::partitionColumnChainedStatementWindows($retryWindows, 'rows_frame_ids'),
+            'retry_groups_frame_ids_next242' => self::partitionColumnChainedStatementWindows($retryWindows, 'groups_frame_ids'),
+            'retry_frame_sums_next242' => self::partitionColumnChainedStatementWindows($retryWindows, 'rows_frame_sum'),
+            'retry_group_sums_next242' => self::partitionColumnChainedStatementWindows($retryWindows, 'groups_frame_sum'),
+            'retry_source_ordinals_next242' => self::partitionColumnChainedStatementWindows($retryWindows, 'source_ordinal'),
             'source_generation_seal_next242' => $seal,
             'dependencies_next242' => [
                 'sqlite-returning-window-lag-lead-current-source-next242',
@@ -2477,7 +2477,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $partitions
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function chainedWindowsNext242(array $partitions, string $rowIdColumn): array
+    private static function chainedWindowsChainedStatementWindows(array $partitions, string $rowIdColumn): array
     {
         $windows = [];
         foreach ($partitions as $key => $rows) {
@@ -2492,11 +2492,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     throw new \InvalidArgumentException('SQLite row-value window next242 rows are malformed');
                 }
 
-                $id = self::rowIdValueNext242($row, $rowIdColumn);
+                $id = self::rowIdValueChainedStatementWindows($row, $rowIdColumn);
                 $previous = $rows[$index - 1] ?? null;
                 $next = $rows[$index + 1] ?? null;
                 $frame = array_slice($rows, max(0, $index - 1), min($count, $index + 2) - max(0, $index - 1));
-                $groups = self::peerRowsNext242($rows, self::numericValueNext242($row['bytes'] ?? null));
+                $groups = self::peerRowsChainedStatementWindows($rows, self::numericValueChainedStatementWindows($row['bytes'] ?? null));
 
                 $windowRows[] = [
                     $rowIdColumn => $id,
@@ -2504,17 +2504,17 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'statement_action' => (string) ($row['statement_action'] ?? ''),
                     'source_ordinal' => $index,
                     'source_count' => $count,
-                    'lag_id' => is_array($previous) ? self::rowIdValueNext242($previous, $rowIdColumn) : null,
-                    'lead_id' => is_array($next) ? self::rowIdValueNext242($next, $rowIdColumn) : null,
+                    'lag_id' => is_array($previous) ? self::rowIdValueChainedStatementWindows($previous, $rowIdColumn) : null,
+                    'lead_id' => is_array($next) ? self::rowIdValueChainedStatementWindows($next, $rowIdColumn) : null,
                     'lag_status' => is_array($previous) ? ($previous['status'] ?? null) : null,
                     'lead_status' => is_array($next) ? ($next['status'] ?? null) : null,
-                    'rows_frame_ids' => self::rowIdsNext242($frame, $rowIdColumn),
-                    'rows_frame_sum' => self::sumBytesNext242($frame),
-                    'groups_frame_ids' => self::rowIdsNext242($groups, $rowIdColumn),
-                    'groups_frame_sum' => self::sumBytesNext242($groups),
+                    'rows_frame_ids' => self::rowIdsChainedStatementWindows($frame, $rowIdColumn),
+                    'rows_frame_sum' => self::sumBytesChainedStatementWindows($frame),
+                    'groups_frame_ids' => self::rowIdsChainedStatementWindows($groups, $rowIdColumn),
+                    'groups_frame_sum' => self::sumBytesChainedStatementWindows($groups),
                     'first_value_name' => (string) ($rows[0]['option_name'] ?? ''),
                     'last_value_name' => (string) ($rows[$count - 1]['option_name'] ?? ''),
-                    'window_token_next242' => $key . ':' . $id . ':' . self::sumBytesNext242($frame) . ':' . self::sumBytesNext242($groups),
+                    'window_token_next242' => $key . ':' . $id . ':' . self::sumBytesChainedStatementWindows($frame) . ':' . self::sumBytesChainedStatementWindows($groups),
                 ];
             }
 
@@ -2531,12 +2531,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $yieldWindows
      * @return array<string,mixed>
      */
-    private static function sourceSealNext242(array $base, array $retryWindows, array $suppressedWindows, array $yieldWindows, string $rowIdColumn): array
+    private static function sourceSealChainedStatementWindows(array $base, array $retryWindows, array $suppressedWindows, array $yieldWindows, string $rowIdColumn): array
     {
-        $retryIds = self::flatIdsNext242($retryWindows, $rowIdColumn);
-        $suppressedIds = self::flatIdsNext242($suppressedWindows, $rowIdColumn);
-        $yieldIds = self::flatIdsNext242($yieldWindows, $rowIdColumn);
-        $finalIds = self::tableIdsNext242($base['current_source_tables']['wp_options'] ?? [], $rowIdColumn);
+        $retryIds = self::flatIdsChainedStatementWindows($retryWindows, $rowIdColumn);
+        $suppressedIds = self::flatIdsChainedStatementWindows($suppressedWindows, $rowIdColumn);
+        $yieldIds = self::flatIdsChainedStatementWindows($yieldWindows, $rowIdColumn);
+        $finalIds = self::tableIdsChainedStatementWindows($base['current_source_tables']['wp_options'] ?? [], $rowIdColumn);
 
         return [
             'savepoint' => (string) ($base['savepoint'] ?? ''),
@@ -2546,14 +2546,14 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'suppressed_only_ids' => array_values(array_diff($suppressedIds, $retryIds)),
             'retry_replayed_yield_ids' => array_values(array_intersect($retryIds, $yieldIds)),
             'final_source_ids' => $finalIds,
-            'final_contains_retry_ids' => self::containsAllNext242($finalIds, array_values(array_diff($retryIds, self::deletedRetryIdsNext242($base)))),
-            'final_excludes_retry_delete_ids' => count(array_intersect($finalIds, self::deletedRetryIdsNext242($base))) === 0,
-            'final_contains_suppressed_only_ids' => self::containsAllNext242($finalIds, array_values(array_diff($suppressedIds, $retryIds))),
+            'final_contains_retry_ids' => self::containsAllChainedStatementWindows($finalIds, array_values(array_diff($retryIds, self::deletedRetryIdsChainedStatementWindows($base)))),
+            'final_excludes_retry_delete_ids' => count(array_intersect($finalIds, self::deletedRetryIdsChainedStatementWindows($base))) === 0,
+            'final_contains_suppressed_only_ids' => self::containsAllChainedStatementWindows($finalIds, array_values(array_diff($suppressedIds, $retryIds))),
             'rollback_restored_savepoint_image' => ($base['rollback_current_source_tables'] ?? null) === ($base['savepoint_image_tables'] ?? null),
             'attempt_source_discarded' => ($base['attempt_current_source_tables'] ?? null) !== ($base['current_source_tables'] ?? null),
-            'retry_window_digest' => self::digestNext242($retryWindows),
-            'suppressed_window_digest' => self::digestNext242($suppressedWindows),
-            'yield_window_digest' => self::digestNext242($yieldWindows),
+            'retry_window_digest' => self::digestChainedStatementWindows($retryWindows),
+            'suppressed_window_digest' => self::digestChainedStatementWindows($suppressedWindows),
+            'yield_window_digest' => self::digestChainedStatementWindows($yieldWindows),
         ];
     }
 
@@ -2561,28 +2561,28 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function peerRowsNext242(array $rows, int $bytes): array
+    private static function peerRowsChainedStatementWindows(array $rows, int $bytes): array
     {
-        return array_values(array_filter($rows, static fn (array $row): bool => self::numericValueNext242($row['bytes'] ?? null) === $bytes));
+        return array_values(array_filter($rows, static fn (array $row): bool => self::numericValueChainedStatementWindows($row['bytes'] ?? null) === $bytes));
     }
 
     /**
      * @param list<array<string,mixed>> $rows
      * @return list<int|string>
      */
-    private static function rowIdsNext242(array $rows, string $rowIdColumn): array
+    private static function rowIdsChainedStatementWindows(array $rows, string $rowIdColumn): array
     {
-        return array_map(static fn (array $row): int|string => self::rowIdValueNext242($row, $rowIdColumn), $rows);
+        return array_map(static fn (array $row): int|string => self::rowIdValueChainedStatementWindows($row, $rowIdColumn), $rows);
     }
 
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function sumBytesNext242(array $rows): int
+    private static function sumBytesChainedStatementWindows(array $rows): int
     {
         $sum = 0;
         foreach ($rows as $row) {
-            $sum += self::numericValueNext242($row['bytes'] ?? null);
+            $sum += self::numericValueChainedStatementWindows($row['bytes'] ?? null);
         }
 
         return $sum;
@@ -2592,7 +2592,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $partitions
      * @return array<string,list<mixed>>
      */
-    private static function partitionColumnNext242(array $partitions, string $column): array
+    private static function partitionColumnChainedStatementWindows(array $partitions, string $column): array
     {
         $values = [];
         foreach ($partitions as $key => $rows) {
@@ -2606,11 +2606,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $partitions
      * @return list<int|string>
      */
-    private static function flatIdsNext242(array $partitions, string $rowIdColumn): array
+    private static function flatIdsChainedStatementWindows(array $partitions, string $rowIdColumn): array
     {
         $ids = [];
         foreach ($partitions as $rows) {
-            array_push($ids, ...self::rowIdsNext242($rows, $rowIdColumn));
+            array_push($ids, ...self::rowIdsChainedStatementWindows($rows, $rowIdColumn));
         }
 
         return $ids;
@@ -2620,20 +2620,20 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<int|string>
      */
-    private static function tableIdsNext242(mixed $rows, string $rowIdColumn): array
+    private static function tableIdsChainedStatementWindows(mixed $rows, string $rowIdColumn): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new \InvalidArgumentException('SQLite row-value window next242 source table rows are malformed');
         }
 
-        return self::rowIdsNext242($rows, $rowIdColumn);
+        return self::rowIdsChainedStatementWindows($rows, $rowIdColumn);
     }
 
     /**
      * @param array<string,mixed> $base
      * @return list<int|string>
      */
-    private static function deletedRetryIdsNext242(array $base): array
+    private static function deletedRetryIdsChainedStatementWindows(array $base): array
     {
         $ids = [];
         foreach (($base['retry_returning'] ?? []) as $statement) {
@@ -2657,7 +2657,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<int|string> $haystack
      * @param list<int|string> $needles
      */
-    private static function containsAllNext242(array $haystack, array $needles): bool
+    private static function containsAllChainedStatementWindows(array $haystack, array $needles): bool
     {
         return array_values(array_intersect($needles, $haystack)) === array_values($needles);
     }
@@ -2665,7 +2665,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $row
      */
-    private static function rowIdValueNext242(array $row, string $rowIdColumn): int|string
+    private static function rowIdValueChainedStatementWindows(array $row, string $rowIdColumn): int|string
     {
         if (!array_key_exists($rowIdColumn, $row)) {
             throw new \InvalidArgumentException("SQLite row-value window next242 rowid column {$rowIdColumn} is missing");
@@ -2678,7 +2678,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $value;
     }
 
-    private static function numericValueNext242(mixed $value): int
+    private static function numericValueChainedStatementWindows(mixed $value): int
     {
         if (is_int($value)) {
             return $value;
@@ -2693,7 +2693,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $value
      */
-    private static function digestNext242(array $value): string
+    private static function digestChainedStatementWindows(array $value): string
     {
         return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
     }
@@ -2708,7 +2708,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext243(
+    public static function executeTupleFrameWindowReceipt(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -2717,7 +2717,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next243',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext239(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -2727,11 +2727,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $tupleFrames = self::tupleFramesNext243($base['retry_statement_windows_next239'], $rowIdColumn);
-        $retryTuples = self::tupleKeysNext243($tupleFrames);
-        $retryFrameIds = self::frameIdsNext243($tupleFrames, $rowIdColumn);
-        $retryPeerIds = self::peerIdsNext243($tupleFrames, $rowIdColumn);
-        $release = self::releaseBoundaryNext243($base, $tupleFrames, $rowIdColumn);
+        $tupleFrames = self::tupleFramesTupleFrameWindowReceipt($base['retry_statement_windows_next239'], $rowIdColumn);
+        $retryTuples = self::tupleKeysTupleFrameWindowReceipt($tupleFrames);
+        $retryFrameIds = self::frameIdsTupleFrameWindowReceipt($tupleFrames, $rowIdColumn);
+        $retryPeerIds = self::peerIdsTupleFrameWindowReceipt($tupleFrames, $rowIdColumn);
+        $release = self::releaseBoundaryTupleFrameWindowReceipt($base, $tupleFrames, $rowIdColumn);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next243',
@@ -2755,19 +2755,19 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $partitions
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function tupleFramesNext243(array $partitions, string $rowIdColumn): array
+    private static function tupleFramesTupleFrameWindowReceipt(array $partitions, string $rowIdColumn): array
     {
         $frames = [];
         foreach ($partitions as $key => $rows) {
             $partitionFrames = [];
             $count = count($rows);
             foreach ($rows as $index => $row) {
-                $id = self::rowIdNext243($row, $rowIdColumn);
-                $bytes = self::intNext243($row['bytes'] ?? null);
+                $id = self::rowIdTupleFrameWindowReceipt($row, $rowIdColumn);
+                $bytes = self::intTupleFrameWindowReceipt($row['bytes'] ?? null);
                 $previous = $rows[$index - 1] ?? null;
                 $next = $rows[$index + 1] ?? null;
                 $frameRows = array_values(array_filter([$previous, $row, $next], static fn ($entry): bool => is_array($entry)));
-                $peerRows = array_values(array_filter($rows, static fn (array $entry): bool => self::intNext243($entry['bytes'] ?? null) === $bytes));
+                $peerRows = array_values(array_filter($rows, static fn (array $entry): bool => self::intTupleFrameWindowReceipt($entry['bytes'] ?? null) === $bytes));
 
                 $partitionFrames[] = [
                     $rowIdColumn => $id,
@@ -2776,12 +2776,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'tuple_key_sql' => '(' . $bytes . ',' . $id . ')',
                     'row_number' => $index + 1,
                     'partition_count' => $count,
-                    'lag_tuple_key' => $previous === null ? null : [self::intNext243($previous['bytes'] ?? null), self::rowIdNext243($previous, $rowIdColumn)],
-                    'lead_tuple_key' => $next === null ? null : [self::intNext243($next['bytes'] ?? null), self::rowIdNext243($next, $rowIdColumn)],
-                    'frame_ids' => array_map(static fn (array $entry): int|string => self::rowIdNext243($entry, $rowIdColumn), $frameRows),
-                    'frame_tuple_keys' => array_map(static fn (array $entry): array => [self::intNext243($entry['bytes'] ?? null), self::rowIdNext243($entry, $rowIdColumn)], $frameRows),
-                    'frame_sum' => array_sum(array_map(static fn (array $entry): int => self::intNext243($entry['bytes'] ?? null), $frameRows)),
-                    'peer_ids' => array_map(static fn (array $entry): int|string => self::rowIdNext243($entry, $rowIdColumn), $peerRows),
+                    'lag_tuple_key' => $previous === null ? null : [self::intTupleFrameWindowReceipt($previous['bytes'] ?? null), self::rowIdTupleFrameWindowReceipt($previous, $rowIdColumn)],
+                    'lead_tuple_key' => $next === null ? null : [self::intTupleFrameWindowReceipt($next['bytes'] ?? null), self::rowIdTupleFrameWindowReceipt($next, $rowIdColumn)],
+                    'frame_ids' => array_map(static fn (array $entry): int|string => self::rowIdTupleFrameWindowReceipt($entry, $rowIdColumn), $frameRows),
+                    'frame_tuple_keys' => array_map(static fn (array $entry): array => [self::intTupleFrameWindowReceipt($entry['bytes'] ?? null), self::rowIdTupleFrameWindowReceipt($entry, $rowIdColumn)], $frameRows),
+                    'frame_sum' => array_sum(array_map(static fn (array $entry): int => self::intTupleFrameWindowReceipt($entry['bytes'] ?? null), $frameRows)),
+                    'peer_ids' => array_map(static fn (array $entry): int|string => self::rowIdTupleFrameWindowReceipt($entry, $rowIdColumn), $peerRows),
                     'peer_count' => count($peerRows),
                     'peer_tuple_key' => [$bytes, '*'],
                     'current_source_visible' => true,
@@ -2799,7 +2799,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $frames
      * @return array<string,list<array{0:int,1:int|string}>>
      */
-    private static function tupleKeysNext243(array $frames): array
+    private static function tupleKeysTupleFrameWindowReceipt(array $frames): array
     {
         $keys = [];
         foreach ($frames as $key => $rows) {
@@ -2813,7 +2813,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $frames
      * @return array<string,list<list<int|string>>>
      */
-    private static function frameIdsNext243(array $frames, string $rowIdColumn): array
+    private static function frameIdsTupleFrameWindowReceipt(array $frames, string $rowIdColumn): array
     {
         $ids = [];
         foreach ($frames as $key => $rows) {
@@ -2827,7 +2827,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $frames
      * @return array<string,list<list<int|string>>>
      */
-    private static function peerIdsNext243(array $frames, string $rowIdColumn): array
+    private static function peerIdsTupleFrameWindowReceipt(array $frames, string $rowIdColumn): array
     {
         $ids = [];
         foreach ($frames as $key => $rows) {
@@ -2842,13 +2842,13 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $frames
      * @return array<string,mixed>
      */
-    private static function releaseBoundaryNext243(array $base, array $frames, string $rowIdColumn): array
+    private static function releaseBoundaryTupleFrameWindowReceipt(array $base, array $frames, string $rowIdColumn): array
     {
         $ids = [];
         $tokens = [];
         foreach ($frames as $rows) {
             foreach ($rows as $row) {
-                $ids[] = self::rowIdNext243($row, $rowIdColumn);
+                $ids[] = self::rowIdTupleFrameWindowReceipt($row, $rowIdColumn);
                 $tokens[] = (string) $row['tuple_window_token'];
             }
         }
@@ -2868,7 +2868,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $row
      */
-    private static function rowIdNext243(array $row, string $rowIdColumn): int|string
+    private static function rowIdTupleFrameWindowReceipt(array $row, string $rowIdColumn): int|string
     {
         if (!array_key_exists($rowIdColumn, $row)) {
             throw new \InvalidArgumentException("SQLite row-value tuple window next243 rowid column {$rowIdColumn} is missing");
@@ -2881,7 +2881,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $id;
     }
 
-    private static function intNext243(mixed $value): int
+    private static function intTupleFrameWindowReceipt(mixed $value): int
     {
         if (is_int($value)) {
             return $value;
@@ -2905,7 +2905,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext244(
+    public static function executeTransitionChainWindow(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -2913,7 +2913,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_returning_window_next244',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext241(
+        $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePairCurrentRowFrames(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -2922,8 +2922,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $chains = self::transitionChainsNext244($plan['window_current_row_frames_next241'], $rowIdColumn);
-        $summary = self::transitionSummaryNext244($chains);
+        $chains = self::transitionChainsTransitionChainWindow($plan['window_current_row_frames_next241'], $rowIdColumn);
+        $summary = self::transitionSummaryTransitionChainWindow($chains);
 
         $plan['status'] = 'rowvalue-update-delete-returning-window-current-source-next244';
         $plan['savepoint'] = $savepoint;
@@ -2931,9 +2931,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $plan['window_transition_chains_next244'] = $chains;
         $plan['window_transition_chain_count_next244'] = count($chains);
         $plan['window_transition_summary_next244'] = $summary;
-        $plan['window_transition_replayed_ids_next244'] = self::idsForClassNext244($chains, 'replayed-after-rollback');
-        $plan['window_transition_restart_ids_next244'] = self::idsForClassNext244($chains, 'restart-only');
-        $plan['window_transition_discarded_ids_next244'] = self::idsForClassNext244($chains, 'discarded-only');
+        $plan['window_transition_replayed_ids_next244'] = self::idsForClassTransitionChainWindow($chains, 'replayed-after-rollback');
+        $plan['window_transition_restart_ids_next244'] = self::idsForClassTransitionChainWindow($chains, 'restart-only');
+        $plan['window_transition_discarded_ids_next244'] = self::idsForClassTransitionChainWindow($chains, 'discarded-only');
         $plan['window_transition_edge_keys_next244'] = array_column($chains, 'transition_edge_key_next244');
         $plan['window_transition_partition_keys_next244'] = array_values(array_unique(array_column($chains, 'transition_partition_next244')));
         $plan['window_transition_fence_next244'] = [
@@ -2941,7 +2941,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'frame_mode' => 'ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING',
             'source_frame_count' => $plan['window_current_row_frame_count_next241'],
             'transition_count' => count($chains),
-            'transition_digest' => self::digestNext244($chains),
+            'transition_digest' => self::digestTransitionChainWindow($chains),
             'current_row_frame_digest' => $plan['window_current_row_fence_next241']['frame_digest'],
             'pair_digest' => $plan['window_source_fence_next238']['pair_digest'],
             'rolled_back_to_savepoint' => $plan['rolled_back_to_savepoint'],
@@ -2962,27 +2962,27 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $frames
      * @return list<array<string,mixed>>
      */
-    private static function transitionChainsNext244(array $frames, string $rowIdColumn): array
+    private static function transitionChainsTransitionChainWindow(array $frames, string $rowIdColumn): array
     {
         $partitions = [];
         foreach ($frames as $frame) {
-            $action = self::stringValueNext244($frame['frame_action_next241'] ?? null, 'action');
+            $action = self::stringValueTransitionChainWindow($frame['frame_action_next241'] ?? null, 'action');
             $partitions[$action][] = $frame;
         }
 
         $chains = [];
         foreach ($partitions as $action => $rows) {
-            usort($rows, static fn (array $left, array $right): int => self::compareRowIdsNext244($left['frame_rowid_next241'] ?? null, $right['frame_rowid_next241'] ?? null));
+            usort($rows, static fn (array $left, array $right): int => self::compareRowIdsTransitionChainWindow($left['frame_rowid_next241'] ?? null, $right['frame_rowid_next241'] ?? null));
             $partitionCount = count($rows);
             foreach ($rows as $index => $row) {
-                $rowid = self::rowIdNext244($row['frame_rowid_next241'] ?? null, $rowIdColumn);
-                $class = self::stringValueNext244($row['frame_class_next241'] ?? null, 'class');
+                $rowid = self::rowIdTransitionChainWindow($row['frame_rowid_next241'] ?? null, $rowIdColumn);
+                $class = self::stringValueTransitionChainWindow($row['frame_class_next241'] ?? null, 'class');
                 $previous = $rows[$index - 1] ?? null;
                 $next = $rows[$index + 1] ?? null;
-                $previousClass = $previous === null ? null : self::stringValueNext244($previous['frame_class_next241'] ?? null, 'previous class');
-                $nextClass = $next === null ? null : self::stringValueNext244($next['frame_class_next241'] ?? null, 'next class');
-                $previousId = $previous === null ? null : self::rowIdNext244($previous['frame_rowid_next241'] ?? null, $rowIdColumn);
-                $nextId = $next === null ? null : self::rowIdNext244($next['frame_rowid_next241'] ?? null, $rowIdColumn);
+                $previousClass = $previous === null ? null : self::stringValueTransitionChainWindow($previous['frame_class_next241'] ?? null, 'previous class');
+                $nextClass = $next === null ? null : self::stringValueTransitionChainWindow($next['frame_class_next241'] ?? null, 'next class');
+                $previousId = $previous === null ? null : self::rowIdTransitionChainWindow($previous['frame_rowid_next241'] ?? null, $rowIdColumn);
+                $nextId = $next === null ? null : self::rowIdTransitionChainWindow($next['frame_rowid_next241'] ?? null, $rowIdColumn);
 
                 $chains[] = [
                     'transition_ordinal_next244' => count($chains),
@@ -2990,7 +2990,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'transition_partition_ordinal_next244' => $index + 1,
                     'transition_partition_count_next244' => $partitionCount,
                     'transition_rowid_next244' => $rowid,
-                    'transition_pair_key_next244' => self::stringValueNext244($row['frame_pair_key_next241'] ?? null, 'pair key'),
+                    'transition_pair_key_next244' => self::stringValueTransitionChainWindow($row['frame_pair_key_next241'] ?? null, 'pair key'),
                     'transition_edge_key_next244' => $action . ':' . (string) $previousId . '>' . (string) $rowid . '>' . (string) $nextId,
                     'transition_class_next244' => $class,
                     'transition_previous_class_next244' => $previousClass,
@@ -2999,9 +2999,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'transition_next_rowid_next244' => $nextId,
                     'transition_lag_class_changed_next244' => $previousClass !== null && $previousClass !== $class,
                     'transition_lead_class_changed_next244' => $nextClass !== null && $nextClass !== $class,
-                    'transition_boundary_next244' => self::boundaryNext244($previous, $next),
-                    'transition_frame_rowids_next244' => self::frameRowIdsNext244($previousId, $rowid, $nextId),
-                    'transition_frame_classes_next244' => self::frameClassesNext244($previousClass, $class, $nextClass),
+                    'transition_boundary_next244' => self::boundaryTransitionChainWindow($previous, $next),
+                    'transition_frame_rowids_next244' => self::frameRowIdsTransitionChainWindow($previousId, $rowid, $nextId),
+                    'transition_frame_classes_next244' => self::frameClassesTransitionChainWindow($previousClass, $class, $nextClass),
                     'transition_current_present_next244' => (bool) ($row['frame_current_present_next241'] ?? false),
                     'transition_next_present_next244' => (bool) ($row['frame_next_present_next241'] ?? false),
                     'transition_replayed_next244' => $class === 'replayed-after-rollback',
@@ -3020,7 +3020,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $chains
      * @return array<string,mixed>
      */
-    private static function transitionSummaryNext244(array $chains): array
+    private static function transitionSummaryTransitionChainWindow(array $chains): array
     {
         $summary = [
             'transition_count' => count($chains),
@@ -3037,9 +3037,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ];
 
         foreach ($chains as $chain) {
-            $partition = self::stringValueNext244($chain['transition_partition_next244'] ?? null, 'partition');
-            $class = self::stringValueNext244($chain['transition_class_next244'] ?? null, 'class');
-            $boundary = self::stringValueNext244($chain['transition_boundary_next244'] ?? null, 'boundary');
+            $partition = self::stringValueTransitionChainWindow($chain['transition_partition_next244'] ?? null, 'partition');
+            $class = self::stringValueTransitionChainWindow($chain['transition_class_next244'] ?? null, 'class');
+            $boundary = self::stringValueTransitionChainWindow($chain['transition_boundary_next244'] ?? null, 'boundary');
             $summary['lag_class_changes'] += (int) ((bool) $chain['transition_lag_class_changed_next244']);
             $summary['lead_class_changes'] += (int) ((bool) $chain['transition_lead_class_changed_next244']);
             $summary['first_rows'] += (int) ($boundary === 'first-row' || $boundary === 'singleton-row');
@@ -3057,7 +3057,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $chains
      * @return list<int|string>
      */
-    private static function idsForClassNext244(array $chains, string $class): array
+    private static function idsForClassTransitionChainWindow(array $chains, string $class): array
     {
         $ids = [];
         foreach ($chains as $chain) {
@@ -3072,7 +3072,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $ids;
     }
 
-    private static function boundaryNext244(?array $previous, ?array $next): string
+    private static function boundaryTransitionChainWindow(?array $previous, ?array $next): string
     {
         if ($previous === null && $next === null) {
             return 'singleton-row';
@@ -3090,7 +3090,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @return list<int|string>
      */
-    private static function frameRowIdsNext244(int|string|null $previous, int|string $current, int|string|null $next): array
+    private static function frameRowIdsTransitionChainWindow(int|string|null $previous, int|string $current, int|string|null $next): array
     {
         return array_values(array_filter([$previous, $current, $next], static fn (mixed $value): bool => is_int($value) || is_string($value)));
     }
@@ -3098,12 +3098,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function frameClassesNext244(?string $previous, string $current, ?string $next): array
+    private static function frameClassesTransitionChainWindow(?string $previous, string $current, ?string $next): array
     {
         return array_values(array_filter([$previous, $current, $next], static fn (mixed $value): bool => is_string($value)));
     }
 
-    private static function rowIdNext244(mixed $value, string $rowIdColumn): int|string
+    private static function rowIdTransitionChainWindow(mixed $value, string $rowIdColumn): int|string
     {
         if (!is_int($value) && !is_string($value)) {
             throw new \InvalidArgumentException("SQLite row-value RETURNING transition next244 rowid column {$rowIdColumn} must be int or string");
@@ -3112,7 +3112,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $value;
     }
 
-    private static function compareRowIdsNext244(mixed $left, mixed $right): int
+    private static function compareRowIdsTransitionChainWindow(mixed $left, mixed $right): int
     {
         if ((is_int($left) || ctype_digit((string) $left)) && (is_int($right) || ctype_digit((string) $right))) {
             return (int) $left <=> (int) $right;
@@ -3121,7 +3121,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return ((string) $left) <=> ((string) $right);
     }
 
-    private static function stringValueNext244(mixed $value, string $name): string
+    private static function stringValueTransitionChainWindow(mixed $value, string $name): string
     {
         if (!is_string($value) || $value === '') {
             throw new \InvalidArgumentException("SQLite row-value RETURNING transition next244 {$name} is missing");
@@ -3133,7 +3133,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $chains
      */
-    private static function digestNext244(array $chains): string
+    private static function digestTransitionChainWindow(array $chains): string
     {
         $parts = [];
         foreach ($chains as $chain) {
@@ -3169,7 +3169,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext236(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -3338,7 +3338,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next246',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext242(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeChainedStatementWindows(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -3649,7 +3649,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_returning_window_next247',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext244(
+        $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeTransitionChainWindow(
             $tables,
             $attemptStatements,
             $retryStatements,

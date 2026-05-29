@@ -13,7 +13,7 @@ $checkpointedDatabase = $page('wp next203 schema checkpoint')
     . $page('wp next203 options checkpoint')
     . $page('wp next203 plugin checkpoint');
 $publishedWalDigest = $digest('wp next203 restarted wal sidecar');
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next203Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::checkpointPageCacheLeasePlan(
     [
         'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next196',
         'database_path' => '/srv/www/wp-content/database/wp-next203.sqlite',

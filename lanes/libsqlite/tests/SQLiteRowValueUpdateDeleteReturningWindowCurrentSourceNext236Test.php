@@ -29,14 +29,14 @@ $retryDelete236 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '
 
 $retryUpdateResult236 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate236, $tables236, 'option_id', $unique236);
 $retryDeleteResult236 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete236, $retryUpdateResult236()['tables'], 'option_id', $unique236);
-$plan236 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext236(
+$plan236 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames(
     $tables236,
     [$yieldUpdate236, $yieldDelete236],
     [$attemptUpdate236, $attemptDelete236],
     [$retryUpdate236, $retryDelete236],
     $unique236,
 );
-$customPlan236 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext236(
+$customPlan236 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames(
     $tables236,
     [$yieldUpdate236],
     [$attemptUpdate236],
@@ -110,10 +110,10 @@ $cases236 = [
     'custom retry running bytes' => [static fn (): mixed => $customPlan236()['retry_running_bytes_next236'], [31, 60, 87]],
     'custom retry following bytes' => [static fn (): mixed => $customPlan236()['retry_following_bytes_next236'], [56, 27, 0]],
     'custom receipt final' => [static fn (): mixed => $customPlan236()['current_source_receipt_next236']['retry_running_final'], 87],
-    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext236($tables236, [], [$attemptUpdate236], [$retryUpdate236], $unique236), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext236($tables236, [$yieldUpdate236], [], [$retryUpdate236], $unique236), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext236($tables236, [$yieldUpdate236], [$attemptUpdate236], [], $unique236), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext236($tables236, [$yieldUpdate236], [$attemptUpdate236], [$retryUpdate236], $unique236, 'bad-name'), InvalidArgumentException::class],
+    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames($tables236, [], [$attemptUpdate236], [$retryUpdate236], $unique236), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames($tables236, [$yieldUpdate236], [], [$retryUpdate236], $unique236), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames($tables236, [$yieldUpdate236], [$attemptUpdate236], [], $unique236), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames($tables236, [$yieldUpdate236], [$attemptUpdate236], [$retryUpdate236], $unique236, 'bad-name'), InvalidArgumentException::class],
 ];
 
 $tests = [];

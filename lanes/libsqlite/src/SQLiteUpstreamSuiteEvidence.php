@@ -391,7 +391,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<string, array<string, mixed>> $nextTargets
      * @return array<string, mixed>
      */
-    public function releaseRunnerUpstreamGapMapCurrentNext49(
+    public function releaseRunnerUpstreamGapMap(
         array $currentArtifacts,
         array $nextTargets,
         string $currentAcceptedHead,
@@ -597,7 +597,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<string, list<string>> $candidateGroups
      * @return array<string, mixed>
      */
-    public function currentNext59AdmissionPlan(
+    public function focusedRunnerAdmissionPlan(
         array $candidateGroups,
         string $currentAcceptedHead,
         string $nextAcceptedHead,
@@ -1881,7 +1881,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $suiteRows
      * @return array<string, mixed>
      */
-    public function releaseRunnerSuiteGapBurnupCurrentNext51(
+    public function releaseRunnerSuiteGapBurnup(
         array $suiteRows,
         string $currentAcceptedHead,
         string $nextAcceptedHead,
@@ -1891,7 +1891,7 @@ final class SQLiteUpstreamSuiteEvidence
         string $nonOverlapNote,
         int $targetCountable = 0
     ): array {
-        $progress = $this->releaseRunnerSuiteProgressMapCurrentNext48(
+        $progress = $this->releaseRunnerSuiteProgressMap(
             $suiteRows,
             $currentAcceptedHead,
             $nextAcceptedHead,
@@ -2006,7 +2006,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $denominatorRows
      * @return array<string, mixed>
      */
-    public function releaseRunnerSuiteDenominatorBurnupCurrentNext54(
+    public function releaseRunnerSuiteDenominatorBurnup(
         array $denominatorRows,
         string $currentAcceptedHead,
         string $nextAcceptedHead,
@@ -3802,7 +3802,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<string, mixed> $focusedReproGate
      * @return array<string, mixed>
      */
-    public function releaseRunnerFailureLedgerCurrentNext38(
+    public function releaseRunnerFailureLedger(
         array $currentFailedArtifacts,
         array $nextFailedArtifacts,
         array $focusedReproGate,
@@ -4439,7 +4439,7 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
-    public function releaseRunnerSuiteLedgerCurrentNext35(
+    public function releaseRunnerSuiteLedger(
         string $currentArtifactDirectory,
         string $nextArtifactDirectory,
         string $acceptedRepositoryHead,
@@ -5579,7 +5579,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext171(
+    public function upstreamVeryquickShardFocusedAdmission(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -22295,7 +22295,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $suiteRows
      * @return array<string, mixed>
      */
-    public function releaseRunnerSuiteProgressMapCurrentNext48(
+    public function releaseRunnerSuiteProgressMap(
         array $suiteRows,
         string $currentAcceptedHead,
         string $nextAcceptedHead,
