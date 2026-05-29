@@ -110,7 +110,7 @@ function libsqlite_suite_next118_record(
     ?int $expected = 70,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next118_evidence()->upstreamRunnerCountabilityCurrentSourceNext118(
+    return libsqlite_suite_next118_evidence()->upstreamRunnerCountability(
         $rows,
         604,
         45302,

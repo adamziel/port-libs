@@ -102,22 +102,22 @@ $summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::currentRetu
         'current_view_epoch_next218' => 'wp.returning.view.epoch.cursor.228',
         'current_trigger_epoch_next218' => 'wp.returning.trigger.epoch.cursor.228',
         'auto_ack_current_source_epochs_next218' => true,
-        'current_returning_snapshot_token_next228' => 'wp.current.returning.source.228',
-        'current_returning_view_source_next228' => 'main@view-cookie-228-current',
-        'current_returning_trigger_source_next228' => 'main@trigger-cookie-228-current',
+        'current_returning_snapshot_token_snapshot_ack' => 'wp.current.returning.source.228',
+        'current_returning_view_source_snapshot_ack' => 'main@view-cookie-228-current',
+        'current_returning_trigger_source_snapshot_ack' => 'main@trigger-cookie-228-current',
         'current_returning_source_token_next224' => 'wp.current.returning.source.228',
         'current_returning_view_source_next224' => 'main@view-cookie-228-current',
         'current_returning_trigger_source_next224' => 'main@trigger-cookie-228-current',
         'auto_ack_current_returning_source_seals_next224' => true,
-        'auto_ack_current_returning_snapshot_acks_next228' => true,
+        'auto_ack_current_returning_snapshot_acks_snapshot_ack' => true,
     ],
 );
 
 if (
-    $summary['status_next228'] !== 'trigger-recursive-view-returning-current-source-next228-source-released'
-    || $summary['current_returning_snapshot_plan_next228']['decision'] !== 'publish-next-source-after-current-returning-source-ack'
-    || array_column($summary['visible_returning_payloads_next228'], 'name') !== ['blogdescription_child', 'template_child', 'home', 'next_plugin']
-    || $summary['held_next_source_rows_next228'] !== []
+    $summary['status_snapshot_ack'] !== 'trigger-recursive-view-returning-current-source-snapshot-ack-source-released'
+    || $summary['current_returning_snapshot_plan_snapshot_ack']['decision'] !== 'publish-next-source-after-current-returning-source-ack'
+    || array_column($summary['visible_returning_payloads_snapshot_ack'], 'name') !== ['blogdescription_child', 'template_child', 'home', 'next_plugin']
+    || $summary['held_next_source_rows_snapshot_ack'] !== []
 ) {
     fwrite(STDERR, "wordpress-trigger-recursive-view-returning-snapshot-ack self-test failed\n");
     exit(1);

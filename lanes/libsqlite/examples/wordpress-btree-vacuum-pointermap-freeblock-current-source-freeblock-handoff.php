@@ -28,7 +28,7 @@ $pages[1] = $firstPage;
 $pages[2] = str_repeat("\0", 512);
 $pages[3] = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next205', str_repeat('cache:', 42)])),
+    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next166', str_repeat('cache:', 42)])),
     SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'rewrite_rules', str_repeat('rewrite:', 8)])),
 ]);
 $pages[105] = str_repeat("\0", 512);
@@ -72,7 +72,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFree
         'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
     ],
     2,
-    str_repeat('next205-current-source-cursor-', 50),
+    str_repeat('handoff-current-source-cursor-', 50),
     3,
     true,
     2,
@@ -80,7 +80,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFree
 $summary = $plan->freeblockHandoffSummary();
 
 echo json_encode([
-    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-next205',
+    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-freeblock-handoff',
     'wordpressUse' => 'After a copied wp_options transient delete, the next writer receives only pointer-map-proven current-source freeblock and overflow payload pages; truncated tail pages remain fenced before the replacement cache value is written.',
     'status' => $summary['status'],
     'required_pointer_map_pages' => $summary['required_pointer_map_pages'],
@@ -94,7 +94,7 @@ echo json_encode([
 ], JSON_PRETTY_PRINT) . PHP_EOL;
 
 if (
-    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-next205-ready'
+    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-freeblock-handoff-ready'
     && $summary['required_pointer_map_pages'] === [2, 105, 105]
     && $summary['reusable_leaf_freeblock_pages'] === [3]
     && $summary['reusable_overflow_payload_pages'] === [106, 107, 108]
@@ -104,5 +104,5 @@ if (
     && $summary['all_overflow_payloads_replayable'] === true
     && $summary['all_fenced_tail_pages_blocked'] === true
 ) {
-    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-next205 self-test passed\n";
+    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-freeblock-handoff self-test passed\n";
 }

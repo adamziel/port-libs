@@ -22759,7 +22759,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function suiteUpstreamRunnerGapBurnupCurrentSourceNext104(
+    public function suiteUpstreamRunnerGapBurnup(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -22901,7 +22901,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerSuiteEvidenceRebaseCurrentSourceNext108(
+    public function upstreamRunnerSuiteEvidenceRebase(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -22916,7 +22916,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->suiteUpstreamRunnerGapBurnupCurrentSourceNext104(
+        $record = $this->suiteUpstreamRunnerGapBurnup(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -23034,7 +23034,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerFinalCurrentSourceNext109(
+    public function upstreamRunnerFinalEvidence(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -23049,7 +23049,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerSuiteEvidenceRebaseCurrentSourceNext108(
+        $record = $this->upstreamRunnerSuiteEvidenceRebase(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -23199,7 +23199,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFinalCurrentSourceNext109(
+        $record = $this->upstreamRunnerFinalEvidence(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -23383,7 +23383,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFinalCurrentSourceNext109(
+        $record = $this->upstreamRunnerFinalEvidence(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -25305,7 +25305,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerReleaseAdmissionCurrentSourceNext114(
+    public function upstreamRunnerReleaseAdmission(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -25320,7 +25320,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerSuiteEvidenceRebaseCurrentSourceNext108(
+        $record = $this->upstreamRunnerSuiteEvidenceRebase(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -25463,7 +25463,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerCountabilityCurrentSourceNext118(
+    public function upstreamRunnerCountability(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -25478,7 +25478,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerReleaseAdmissionCurrentSourceNext114(
+        $record = $this->upstreamRunnerReleaseAdmission(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -25889,7 +25889,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $burnupRows
      * @return array<string, mixed>
      */
-    public function upstreamReleaseDenominatorBurnupCurrentSourceNext119(
+    public function upstreamReleaseDenominatorBurnup(
         array $burnupRows,
         string $launcherBaseHead,
         string $integrationSourceHead,

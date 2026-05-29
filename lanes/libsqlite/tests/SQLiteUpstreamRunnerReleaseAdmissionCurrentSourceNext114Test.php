@@ -110,7 +110,7 @@ function libsqlite_suite_next114_record(
     ?int $expected = 69,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next114_evidence()->upstreamRunnerReleaseAdmissionCurrentSourceNext114(
+    return libsqlite_suite_next114_evidence()->upstreamRunnerReleaseAdmission(
         $rows,
         604,
         43574,

@@ -96,7 +96,7 @@ function libsqlite_suite_next104_record(
     ?int $expected = 61,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next104_evidence()->suiteUpstreamRunnerGapBurnupCurrentSourceNext104(
+    return libsqlite_suite_next104_evidence()->suiteUpstreamRunnerGapBurnup(
         $rows,
         597,
         40110,

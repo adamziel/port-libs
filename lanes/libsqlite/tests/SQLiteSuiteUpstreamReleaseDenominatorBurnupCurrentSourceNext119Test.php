@@ -64,7 +64,7 @@ function libsqlite_suite_next119_rows(int $case = 1): array
 
 function libsqlite_suite_next119_record(array $rows, ?string $output = null): array
 {
-    return libsqlite_suite_next119_evidence()->upstreamReleaseDenominatorBurnupCurrentSourceNext119(
+    return libsqlite_suite_next119_evidence()->upstreamReleaseDenominatorBurnup(
         $rows,
         '6b824ac24854056466145761d32a9f27720d286a',
         '8a447f445e5d2fd32fc9fd463117f585d1416551',
@@ -119,7 +119,7 @@ $tests['current source next119 records focused denominator metadata'] = static f
 };
 
 $tests['current source next119 blocks stale launcher base'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_next119_evidence()->upstreamReleaseDenominatorBurnupCurrentSourceNext119(
+    $record = libsqlite_suite_next119_evidence()->upstreamReleaseDenominatorBurnup(
         libsqlite_suite_next119_rows(),
         '0000000000000000000000000000000000000000',
         '8a447f445e5d2fd32fc9fd463117f585d1416551',
@@ -139,7 +139,7 @@ $tests['current source next119 blocks stale launcher base'] = static function (T
 };
 
 $tests['current source next119 blocks stale integration source'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_next119_evidence()->upstreamReleaseDenominatorBurnupCurrentSourceNext119(
+    $record = libsqlite_suite_next119_evidence()->upstreamReleaseDenominatorBurnup(
         libsqlite_suite_next119_rows(),
         '6b824ac24854056466145761d32a9f27720d286a',
         '1111111111111111111111111111111111111111',

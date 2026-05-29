@@ -12,7 +12,7 @@
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-ready-publication-seal.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationSealTest.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext974989Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationSealTest.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next974-989.php --self-test`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationFinalContinuationTest.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationSealTest.php`
+- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-ready-publication-final-continuation.php --self-test`
 - `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-ready-publication-seal.php --self-test`
 - `git diff --check -- lanes/libsqlite`

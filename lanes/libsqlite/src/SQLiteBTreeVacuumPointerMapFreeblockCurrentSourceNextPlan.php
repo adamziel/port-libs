@@ -19613,7 +19613,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockHandoffVar
         $rows = self::buildFreeblockRows($basePlan);
         $errors = self::freeblockErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next205 handoff failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source freeblock handoff failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -19667,7 +19667,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockHandoffVar
         $cursorSummary = $this->basePlan->currentSourceCursorSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next205-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-freeblock-handoff-ready',
             'freeblock_row_count' => count($this->freeblockRows),
             'required_pointer_map_pages' => $this->requiredPointerMapPages(),
             'reusable_leaf_freeblock_pages' => $this->reusableLeafFreeblockPages(),
@@ -19676,7 +19676,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockHandoffVar
             'handoff_tokens' => $this->handoffTokens(),
             'handoff_signature' => self::signature($this->handoffTokens()),
             'next_writer_freeblock_token' => self::signature(array_merge(
-                ['next205', $cursorSummary['next_writer_cursor_token']],
+                ['freeblock-handoff', $cursorSummary['next_writer_cursor_token']],
                 $this->handoffSourcePages(),
                 $this->handoffTokens(),
             )),
@@ -19688,9 +19688,9 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockHandoffVar
             'freeblock_errors' => $this->freeblockErrors(),
             'dependencies' => [
                 'sqlite-btree-vacuum-pointermap-freeblock-current-source-writer-cursor',
-                'sqlite-current-source-next205',
+                'sqlite-current-source-freeblock-handoff',
             ],
-            'dependency_closure' => 'no new support component needed; next205 reuses writer-cursor cursor admission, pointer-map dependency pages, leaf freeblock receipts, and fenced-tail metadata',
+            'dependency_closure' => 'no new support component needed; freeblock handoff reuses writer-cursor cursor admission, pointer-map dependency pages, leaf freeblock receipts, and fenced-tail metadata',
             'non_overlap' => 'adds the next-writer freeblock handoff after writer-cursor cursor admission; does not repeat writer-cursor cursor admission, next196 source-next tokens, next172 materialized images, overflow freelist release, page relocation, root collapse, or bulk overflow freeblocks',
         ];
     }
@@ -19701,7 +19701,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockHandoffVar
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next205',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-freeblock-handoff',
             'freeblock_handoff_summary' => $this->freeblockHandoffSummary(),
             'freeblock_errors' => $this->freeblockErrors(),
             'freeblock_rows' => $this->freeblockRows,
@@ -19759,7 +19759,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockHandoffVar
             $cursorToken = (string) $cursorRow['cursor_token'];
 
             foreach ($pointerMapPages as $pageNumber) {
-                $token = self::signature(['next205', $cursorToken, $previousToken ?? 'initial', $pageNumber, 'pointer-map-dependency']);
+                $token = self::signature(['freeblock-handoff', $cursorToken, $previousToken ?? 'initial', $pageNumber, 'pointer-map-dependency']);
                 $rows[] = [
                     'page_number' => $pageNumber,
                     'cursor_index' => (int) $cursorRow['cursor_index'],
@@ -19780,7 +19780,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockHandoffVar
 
             foreach ($payloadPages as $pageNumber) {
                 $channel = $pageNumber === 3 ? 'leaf-freeblock' : 'overflow-payload';
-                $token = self::signature(['next205', $cursorToken, $previousToken ?? 'initial', $pageNumber, $channel]);
+                $token = self::signature(['freeblock-handoff', $cursorToken, $previousToken ?? 'initial', $pageNumber, $channel]);
                 $rows[] = [
                     'page_number' => $pageNumber,
                     'cursor_index' => (int) $cursorRow['cursor_index'],

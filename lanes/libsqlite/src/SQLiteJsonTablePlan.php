@@ -3128,18 +3128,18 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidAliasLimitProfile207(
+        $currentProfile = self::jsonTableGeneratedPathRowidAliasLimitProfile(
             $plan['currentGeneratedPathRowidAliasOrder206'],
             $limit,
             $offset,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidAliasLimitProfile207(
+        $nextProfile = self::jsonTableGeneratedPathRowidAliasLimitProfile(
             $plan['nextGeneratedPathRowidAliasOrder206'],
             $limit,
             $offset,
         );
-        $transitions = self::jsonTableGeneratedPathRowidAliasLimitTransitions207($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidAliasLimitReasons207($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidAliasLimitTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidAliasLimitReasons($transitions);
 
         $plan['currentGeneratedPathRowidAliasLimit207'] = $currentProfile;
         $plan['nextGeneratedPathRowidAliasLimit207'] = $nextProfile;
@@ -3887,16 +3887,16 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidYieldCostProfile215(
+        $currentProfile = self::jsonTableGeneratedPathRowidYieldCostProfile(
             $plan['currentGeneratedPathRowidCurrentSourceXCurrent212'],
             false,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidYieldCostProfile215(
+        $nextProfile = self::jsonTableGeneratedPathRowidYieldCostProfile(
             $plan['nextGeneratedPathRowidCurrentSourceXCurrent212'],
             $plan['next212ReplanReasons'] !== [],
         );
-        $transitions = self::jsonTableGeneratedPathRowidYieldCostTransitions215($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidYieldCostReasons215($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidYieldCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidYieldCostReasons($transitions);
 
         $plan['currentGeneratedPathRowidYieldCost215'] = $currentProfile;
         $plan['nextGeneratedPathRowidYieldCost215'] = $nextProfile;
@@ -4098,18 +4098,18 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentProfile212(
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentProfile(
             $plan['currentGeneratedPathRowidRangeConstraint209'],
             $plan['currentGeneratedPathRowidAliasProjection203'],
             false,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentProfile212(
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentProfile(
             $plan['nextGeneratedPathRowidRangeConstraint209'],
             $plan['nextGeneratedPathRowidAliasProjection203'],
             $plan['next209ReplanReasons'] !== [],
         );
-        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentTransitions212($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentReasons212($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentReasons($transitions);
 
         $plan['currentGeneratedPathRowidCurrentSourceXCurrent212'] = $currentProfile;
         $plan['nextGeneratedPathRowidCurrentSourceXCurrent212'] = $nextProfile;
@@ -17740,7 +17740,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $aliasOrder206
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidAliasLimitProfile207(
+    private static function jsonTableGeneratedPathRowidAliasLimitProfile(
         array $aliasOrder206,
         ?int $limit,
         int $offset,
@@ -17770,7 +17770,7 @@ final class SQLiteJsonTablePlan
         $estimatedCost = $limitReusable
             ? max(1, min(max(1, $baseCost), max(1, count($skippedRowids) + count($boundedRowids))))
             : 1000000;
-        $opcode = self::jsonTableGeneratedPathRowidAliasLimitOpcode207(
+        $opcode = self::jsonTableGeneratedPathRowidAliasLimitOpcode(
             $limitReusable,
             $limitConsumed,
             $orderedRowids,
@@ -17801,7 +17801,7 @@ final class SQLiteJsonTablePlan
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
             'limitOpcode' => $opcode,
-            'costClass' => self::jsonTableGeneratedPathRowidAliasLimitCostClass207($opcode, count($boundedRowids)),
+            'costClass' => self::jsonTableGeneratedPathRowidAliasLimitCostClass($opcode, count($boundedRowids)),
             'limitFingerprint' => hash('sha256', json_encode([
                 $aliasOrder206['aliasOrderFingerprint'] ?? null,
                 $orderedRowids,
@@ -17820,7 +17820,7 @@ final class SQLiteJsonTablePlan
      * @param list<int> $orderedRowids
      * @param list<int> $boundedRowids
      */
-    private static function jsonTableGeneratedPathRowidAliasLimitOpcode207(
+    private static function jsonTableGeneratedPathRowidAliasLimitOpcode(
         bool $limitReusable,
         bool $limitConsumed,
         array $orderedRowids,
@@ -17847,7 +17847,7 @@ final class SQLiteJsonTablePlan
         return 'OP_JsonTableRowidAliasLimitTopNext207';
     }
 
-    private static function jsonTableGeneratedPathRowidAliasLimitCostClass207(string $opcode, int $rowCount): string
+    private static function jsonTableGeneratedPathRowidAliasLimitCostClass(string $opcode, int $rowCount): string
     {
         return match ($opcode) {
             'OP_JsonTableRowidAliasLimitTopNext207' => $rowCount <= 1
@@ -17866,7 +17866,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidAliasLimitTransitions207(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidAliasLimitTransitions(array $current, array $next): array
     {
         $fields = [
             'root',
@@ -17908,7 +17908,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidAliasLimitReasons207(array $transitions): array
+    private static function jsonTableGeneratedPathRowidAliasLimitReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -23756,7 +23756,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $aliasProjection203
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentProfile212(
+    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentProfile(
         array $range209,
         array $aliasProjection203,
         bool $upstreamReplanRequired,
@@ -23798,7 +23798,7 @@ final class SQLiteJsonTablePlan
             : array_values(array_filter($acceptedRowids, static fn (int $rowid): bool => $rowid !== $activeRowid));
         $estimatedRows = $xCurrentReusable ? 1 : 0;
         $estimatedCost = $xCurrentReusable ? max(1, min((int) ($range209['estimatedCost'] ?? 1), 1)) : 1000000;
-        $opcode = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentOpcode212(
+        $opcode = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentOpcode(
             $xCurrentReusable,
             $rangeReusable,
             $upstreamReplanRequired,
@@ -23827,7 +23827,7 @@ final class SQLiteJsonTablePlan
             'xCurrentOpcode' => $opcode,
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
-            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceXCurrentCostClass212($opcode, $remainingRowids),
+            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceXCurrentCostClass($opcode, $remainingRowids),
             'xCurrentFingerprint' => hash('sha256', json_encode([
                 $sourceFingerprint,
                 $activeRowid,
@@ -23840,7 +23840,7 @@ final class SQLiteJsonTablePlan
         ];
     }
 
-    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentOpcode212(
+    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentOpcode(
         bool $xCurrentReusable,
         bool $rangeReusable,
         bool $upstreamReplanRequired,
@@ -23869,7 +23869,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<int> $remainingRowids
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentCostClass212(string $opcode, array $remainingRowids): string
+    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentCostClass(string $opcode, array $remainingRowids): string
     {
         return match ($opcode) {
             'OP_JsonTableGeneratedPathRowidXCurrentNext212' => $remainingRowids === []
@@ -23888,7 +23888,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentTransitions212(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentTransitions(array $current, array $next): array
     {
         $fields = [
             'function',
@@ -23928,7 +23928,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentReasons212(array $transitions): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -25644,7 +25644,7 @@ final class SQLiteJsonTablePlan
                 'normalizedColumn' => $isAlias ? 'rowid' : $column,
                 'ordinal' => $columnOrdinals[$column],
                 'value' => $value,
-                'valueType' => self::jsonTableGeneratedPathRowidXColumnValueType214($value),
+                'valueType' => self::jsonTableGeneratedPathRowidXColumnValueType($value),
                 'cacheHit' => $cacheHit,
                 'aliasRead' => $isAlias,
                 'source' => $cacheHit ? ($isAlias ? 'rowid-alias-cache-next214' : 'xcurrent-projection-cache-next214') : 'xcolumn-null-next214',
@@ -25680,7 +25680,7 @@ final class SQLiteJsonTablePlan
             'xColumnOpcode' => $opcode,
             'estimatedRows' => $xColumnReusable ? 1 : 0,
             'estimatedCost' => $xColumnReusable ? max(1, count($reads)) : 1000000,
-            'costClass' => self::jsonTableGeneratedPathRowidXColumnCostClass214($opcode, $aliasReads, $nullReads),
+            'costClass' => self::jsonTableGeneratedPathRowidXColumnCostClass($opcode, $aliasReads, $nullReads),
             'xColumnFingerprint' => hash('sha256', json_encode([
                 $readFingerprint,
                 $xColumnReusable,
@@ -25692,7 +25692,7 @@ final class SQLiteJsonTablePlan
         ];
     }
 
-    private static function jsonTableGeneratedPathRowidXColumnValueType214(mixed $value): string
+    private static function jsonTableGeneratedPathRowidXColumnValueType(mixed $value): string
     {
         return match (true) {
             $value === null => 'null',
@@ -25704,7 +25704,7 @@ final class SQLiteJsonTablePlan
         };
     }
 
-    private static function jsonTableGeneratedPathRowidXColumnCostClass214(
+    private static function jsonTableGeneratedPathRowidXColumnCostClass(
         string $opcode,
         int $aliasReads,
         int $nullReads,
@@ -25793,7 +25793,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $xCurrent212
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidYieldCostProfile215(array $xCurrent212, bool $upstreamReplanRequired): array
+    private static function jsonTableGeneratedPathRowidYieldCostProfile(array $xCurrent212, bool $upstreamReplanRequired): array
     {
         $activeRowid = isset($xCurrent212['activeRowid']) ? (int) $xCurrent212['activeRowid'] : null;
         $remainingRowids = array_values(array_map('intval', $xCurrent212['remainingRowids'] ?? []));
@@ -25804,7 +25804,7 @@ final class SQLiteJsonTablePlan
         $cursorEofAfterYield = $yieldReusable && $remainingRowids === [];
         $estimatedRows = $yieldReusable ? count($remainingRowids) : 0;
         $estimatedCost = $yieldReusable ? max(1, $estimatedRows) : 1000000;
-        $opcode = self::jsonTableGeneratedPathRowidYieldCostOpcode215(
+        $opcode = self::jsonTableGeneratedPathRowidYieldCostOpcode(
             $yieldReusable,
             $upstreamReplanRequired,
             $activeRowid,
@@ -25830,7 +25830,7 @@ final class SQLiteJsonTablePlan
             'yieldOpcode' => $opcode,
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
-            'costClass' => self::jsonTableGeneratedPathRowidYieldCostClass215($opcode, $remainingRowids),
+            'costClass' => self::jsonTableGeneratedPathRowidYieldContinuationCostClass($opcode, $remainingRowids),
             'yieldFingerprint' => hash('sha256', json_encode([
                 $xCurrent212['xCurrentFingerprint'] ?? null,
                 $activeRowid,
@@ -25847,7 +25847,7 @@ final class SQLiteJsonTablePlan
      * @param list<int> $remainingRowids
      * @param array<string,mixed> $activeProjectedColumns
      */
-    private static function jsonTableGeneratedPathRowidYieldCostOpcode215(
+    private static function jsonTableGeneratedPathRowidYieldCostOpcode(
         bool $yieldReusable,
         bool $upstreamReplanRequired,
         ?int $activeRowid,
@@ -25876,7 +25876,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<int> $remainingRowids
      */
-    private static function jsonTableGeneratedPathRowidYieldCostClass215(string $opcode, array $remainingRowids): string
+    private static function jsonTableGeneratedPathRowidYieldContinuationCostClass(string $opcode, array $remainingRowids): string
     {
         return match ($opcode) {
             'OP_JsonTableGeneratedPathRowidYieldContinueNext215' => count($remainingRowids) === 1
@@ -25895,7 +25895,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidYieldCostTransitions215(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidYieldCostTransitions(array $current, array $next): array
     {
         $fields = [
             'function',
@@ -25934,7 +25934,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidYieldCostReasons215(array $transitions): array
+    private static function jsonTableGeneratedPathRowidYieldCostReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
