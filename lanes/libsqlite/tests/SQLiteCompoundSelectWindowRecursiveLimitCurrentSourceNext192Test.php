@@ -138,7 +138,7 @@ $tests['compound select window recursive limit recursiveCurrentGap rejects missi
 
 $tests['compound select window recursive limit recursiveCurrentGap non overlap reasons'] = static function (TestRunner $t) use ($summary192): void {
     $plan = $summary192();
-    $t->contains('avoids accepted next189', $plan['non_overlap']);
+    $t->contains('avoids accepted source-token-fence', $plan['non_overlap']);
     $t->true(in_array('recursive-queue-order-limit-current-source-recursiveCurrentGap', $plan['replanReasons'], true));
     $t->true(in_array('percent-rank-cume-dist-before-compound-limit-recursiveCurrentGap', $plan['replanReasons'], true));
 };

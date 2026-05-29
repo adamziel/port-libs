@@ -132,7 +132,7 @@ $tests['compound select window recursive limit recursiveCursorGate replan reason
 $tests['compound select window recursive limit recursiveCursorGate dependency closure and non overlap'] = static function (TestRunner $t) use ($summary194): void {
     $plan = $summary194();
     $t->contains('no new support component needed', $plan['dependency_closure']);
-    $t->contains('avoids accepted next189', $plan['non_overlap']);
+    $t->contains('avoids accepted source-token-fence', $plan['non_overlap']);
     $t->contains('INTERSECT/EXCEPT', $plan['non_overlap']);
 };
 
