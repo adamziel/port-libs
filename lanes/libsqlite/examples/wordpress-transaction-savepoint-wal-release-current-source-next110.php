@@ -43,7 +43,7 @@ $stack->savepoint('transient-batch');
 $stack->recordWalFrameWrite(5, 4);
 $stack->recordWalFrameWrite(6, 4, true);
 
-$plan = $stack->releaseCurrentWalSourceAndAppendNextFrame110(
+$plan = $stack->releaseCurrentWalSourceAndAppendFrame(
     'plugin-batch',
     SQLiteWal::parse($walBytes, $pageSize, true),
     $walBytes,

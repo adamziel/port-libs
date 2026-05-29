@@ -19,7 +19,7 @@ $savepoints->recordPageWrite(4);
 $savepoints->recordWalFrameWrite(4, 4);
 $savepoints->recordWalFrameWrite(5, 5, true);
 
-$plan = $savepoints->rollbackToCurrentAndRecordNextWalFrame64('plugin_settings', 6, true);
+$plan = $savepoints->rollbackToCurrentAndRecordWalFrame('plugin_settings', 6, true);
 
 echo json_encode([
     'scenario' => 'wordpress-pager-savepoint-current-next64',

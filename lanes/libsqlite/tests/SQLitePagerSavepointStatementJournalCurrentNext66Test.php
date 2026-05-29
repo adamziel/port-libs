@@ -29,7 +29,7 @@ $makeStack = static function () use ($page): SQLiteSavepointStack {
     return $stack;
 };
 
-$pluginPlan = static fn (): array => $makeStack()->rollbackToCurrentAndBeginNextStatementJournal66(
+$pluginPlan = static fn (): array => $makeStack()->rollbackToCurrentAndBeginStatementJournal(
     'plugin-batch',
     'retry-plugin-setting',
     6,
@@ -37,14 +37,14 @@ $pluginPlan = static fn (): array => $makeStack()->rollbackToCurrentAndBeginNext
     64,
     true
 );
-$casePlan = static fn (): array => $makeStack()->rollbackToCurrentAndBeginNextStatementJournal66(
+$casePlan = static fn (): array => $makeStack()->rollbackToCurrentAndBeginStatementJournal(
     'PLUGIN-BATCH',
     'retry-upper',
     7,
     $page('before-upper'),
     64
 );
-$leafPlan = static fn (): array => $makeStack()->rollbackToCurrentAndBeginNextStatementJournal66(
+$leafPlan = static fn (): array => $makeStack()->rollbackToCurrentAndBeginStatementJournal(
     'single-option',
     'retry-leaf',
     8,
@@ -83,12 +83,12 @@ $cases = [
     'plugin plan dependency pager subjournal' => [static fn (): mixed => in_array('sqlite-pager-savepoint-subjournal-current-next66', $pluginPlan()['dependencies'], true), true],
     'plugin stack names after next statement' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
+        $stack->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
         return $stack->names();
     }, ['wp-import', 'plugin-batch']],
     'plugin stack statement state after next' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
+        $stack->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
         return $stack->statementJournalState();
     }, [[
         'name' => 'retry-plugin-setting',
@@ -99,42 +99,42 @@ $cases = [
     ]]],
     'plugin stack statement rollback restores retry page' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
+        $stack->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
         return $stack->rollbackStatementOnErrorWithPlan('retry-plugin-setting', 64)['restored_page_numbers'];
     }, [6]],
     'plugin stack statement rollback clears retry journal' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
+        $stack->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
         $stack->rollbackStatementOnErrorWithPlan('retry-plugin-setting', 64);
         return $stack->statementJournalState();
     }, []],
     'plugin stack statement rollback returns pending pages to outer prefix' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
+        $stack->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
         $stack->rollbackStatementOnErrorWithPlan('retry-plugin-setting', 64);
         return $stack->pendingPageNumbers();
     }, [1, 2]],
     'plugin stack statement rollback returns wal to outer prefix' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
+        $stack->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
         $stack->rollbackStatementOnErrorWithPlan('retry-plugin-setting', 64);
         return $stack->pendingWalFrameIndexes();
     }, [1, 2]],
     'plugin stack can append after statement rollback at reused frame' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
+        $stack->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
         $stack->rollbackStatementOnErrorWithPlan('retry-plugin-setting', 64);
         $stack->recordWalFrameWrite(3, 9);
         return $stack->pendingWalFrameIndexes();
     }, [1, 2, 3]],
     'plugin stack release after successful retry merges page' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
+        $stack->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
         return $stack->releaseWithPlan('plugin-batch')['merged_page_numbers'];
     }, [6]],
     'plugin stack commit after successful retry includes retry page' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
+        $stack->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry-plugin-setting', 6, $page('before-retry-setting'), 64);
         return $stack->commitWithPlan()['committed_page_numbers'];
     }, [1, 2, 6]],
     'case plan keeps requested spelling' => [static fn (): mixed => $casePlan()['savepoint'], 'PLUGIN-BATCH'],
@@ -156,7 +156,7 @@ $cases = [
     'leaf plan pending wal after next' => [static fn (): mixed => $leafPlan()['pending_wal_frame_indexes_after_next'], [1, 2, 3, 4]],
     'missing savepoint rejected' => [static function () use ($makeStack, $page): mixed {
         try {
-            $makeStack()->rollbackToCurrentAndBeginNextStatementJournal66('missing', 'retry', 6, $page('before'), 64);
+            $makeStack()->rollbackToCurrentAndBeginStatementJournal('missing', 'retry', 6, $page('before'), 64);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -164,7 +164,7 @@ $cases = [
     }, 'rejected'],
     'empty statement rejected' => [static function () use ($makeStack, $page): mixed {
         try {
-            $makeStack()->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', '', 6, $page('before'), 64);
+            $makeStack()->rollbackToCurrentAndBeginStatementJournal('plugin-batch', '', 6, $page('before'), 64);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -172,7 +172,7 @@ $cases = [
     }, 'rejected'],
     'zero page rejected' => [static function () use ($makeStack, $page): mixed {
         try {
-            $makeStack()->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry', 0, $page('before'), 64);
+            $makeStack()->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry', 0, $page('before'), 64);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -180,7 +180,7 @@ $cases = [
     }, 'rejected'],
     'empty image rejected' => [static function () use ($makeStack): mixed {
         try {
-            $makeStack()->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry', 6, '', 64);
+            $makeStack()->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry', 6, '', 64);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -188,7 +188,7 @@ $cases = [
     }, 'rejected'],
     'wrong image size rejected' => [static function () use ($makeStack): mixed {
         try {
-            $makeStack()->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry', 6, 'short', 64);
+            $makeStack()->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry', 6, 'short', 64);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -196,7 +196,7 @@ $cases = [
     }, 'rejected'],
     'zero page size rejected' => [static function () use ($makeStack, $page): mixed {
         try {
-            $makeStack()->rollbackToCurrentAndBeginNextStatementJournal66('plugin-batch', 'retry', 6, $page('before'), 0);
+            $makeStack()->rollbackToCurrentAndBeginStatementJournal('plugin-batch', 'retry', 6, $page('before'), 0);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }

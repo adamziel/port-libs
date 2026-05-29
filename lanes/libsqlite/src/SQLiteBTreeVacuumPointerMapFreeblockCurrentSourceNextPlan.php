@@ -1631,7 +1631,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishStageVariant
         $rows = self::buildApplyRows($reusePlan);
         $errors = self::applyErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next243 apply window failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source apply window failed: ' . implode('; ', $errors));
         }
 
         return new self($reusePlan, $rows);
@@ -1717,7 +1717,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishStageVariant
         $reuseSummary = $this->reusePlan->reuseSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next243-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-apply-window-ready',
             'apply_row_count' => count($this->applyRows),
             'apply_pages' => $this->applyPages(),
             'next_apply_pages' => $this->nextApplyPages(),
@@ -1735,17 +1735,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishStageVariant
             'all_tail_pages_remain_fenced_at_apply' => !in_array(false, array_column($this->applyRows, 'tail_page_fenced_at_apply'), true),
             'apply_errors' => $this->applyErrors(),
             'apply_signature' => self::signature($this->applyTokens()),
-            'current_source_next243_token' => self::signature(array_merge(
-                ['next243', $reuseSummary['current_source_next240_token']],
+            'apply_window_token' => self::signature(array_merge(
+                ['apply-window', $reuseSummary['current_source_next240_token']],
                 $this->applyPages(),
                 $this->applyTokens(),
             )),
             'dependencies' => [
                 'sqlite-btree-vacuum-pointermap-freeblock-current-source-next240',
-                'sqlite-current-source-next243',
+                'sqlite-current-source-apply-window',
             ],
-            'dependency_closure' => 'no new support component needed; next243 reuses next240 reuse rows and records apply-window ordering for pointer-map/freeblock current-source pages',
-            'non_overlap' => 'adds apply-window admission after next240 reuse rows; does not repeat next240 reuse admission, next236 cursor rows, next233 checkpoints, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; apply-window reuses reusable-page rows and records apply-window ordering for pointer-map/freeblock current-source pages',
+            'non_overlap' => 'adds apply-window admission after next240 reuse rows; does not repeat reusable-page admission, reusable-page cursor rows and checkpoints, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -1755,7 +1755,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishStageVariant
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next243',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-apply-window',
             'apply_summary' => $this->applySummary(),
             'apply_errors' => $this->applyErrors(),
             'apply_rows' => $this->applyRows,
@@ -1806,7 +1806,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishStageVariant
 
             $duplicatePointerMap = $channel === 'pointer-map' && ($appliedPointerMapGenerations[$pageNumber] ?? 0) > 1;
             $token = self::signature(array_merge(
-                ['next243', $previousApplyToken ?? 'initial', $reuseRow['reuse_token']],
+                ['apply-window', $previousApplyToken ?? 'initial', $reuseRow['reuse_token']],
                 [$index + 1, $pageNumber, $reuseRows[$index + 1]['reuse_page'] ?? 'eof', $channel, $freeblockVisible, $duplicatePointerMap],
                 self::generationParts($appliedPointerMapGenerations),
                 self::sortedIntKeys($committedFreeblockPages),

@@ -28,7 +28,7 @@ $currentDatabase = $page('current-root-catalog')
     . $page('current-autoload-index')
     . $page('current-transient-cache');
 
-$plan = $savepoints->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, [
+$plan = $savepoints->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, [
     2 => $page('current-plugin-option'),
     3 => $page('current-autoload-index'),
     4 => $page('current-transient-cache'),

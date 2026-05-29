@@ -12,6 +12,6 @@
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next1102-1117.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext11021117Test.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext10861101Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext11021117Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueReadyPublicationContinuationRangeTest.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext11021117Test.php`
 - `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next1102-1117.php --self-test`
 - `git diff --check`

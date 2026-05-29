@@ -96,7 +96,7 @@ function libsqlite_suite_next187_record(
     ?int $expected = 82,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next187_evidence()->upstreamVeryquickShardCurrentSourceNext187(
+    return libsqlite_suite_next187_evidence()->upstreamVeryquickShardLegacyAdmission(
         $rows,
         616,
         88817,
@@ -108,6 +108,8 @@ function libsqlite_suite_next187_record(
         'lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext187Test.php',
         $output ?? libsqlite_suite_next187_output(),
         'current-source next187 veryquick-shard admission avoids accepted next155/157/159/161/164/166/167/169/171/172/173/174/175/176/177/178/181/184 suite evidence, exact-shard next148, queued suite156/160/162/163/165/168/170 manifest-conflict work, runner106/jsonvt104 rebase work, accepted batch171 behavior surfaces, and live B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE work',
+        'next187',
+        ['next184', 'next181', 'next178', 'next177', 'next176', 'next175', 'next174', 'next173', 'next172', 'next171', 'next169', 'next167', 'next166', 'next164', 'next161', 'next159', 'next157', 'next155'],
         $expected,
         $snapshot
     );

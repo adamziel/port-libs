@@ -42,7 +42,7 @@ $makeStack = static function () use ($page): SQLiteSavepointStack {
     return $stack;
 };
 
-$releaseSingle = static fn (): array => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90(
+$releaseSingle = static fn (): array => $makeStack()->releaseCurrentSourceAndBeginStatementJournal(
     'single-option',
     'retry-single-option',
     $databaseBytes,
@@ -52,7 +52,7 @@ $releaseSingle = static fn (): array => $makeStack()->releaseCurrentSourceAndBeg
     $pageSize,
     true
 );
-$releasePlugin = static fn (): array => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90(
+$releasePlugin = static fn (): array => $makeStack()->releaseCurrentSourceAndBeginStatementJournal(
     'plugin-batch',
     'next-plugin-batch-statement',
     $databaseBytes,
@@ -61,7 +61,7 @@ $releasePlugin = static fn (): array => $makeStack()->releaseCurrentSourceAndBeg
     $page('before sibling option'),
     $pageSize
 );
-$caseRelease = static fn (): array => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90(
+$caseRelease = static fn (): array => $makeStack()->releaseCurrentSourceAndBeginStatementJournal(
     'SINGLE-OPTION',
     'case-retry',
     $databaseBytes,
@@ -110,17 +110,17 @@ $cases = [
     'single dependency next journal' => [static fn (): mixed => in_array('sqlite-statement-journal-next-after-release', $releaseSingle()['dependencies'], true), true],
     'single stack names after method' => [static function () use ($makeStack, $databaseBytes, $page, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry-single-option', $databaseBytes, [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize);
+        $stack->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry-single-option', $databaseBytes, [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize);
         return $stack->names();
     }, ['wp-import', 'plugin-batch']],
     'single stack statement rollback restores retry' => [static function () use ($makeStack, $databaseBytes, $page, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry-single-option', $databaseBytes, [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize);
+        $stack->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry-single-option', $databaseBytes, [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize);
         return $stack->rollbackStatementOnErrorWithPlan('retry-single-option', $pageSize)['restored_page_numbers'];
     }, [6]],
     'single stack statement rollback returns wal prefix' => [static function () use ($makeStack, $databaseBytes, $page, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry-single-option', $databaseBytes, [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize);
+        $stack->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry-single-option', $databaseBytes, [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize);
         $stack->rollbackStatementOnErrorWithPlan('retry-single-option', $pageSize);
         return $stack->pendingWalFrameIndexes();
     }, [1, 2, 3, 4, 5, 6]],
@@ -145,16 +145,16 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'missing savepoint rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90('missing', 'retry', $databaseBytes, [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize),
-    'empty next statement rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', '', $databaseBytes, [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize),
-    'unaligned source rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry', 'not aligned', [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize),
-    'empty current pages rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry', $databaseBytes, [], 6, $page('before retry slot'), $pageSize),
-    'zero source page rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry', $databaseBytes, [0 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize),
-    'short source image rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry', $databaseBytes, [4 => 'short'], 6, $page('before retry slot'), $pageSize),
-    'stale current source rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry', $databaseBytes, [4 => $page('stale plugin index')], 6, $page('before retry slot'), $pageSize),
-    'outside source page rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry', $databaseBytes, [9 => $page('outside')], 6, $page('before retry slot'), $pageSize),
-    'bad next page rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry', $databaseBytes, [4 => $page('current plugin index')], 0, $page('before retry slot'), $pageSize),
-    'short next image rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginNextStatementJournal90('single-option', 'retry', $databaseBytes, [4 => $page('current plugin index')], 6, 'short', $pageSize),
+    'missing savepoint rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginStatementJournal('missing', 'retry', $databaseBytes, [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize),
+    'empty next statement rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginStatementJournal('single-option', '', $databaseBytes, [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize),
+    'unaligned source rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry', 'not aligned', [4 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize),
+    'empty current pages rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry', $databaseBytes, [], 6, $page('before retry slot'), $pageSize),
+    'zero source page rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry', $databaseBytes, [0 => $page('current plugin index')], 6, $page('before retry slot'), $pageSize),
+    'short source image rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry', $databaseBytes, [4 => 'short'], 6, $page('before retry slot'), $pageSize),
+    'stale current source rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry', $databaseBytes, [4 => $page('stale plugin index')], 6, $page('before retry slot'), $pageSize),
+    'outside source page rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry', $databaseBytes, [9 => $page('outside')], 6, $page('before retry slot'), $pageSize),
+    'bad next page rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry', $databaseBytes, [4 => $page('current plugin index')], 0, $page('before retry slot'), $pageSize),
+    'short next image rejected' => static fn () => $makeStack()->releaseCurrentSourceAndBeginStatementJournal('single-option', 'retry', $databaseBytes, [4 => $page('current plugin index')], 6, 'short', $pageSize),
 ];
 
 foreach ($throws as $name => $callback) {

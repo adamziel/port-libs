@@ -17,12 +17,12 @@ final class SQLiteVfsCurrentSourceNextPlan
         return match ($slice) {
             'next146-149' => self::runCurrentSourceHandleReuse($operations, $options),
             'close-reopen-current-source' => self::runCloseReopenCurrentSource($operations, $options),
-            'next158-161' => self::run158161($operations, $options),
-            'next162-165' => self::run162165($operations, $options),
-            'next166-169' => self::run166169($operations, $options),
-            'next170-173' => self::run170173($operations, $options),
-            'next174-177' => self::run174177($operations, $options),
-            'next178-181' => self::run178181($operations, $options),
+            'next158-161' => self::runMmapSharedMemory($operations, $options),
+            'next162-165' => self::runEnvironmentAccess($operations, $options),
+            'next166-169' => self::runTimeErrorSyscall($operations, $options),
+            'next170-173' => self::runPathControlNames($operations, $options),
+            'next174-177' => self::runAccessDeleteRandomSleep($operations, $options),
+            'next178-181' => self::runSyncTruncateSizeReserve($operations, $options),
             'next182-185' => self::run182185($operations, $options),
             'next186-189' => self::run186189($operations, $options),
             'next190-193' => self::run190193($operations, $options),
@@ -792,7 +792,7 @@ private static function runCloseReopenCurrentSource(array $operations, array $op
     }
 
     // Consolidated behavior from next158-161.
-private static function run158161(array $operations, array $options = []): array
+private static function runMmapSharedMemory(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next158-161 requires operations');
@@ -1207,7 +1207,7 @@ private static function run158161(array $operations, array $options = []): array
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run162165(array $operations, array $options = []): array
+    private static function runEnvironmentAccess(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next162-165 requires operations');
@@ -1625,7 +1625,7 @@ private static function run158161(array $operations, array $options = []): array
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run166169(array $operations, array $options = []): array
+    private static function runTimeErrorSyscall(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next166-169 requires operations');
@@ -2038,7 +2038,7 @@ private static function run158161(array $operations, array $options = []): array
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run170173(array $operations, array $options = []): array
+    private static function runPathControlNames(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next170-173 requires operations');
@@ -2384,7 +2384,7 @@ private static function run158161(array $operations, array $options = []): array
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run174177(array $operations, array $options = []): array
+    private static function runAccessDeleteRandomSleep(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next174-177 requires operations');
@@ -2736,7 +2736,7 @@ private static function run158161(array $operations, array $options = []): array
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run178181(array $operations, array $options = []): array
+    private static function runSyncTruncateSizeReserve(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next178-181 requires operations');

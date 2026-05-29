@@ -14,7 +14,7 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext129(string $sql, array $currentTables, array $nextTables): array
+        public static function compareRecursiveAffinityWindow(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -26,29 +26,29 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
 
             return [
-                'status' => 'compound-recursive-affinity-window-current-source-next129-ready',
+                'status' => 'compound-recursive-affinity-window-current-source-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
-                'currentSignatures' => self::rowSignaturesNext129($currentRows),
-                'nextSignatures' => self::rowSignaturesNext129($nextRows),
-                'changedSignatures' => self::changedSignaturesNext129($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignatures($currentRows),
+                'nextSignatures' => self::rowSignatures($nextRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
                 'compound' => [
                     'operators' => array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? [])),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext129($currentPlan),
+                    'orderColumns' => self::orderColumns($currentPlan),
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext129($currentPlan),
-                    'next' => self::windowTermsNext129($nextPlan),
+                    'current' => self::windowTerms($currentPlan),
+                    'next' => self::windowTerms($nextPlan),
                 ],
-                'recursive' => self::recursiveSummaryNext129($sql, $currentTables, $nextTables),
+                'recursive' => self::recursiveNodeWeightSummary($sql, $currentTables, $nextTables),
                 'affinity' => [
-                    'currentDuplicateClasses' => self::duplicateClassesNext129($currentRows),
-                    'nextDuplicateClasses' => self::duplicateClassesNext129($nextRows),
-                    'changedClasses' => self::changedValueClassesNext129($currentRows, $nextRows),
+                    'currentDuplicateClasses' => self::duplicateValueClasses($currentRows),
+                    'nextDuplicateClasses' => self::duplicateValueClasses($nextRows),
+                    'changedClasses' => self::changedValueClasses($currentRows, $nextRows),
                 ],
-                'replanReasons' => self::replanReasonsNext129($currentRows, $nextRows, $currentPlan, $nextPlan),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentPlan, $nextPlan),
             ];
         }
 
@@ -56,7 +56,7 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext129(array $plan): array
+        private static function orderColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -73,7 +73,7 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext129(array $plan): array
+        private static function windowTerms(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -110,9 +110,9 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        private static function recursiveSummaryNext129(string $sql, array $currentTables, array $nextTables): array
+        private static function recursiveNodeWeightSummary(string $sql, array $currentTables, array $nextTables): array
         {
-            $traceSql = self::traceSqlNext129($sql);
+            $traceSql = self::traceNodeWeightSql($sql);
             $currentTrace = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $currentTables);
             $nextTrace = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
 
@@ -129,7 +129,7 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
             ];
         }
 
-        private static function traceSqlNext129(string $sql): string
+        private static function traceNodeWeightSql(string $sql): string
         {
             $sql = trim(rtrim(trim($sql), ';'));
             $with = stripos($sql, 'WITH RECURSIVE');
@@ -148,7 +148,7 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext129(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -158,10 +158,10 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext129(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext129($currentRows);
-            $next = self::rowSignaturesNext129($nextRows);
+            $current = self::rowSignatures($currentRows);
+            $next = self::rowSignatures($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -170,12 +170,12 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function duplicateClassesNext129(array $rows): array
+        private static function duplicateValueClasses(array $rows): array
         {
             $counts = [];
             foreach ($rows as $row) {
                 foreach ($row as $value) {
-                    $key = self::sqliteValueClassNext129($value);
+                    $key = self::sqliteValueClass($value);
                     $counts[$key] = ($counts[$key] ?? 0) + 1;
                 }
             }
@@ -188,10 +188,10 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedValueClassesNext129(array $currentRows, array $nextRows): array
+        private static function changedValueClasses(array $currentRows, array $nextRows): array
         {
-            $current = self::valueClassesNext129($currentRows);
-            $next = self::valueClassesNext129($nextRows);
+            $current = self::valueClasses($currentRows);
+            $next = self::valueClasses($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -200,19 +200,19 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function valueClassesNext129(array $rows): array
+        private static function valueClasses(array $rows): array
         {
             $classes = [];
             foreach ($rows as $row) {
                 foreach ($row as $value) {
-                    $classes[self::sqliteValueClassNext129($value)] = true;
+                    $classes[self::sqliteValueClass($value)] = true;
                 }
             }
 
             return array_keys($classes);
         }
 
-        private static function sqliteValueClassNext129(mixed $value): string
+        private static function sqliteValueClass(mixed $value): string
         {
             if ($value === null) {
                 return 'null';
@@ -234,19 +234,19 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param array<string,mixed> $nextPlan
          * @return list<string>
          */
-        private static function replanReasonsNext129(array $currentRows, array $nextRows, array $currentPlan, array $nextPlan): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentPlan, array $nextPlan): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext129($currentRows) !== self::rowSignaturesNext129($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'compound-rowset-changed';
             }
-            if (self::windowTermsNext129($currentPlan) !== []) {
+            if (self::windowTerms($currentPlan) !== []) {
                 $reasons[] = 'compound-window-source';
             }
-            if (self::changedValueClassesNext129($currentRows, $nextRows) !== []) {
+            if (self::changedValueClasses($currentRows, $nextRows) !== []) {
                 $reasons[] = 'affinity-class-changed';
             }
-            if (self::windowTermsNext129($currentPlan) !== self::windowTermsNext129($nextPlan)) {
+            if (self::windowTerms($currentPlan) !== self::windowTerms($nextPlan)) {
                 $reasons[] = 'window-plan-changed';
             }
 
@@ -260,54 +260,54 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext142(string $sql, array $currentTables, array $nextTables): array
+        public static function compareRecursiveUnionSourceBoundary(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
             if (!isset($currentPlan['compound'], $nextPlan['compound']) || !is_array($currentPlan['compound']) || !is_array($nextPlan['compound'])) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source next142 plan needs a compound SELECT');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source source-boundary plan needs a compound SELECT');
             }
             if (!str_starts_with(strtoupper(ltrim($sql)), 'WITH RECURSIVE')) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source next142 plan needs WITH RECURSIVE');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source source-boundary plan needs WITH RECURSIVE');
             }
-            if (self::windowTermsNext142($currentPlan) === []) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source next142 plan needs a window function arm');
+            if (self::windowTermsForSourceBoundary($currentPlan) === []) {
+                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source source-boundary plan needs a window function arm');
             }
             if (!in_array('UNION', array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? [])), true)) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source next142 plan needs a DISTINCT UNION operator');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source source-boundary plan needs a DISTINCT UNION operator');
             }
 
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
 
             return [
-                'status' => 'compound-recursive-affinity-window-current-source-next142-ready',
+                'status' => 'compound-recursive-affinity-window-current-source-source-boundary-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
-                'currentSignatures' => self::rowSignaturesNext142($currentRows),
-                'nextSignatures' => self::rowSignaturesNext142($nextRows),
-                'changedSignatures' => self::changedSignaturesNext142($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignatures($currentRows),
+                'nextSignatures' => self::rowSignatures($nextRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
                 'compound' => [
                     'operators' => array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? [])),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext142($currentPlan),
-                    'leftColumns' => self::leftColumnsNext142($currentPlan),
+                    'orderColumns' => self::orderColumns($currentPlan),
+                    'leftColumns' => self::leftColumns($currentPlan),
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext142($currentPlan),
-                    'next' => self::windowTermsNext142($nextPlan),
+                    'current' => self::windowTermsForSourceBoundary($currentPlan),
+                    'next' => self::windowTermsForSourceBoundary($nextPlan),
                 ],
-                'recursive' => self::recursiveSummaryNext142($sql, $currentTables, $nextTables),
+                'recursive' => self::recursiveSourceBoundarySummary($sql, $currentTables, $nextTables),
                 'affinity' => [
-                    'currentKeyClasses' => self::columnClassesNext142($currentRows, 'key_value'),
-                    'nextKeyClasses' => self::columnClassesNext142($nextRows, 'key_value'),
-                    'currentDuplicateKeys' => self::duplicateColumnClassesNext142($currentRows, 'key_value'),
-                    'nextDuplicateKeys' => self::duplicateColumnClassesNext142($nextRows, 'key_value'),
-                    'changedKeyClasses' => self::changedColumnClassesNext142($currentRows, $nextRows, 'key_value'),
+                    'currentKeyClasses' => self::columnClasses($currentRows, 'key_value'),
+                    'nextKeyClasses' => self::columnClasses($nextRows, 'key_value'),
+                    'currentDuplicateKeys' => self::duplicateColumnClasses($currentRows, 'key_value'),
+                    'nextDuplicateKeys' => self::duplicateColumnClasses($nextRows, 'key_value'),
+                    'changedKeyClasses' => self::changedColumnClasses($currentRows, $nextRows, 'key_value'),
                 ],
-                'sourceDelta' => self::sourceDeltaNext142($currentRows, $nextRows),
-                'replanReasons' => self::replanReasonsNext142($currentRows, $nextRows, $currentPlan, $nextPlan),
+                'sourceDelta' => self::sourceDelta($currentRows, $nextRows),
+                'replanReasons' => self::replanReasonsForSourceBoundary($currentRows, $nextRows, $currentPlan, $nextPlan),
                 'dependencies' => [
                     'sqlite-recursive-cte-union-affinity-dedup',
                     'sqlite-window-arm-before-compound-union',
@@ -321,24 +321,7 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext142(array $plan): array
-        {
-            $compound = $plan['compound'] ?? null;
-            if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
-                return [];
-            }
-
-            return array_values(array_map(
-                static fn (array $term): string => (string) ($term['column'] ?? ''),
-                $compound['orderBy'],
-            ));
-        }
-
-        /**
-         * @param array<string,mixed> $plan
-         * @return list<string>
-         */
-        private static function leftColumnsNext142(array $plan): array
+        private static function leftColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             $arms = is_array($compound) && is_array($compound['arms'] ?? null) ? $compound['arms'] : [];
@@ -368,7 +351,7 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext142(array $plan): array
+        private static function windowTermsForSourceBoundary(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -408,9 +391,9 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        private static function recursiveSummaryNext142(string $sql, array $currentTables, array $nextTables): array
+        private static function recursiveSourceBoundarySummary(string $sql, array $currentTables, array $nextTables): array
         {
-            $traceSql = self::traceSqlNext142($sql);
+            $traceSql = self::traceSourceBoundarySql($sql);
             $currentTrace = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $currentTables);
             $nextTrace = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
 
@@ -430,14 +413,14 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
             ];
         }
 
-        private static function traceSqlNext142(string $sql): string
+        private static function traceSourceBoundarySql(string $sql): string
         {
             $sql = trim(rtrim(trim($sql), ';'));
             if (!str_starts_with(strtoupper($sql), 'WITH RECURSIVE')) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source next142 plan needs WITH RECURSIVE');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source source-boundary plan needs WITH RECURSIVE');
             }
             if (preg_match('/^(.*\))\s*SELECT\s+item_id\s+AS\s+id\b/is', $sql, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source next142 plan cannot isolate recursive CTE');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity window current-source source-boundary plan cannot isolate recursive CTE');
             }
 
             return $match[1] . ' SELECT item_id, key_value, source FROM option_walk';
@@ -447,34 +430,12 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext142(array $rows): array
-        {
-            return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
-        }
-
-        /**
-         * @param list<array<string,mixed>> $currentRows
-         * @param list<array<string,mixed>> $nextRows
-         * @return list<string>
-         */
-        private static function changedSignaturesNext142(array $currentRows, array $nextRows): array
-        {
-            $current = self::rowSignaturesNext142($currentRows);
-            $next = self::rowSignaturesNext142($nextRows);
-
-            return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
-        }
-
-        /**
-         * @param list<array<string,mixed>> $rows
-         * @return list<string>
-         */
-        private static function columnClassesNext142(array $rows, string $column): array
+        private static function columnClasses(array $rows, string $column): array
         {
             $classes = [];
             foreach ($rows as $row) {
                 if (array_key_exists($column, $row)) {
-                    $classes[self::sqliteValueClassNext142($row[$column])] = true;
+                    $classes[self::sqliteValueClass($row[$column])] = true;
                 }
             }
 
@@ -485,14 +446,14 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function duplicateColumnClassesNext142(array $rows, string $column): array
+        private static function duplicateColumnClasses(array $rows, string $column): array
         {
             $counts = [];
             foreach ($rows as $row) {
                 if (!array_key_exists($column, $row)) {
                     continue;
                 }
-                $key = self::sqliteValueClassNext142($row[$column]);
+                $key = self::sqliteValueClass($row[$column]);
                 $counts[$key] = ($counts[$key] ?? 0) + 1;
             }
 
@@ -504,10 +465,10 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedColumnClassesNext142(array $currentRows, array $nextRows, string $column): array
+        private static function changedColumnClasses(array $currentRows, array $nextRows, string $column): array
         {
-            $current = self::columnClassesNext142($currentRows, $column);
-            $next = self::columnClassesNext142($nextRows, $column);
+            $current = self::columnClasses($currentRows, $column);
+            $next = self::columnClasses($nextRows, $column);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -517,10 +478,10 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return array{currentSources:array<string,int>,nextSources:array<string,int>,newSources:list<string>,removedSources:list<string>}
          */
-        private static function sourceDeltaNext142(array $currentRows, array $nextRows): array
+        private static function sourceDelta(array $currentRows, array $nextRows): array
         {
-            $currentSources = self::sourceCountsNext142($currentRows);
-            $nextSources = self::sourceCountsNext142($nextRows);
+            $currentSources = self::sourceCounts($currentRows);
+            $nextSources = self::sourceCounts($nextRows);
 
             return [
                 'currentSources' => $currentSources,
@@ -534,7 +495,7 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return array<string,int>
          */
-        private static function sourceCountsNext142(array $rows): array
+        private static function sourceCounts(array $rows): array
         {
             $counts = [];
             foreach ($rows as $row) {
@@ -546,21 +507,6 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
             return $counts;
         }
 
-        private static function sqliteValueClassNext142(mixed $value): string
-        {
-            if ($value === null) {
-                return 'null';
-            }
-            if (is_int($value) || is_float($value)) {
-                return 'numeric:' . (string) (0 + $value);
-            }
-            if ($value instanceof SQLiteBlobValue) {
-                return 'blob:' . bin2hex($value->bytes);
-            }
-
-            return get_debug_type($value) . ':' . (string) $value;
-        }
-
         /**
          * @param list<array<string,mixed>> $currentRows
          * @param list<array<string,mixed>> $nextRows
@@ -568,22 +514,22 @@ final class SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan
          * @param array<string,mixed> $nextPlan
          * @return list<string>
          */
-        private static function replanReasonsNext142(array $currentRows, array $nextRows, array $currentPlan, array $nextPlan): array
+        private static function replanReasonsForSourceBoundary(array $currentRows, array $nextRows, array $currentPlan, array $nextPlan): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext142($currentRows) !== self::rowSignaturesNext142($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'compound-rowset-changed';
             }
-            if (self::windowTermsNext142($currentPlan) !== []) {
+            if (self::windowTermsForSourceBoundary($currentPlan) !== []) {
                 $reasons[] = 'window-before-compound-union';
             }
-            if (self::changedColumnClassesNext142($currentRows, $nextRows, 'key_value') !== []) {
+            if (self::changedColumnClasses($currentRows, $nextRows, 'key_value') !== []) {
                 $reasons[] = 'affinity-key-class-changed';
             }
-            if (self::sourceDeltaNext142($currentRows, $nextRows)['newSources'] !== []) {
+            if (self::sourceDelta($currentRows, $nextRows)['newSources'] !== []) {
                 $reasons[] = 'current-next-source-boundary-changed';
             }
-            if (self::windowTermsNext142($currentPlan) !== self::windowTermsNext142($nextPlan)) {
+            if (self::windowTermsForSourceBoundary($currentPlan) !== self::windowTermsForSourceBoundary($nextPlan)) {
                 $reasons[] = 'window-plan-changed';
             }
 

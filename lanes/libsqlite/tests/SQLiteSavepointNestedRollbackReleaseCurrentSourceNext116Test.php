@@ -37,7 +37,7 @@ $currentPages = [
     4 => $page('current-transient-cache'),
 ];
 
-$plan = static fn (): array => $makeStack()->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, $currentPages, $pageSize);
+$plan = static fn (): array => $makeStack()->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, $currentPages, $pageSize);
 
 $cases = [
     'savepoint name' => static fn (): mixed => $plan()['savepoint'],
@@ -77,17 +77,17 @@ $cases = [
     'rolled back child page restored' => static fn (): mixed => rtrim(substr($plan()['rolled_back_database_bytes'], $pageSize * 3, $pageSize), '.'),
     'stack after operation can commit parent pages' => static function () use ($makeStack, $currentDatabase, $currentPages, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, $currentPages, $pageSize);
+        $stack->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, $currentPages, $pageSize);
         return $stack->commitPlan()['committed_page_numbers'];
     },
     'stack after operation commit names' => static function () use ($makeStack, $currentDatabase, $currentPages, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, $currentPages, $pageSize);
+        $stack->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, $currentPages, $pageSize);
         return $stack->commitPlan()['committed_frame_names'];
     },
     'stack after operation can open retry savepoint' => static function () use ($makeStack, $currentDatabase, $currentPages, $pageSize, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, $currentPages, $pageSize);
+        $stack->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, $currentPages, $pageSize);
         $stack->savepoint('autoload-retry');
         $stack->recordPageImageWrite(3, $page('before-autoload-retry'));
         $stack->recordWalFrameWrite(3, 3);
@@ -95,7 +95,7 @@ $cases = [
     },
     'retry savepoint reuses truncated wal frame' => static function () use ($makeStack, $currentDatabase, $currentPages, $pageSize, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, $currentPages, $pageSize);
+        $stack->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, $currentPages, $pageSize);
         $stack->savepoint('autoload-retry');
         $stack->recordPageImageWrite(3, $page('before-autoload-retry'));
         $stack->recordWalFrameWrite(3, 3);
@@ -103,7 +103,7 @@ $cases = [
     },
     'retry rollback restores retry image' => static function () use ($makeStack, $currentDatabase, $currentPages, $pageSize, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, $currentPages, $pageSize);
+        $stack->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, $currentPages, $pageSize);
         $stack->savepoint('autoload-retry');
         $stack->recordPageImageWrite(3, $page('before-autoload-retry'));
         $stack->recordWalFrameWrite(3, 3);
@@ -111,19 +111,19 @@ $cases = [
     },
     'outer rollback after operation restores root' => static function () use ($makeStack, $currentDatabase, $currentPages, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, $currentPages, $pageSize);
+        $stack->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, $currentPages, $pageSize);
         return rtrim(substr($stack->rollbackDatabaseImage($currentDatabase, $pageSize), 0, $pageSize), '.');
     },
     'outer rollback after operation restores plugin' => static function () use ($makeStack, $currentDatabase, $currentPages, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, $currentPages, $pageSize);
+        $stack->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, $currentPages, $pageSize);
         return rtrim(substr($stack->rollbackDatabaseImage($currentDatabase, $pageSize), $pageSize, $pageSize), '.');
     },
     'stale current source rejected' => static function () use ($makeStack, $currentDatabase, $currentPages, $pageSize, $page): mixed {
         $pages = $currentPages;
         $pages[3] = $page('stale-autoload-index');
         try {
-            $makeStack()->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, $pages, $pageSize);
+            $makeStack()->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, $pages, $pageSize);
         } catch (RuntimeException) {
             return 'rejected';
         }
@@ -132,7 +132,7 @@ $cases = [
     },
     'empty current source rejected' => static function () use ($makeStack, $currentDatabase, $pageSize): mixed {
         try {
-            $makeStack()->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, [], $pageSize);
+            $makeStack()->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, [], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -141,7 +141,7 @@ $cases = [
     },
     'unaligned database rejected' => static function () use ($makeStack, $currentPages, $pageSize): mixed {
         try {
-            $makeStack()->rollbackToCurrentSourceThenRelease116('autoload-index', 'short', $currentPages, $pageSize);
+            $makeStack()->rollbackToCurrentSourceThenRelease('autoload-index', 'short', $currentPages, $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -150,7 +150,7 @@ $cases = [
     },
     'outside source page rejected' => static function () use ($makeStack, $currentDatabase, $pageSize, $page): mixed {
         try {
-            $makeStack()->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, [5 => $page('missing')], $pageSize);
+            $makeStack()->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, [5 => $page('missing')], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -159,7 +159,7 @@ $cases = [
     },
     'bad page size rejected' => static function () use ($makeStack, $currentDatabase, $currentPages): mixed {
         try {
-            $makeStack()->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, $currentPages, 0);
+            $makeStack()->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, $currentPages, 0);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -168,7 +168,7 @@ $cases = [
     },
     'bad page number rejected' => static function () use ($makeStack, $currentDatabase, $pageSize, $page): mixed {
         try {
-            $makeStack()->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, [0 => $page('bad')], $pageSize);
+            $makeStack()->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, [0 => $page('bad')], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -177,7 +177,7 @@ $cases = [
     },
     'bad source image size rejected' => static function () use ($makeStack, $currentDatabase, $pageSize): mixed {
         try {
-            $makeStack()->rollbackToCurrentSourceThenRelease116('autoload-index', $currentDatabase, [3 => 'bad'], $pageSize);
+            $makeStack()->rollbackToCurrentSourceThenRelease('autoload-index', $currentDatabase, [3 => 'bad'], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -186,7 +186,7 @@ $cases = [
     },
     'missing savepoint rejected' => static function () use ($makeStack, $currentDatabase, $currentPages, $pageSize): mixed {
         try {
-            $makeStack()->rollbackToCurrentSourceThenRelease116('missing-savepoint', $currentDatabase, $currentPages, $pageSize);
+            $makeStack()->rollbackToCurrentSourceThenRelease('missing-savepoint', $currentDatabase, $currentPages, $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }

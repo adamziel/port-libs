@@ -22,7 +22,7 @@ $stack->recordPageImageWrite(4, $page('before-plugin-option'));
 $stack->recordWalFrameWrite(4, 4);
 $stack->recordWalFrameWrite(5, 5, true);
 
-$plan = $stack->rollbackReleaseAndBeginNextSavepoint68(
+$plan = $stack->rollbackReleaseAndBeginSavepoint(
     'plugin-settings',
     'plugin-settings-retry',
     6,

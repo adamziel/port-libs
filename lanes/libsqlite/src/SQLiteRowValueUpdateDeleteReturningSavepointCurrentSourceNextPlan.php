@@ -732,13 +732,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeRollbackStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING savepoint next158 needs pre-rollback statements');
+            throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING preflight retry savepoint needs pre-rollback statements');
         }
         if ($afterRollbackStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING savepoint next158 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING preflight retry savepoint needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING savepoint next158 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING preflight retry savepoint needs unique constraints');
         }
 
         $savepointImage = self::normalizeTablesPreflightRetrySavepointBatch($tables);
@@ -851,11 +851,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING savepoint next158 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING preflight retry savepoint tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING savepoint next158 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING preflight retry savepoint rows must be arrays');
                 }
             }
         }
@@ -878,11 +878,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value UPDATE/DELETE RETURNING savepoint next158 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value UPDATE/DELETE RETURNING preflight retry savepoint rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value UPDATE/DELETE RETURNING savepoint next158 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value UPDATE/DELETE RETURNING preflight retry savepoint rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;

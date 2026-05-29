@@ -19,7 +19,7 @@ $stack->recordPageImageWrite(4, str_repeat('S', 64));
 $stack->recordWalFrameWrite(4, 4);
 $stack->recordWalFrameWrite(5, 5, true);
 
-$plan = $stack->rollbackToCurrentAndOpenNextSavepoint69(
+$plan = $stack->rollbackToCurrentAndOpenSavepoint(
     'plugin_batch',
     'retry_single_option',
     6,

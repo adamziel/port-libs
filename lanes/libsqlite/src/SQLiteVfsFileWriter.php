@@ -2225,7 +2225,7 @@ final class SQLiteVfsFileWriter
         }
 
         $transition = clone $savepoints;
-        $nextStatementPlan = $transition->rollbackToCurrentAndBeginNextStatementJournal66(
+        $nextStatementPlan = $transition->rollbackToCurrentAndBeginStatementJournal(
             $savepoint,
             $nextStatementName,
             $nextPageNumber,

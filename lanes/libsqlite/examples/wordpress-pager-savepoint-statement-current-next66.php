@@ -25,7 +25,7 @@ $stack->recordStatementPageImageWrite('insert-plugin-setting', 4, $page('before-
 $stack->recordStatementWalFrameWrite('insert-plugin-setting', 4, 4);
 $stack->recordStatementWalFrameWrite('insert-plugin-setting', 5, 5, true);
 
-$plan = $stack->rollbackToCurrentAndBeginNextStatementJournal66(
+$plan = $stack->rollbackToCurrentAndBeginStatementJournal(
     'plugin-batch',
     'retry-plugin-setting',
     6,

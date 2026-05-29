@@ -26,7 +26,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$pluginPlan = static fn (): array => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69(
+$pluginPlan = static fn (): array => $makeStack()->rollbackToCurrentAndOpenSavepoint(
     'plugin_batch',
     'retry_single_option',
     7,
@@ -35,7 +35,7 @@ $pluginPlan = static fn (): array => $makeStack()->rollbackToCurrentAndOpenNextS
     true
 );
 
-$singlePlan = static fn (): array => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69(
+$singlePlan = static fn (): array => $makeStack()->rollbackToCurrentAndOpenSavepoint(
     'single_option',
     'retry_after_leaf',
     8,
@@ -44,12 +44,12 @@ $singlePlan = static fn (): array => $makeStack()->rollbackToCurrentAndOpenNextS
     false
 );
 
-$openOnlyPlan = static fn (): array => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69(
+$openOnlyPlan = static fn (): array => $makeStack()->rollbackToCurrentAndOpenSavepoint(
     'plugin_batch',
     'retry_open_only'
 );
 
-$casePlan = static fn (): array => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69(
+$casePlan = static fn (): array => $makeStack()->rollbackToCurrentAndOpenSavepoint(
     'PLUGIN_BATCH',
     'Retry_Case',
     9
@@ -83,58 +83,58 @@ $cases = [
     'plugin dependency next savepoint' => [static fn (): mixed => in_array('sqlite-next-savepoint-after-rollback-to-current', $pluginPlan()['dependencies'], true), true],
     'plugin stack names after helper' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
         return $stack->names();
     }, ['wp_import', 'plugin_batch', 'retry_single_option']],
     'plugin stack current frame pages cleared' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
         return $stack->toArray()[1]['page_numbers'];
     }, []],
     'plugin stack next frame owns retry page' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
         return $stack->toArray()[2]['page_numbers'];
     }, [7]],
     'plugin stack transaction keeps original pages' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
         return $stack->toArray()[0]['page_numbers'];
     }, [1, 2]],
     'plugin stack wal current frame cleared' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
         return $stack->walFrameState()[1]['wal_frame_indexes'];
     }, []],
     'plugin stack wal next frame owns replacement' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
         return $stack->walFrameState()[2]['wal_frame_indexes'];
     }, [3]],
     'plugin stack release next merges retry page into current' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
         return $stack->releaseWithPlan('retry_single_option')['merged_page_numbers'];
     }, [7]],
     'plugin stack release current merges retry page into transaction' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
         $stack->release('retry_single_option');
         return $stack->releaseWithPlan('plugin_batch')['merged_page_numbers'];
     }, [7]],
     'plugin stack commit includes retry page' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
         return $stack->commitWithPlan()['committed_page_numbers'];
     }, [1, 2, 7]],
     'plugin stack statement journals cleared' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7, str_repeat('R', 64), 64, true);
         return $stack->statementJournalState();
     }, []],
     'plugin stack can add following wal frame' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry_single_option', 7);
+        $stack->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry_single_option', 7);
         $stack->recordWalFrameWrite(4, 8);
         return $stack->pendingWalFrameIndexes();
     }, [1, 2, 3, 4]],
@@ -151,7 +151,7 @@ $cases = [
     'single plan keeps leaf savepoint open' => [static fn (): mixed => $singlePlan()['current_savepoint_active_after'], true],
     'single stack commit includes plugin prior pages and retry page' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndOpenNextSavepoint69('single_option', 'retry_after_leaf', 8);
+        $stack->rollbackToCurrentAndOpenSavepoint('single_option', 'retry_after_leaf', 8);
         return $stack->commitWithPlan()['committed_page_numbers'];
     }, [1, 2, 3, 4, 8]],
     'open only next frame is null' => [static fn (): mixed => $openOnlyPlan()['next_wal_frame_index'], null],
@@ -174,15 +174,15 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'missing savepoint rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69('missing', 'retry', 7),
-    'empty next savepoint rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', '', 7),
-    'zero page rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry', 0),
-    'negative page rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry', -1),
-    'empty page image rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry', 7, ''),
-    'image without page rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry', null, str_repeat('R', 64)),
-    'bad page size rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry', 7, str_repeat('R', 64), 0),
-    'mismatched image size rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry', 7, str_repeat('R', 63), 64),
-    'commit marker without page rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenNextSavepoint69('plugin_batch', 'retry', null, null, null, true),
+    'missing savepoint rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenSavepoint('missing', 'retry', 7),
+    'empty next savepoint rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenSavepoint('plugin_batch', '', 7),
+    'zero page rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry', 0),
+    'negative page rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry', -1),
+    'empty page image rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry', 7, ''),
+    'image without page rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry', null, str_repeat('R', 64)),
+    'bad page size rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry', 7, str_repeat('R', 64), 0),
+    'mismatched image size rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry', 7, str_repeat('R', 63), 64),
+    'commit marker without page rejected' => static fn () => $makeStack()->rollbackToCurrentAndOpenSavepoint('plugin_batch', 'retry', null, null, null, true),
 ];
 
 foreach ($throws as $name => $callback) {

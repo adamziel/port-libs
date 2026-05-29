@@ -53,7 +53,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$releaseNext = static fn (): array => $makeStack()->releaseCurrentWalSourceAndAppendNextFrame110(
+$releaseNext = static fn (): array => $makeStack()->releaseCurrentWalSourceAndAppendFrame(
     'plugin-batch',
     $currentWal,
     $currentWalBytes,
@@ -61,7 +61,7 @@ $releaseNext = static fn (): array => $makeStack()->releaseCurrentWalSourceAndAp
     true
 );
 
-$releaseDraftNext = static fn (): array => $makeStack()->releaseCurrentWalSourceAndAppendNextFrame110(
+$releaseDraftNext = static fn (): array => $makeStack()->releaseCurrentWalSourceAndAppendFrame(
     'plugin-batch',
     $currentWal,
     $currentWalBytes,
@@ -120,19 +120,19 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['transaction savepoint wal release current source next110 rejects stale wal bytes'] = static function (TestRunner $t) use ($makeStack, $currentWal, $staleWalBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $makeStack()->releaseCurrentWalSourceAndAppendNextFrame110('plugin-batch', $currentWal, $staleWalBytes, 5, true));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $makeStack()->releaseCurrentWalSourceAndAppendFrame('plugin-batch', $currentWal, $staleWalBytes, 5, true));
 };
 
 $tests['transaction savepoint wal release current source next110 rejects empty wal bytes'] = static function (TestRunner $t) use ($makeStack, $currentWal): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $makeStack()->releaseCurrentWalSourceAndAppendNextFrame110('plugin-batch', $currentWal, '', 5, true));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $makeStack()->releaseCurrentWalSourceAndAppendFrame('plugin-batch', $currentWal, '', 5, true));
 };
 
 $tests['transaction savepoint wal release current source next110 rejects missing savepoint'] = static function (TestRunner $t) use ($makeStack, $currentWal, $currentWalBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $makeStack()->releaseCurrentWalSourceAndAppendNextFrame110('missing', $currentWal, $currentWalBytes, 5, true));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $makeStack()->releaseCurrentWalSourceAndAppendFrame('missing', $currentWal, $currentWalBytes, 5, true));
 };
 
 $tests['transaction savepoint wal release current source next110 rejects invalid next page'] = static function (TestRunner $t) use ($makeStack, $currentWal, $currentWalBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $makeStack()->releaseCurrentWalSourceAndAppendNextFrame110('plugin-batch', $currentWal, $currentWalBytes, 0, true));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $makeStack()->releaseCurrentWalSourceAndAppendFrame('plugin-batch', $currentWal, $currentWalBytes, 0, true));
 };
 
 return $tests;

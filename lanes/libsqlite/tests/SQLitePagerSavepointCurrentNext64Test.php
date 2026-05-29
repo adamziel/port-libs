@@ -23,9 +23,9 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$pluginPlan = static fn (): array => $makeStack()->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6, true);
-$caseInsensitivePlan = static fn (): array => $makeStack()->rollbackToCurrentAndRecordNextWalFrame64('PLUGIN-SETTINGS', 6);
-$singleOptionPlan = static fn (): array => $makeStack()->rollbackToCurrentAndRecordNextWalFrame64('single-option', 7);
+$pluginPlan = static fn (): array => $makeStack()->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6, true);
+$caseInsensitivePlan = static fn (): array => $makeStack()->rollbackToCurrentAndRecordWalFrame('PLUGIN-SETTINGS', 6);
+$singleOptionPlan = static fn (): array => $makeStack()->rollbackToCurrentAndRecordWalFrame('single-option', 7);
 
 $cases = [
     'plugin plan savepoint' => [static fn (): mixed => $pluginPlan()['savepoint'], 'plugin-settings'],
@@ -50,53 +50,53 @@ $cases = [
     'plugin plan dependency keeps pager marker' => [static fn (): mixed => in_array('sqlite-pager-current-next-wal-frame64', $pluginPlan()['dependencies'], true), true],
     'plugin stack names after next write' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6, true);
+        $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6, true);
         return $stack->names();
     }, ['wp-import', 'plugin-settings']],
     'plugin stack wal state transaction frames' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6, true);
+        $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6, true);
         return $stack->walFrameState()[0]['wal_frame_indexes'];
     }, [1, 2]],
     'plugin stack wal state savepoint frames' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6, true);
+        $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6, true);
         return $stack->walFrameState()[1]['wal_frame_indexes'];
     }, [3]],
     'plugin stack savepoint wal start unchanged' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6, true);
+        $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6, true);
         return $stack->walFrameState()[1]['wal_start_frame'];
     }, 2],
     'plugin stack page state transaction pages' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6, true);
+        $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6, true);
         return $stack->toArray()[0]['page_numbers'];
     }, [1, 2]],
     'plugin stack page state current savepoint page' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6, true);
+        $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6, true);
         return $stack->toArray()[1]['page_numbers'];
     }, [6]],
     'plugin stack release after next merges new page' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6, true);
+        $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6, true);
         return $stack->releaseWithPlan('plugin-settings')['merged_page_numbers'];
     }, [6]],
     'plugin stack commit after next includes rewritten page' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6, true);
+        $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6, true);
         return $stack->commitWithPlan()['committed_page_numbers'];
     }, [1, 2, 6]],
     'plugin stack can append following frame' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6);
+        $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6);
         $stack->recordWalFrameWrite(4, 7);
         return $stack->pendingWalFrameIndexes();
     }, [1, 2, 3, 4]],
     'plugin stack rejects old discarded frame after next' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 6);
+        $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6);
         try {
             $stack->recordWalFrameWrite(3, 7);
         } catch (InvalidArgumentException) {
@@ -123,30 +123,30 @@ $cases = [
         $stack = new SQLiteSavepointStack();
         $stack->savepoint('implicit');
         $stack->recordWalFrameWrite(1, 1);
-        return $stack->rollbackToCurrentAndRecordNextWalFrame64('implicit', 2)['next_wal_frame_index'];
+        return $stack->rollbackToCurrentAndRecordWalFrame('implicit', 2)['next_wal_frame_index'];
     }, 1],
     'transaction savepoint rollback keeps only rewritten frame' => [static function (): mixed {
         $stack = new SQLiteSavepointStack();
         $stack->savepoint('implicit');
         $stack->recordWalFrameWrite(1, 1);
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('implicit', 2);
+        $stack->rollbackToCurrentAndRecordWalFrame('implicit', 2);
         return $stack->pendingWalFrameIndexes();
     }, [1]],
     'transaction savepoint rollback keeps transaction alive' => [static function (): mixed {
         $stack = new SQLiteSavepointStack();
         $stack->savepoint('implicit');
-        return $stack->rollbackToCurrentAndRecordNextWalFrame64('implicit', 2)['transaction_active_after'];
+        return $stack->rollbackToCurrentAndRecordWalFrame('implicit', 2)['transaction_active_after'];
     }, true],
     'transaction savepoint rollback can commit replacement' => [static function (): mixed {
         $stack = new SQLiteSavepointStack();
         $stack->savepoint('implicit');
         $stack->recordWalFrameWrite(1, 1);
-        $stack->rollbackToCurrentAndRecordNextWalFrame64('implicit', 2, true);
+        $stack->rollbackToCurrentAndRecordWalFrame('implicit', 2, true);
         return $stack->commitWithPlan()['committed_page_numbers'];
     }, [2]],
     'missing savepoint rejected' => [static function () use ($makeStack): mixed {
         try {
-            $makeStack()->rollbackToCurrentAndRecordNextWalFrame64('missing', 6);
+            $makeStack()->rollbackToCurrentAndRecordWalFrame('missing', 6);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -154,7 +154,7 @@ $cases = [
     }, 'rejected'],
     'zero next page rejected' => [static function () use ($makeStack): mixed {
         try {
-            $makeStack()->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', 0);
+            $makeStack()->rollbackToCurrentAndRecordWalFrame('plugin-settings', 0);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -162,7 +162,7 @@ $cases = [
     }, 'rejected'],
     'negative next page rejected' => [static function () use ($makeStack): mixed {
         try {
-            $makeStack()->rollbackToCurrentAndRecordNextWalFrame64('plugin-settings', -1);
+            $makeStack()->rollbackToCurrentAndRecordWalFrame('plugin-settings', -1);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }

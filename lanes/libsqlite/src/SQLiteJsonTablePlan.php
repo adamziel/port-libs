@@ -1891,7 +1891,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table generated rowid order planner requires generated order terms');
         }
 
-        $plan = self::currentSourceGeneratedHiddenRowidCostNext142(
+        $plan = self::currentSourceGeneratedHiddenRowidCost(
             $function,
             $currentSource,
             $nextSource,
@@ -1918,7 +1918,7 @@ final class SQLiteJsonTablePlan
         $plan['nextGeneratedRowidOrder'] = $nextProfile;
         $plan['generatedRowidOrderTransitions'] = $transitions;
         $plan['generatedRowidOrderReplanReasons'] = array_values(array_unique(array_merge(
-            $plan['next142ReplanReasons'],
+            $plan['generatedHiddenRowidCostReplanReasons'],
             $reasons,
         )));
         $plan['replanRequired'] = $plan['generatedRowidOrderReplanReasons'] !== [];
@@ -2008,7 +2008,7 @@ final class SQLiteJsonTablePlan
         array $generatedConstraints = [],
         array $generatedOutputColumns = [],
     ): array {
-        $plan = self::currentSourceGeneratedHiddenRowidCostNext142(
+        $plan = self::currentSourceGeneratedHiddenRowidCost(
             $function,
             $currentSource,
             $nextSource,
@@ -2029,7 +2029,7 @@ final class SQLiteJsonTablePlan
         $plan['nextRowidHiddenGenerated'] = $nextProfile;
         $plan['rowidHiddenGeneratedTransitions'] = $transitions;
         $plan['rowidHiddenGeneratedReplanReasons'] = array_values(array_unique(array_merge(
-            $plan['next142ReplanReasons'],
+            $plan['generatedHiddenRowidCostReplanReasons'],
             $reasons,
         )));
         $plan['replanRequired'] = $plan['rowidHiddenGeneratedReplanReasons'] !== [];
@@ -6495,7 +6495,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedHiddenRowidCostNext142(
+    public static function currentSourceGeneratedHiddenRowidCost(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -6526,18 +6526,18 @@ final class SQLiteJsonTablePlan
         $plan['currentGeneratedHiddenRowidCost'] = $currentProfile;
         $plan['nextGeneratedHiddenRowidCost'] = $nextProfile;
         $plan['generatedHiddenRowidCostTransitions'] = $transitions;
-        $plan['next142ReplanReasons'] = array_values(array_unique(array_merge(
+        $plan['generatedHiddenRowidCostReplanReasons'] = array_values(array_unique(array_merge(
             $plan['next136ReplanReasons'],
             $reasons,
         )));
-        $plan['replanRequired'] = $plan['next142ReplanReasons'] !== [];
+        $plan['replanRequired'] = $plan['generatedHiddenRowidCostReplanReasons'] !== [];
         $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-hidden-rowid-cost-source-until-cursor-reset';
-        $plan['nextReaderPolicy'] = $plan['next142ReplanReasons'] === []
+        $plan['nextReaderPolicy'] = $plan['generatedHiddenRowidCostReplanReasons'] === []
             ? 'reuse-current-json-table-generated-hidden-rowid-cost-plan'
             : 'prepare-next-json-table-generated-hidden-rowid-cost-plan';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-generated-hidden-rowid-cost-current-source-next142'],
+            ['sqlite-json-table-generated-hidden-rowid-cost'],
         )));
 
         return $plan;
@@ -6610,7 +6610,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
      * @return array<string,mixed>
      */
-    public static function currentSourceHiddenGeneratedCostNext148(
+    public static function currentSourceHiddenGeneratedCost(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -6624,7 +6624,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table hidden generated cost planner requires generated constraints');
         }
 
-        $plan = self::currentSourceHiddenPathGeneratedNext143(
+        $plan = self::currentSourceHiddenPathGenerated(
             $function,
             $currentSource,
             $nextSource,
@@ -6649,18 +6649,18 @@ final class SQLiteJsonTablePlan
         $plan['currentHiddenGeneratedCost'] = $currentProfile;
         $plan['nextHiddenGeneratedCost'] = $nextProfile;
         $plan['hiddenGeneratedCostTransitions'] = $transitions;
-        $plan['next148ReplanReasons'] = array_values(array_unique(array_merge(
-            $plan['next143ReplanReasons'],
+        $plan['hiddenGeneratedCostReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['hiddenPathGeneratedReplanReasons'],
             $reasons,
         )));
-        $plan['replanRequired'] = $plan['next148ReplanReasons'] !== [];
+        $plan['replanRequired'] = $plan['hiddenGeneratedCostReplanReasons'] !== [];
         $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-generated-cost-source-until-cursor-reset';
-        $plan['nextReaderPolicy'] = $plan['next148ReplanReasons'] === []
+        $plan['nextReaderPolicy'] = $plan['hiddenGeneratedCostReplanReasons'] === []
             ? 'reuse-current-json-table-hidden-generated-cost-plan'
             : 'prepare-next-json-table-hidden-generated-cost-plan';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-hidden-generated-cost-current-source-next148'],
+            ['sqlite-json-table-hidden-generated-cost'],
         )));
 
         return $plan;
@@ -6674,7 +6674,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
      * @return array<string,mixed>
      */
-    public static function currentSourceHiddenGeneratedRowidNext157(
+    public static function currentSourceHiddenGeneratedRowid(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -6684,7 +6684,7 @@ final class SQLiteJsonTablePlan
         array $orderBy = [],
         array $generatedConstraints = [],
     ): array {
-        $plan = self::currentSourceHiddenGeneratedCostNext148(
+        $plan = self::currentSourceHiddenGeneratedCost(
             $function,
             $currentSource,
             $nextSource,
@@ -6703,18 +6703,18 @@ final class SQLiteJsonTablePlan
         $plan['currentHiddenGeneratedRowid'] = $currentProfile;
         $plan['nextHiddenGeneratedRowid'] = $nextProfile;
         $plan['hiddenGeneratedRowidTransitions'] = $transitions;
-        $plan['next157ReplanReasons'] = array_values(array_unique(array_merge(
-            $plan['next148ReplanReasons'],
+        $plan['hiddenGeneratedRowidReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['hiddenGeneratedCostReplanReasons'],
             $reasons,
         )));
-        $plan['replanRequired'] = $plan['next157ReplanReasons'] !== [];
+        $plan['replanRequired'] = $plan['hiddenGeneratedRowidReplanReasons'] !== [];
         $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-generated-rowid-source-until-cursor-reset';
-        $plan['nextReaderPolicy'] = $plan['next157ReplanReasons'] === []
+        $plan['nextReaderPolicy'] = $plan['hiddenGeneratedRowidReplanReasons'] === []
             ? 'reuse-current-json-table-hidden-generated-rowid-plan'
             : 'prepare-next-json-table-hidden-generated-rowid-plan';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-hidden-generated-rowid-current-source-next157'],
+            ['sqlite-json-table-hidden-generated-rowid'],
         )));
 
         return $plan;
@@ -6736,7 +6736,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceHiddenRowidPlannerNext94(
+        $plan = self::currentSourceHiddenRowidPlanner(
             $function,
             $currentSource,
             $nextSource,
@@ -6754,7 +6754,7 @@ final class SQLiteJsonTablePlan
         $plan['currentHiddenRowidOrder'] = $currentProfile;
         $plan['nextHiddenRowidOrder'] = $nextProfile;
         $plan['hiddenRowidOrderTransitions'] = $transitions;
-        $plan['next135ReplanReasons'] = array_values(array_unique(array_merge($plan['next94ReplanReasons'], $reasons)));
+        $plan['next135ReplanReasons'] = array_values(array_unique(array_merge($plan['hiddenRowidReplanReasons'], $reasons)));
         $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-rowid-order-source-until-cursor-reset';
         $plan['nextReaderPolicy'] = $plan['next135ReplanReasons'] === []
             || $plan['next135ReplanReasons'] === ['hidden-rowid-residual-constraint-present']
@@ -6830,7 +6830,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
      * @return array<string,mixed>
      */
-    public static function currentSourceHiddenPathGeneratedNext143(
+    public static function currentSourceHiddenPathGenerated(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -6844,7 +6844,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table hidden path generated current-source planner requires generated constraints');
         }
 
-        $plan = self::currentSourceHiddenPathRowidNext140(
+        $plan = self::currentSourceHiddenPathRowid(
             $function,
             $currentSource,
             $nextSource,
@@ -6870,15 +6870,15 @@ final class SQLiteJsonTablePlan
         $plan['currentHiddenPathGeneratedSource'] = $currentProfile;
         $plan['nextHiddenPathGeneratedSource'] = $nextProfile;
         $plan['hiddenPathGeneratedSourceTransitions'] = $transitions;
-        $plan['next143ReplanReasons'] = array_values(array_unique(array_merge($plan['next140ReplanReasons'], $reasons)));
-        $plan['replanRequired'] = $plan['next143ReplanReasons'] !== [];
+        $plan['hiddenPathGeneratedReplanReasons'] = array_values(array_unique(array_merge($plan['hiddenPathRowidReplanReasons'], $reasons)));
+        $plan['replanRequired'] = $plan['hiddenPathGeneratedReplanReasons'] !== [];
         $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-path-generated-source-until-cursor-reset';
-        $plan['nextReaderPolicy'] = $plan['next143ReplanReasons'] === []
+        $plan['nextReaderPolicy'] = $plan['hiddenPathGeneratedReplanReasons'] === []
             ? 'reuse-current-json-table-hidden-path-generated-source'
             : 'prepare-next-json-table-hidden-path-generated-source';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-hidden-path-generated-current-source-next143'],
+            ['sqlite-json-table-hidden-path-generated'],
         )));
 
         return $plan;
@@ -6959,7 +6959,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceHiddenPathRowidNext140(
+    public static function currentSourceHiddenPathRowid(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -6992,15 +6992,15 @@ final class SQLiteJsonTablePlan
         $plan['currentHiddenPathRowidSource'] = $currentProfile;
         $plan['nextHiddenPathRowidSource'] = $nextProfile;
         $plan['hiddenPathRowidSourceTransitions'] = $transitions;
-        $plan['next140ReplanReasons'] = array_values(array_unique(array_merge($plan['next126ReplanReasons'], $reasons)));
-        $plan['replanRequired'] = $plan['next140ReplanReasons'] !== [];
+        $plan['hiddenPathRowidReplanReasons'] = array_values(array_unique(array_merge($plan['next126ReplanReasons'], $reasons)));
+        $plan['replanRequired'] = $plan['hiddenPathRowidReplanReasons'] !== [];
         $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-path-rowid-source-until-cursor-reset';
-        $plan['nextReaderPolicy'] = $plan['next140ReplanReasons'] === []
+        $plan['nextReaderPolicy'] = $plan['hiddenPathRowidReplanReasons'] === []
             ? 'reuse-current-json-table-hidden-path-rowid-source'
             : 'prepare-next-json-table-hidden-path-rowid-source';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-hidden-path-rowid-current-source-next140'],
+            ['sqlite-json-table-hidden-path-rowid'],
         )));
 
         return $plan;
@@ -7325,7 +7325,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceHiddenConstraintPlannerNext88(
+    public static function currentSourceHiddenConstraintPlanner(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -7366,10 +7366,10 @@ final class SQLiteJsonTablePlan
         $plan['currentHiddenResiduals'] = $currentHiddenResiduals;
         $plan['nextHiddenResiduals'] = $nextHiddenResiduals;
         $plan['rowCountTransition'] = $rowCountTransition;
-        $plan['next88ReplanReasons'] = array_values(array_unique(array_merge($plan['replanReasons'], $hiddenReasons)));
+        $plan['hiddenConstraintReplanReasons'] = array_values(array_unique(array_merge($plan['replanReasons'], $hiddenReasons)));
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-hidden-constraint-planner-current-source-next88'],
+            ['sqlite-json-table-hidden-constraint-planner'],
         )));
 
         return $plan;
@@ -7382,7 +7382,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceHiddenRowidPlannerNext94(
+    public static function currentSourceHiddenRowidPlanner(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -7391,7 +7391,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceHiddenConstraintPlannerNext88(
+        $plan = self::currentSourceHiddenConstraintPlanner(
             $function,
             $currentSource,
             $nextSource,
@@ -7437,14 +7437,14 @@ final class SQLiteJsonTablePlan
         $plan['rowTransitions'] = $rowTransitions;
         $plan['currentRowidSummary'] = self::sourceRowidSummary94($plan['current']);
         $plan['nextRowidSummary'] = self::sourceRowidSummary94($plan['next']);
-        $plan['next94ReplanReasons'] = array_values(array_unique(array_merge($plan['next88ReplanReasons'], $rowidReasons)));
+        $plan['hiddenRowidReplanReasons'] = array_values(array_unique(array_merge($plan['hiddenConstraintReplanReasons'], $rowidReasons)));
         $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-rowid-source-until-cursor-reset';
-        $plan['nextReaderPolicy'] = $plan['next94ReplanReasons'] === ['hidden-rowid-residual-constraint-present']
+        $plan['nextReaderPolicy'] = $plan['hiddenRowidReplanReasons'] === ['hidden-rowid-residual-constraint-present']
             ? 'reuse-current-json-table-hidden-rowid-source'
             : 'prepare-next-json-table-hidden-rowid-source';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-hidden-rowid-source-current-next94'],
+            ['sqlite-json-table-hidden-rowid-planner'],
         )));
 
         return $plan;
@@ -7457,7 +7457,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceRowidHiddenConstraintPlannerNext99(
+    public static function currentSourceRowidHiddenConstraintPlanner(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -7466,7 +7466,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceHiddenRowidPlannerNext94(
+        $plan = self::currentSourceHiddenRowidPlanner(
             $function,
             $currentSource,
             $nextSource,
@@ -7487,13 +7487,13 @@ final class SQLiteJsonTablePlan
         $plan['currentRowidAliasConstraints'] = $currentAliases;
         $plan['nextRowidAliasConstraints'] = $nextAliases;
         $plan['rowidAliasTransition'] = $aliasTransition;
-        $plan['next99ReplanReasons'] = array_values(array_unique(array_merge(
-            $plan['next94ReplanReasons'],
+        $plan['rowidHiddenConstraintReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['hiddenRowidReplanReasons'],
             $aliasTransition['changed'] ? ['hidden-rowid-alias-provenance-changed'] : [],
         )));
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-rowid-hidden-constraint-current-source-next99'],
+            ['sqlite-json-table-rowid-hidden-constraint-planner'],
         )));
 
         return $plan;
@@ -7599,7 +7599,7 @@ final class SQLiteJsonTablePlan
 
             $pair = null;
             if ($currentRow !== null && $nextRow !== null) {
-                $pair = self::currentSourceHiddenConstraintPlannerNext88(
+                $pair = self::currentSourceHiddenConstraintPlanner(
                     $function,
                     $currentRow,
                     $nextRow,
@@ -7611,7 +7611,7 @@ final class SQLiteJsonTablePlan
                 $currentPlan = self::lateralHiddenHostPlan($index, $currentRow, $pair, 'current', $joinType);
                 $nextPlan = self::lateralHiddenHostPlan($index, $nextRow, $pair, 'next', $joinType);
             } elseif ($currentRow !== null) {
-                $single = self::currentSourceHiddenConstraintPlannerNext88(
+                $single = self::currentSourceHiddenConstraintPlanner(
                     $function,
                     $currentRow,
                     $currentRow,
@@ -7623,7 +7623,7 @@ final class SQLiteJsonTablePlan
                 $currentPlan = self::lateralHiddenHostPlan($index, $currentRow, $single, 'current', $joinType);
                 $nextPlan = null;
             } else {
-                $single = self::currentSourceHiddenConstraintPlannerNext88(
+                $single = self::currentSourceHiddenConstraintPlanner(
                     $function,
                     $nextRow,
                     $nextRow,
@@ -7648,7 +7648,7 @@ final class SQLiteJsonTablePlan
                 $reasons[$reason] = true;
             }
             if ($pair !== null) {
-                foreach ($pair['next88ReplanReasons'] as $pairReason) {
+                foreach ($pair['hiddenConstraintReplanReasons'] as $pairReason) {
                     if ($pairReason === 'hidden-residual-constraint-present') {
                         continue;
                     }
@@ -7668,7 +7668,7 @@ final class SQLiteJsonTablePlan
                 'currentNullExtended' => $currentPlan['nullExtended'] ?? false,
                 'nextNullExtended' => $nextPlan['nullExtended'] ?? false,
                 'hiddenResidualChanged' => ($currentPlan['hiddenResidualColumns'] ?? []) !== ($nextPlan['hiddenResidualColumns'] ?? []),
-                'pairReplanReasons' => $pair['next88ReplanReasons'] ?? [],
+                'pairReplanReasons' => $pair['hiddenConstraintReplanReasons'] ?? [],
             ];
         }
 
@@ -7685,7 +7685,7 @@ final class SQLiteJsonTablePlan
                 : 'prepare-next-lateral-hidden-json-source-tape',
             'leftJoin' => $joinType === 'left',
             'dependencies' => [
-                'sqlite-json-table-hidden-constraint-planner-current-source-next88',
+                'sqlite-json-table-hidden-constraint-planner',
                 'sqlite-json-table-lateral-hidden-planner',
             ],
         ];
@@ -7874,7 +7874,7 @@ final class SQLiteJsonTablePlan
             $pair = null;
 
             if ($currentEntry !== null && $nextEntry !== null) {
-                $pair = self::currentSourceHiddenConstraintPlannerNext88(
+                $pair = self::currentSourceHiddenConstraintPlanner(
                     $function,
                     $currentEntry['row'],
                     $nextEntry['row'],
@@ -7886,7 +7886,7 @@ final class SQLiteJsonTablePlan
                 $currentPlan = self::lateralHiddenHostPlan($currentEntry['ordinal'], $currentEntry['row'], $pair, 'current', $joinType);
                 $nextPlan = self::lateralHiddenHostPlan($nextEntry['ordinal'], $nextEntry['row'], $pair, 'next', $joinType);
             } elseif ($currentEntry !== null) {
-                $single = self::currentSourceHiddenConstraintPlannerNext88(
+                $single = self::currentSourceHiddenConstraintPlanner(
                     $function,
                     $currentEntry['row'],
                     $currentEntry['row'],
@@ -7898,7 +7898,7 @@ final class SQLiteJsonTablePlan
                 $currentPlan = self::lateralHiddenHostPlan($currentEntry['ordinal'], $currentEntry['row'], $single, 'current', $joinType);
                 $nextPlan = null;
             } else {
-                $single = self::currentSourceHiddenConstraintPlannerNext88(
+                $single = self::currentSourceHiddenConstraintPlanner(
                     $function,
                     $nextEntry['row'],
                     $nextEntry['row'],
@@ -7925,7 +7925,7 @@ final class SQLiteJsonTablePlan
                 $reasons[$reason] = true;
             }
             if ($pair !== null) {
-                foreach ($pair['next88ReplanReasons'] as $pairReason) {
+                foreach ($pair['hiddenConstraintReplanReasons'] as $pairReason) {
                     if ($pairReason === 'hidden-residual-constraint-present') {
                         continue;
                     }
@@ -7950,7 +7950,7 @@ final class SQLiteJsonTablePlan
                 'currentNullExtended' => $currentPlan['nullExtended'] ?? false,
                 'nextNullExtended' => $nextPlan['nullExtended'] ?? false,
                 'hiddenResidualChanged' => ($currentPlan['hiddenResidualColumns'] ?? []) !== ($nextPlan['hiddenResidualColumns'] ?? []),
-                'pairReplanReasons' => $pair['next88ReplanReasons'] ?? [],
+                'pairReplanReasons' => $pair['hiddenConstraintReplanReasons'] ?? [],
             ];
         }
 
@@ -7973,7 +7973,7 @@ final class SQLiteJsonTablePlan
                 : 'prepare-next-lateral-hidden-keyed-json-source-tape',
             'leftJoin' => $joinType === 'left',
             'dependencies' => [
-                'sqlite-json-table-hidden-constraint-planner-current-source-next88',
+                'sqlite-json-table-hidden-constraint-planner',
                 'sqlite-json-table-lateral-hidden-planner',
                 'sqlite-json-table-lateral-hidden-constraint-current-source-next103',
             ],
@@ -8062,7 +8062,7 @@ final class SQLiteJsonTablePlan
             $plan['dependencies'],
             [
                 'sqlite-json-table-lateral-rowid-comparison',
-                'sqlite-json-table-rowid-hidden-constraint-current-source-next99',
+                'sqlite-json-table-rowid-hidden-constraint-planner',
                 'sqlite-json-table-lateral-rowid-hidden-current-source-next105',
             ],
         )));
@@ -19367,7 +19367,7 @@ final class SQLiteJsonTablePlan
             return 'current-lateral-hidden-host-row-removed';
         }
         $pairReasons = array_values(array_filter(
-            $pair['next88ReplanReasons'] ?? [],
+            $pair['hiddenConstraintReplanReasons'] ?? [],
             static fn (string $reason): bool => $reason !== 'hidden-residual-constraint-present',
         ));
         if ($pairReasons !== []) {

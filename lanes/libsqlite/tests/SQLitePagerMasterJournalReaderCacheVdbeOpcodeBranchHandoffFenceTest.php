@@ -228,7 +228,7 @@ $tests['pager master journal reader cache current source opcode branch handoff a
     $t->same('reader-cache-stmt-vdbe-null-branch-current-702', $result['current_reader_cache_stmt_vdbe_null_branch_token']);
     $t->same('reader-cache-stmt-vdbe-opcode-trace-branch-handoff-current-702', $result['current_reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token']);
     $t->same('reader-cache-stmt-vdbe-int64-branch-handoff-current-702', $result['current_reader_cache_stmt_vdbe_int64_branch_handoff_token']);
-    $t->same(true, in_array('sqlite-pager-master-journal-reader-cache-current-source-next686', $result['dependencies'], true));
+    $t->same(true, in_array('sqlite-pager-master-journal-reader-cache-vdbe-virtual-table-opcode-branch-handoff', $result['dependencies'], true));
 };
 
 $tests['pager master journal reader cache current source plan dispatches full width calls to opcode branch handoff'] = static function (TestRunner $t) use ($database, $master, $masterBytes, $before, $pageSize, $recovered, $cacheEntry, $read, $base, $tokens, $headers, $variantFields): void {

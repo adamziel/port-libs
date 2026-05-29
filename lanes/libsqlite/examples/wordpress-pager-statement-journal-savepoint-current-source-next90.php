@@ -33,7 +33,7 @@ $stack->beginStatementJournal('single-option-update');
 $stack->recordStatementPageImageWrite('single-option-update', 4, $page('stmt before plugin index'));
 $stack->recordStatementWalFrameWrite('single-option-update', 6, 4, true);
 
-$plan = $stack->releaseCurrentSourceAndBeginNextStatementJournal90(
+$plan = $stack->releaseCurrentSourceAndBeginStatementJournal(
     'single-option',
     'retry-plugin-option',
     $databaseBytes,

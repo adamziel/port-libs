@@ -24,7 +24,7 @@ final class SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite compound window recursive affinity current-source cursor offset must be non-negative');
             }
 
-            $base = SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareNext142($sql, $currentTables, $nextTables);
+            $base = SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareRecursiveUnionSourceBoundary($sql, $currentTables, $nextTables);
             $currentSignature = self::cursorSourceSignature($base['currentSignatures']);
             $nextSignature = self::cursorSourceSignature($base['nextSignatures']);
             if ($cursor !== null) {
@@ -79,13 +79,13 @@ final class SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan
                     'current-source-cursor-fence',
                 ]))),
                 'dependencies' => [
-                    'sqlite-compound-recursive-affinity-window-current-source-next142',
+                    'sqlite-compound-recursive-affinity-window-current-source-source-boundary',
                     'sqlite-compound-current-source-cursor-fence',
                     'sqlite-recursive-union-affinity-page-boundary',
                     'sqlite-window-before-compound-page-resume',
                 ],
                 'dependency_closure' => 'no new support component needed; cursor reuses native recursive CTE, compound SELECT, window, affinity, and current-source rowset helpers and adds only lane-local cursor fencing',
-                'non_overlap' => 'avoids accepted next142 recursive affinity window rowset behavior and next143 EXCEPT final ORDER behavior by adding stale-cursor checked current/next paging over the already materialized compound rowsets',
+                'non_overlap' => 'avoids accepted source-boundary recursive affinity window rowset behavior and next143 EXCEPT final ORDER behavior by adding stale-cursor checked current/next paging over the already materialized compound rowsets',
             ];
         }
 

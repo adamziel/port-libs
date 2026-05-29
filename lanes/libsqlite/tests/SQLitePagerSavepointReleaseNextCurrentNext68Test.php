@@ -29,7 +29,7 @@ $makeStack = static function () use ($page): SQLiteSavepointStack {
     return $stack;
 };
 
-$pluginPlan = static fn (): array => $makeStack()->rollbackReleaseAndBeginNextSavepoint68(
+$pluginPlan = static fn (): array => $makeStack()->rollbackReleaseAndBeginSavepoint(
     'plugin-batch',
     'plugin-retry',
     6,
@@ -37,14 +37,14 @@ $pluginPlan = static fn (): array => $makeStack()->rollbackReleaseAndBeginNextSa
     64,
     true
 );
-$leafPlan = static fn (): array => $makeStack()->rollbackReleaseAndBeginNextSavepoint68(
+$leafPlan = static fn (): array => $makeStack()->rollbackReleaseAndBeginSavepoint(
     'single-option',
     'single-option-retry',
     7,
     $page('before-leaf-retry'),
     64
 );
-$casePlan = static fn (): array => $makeStack()->rollbackReleaseAndBeginNextSavepoint68(
+$casePlan = static fn (): array => $makeStack()->rollbackReleaseAndBeginSavepoint(
     'PLUGIN-BATCH',
     'Plugin-Retry-Case',
     8,
@@ -56,7 +56,7 @@ $outerPlan = static function () use ($page): array {
     $stack->beginTransaction('wp-import');
     $stack->recordWalFrameWrite(1, 1);
 
-    return $stack->rollbackReleaseAndBeginNextSavepoint68(
+    return $stack->rollbackReleaseAndBeginSavepoint(
         'wp-import',
         'after-outer-release',
         2,
@@ -97,37 +97,37 @@ $cases = [
     'plugin dependency wal prefix' => [static fn (): mixed => in_array('sqlite-pager-savepoint-next-wal-prefix68', $pluginPlan()['dependencies'], true), true],
     'plugin stack names after method' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
+        $stack->rollbackReleaseAndBeginSavepoint('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
         return $stack->names();
     }, ['wp-import', 'plugin-retry']],
     'plugin stack statement journals cleared' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
+        $stack->rollbackReleaseAndBeginSavepoint('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
         return $stack->statementJournalState();
     }, []],
     'plugin stack release next savepoint merges retry page' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
+        $stack->rollbackReleaseAndBeginSavepoint('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
         return $stack->releaseWithPlan('plugin-retry')['merged_page_numbers'];
     }, [6]],
     'plugin stack commit includes retry page' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
+        $stack->rollbackReleaseAndBeginSavepoint('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
         return $stack->commitWithPlan()['committed_page_numbers'];
     }, [1, 2, 6]],
     'plugin stack rollback to retry restores retry page' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
+        $stack->rollbackReleaseAndBeginSavepoint('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
         return $stack->rollbackToImagePlan('plugin-retry', 64)['restored_page_numbers'];
     }, [6]],
     'plugin stack rollback to retry uses next frame prefix' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
+        $stack->rollbackReleaseAndBeginSavepoint('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
         return $stack->walRollbackToPlan('plugin-retry')['rollback_to_frame'];
     }, 2],
     'plugin stack can reuse discarded frame after rollback to retry' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
+        $stack->rollbackReleaseAndBeginSavepoint('plugin-batch', 'plugin-retry', 6, $page('before-retry-option'), 64);
         $stack->rollbackToWithPlan('plugin-retry');
         $stack->recordWalFrameWrite(3, 9);
         return $stack->pendingWalFrameIndexes();
@@ -142,7 +142,7 @@ $cases = [
     'leaf names after next' => [static fn (): mixed => $leafPlan()['names_after_next'], ['wp-import', 'plugin-batch', 'single-option-retry']],
     'leaf keeps outer statement journal' => [static function () use ($makeStack, $page): mixed {
         $stack = $makeStack();
-        $stack->rollbackReleaseAndBeginNextSavepoint68('single-option', 'single-option-retry', 7, $page('before-leaf-retry'), 64);
+        $stack->rollbackReleaseAndBeginSavepoint('single-option', 'single-option-retry', 7, $page('before-leaf-retry'), 64);
         return $stack->statementJournalState()[0]['name'];
     }, 'insert-active-plugin'],
     'leaf pending pages after next' => [static fn (): mixed => $leafPlan()['pending_page_numbers_after_next'], [1, 2, 3, 7]],
@@ -167,12 +167,12 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'missing savepoint rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginNextSavepoint68('missing', 'retry', 6, $page('before'), 64),
-    'empty next savepoint rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', '', 6, $page('before'), 64),
-    'zero page rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'retry', 0, $page('before'), 64),
-    'empty image rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'retry', 6, '', 64),
-    'wrong image size rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'retry', 6, 'short', 64),
-    'zero page size rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginNextSavepoint68('plugin-batch', 'retry', 6, $page('before'), 0),
+    'missing savepoint rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginSavepoint('missing', 'retry', 6, $page('before'), 64),
+    'empty next savepoint rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginSavepoint('plugin-batch', '', 6, $page('before'), 64),
+    'zero page rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginSavepoint('plugin-batch', 'retry', 0, $page('before'), 64),
+    'empty image rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginSavepoint('plugin-batch', 'retry', 6, '', 64),
+    'wrong image size rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginSavepoint('plugin-batch', 'retry', 6, 'short', 64),
+    'zero page size rejected' => static fn () => $makeStack()->rollbackReleaseAndBeginSavepoint('plugin-batch', 'retry', 6, $page('before'), 0),
 ];
 
 foreach ($throws as $name => $callback) {

@@ -244,7 +244,7 @@ final class SQLiteSavepointStack
     /**
      * @return array{savepoint:string,found_index:int,rollback_to_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,discarded_page_numbers:list<int>,retained_frame_names:list<string>,retained_wal_frame_indexes_before_next:list<int>,pending_page_numbers_before_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,pending_page_numbers_after_next:list<int>,current_savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
      */
-    public function rollbackToCurrentAndRecordNextWalFrame64(string $name, int $nextPageNumber, bool $commitFrame = false): array
+    public function rollbackToCurrentAndRecordWalFrame(string $name, int $nextPageNumber, bool $commitFrame = false): array
     {
         if ($nextPageNumber < 1) {
             throw new \InvalidArgumentException('SQLite page numbers are one-based');
@@ -290,7 +290,7 @@ final class SQLiteSavepointStack
     /**
      * @return array{savepoint:string,statement:string,found_index:int,rollback_to_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,discarded_statement_journals:list<string>,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,discarded_page_numbers:list<int>,retained_frame_names:list<string>,statement_journals_after_rollback:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,statement_journals_after_next:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,rollback_statement_restored_pages:list<int>,rollback_statement_to_frame:int,current_savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
      */
-    public function rollbackToCurrentAndBeginNextStatementJournal66(
+    public function rollbackToCurrentAndBeginStatementJournal(
         string $name,
         string $statementName,
         int $nextPageNumber,
@@ -369,7 +369,7 @@ final class SQLiteSavepointStack
     /**
      * @return array{savepoint:string,next_savepoint:string,found_index:int,rollback_to_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,discarded_statement_journals:list<string>,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,discarded_page_numbers:list<int>,retained_frame_names_before_release:list<string>,names_after_rollback:list<string>,names_after_release:list<string>,names_after_next:list<string>,wal_state_after_next:list<array{name:string,transaction:bool,wal_start_frame:int,wal_frame_indexes:list<int>}>,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,released_savepoint_closed:bool,next_savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
      */
-    public function rollbackReleaseAndBeginNextSavepoint68(
+    public function rollbackReleaseAndBeginSavepoint(
         string $name,
         string $nextSavepointName,
         int $nextPageNumber,
@@ -449,7 +449,7 @@ final class SQLiteSavepointStack
     /**
      * @return array{savepoint:string,next_savepoint:string,found_index:int,rollback_to_frame:int,next_wal_frame_index:int|null,next_page_number:int|null,next_commit_frame:bool,discarded_statement_journals:list<string>,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,discarded_page_numbers:list<int>,retained_frame_names:list<string>,names_after_rollback:list<string>,names_after_next:list<string>,current_depth_after:int,next_depth_after:int,current_savepoint_active_after:bool,next_savepoint_active_after:bool,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,next_frame_wal_start:int|null,dependencies:list<string>}
      */
-    public function rollbackToCurrentAndOpenNextSavepoint69(
+    public function rollbackToCurrentAndOpenSavepoint(
         string $name,
         string $nextName,
         ?int $nextPageNumber = null,
@@ -858,7 +858,7 @@ final class SQLiteSavepointStack
      * @param array<int,string> $currentPageImages
      * @return array{savepoint:string,found_index:int,page_size:int,current_source_verified:bool,current_source_page_numbers:list<int>,current_source_prefixes:array<int,string>,rollback_to_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,discarded_page_numbers:list<int>,restored_page_numbers:list<int>,restore_pages:list<array{page_number:int,database_offset:int,bytes:int,source_frame:string}>,missing_page_numbers:list<int>,names_before:list<string>,names_after_rollback:list<string>,names_after_release:list<string>,released_frame_names:list<string>,released_merged_page_numbers:list<int>,pending_page_numbers_after_release:list<int>,pending_wal_frame_indexes_after_release:list<int>,rolled_back_database_bytes:string,transaction_active_after:bool,dependencies:list<string>}
      */
-    public function rollbackToCurrentSourceThenRelease116(
+    public function rollbackToCurrentSourceThenRelease(
         string $name,
         string $currentDatabaseBytes,
         array $currentPageImages,
@@ -1172,7 +1172,7 @@ final class SQLiteSavepointStack
      * @param array<int,string> $currentPageImages
      * @return array{released_savepoint:string,next_statement:string,page_size:int,current_source_verified:bool,current_source_page_numbers:list<int>,current_source_prefixes:array<int,string>,next_source_prefixes:array<int,string>,release_plan:array{savepoint:string,found_index:int,released_frame_names:list<string>,merged_page_numbers:list<int>,target_is_transaction:bool,result_depth:int,transaction_active_after:bool},discarded_statement_journals:list<string>,statement_journals_before_release:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,statement_journals_after_release:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,statement_journals_after_next:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,names_after_release:list<string>,pending_page_numbers_after_release:list<int>,pending_wal_frame_indexes_after_release:list<int>,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,next_wal_start_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,released_savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
      */
-    public function releaseCurrentSourceAndBeginNextStatementJournal90(
+    public function releaseCurrentSourceAndBeginStatementJournal(
         string $savepointName,
         string $nextStatementName,
         string $currentDatabaseBytes,
@@ -1292,7 +1292,7 @@ final class SQLiteSavepointStack
     /**
      * @return array{released_savepoint:string,page_size:int,current_source_verified:bool,current_wal_frame_count:int,current_wal_checkpoint_sequence:int,current_wal_salt1:int,current_wal_salt2:int,release_plan:array{savepoint:string,found_index:int,released_frame_names:list<string>,merged_page_numbers:list<int>,target_is_transaction:bool,result_depth:int,transaction_active_after:bool},names_before_release:list<string>,names_after_release:list<string>,pending_page_numbers_after_release:list<int>,pending_wal_frame_indexes_after_release:list<int>,next_wal_start_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,released_savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
      */
-    public function releaseCurrentWalSourceAndAppendNextFrame110(
+    public function releaseCurrentWalSourceAndAppendFrame(
         string $savepointName,
         SQLiteWal $currentWal,
         string $currentWalBytes,
