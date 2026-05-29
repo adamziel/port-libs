@@ -71,7 +71,7 @@ $query166 = static fn (): array => [
 ];
 $needed166 = ['option_name', 'option_value', 'blog_id'];
 
-$plan166 = static fn (?array $prepared = null, ?array $current = null, ?array $query = null, ?array $next = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext166(
+$plan166 = static fn (?array $prepared = null, ?array $current = null, ?array $query = null, ?array $next = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeMultiValueInBucketFence(
     $prepared ?? $prepared166(),
     $current ?? $current166(),
     $query ?? $query166(),

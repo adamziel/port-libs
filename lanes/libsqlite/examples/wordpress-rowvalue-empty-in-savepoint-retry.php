@@ -34,7 +34,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['suppressed_by_rollback_count'] === 2);
     assert($plan['yielded_after_retry_count'] === 2);
     assert($plan['current_source_tables']['wp_options'][0]['option_id'] === 2);
-    echo "wordpress-rowvalue-empty-in-savepoint-current-source-next186 self-test passed\n";
+    echo "wordpress-rowvalue-empty-in-savepoint-retry self-test passed\n";
     return;
 }
 

@@ -55,7 +55,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '1', 'nlt' => '3', 'ndlt' => '2', 'sample' => ['plugin_seo', 23]],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext166(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeMultiValueInBucketFence(
     $prepared,
     $current,
     [

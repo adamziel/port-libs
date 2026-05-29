@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 19:12 UTC):
+  Seventieth safe consolidation follow-up is staged and validated in the
+  rolling libsqlite integration worktree. The batch accepts 2 current-base
+  handoffs on top of `aab386b`: planner STAT4 expression-partial multi-value
+  IN bucket fence Next166 helper rename and row-value empty-IN savepoint retry
+  test/example path rename. Validation passed PHP lint on changed files,
+  direct tests `3 files / 193 assertions / 0 failures`, STAT4
+  expression-partial family `133 files / 7537 assertions / 0 failures`,
+  row-value savepoint family `86 files / 5518 assertions / 0 failures`,
+  changed WordPress/self-test examples, git diff --check, exact user-named
+  150 suffix scan clean in `src`/`tests`/`examples`, production numbered
+  file/class audits at `0`, numbered production helper-method audit `1756`,
+  and unique numbered production symbol audit `1988`. Public pass/mapped
+  counters remain `154019 pass / 0 fail` and `830 / 1589` because this is
+  consolidation-only. The worker pool remains targeted at 10-11 current-base
+  libsqlite lanes; remaining ready markers must be current-base verified or
+  rebased before acceptance.
+
 - 2026-05-29 supervisor continuation (shell samples 18:38 UTC):
   Sixty-sixth safe consolidation follow-up is integrated and pushed as
   `7b8bdc80`. The batch accepts 3 ready-marked CG handoffs on top of

@@ -3067,7 +3067,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed>|null $nextSource
          * @return array<string,mixed>
          */
-        public static function materializeNext166(
+        public static function materializeMultiValueInBucketFence(
             array $preparedSource,
             array $currentSource,
             array $queryTerms,
@@ -3081,17 +3081,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $neededColumns,
             );
 
-            $selected = self::arrayValueNext166($base, 'selectedPlan');
-            $matchedRows = self::listValueNext166($base, 'matchedRows');
-            $constraint = self::arrayValueNext166($selected, 'constraint');
-            $selectedIndex = self::selectedIndexNext166($base['selectedSource'] === 'current' ? $currentSource : $preparedSource, (string) ($selected['name'] ?? ''));
-            $preparedIndex = self::selectedIndexNext166($preparedSource, (string) ($selected['name'] ?? ''));
-            $currentIndex = self::selectedIndexNext166($currentSource, (string) ($selected['name'] ?? ''));
-            $partialDelta = self::partialPredicateDeltaNext166($preparedIndex, $currentIndex);
-            $values = self::constraintValuesNext166($constraint);
-            $buckets = self::inBucketsNext166($matchedRows, $values, self::listValueNext166($selected, 'stat4MatchedCurrentNext'));
-            $missing = self::missingStat4ValuesNext166($values, $buckets);
-            $nextSummary = $nextSource === null ? null : self::nextSourceSummaryNext166($currentSource, $nextSource);
+            $selected = self::arrayValueForMultiValueInBucketFence($base, 'selectedPlan');
+            $matchedRows = self::listValueForMultiValueInBucketFence($base, 'matchedRows');
+            $constraint = self::arrayValueForMultiValueInBucketFence($selected, 'constraint');
+            $selectedIndex = self::selectedIndexForMultiValueInBucketFence($base['selectedSource'] === 'current' ? $currentSource : $preparedSource, (string) ($selected['name'] ?? ''));
+            $preparedIndex = self::selectedIndexForMultiValueInBucketFence($preparedSource, (string) ($selected['name'] ?? ''));
+            $currentIndex = self::selectedIndexForMultiValueInBucketFence($currentSource, (string) ($selected['name'] ?? ''));
+            $partialDelta = self::partialPredicateDeltaForMultiValueInBucketFence($preparedIndex, $currentIndex);
+            $values = self::constraintValuesForMultiValueInBucketFence($constraint);
+            $buckets = self::inBucketsForMultiValueInBucketFence($matchedRows, $values, self::listValueForMultiValueInBucketFence($selected, 'stat4MatchedCurrentNext'));
+            $missing = self::missingStat4ValuesForMultiValueInBucketFence($values, $buckets);
+            $nextSummary = $nextSource === null ? null : self::nextSourceSummaryForMultiValueInBucketFence($currentSource, $nextSource);
             $nextAdmitted = $nextSummary === null || $nextSummary['replanReasons'] === [];
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-reprepare-ready'
                 && ($constraint['operator'] ?? null) === 'IN'
@@ -3109,29 +3109,29 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'inValueCount' => count($values),
                 'inBuckets' => $buckets,
                 'inBucketCount' => count($buckets),
-                'inBucketRowids' => self::bucketRowidsNext166($buckets),
+                'inBucketRowids' => self::bucketRowidsForMultiValueInBucketFence($buckets),
                 'missingStat4InValues' => $missing,
                 'partialPredicateDelta' => $partialDelta,
                 'partialPredicateChanged' => $partialDelta['changed'],
-                'currentSourceOnlyRowids' => self::currentOnlyRowidsNext166($preparedSource, $currentSource),
-                'stalePreparedRowidsBlockedByPartialDelta' => self::blockedPreparedRowidsNext166($preparedSource, $queryTerms),
-                'cursorProgram' => self::cursorProgramNext166($selected, $buckets, $neededColumns, $ready),
+                'currentSourceOnlyRowids' => self::currentOnlyRowidsForMultiValueInBucketFence($preparedSource, $currentSource),
+                'stalePreparedRowidsBlockedByPartialDelta' => self::blockedPreparedRowidsForMultiValueInBucketFence($preparedSource, $queryTerms),
+                'cursorProgram' => self::cursorProgramForMultiValueInBucketFence($selected, $buckets, $neededColumns, $ready),
                 'selectedPlan' => array_replace($selected, [
                     'next166Ready' => $ready,
                     'next166InValues' => $values,
                     'next166InBucketCount' => count($buckets),
-                    'next166InBucketRowids' => self::bucketRowidsNext166($buckets),
+                    'next166InBucketRowids' => self::bucketRowidsForMultiValueInBucketFence($buckets),
                     'next166MissingStat4InValues' => $missing,
                     'next166NextSourceAdmitted' => $nextAdmitted,
                     'next166PartialPredicateChanged' => $partialDelta['changed'],
-                    'next166PartialPredicateSignature' => self::signatureNext166($selectedIndex['partialPredicateTerms'] ?? []),
+                    'next166PartialPredicateSignature' => self::signatureForMultiValueInBucketFence($selectedIndex['partialPredicateTerms'] ?? []),
                 ]),
                 'stat4Fence' => array_replace(
-                    self::arrayValueNext166($base, 'stat4Fence'),
+                    self::arrayValueForMultiValueInBucketFence($base, 'stat4Fence'),
                     [
-                        'next166PartialPredicateDeltaSignature' => self::signatureNext166($partialDelta),
-                        'next166InValueSignature' => self::signatureNext166($values),
-                        'next166InBucketSignature' => self::signatureNext166($buckets),
+                        'next166PartialPredicateDeltaSignature' => self::signatureForMultiValueInBucketFence($partialDelta),
+                        'next166InValueSignature' => self::signatureForMultiValueInBucketFence($values),
+                        'next166InBucketSignature' => self::signatureForMultiValueInBucketFence($buckets),
                         'next166NextSourceSignature' => $nextSummary['sourceSignature'] ?? null,
                     ],
                 ),
@@ -3155,7 +3155,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return array<string,mixed>
          */
-        private static function arrayValueNext166(array $base, string $key): array
+        private static function arrayValueForMultiValueInBucketFence(array $base, string $key): array
         {
             $value = $base[$key] ?? null;
             if (!is_array($value)) {
@@ -3169,7 +3169,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return list<array<string,mixed>>
          */
-        private static function listValueNext166(array $base, string $key): array
+        private static function listValueForMultiValueInBucketFence(array $base, string $key): array
         {
             $value = $base[$key] ?? null;
             if (!is_array($value) || !array_is_list($value)) {
@@ -3183,7 +3183,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $constraint
          * @return list<mixed>
          */
-        private static function constraintValuesNext166(array $constraint): array
+        private static function constraintValuesForMultiValueInBucketFence(array $constraint): array
         {
             $values = $constraint['values'] ?? null;
             if (!is_array($values) || !array_is_list($values)) {
@@ -3197,7 +3197,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return array<string,mixed>
          */
-        private static function selectedIndexNext166(array $source, string $name): array
+        private static function selectedIndexForMultiValueInBucketFence(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -3220,10 +3220,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $currentIndex
          * @return array<string,mixed>
          */
-        private static function partialPredicateDeltaNext166(array $preparedIndex, array $currentIndex): array
+        private static function partialPredicateDeltaForMultiValueInBucketFence(array $preparedIndex, array $currentIndex): array
         {
-            $prepared = self::termsBySignatureNext166(self::termListNext166($preparedIndex['partialPredicateTerms'] ?? []));
-            $current = self::termsBySignatureNext166(self::termListNext166($currentIndex['partialPredicateTerms'] ?? []));
+            $prepared = self::termsBySignatureForMultiValueInBucketFence(self::termListForMultiValueInBucketFence($preparedIndex['partialPredicateTerms'] ?? []));
+            $current = self::termsBySignatureForMultiValueInBucketFence(self::termListForMultiValueInBucketFence($currentIndex['partialPredicateTerms'] ?? []));
 
             return [
                 'changed' => $prepared !== $current,
@@ -3231,8 +3231,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'currentTermCount' => count($current),
                 'addedTerms' => array_values(array_diff_key($current, $prepared)),
                 'removedTerms' => array_values(array_diff_key($prepared, $current)),
-                'preparedSignature' => self::signatureNext166(array_values($prepared)),
-                'currentSignature' => self::signatureNext166(array_values($current)),
+                'preparedSignature' => self::signatureForMultiValueInBucketFence(array_values($prepared)),
+                'currentSignature' => self::signatureForMultiValueInBucketFence(array_values($current)),
             ];
         }
 
@@ -3240,7 +3240,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param mixed $terms
          * @return list<array<string,mixed>>
          */
-        private static function termListNext166(mixed $terms): array
+        private static function termListForMultiValueInBucketFence(mixed $terms): array
         {
             if (!is_array($terms) || !array_is_list($terms)) {
                 throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source next166 partial terms must be a list');
@@ -3258,11 +3258,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $terms
          * @return array<string,array<string,mixed>>
          */
-        private static function termsBySignatureNext166(array $terms): array
+        private static function termsBySignatureForMultiValueInBucketFence(array $terms): array
         {
             $out = [];
             foreach ($terms as $term) {
-                $out[self::signatureNext166($term)] = $term;
+                $out[self::signatureForMultiValueInBucketFence($term)] = $term;
             }
             ksort($out);
 
@@ -3275,9 +3275,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $stat4Pairs
          * @return list<array{key:mixed,rowids:list<int>,rowCount:int,stat4Rowid:mixed,nextKey:mixed,exact:bool}>
          */
-        private static function inBucketsNext166(array $rows, array $values, array $stat4Pairs): array
+        private static function inBucketsForMultiValueInBucketFence(array $rows, array $values, array $stat4Pairs): array
         {
-            $wanted = array_fill_keys(array_map(self::valueSignatureNext166(...), $values), true);
+            $wanted = array_fill_keys(array_map(self::valueSignatureForMultiValueInBucketFence(...), $values), true);
             $nextByKey = [];
             $stat4RowidByKey = [];
             foreach ($stat4Pairs as $pair) {
@@ -3285,7 +3285,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     continue;
                 }
                 $key = $pair['current']['key'] ?? null;
-                $signature = self::valueSignatureNext166($key);
+                $signature = self::valueSignatureForMultiValueInBucketFence($key);
                 if (!isset($wanted[$signature])) {
                     continue;
                 }
@@ -3296,7 +3296,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $grouped = [];
             foreach ($rows as $row) {
                 $key = $row['expressionKey'] ?? null;
-                $signature = self::valueSignatureNext166($key);
+                $signature = self::valueSignatureForMultiValueInBucketFence($key);
                 if (!isset($wanted[$signature])) {
                     continue;
                 }
@@ -3326,12 +3326,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $buckets
          * @return list<mixed>
          */
-        private static function missingStat4ValuesNext166(array $values, array $buckets): array
+        private static function missingStat4ValuesForMultiValueInBucketFence(array $values, array $buckets): array
         {
-            $present = array_fill_keys(array_map(static fn (array $bucket): string => self::valueSignatureNext166($bucket['key'] ?? null), $buckets), true);
+            $present = array_fill_keys(array_map(static fn (array $bucket): string => self::valueSignatureForMultiValueInBucketFence($bucket['key'] ?? null), $buckets), true);
             $missing = [];
             foreach ($values as $value) {
-                if (!isset($present[self::valueSignatureNext166($value)])) {
+                if (!isset($present[self::valueSignatureForMultiValueInBucketFence($value)])) {
                     $missing[] = $value;
                 }
             }
@@ -3344,11 +3344,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $currentSource
          * @return list<int>
          */
-        private static function currentOnlyRowidsNext166(array $preparedSource, array $currentSource): array
+        private static function currentOnlyRowidsForMultiValueInBucketFence(array $preparedSource, array $currentSource): array
         {
-            $prepared = array_flip(array_map('intval', array_column(self::sourceRowsNext166($preparedSource), 'rowid')));
+            $prepared = array_flip(array_map('intval', array_column(self::sourceRowsForMultiValueInBucketFence($preparedSource), 'rowid')));
             $out = [];
-            foreach (self::sourceRowsNext166($currentSource) as $row) {
+            foreach (self::sourceRowsForMultiValueInBucketFence($currentSource) as $row) {
                 $rowid = (int) ($row['rowid'] ?? 0);
                 if (!array_key_exists($rowid, $prepared)) {
                     $out[] = $rowid;
@@ -3364,11 +3364,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $queryTerms
          * @return list<int>
          */
-        private static function blockedPreparedRowidsNext166(array $preparedSource, array $queryTerms): array
+        private static function blockedPreparedRowidsForMultiValueInBucketFence(array $preparedSource, array $queryTerms): array
         {
             $blocked = [];
-            foreach (self::sourceRowsNext166($preparedSource) as $row) {
-                if (self::rowMatchesTermsNext166($row, $queryTerms)) {
+            foreach (self::sourceRowsForMultiValueInBucketFence($preparedSource) as $row) {
+                if (self::rowMatchesTermsForMultiValueInBucketFence($row, $queryTerms)) {
                     continue;
                 }
                 $rowid = (int) ($row['rowid'] ?? 0);
@@ -3385,7 +3385,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param list<array<string,mixed>> $queryTerms
          */
-        private static function rowMatchesTermsNext166(array $row, array $queryTerms): bool
+        private static function rowMatchesTermsForMultiValueInBucketFence(array $row, array $queryTerms): bool
         {
             foreach ($queryTerms as $term) {
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
@@ -3410,7 +3410,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<array<string,mixed>>
          */
-        private static function sourceRowsNext166(array $source): array
+        private static function sourceRowsForMultiValueInBucketFence(array $source): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -3430,7 +3430,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $nextSource
          * @return array<string,mixed>
          */
-        private static function nextSourceSummaryNext166(array $currentSource, array $nextSource): array
+        private static function nextSourceSummaryForMultiValueInBucketFence(array $currentSource, array $nextSource): array
         {
             $reasons = [];
             foreach (['schemaCookie' => 'schema-cookie', 'stat4Generation' => 'stat4-generation'] as $key => $reason) {
@@ -3438,10 +3438,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     $reasons[] = $reason;
                 }
             }
-            if (self::signatureNext166($currentSource['indexes'] ?? []) !== self::signatureNext166($nextSource['indexes'] ?? [])) {
+            if (self::signatureForMultiValueInBucketFence($currentSource['indexes'] ?? []) !== self::signatureForMultiValueInBucketFence($nextSource['indexes'] ?? [])) {
                 $reasons[] = 'index-signature';
             }
-            if (self::signatureNext166($currentSource['rows'] ?? []) !== self::signatureNext166($nextSource['rows'] ?? [])) {
+            if (self::signatureForMultiValueInBucketFence($currentSource['rows'] ?? []) !== self::signatureForMultiValueInBucketFence($nextSource['rows'] ?? [])) {
                 $reasons[] = 'row-signature';
             }
 
@@ -3449,7 +3449,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'name' => (string) ($nextSource['name'] ?? ''),
                 'schemaCookie' => (int) ($nextSource['schemaCookie'] ?? -1),
                 'stat4Generation' => (int) ($nextSource['stat4Generation'] ?? -1),
-                'sourceSignature' => self::signatureNext166([
+                'sourceSignature' => self::signatureForMultiValueInBucketFence([
                     'schemaCookie' => $nextSource['schemaCookie'] ?? null,
                     'stat4Generation' => $nextSource['stat4Generation'] ?? null,
                     'indexes' => $nextSource['indexes'] ?? [],
@@ -3465,13 +3465,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext166(array $selected, array $buckets, array $neededColumns, bool $ready): array
+        private static function cursorProgramForMultiValueInBucketFence(array $selected, array $buckets, array $neededColumns, bool $ready): array
         {
             $program = [
                 ['opcode' => 'OpenRead', 'source' => 'partial-expression-index', 'rootPage' => $selected['rootPage'] ?? null],
-                ['opcode' => 'FencePartialPredicateDelta', 'signature' => self::signatureNext166($selected['partialPredicateTerms'] ?? [])],
+                ['opcode' => 'FencePartialPredicateDelta', 'signature' => self::signatureForMultiValueInBucketFence($selected['partialPredicateTerms'] ?? [])],
                 ['opcode' => 'RewindInList', 'values' => array_column($buckets, 'key')],
-                ['opcode' => 'SeekStat4In', 'rowids' => self::bucketRowidsNext166($buckets)],
+                ['opcode' => 'SeekStat4In', 'rowids' => self::bucketRowidsForMultiValueInBucketFence($buckets)],
                 ['opcode' => $ready ? 'DeferredSeek' : 'Reprepare', 'source' => $ready ? 'table' : 'planner'],
             ];
             foreach ($neededColumns as $column) {
@@ -3488,7 +3488,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $buckets
          * @return list<int>
          */
-        private static function bucketRowidsNext166(array $buckets): array
+        private static function bucketRowidsForMultiValueInBucketFence(array $buckets): array
         {
             $rowids = [];
             foreach ($buckets as $bucket) {
@@ -3502,12 +3502,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $rowids;
         }
 
-        private static function valueSignatureNext166(mixed $value): string
+        private static function valueSignatureForMultiValueInBucketFence(mixed $value): string
         {
-            return self::signatureNext166(['value' => $value]);
+            return self::signatureForMultiValueInBucketFence(['value' => $value]);
         }
 
-        private static function signatureNext166(mixed $value): string
+        private static function signatureForMultiValueInBucketFence(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -4469,7 +4469,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             array $neededColumns,
             ?array $nextSource = null
         ): array {
-            $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext166(
+            $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeMultiValueInBucketFence(
                 $preparedSource,
                 $currentSource,
                 $queryTerms,
