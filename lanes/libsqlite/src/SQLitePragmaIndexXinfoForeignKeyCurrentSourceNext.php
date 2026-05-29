@@ -32399,6 +32399,86 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 814, 'delete_set_default_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
     }
 
+    public static function page815(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 815, 'update_cascade_order_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page816(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 816, 'delete_restrict_order_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page817(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 817, 'update_cascade_collation_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page818(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 818, 'delete_restrict_collation_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page819(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 819, 'update_no_action_order_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page820(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 820, 'delete_set_null_order_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page821(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 821, 'update_no_action_collation_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page822(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 822, 'delete_set_null_collation_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page823(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 823, 'update_set_default_order_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page824(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 824, 'delete_cascade_order_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page825(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 825, 'update_set_default_collation_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page826(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 826, 'delete_cascade_collation_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page827(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 827, 'update_restrict_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page828(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 828, 'delete_no_action_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page829(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 829, 'update_set_null_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page830(array $currentRecords, array $nextRecords, string $indexXinfoSql, string $foreignKeySql, int $offset = 0, int $limit = 128, ?array $resume = null): array
+    {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 830, 'delete_set_default_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
     /**
      * @param list<SQLiteSchemaRecord> $records
      * @return list<array<string,mixed>>
