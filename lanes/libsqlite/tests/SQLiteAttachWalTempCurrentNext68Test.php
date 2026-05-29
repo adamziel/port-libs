@@ -38,7 +38,7 @@ $cases = [
     'rollback schemas list' => [static fn (): mixed => $plan()['rollback_schemas'], ['temp', 'analytics']],
     'memory schemas empty' => [static fn (): mixed => $plan()['memory_schemas'], []],
     'readonly skipped without writes' => [static fn (): mixed => $plan()['skipped_schemas'], ['readonly']],
-    'dependency attach current next68' => [static fn (): mixed => in_array('sqlite-attach-wal-temp-current-next', $plan()['dependencies'], true), true],
+    'dependency attach current next' => [static fn (): mixed => in_array('sqlite-attach-wal-temp-current-next', $plan()['dependencies'], true), true],
     'dependency rollback routing' => [static fn (): mixed => in_array('sqlite-attached-transaction-rollback-routing', $plan()['dependencies'], true), true],
     'temp unqualified write resolves first' => [static fn (): mixed => $plan()['current']['writes'][0]['schema'], 'temp'],
     'main unqualified write resolves after temp miss' => [static fn (): mixed => $plan()['current']['writes'][1]['schema'], 'main'],
@@ -111,7 +111,7 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['attach wal temp current next68 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['attach wal temp current next ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }

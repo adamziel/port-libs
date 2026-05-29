@@ -110,7 +110,7 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['attach wal temp current next65 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['attach wal temp current next ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }

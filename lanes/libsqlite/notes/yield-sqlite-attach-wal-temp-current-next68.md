@@ -1,4 +1,4 @@
-# attach-wal-temp-current-next68
+# attach-wal-temp-current-next
 
 ## Scope
 
@@ -19,8 +19,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Smoke command:
 
 ```text
-php lanes/libsqlite/examples/wordpress-attach-wal-temp-current-next68.php --self-test
-wordpress-attach-wal-temp-current-next68 self-test passed
+php lanes/libsqlite/examples/wordpress-attach-wal-temp-current-next.php --self-test
+wordpress-attach-wal-temp-current-next self-test passed
 ```
 
 Syntax:
@@ -28,12 +28,12 @@ Syntax:
 ```text
 php -l lanes/libsqlite/src/SQLiteAttachWalTempCurrentNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachWalTempCurrentNext68Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-wal-temp-current-next68.php
+php -l lanes/libsqlite/examples/wordpress-attach-wal-temp-current-next.php
 ```
 
 ## Non-Overlap
 
-This slice does not repeat accepted ATTACH WAL/temp commit routing from current-next65, savepoint statement-journal rollback/retry from batch66, WAL byte truncation, VFS savepoint rollback application, rollback-journal commit application, or super-journal commit paths. It models the distinct transaction-abort boundary before commit for mixed attached schemas.
+This slice does not repeat accepted ATTACH WAL/temp commit routing from current-next, savepoint statement-journal rollback/retry from batch66, WAL byte truncation, VFS savepoint rollback application, rollback-journal commit application, or super-journal commit paths. It models the distinct transaction-abort boundary before commit for mixed attached schemas.
 
 ## Dependency Closure
 

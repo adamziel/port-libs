@@ -1,4 +1,4 @@
-# attach-wal-temp-current-next65
+# attach-wal-temp-current-next
 
 Implemented bounded ATTACH main/temp/attached transaction routing in `SQLiteAttachWalTempCurrentNextPlan`.
 
@@ -22,8 +22,8 @@ Focused test run: 1 selected test files (root lock skipped)
 WordPress smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-attach-wal-temp-current-next65.php --self-test
-wordpress-attach-wal-temp-current-next65 self-test passed
+php lanes/libsqlite/examples/wordpress-attach-wal-temp-current-next.php --self-test
+wordpress-attach-wal-temp-current-next self-test passed
 ```
 
 Status delta:
