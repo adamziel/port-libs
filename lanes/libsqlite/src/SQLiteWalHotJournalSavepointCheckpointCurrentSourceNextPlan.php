@@ -28253,4 +28253,182 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
         return $impl::sealRetryReads($readerCachePlan, $retryCloseReceipts);
     }
+
+    public static function next264AfterCurrentCheckpoint(array $retryReceiptPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($retryReceiptPlan, $checkpointReceipts, 264, 'verify_checkpoint_db_header_after_retry_receipts');
+    }
+
+    public static function next265AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 265, 'verify_wal_index_salt_after_checkpoint_header');
+    }
+
+    public static function next266AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 266, 'verify_reader_marks_after_wal_index_salt');
+    }
+
+    public static function next267AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 267, 'seal_hot_journal_savepoint_checkpoint_after_current');
+    }
+
+    /**
+     * @param array<string,mixed> $basePlan
+     * @param list<array<string,mixed>> $checkpointReceipts
+     * @return array<string,mixed>
+     */
+    private static function afterCurrentCheckpoint(array $basePlan, array $checkpointReceipts, int $next, string $step): array
+    {
+        $expectedBase = $next === 264
+            ? 'wal-hot-journal-savepoint-checkpoint-current-source-next263'
+            : 'wal-hot-journal-savepoint-checkpoint-current-source-next' . ($next - 1);
+        if (($basePlan['status'] ?? null) !== $expectedBase) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next{$next} requires {$expectedBase}");
+        }
+        if ($checkpointReceipts === []) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next{$next} requires checkpoint receipts");
+        }
+
+        $sourceToken = self::currentSourceToken($basePlan['source_token'] ?? null, $next, 'source token');
+        $databaseDigest = self::currentSourceDigest($basePlan['database_digest'] ?? null, $next, 'database digest');
+        $pageCacheDigest = self::currentSourceDigest($basePlan['page_cache_digest'] ?? null, $next, 'page cache digest');
+        $commitGeneration = self::currentSourcePositiveInt($basePlan, $next, 'commit_generation');
+        $schemaCookie = self::currentSourcePositiveInt($basePlan, $next, 'schema_cookie');
+        $checkpointFrame = self::currentSourcePositiveInt($basePlan, $next, 'checkpoint_frame');
+
+        $receiptRows = [];
+        foreach ($checkpointReceipts as $receipt) {
+            $name = self::currentSourceToken($receipt['name'] ?? null, $next, 'checkpoint receipt name');
+            $reasons = [];
+            if (!hash_equals($sourceToken, self::currentSourceToken($receipt['source_token'] ?? null, $next, "{$name} source token"))) {
+                $reasons[] = 'checkpoint_source_token_mismatch';
+            }
+            if (!hash_equals($databaseDigest, self::currentSourceDigest($receipt['database_digest'] ?? null, $next, "{$name} database digest"))) {
+                $reasons[] = 'checkpoint_database_digest_mismatch';
+            }
+            if (!hash_equals($pageCacheDigest, self::currentSourceDigest($receipt['page_cache_digest'] ?? null, $next, "{$name} page cache digest"))) {
+                $reasons[] = 'checkpoint_page_cache_digest_mismatch';
+            }
+            if (($receipt['commit_generation'] ?? null) !== $commitGeneration) {
+                $reasons[] = 'checkpoint_generation_mismatch';
+            }
+            if (($receipt['schema_cookie'] ?? null) !== $schemaCookie) {
+                $reasons[] = 'checkpoint_schema_cookie_mismatch';
+            }
+            if (($receipt['checkpoint_frame'] ?? null) !== $checkpointFrame) {
+                $reasons[] = 'checkpoint_frame_mismatch';
+            }
+            if (($receipt['database_header_synced'] ?? false) !== true) {
+                $reasons[] = 'checkpoint_database_header_not_synced';
+            }
+            if (($receipt['wal_index_salt_synced'] ?? false) !== true) {
+                $reasons[] = 'checkpoint_wal_index_salt_not_synced';
+            }
+            if (($receipt['reader_marks_released'] ?? false) !== true) {
+                $reasons[] = 'checkpoint_reader_marks_not_released';
+            }
+            if (($receipt['hot_journal_visible'] ?? false) === true) {
+                $reasons[] = 'checkpoint_hot_journal_visible';
+            }
+
+            $reasons = array_values(array_unique($reasons));
+            $receiptRows[] = [
+                'name' => $name,
+                'admitted' => $reasons === [],
+                'blocked_reasons' => $reasons,
+                'receipt_reason' => $reasons === [] ? 'checkpoint_receipt_matches_after_current_source' : implode('|', $reasons),
+            ];
+        }
+
+        $duplicateNames = self::currentSourceDuplicates(array_column($receiptRows, 'name'));
+        $blockedReasons = [];
+        foreach ($receiptRows as $row) {
+            foreach ($row['blocked_reasons'] as $reason) {
+                $blockedReasons[] = $reason;
+            }
+        }
+        foreach ($duplicateNames as $name) {
+            $blockedReasons[] = 'checkpoint_receipt_name_duplicate:' . $name;
+        }
+        $blockedReasons = array_values(array_unique($blockedReasons));
+        $admitted = $blockedReasons === [];
+        $status = 'wal-hot-journal-savepoint-checkpoint-current-source-' . ($admitted ? 'next' : 'blocked-next') . $next;
+
+        return [
+            'status' => $status,
+            'reason' => $admitted ? $step . '_complete' : $step . '_blocked',
+            'base_status' => $expectedBase,
+            'database_path' => $basePlan['database_path'] ?? null,
+            'journal_path' => $basePlan['journal_path'] ?? null,
+            'wal_path' => $basePlan['wal_path'] ?? null,
+            'source_token' => $sourceToken,
+            'commit_generation' => $commitGeneration,
+            'schema_cookie' => $schemaCookie,
+            'checkpoint_frame' => $checkpointFrame,
+            'database_digest' => $databaseDigest,
+            'page_cache_digest' => $pageCacheDigest,
+            'checkpoint_receipt_rows' => $receiptRows,
+            'accepted_checkpoint_receipt_names' => array_values(array_column(array_filter($receiptRows, static fn (array $row): bool => $row['admitted']), 'name')),
+            'blocked_checkpoint_receipt_names' => array_values(array_column(array_filter($receiptRows, static fn (array $row): bool => !$row['admitted']), 'name')),
+            'duplicate_checkpoint_receipt_names' => $duplicateNames,
+            'blocked_reasons' => $blockedReasons,
+            'after_current_checkpoint_admitted' => $admitted,
+            'operation_names' => array_values(array_unique(array_merge(
+                is_array($basePlan['operation_names'] ?? null) ? $basePlan['operation_names'] : [],
+                [$step . '_next' . $next]
+            ))),
+            'dependencies' => array_values(array_unique(array_merge(
+                is_array($basePlan['dependencies'] ?? null) ? $basePlan['dependencies'] : [],
+                ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next' . $next]
+            ))),
+            'dependency_closure' => "no new support component needed; next{$next} reuses the admitted after-current checkpoint receipt contract",
+            'non_overlap' => "next{$next} only advances the after-current WAL checkpoint receipt chain; it does not repeat next260 admission, next261 publish sealing, next262 cache fencing, next263 retry receipt sealing, suite/status/dashboard, SQL, JSON, B-tree, VFS, or planner surfaces",
+            'seal_digest' => hash('sha256', json_encode([$next, $step, $sourceToken, $commitGeneration, $checkpointFrame, $receiptRows], JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function currentSourcePositiveInt(array $row, int $next, string $key): int
+    {
+        if (!isset($row[$key]) || !is_int($row[$key]) || $row[$key] < 1) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next{$next} requires positive {$key}");
+        }
+
+        return $row[$key];
+    }
+
+    private static function currentSourceToken(mixed $value, int $next, string $label): string
+    {
+        if (!is_string($value) || !preg_match('/^[A-Za-z0-9._:-]+$/', $value)) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next{$next} requires {$label}");
+        }
+
+        return $value;
+    }
+
+    private static function currentSourceDigest(mixed $value, int $next, string $label): string
+    {
+        if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next{$next} requires {$label}");
+        }
+
+        return $value;
+    }
+
+    /** @param list<string> $values @return list<string> */
+    private static function currentSourceDuplicates(array $values): array
+    {
+        $seen = [];
+        $duplicates = [];
+        foreach ($values as $value) {
+            if (isset($seen[$value])) {
+                $duplicates[$value] = true;
+            }
+            $seen[$value] = true;
+        }
+
+        return array_keys($duplicates);
+    }
 }
