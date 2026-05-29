@@ -94,7 +94,7 @@ $terms = [
     ['left' => ['column' => 'blog_id'], 'operator' => '=', 'right' => 1],
     ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'plugin_%'],
 ];
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext229(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4ExpressionPartialSelectivity(
     $source,
     $current,
     $terms,

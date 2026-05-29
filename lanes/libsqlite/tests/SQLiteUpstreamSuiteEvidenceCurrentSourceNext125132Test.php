@@ -114,7 +114,7 @@ function libsqlite_suite_next125132_record(
     ?int $expected = 44,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next125132_evidence()->upstreamRunnerSuiteEvidenceCurrentSourceNext125132(
+    return libsqlite_suite_next125132_evidence()->upstreamRunnerSuiteEvidenceExpandedPreparedOctet(
         $rows,
         621,
         42188,

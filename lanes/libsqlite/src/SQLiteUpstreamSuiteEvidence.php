@@ -29347,7 +29347,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerSuiteEvidenceCurrentSourceNext110112(
+    public function upstreamRunnerSuiteEvidenceInitialPreparedTriplet(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -29531,7 +29531,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerSuiteEvidenceCurrentSourceNext113115(
+    public function upstreamRunnerSuiteEvidenceRebasedPreparedTriplet(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -29715,7 +29715,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerSuiteEvidenceCurrentSourceNext116118(
+    public function upstreamRunnerSuiteEvidenceCountabilityPreparedTriplet(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -29730,7 +29730,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerSuiteEvidenceCurrentSourceNext113115(
+        $record = $this->upstreamRunnerSuiteEvidenceRebasedPreparedTriplet(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -29934,7 +29934,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerSuiteEvidenceCurrentSourceNext119121(
+    public function upstreamRunnerSuiteEvidenceRunnerPreparedTriplet(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -29949,7 +29949,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerSuiteEvidenceCurrentSourceNext116118(
+        $record = $this->upstreamRunnerSuiteEvidenceCountabilityPreparedTriplet(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -30153,7 +30153,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerSuiteEvidenceCurrentSourceNext122124(
+    public function upstreamRunnerSuiteEvidenceRebaseGapPreparedTriplet(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -30168,7 +30168,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerSuiteEvidenceCurrentSourceNext119121(
+        $record = $this->upstreamRunnerSuiteEvidenceRunnerPreparedTriplet(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -30373,7 +30373,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerSuiteEvidenceCurrentSourceNext125132(
+    public function upstreamRunnerSuiteEvidenceExpandedPreparedOctet(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -30388,7 +30388,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerSuiteEvidenceCurrentSourceNext122124(
+        $record = $this->upstreamRunnerSuiteEvidenceRebaseGapPreparedTriplet(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -30583,7 +30583,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerSuiteEvidenceCurrentSourceNext133140(
+    public function upstreamRunnerSuiteEvidenceMergedPreparedOctet(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -30598,7 +30598,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerSuiteEvidenceCurrentSourceNext125132(
+        $record = $this->upstreamRunnerSuiteEvidenceExpandedPreparedOctet(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,
@@ -30814,7 +30814,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerSuiteEvidenceCurrentSourceNext133140(
+        $record = $this->upstreamRunnerSuiteEvidenceMergedPreparedOctet(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,

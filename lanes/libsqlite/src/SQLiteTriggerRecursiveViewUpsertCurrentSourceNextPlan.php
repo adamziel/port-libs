@@ -725,7 +725,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext231(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceCursorClose(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -2304,7 +2304,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext231(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceCursorClose(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -2627,7 +2627,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext231(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceCursorClose(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -8118,7 +8118,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext256(
+    public static function executeCurrentSourceViewUpsertHandoff(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -8138,16 +8138,16 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_view_materialization_next253'] ?? false);
-        $materialized = self::rowsNext256($base['current_source_view_materialization_rows_next253'] ?? [], 'materialized rows');
-        $currentRows = self::rowsNext256($base['current_source_rows_next253'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext256($base['attempted_next_source_rows_next253'] ?? [], 'attempted next source rows');
-        $handoffToken = self::tokenNext256((string) ($options['current_source_view_upsert_handoff_token_next256'] ?? 'wp.current.source.view.upsert.handoff.256'), 'handoff token');
-        $expectedToken = self::tokenNext256((string) ($options['expected_current_source_view_upsert_handoff_token_next256'] ?? $handoffToken), 'expected handoff token');
-        $batchSize = self::positiveIntNext256($options['current_source_view_upsert_handoff_batch_size_next256'] ?? 1, 'handoff batch size');
+        $materialized = self::rowsForCurrentSourceViewUpsertHandoff($base['current_source_view_materialization_rows_next253'] ?? [], 'materialized rows');
+        $currentRows = self::rowsForCurrentSourceViewUpsertHandoff($base['current_source_rows_next253'] ?? [], 'current source rows');
+        $nextRows = self::rowsForCurrentSourceViewUpsertHandoff($base['attempted_next_source_rows_next253'] ?? [], 'attempted next source rows');
+        $handoffToken = self::currentSourceViewUpsertHandoffToken((string) ($options['current_source_view_upsert_handoff_token_next256'] ?? 'wp.current.source.view.upsert.handoff.256'), 'handoff token');
+        $expectedToken = self::currentSourceViewUpsertHandoffToken((string) ($options['expected_current_source_view_upsert_handoff_token_next256'] ?? $handoffToken), 'expected handoff token');
+        $batchSize = self::positiveCurrentSourceViewUpsertHandoffInt($options['current_source_view_upsert_handoff_batch_size_next256'] ?? 1, 'handoff batch size');
         $requireOrder = (bool) ($options['require_current_source_view_upsert_handoff_order_next256'] ?? true);
-        $batches = self::handoffBatchesNext256($materialized, $handoffToken, $batchSize);
+        $batches = self::currentSourceViewUpsertHandoffBatches($materialized, $handoffToken, $batchSize);
         $required = array_column($batches, 'handoff_receipt');
-        $acknowledged = self::acknowledgedReceiptsNext256($options, $required);
+        $acknowledged = self::acknowledgedCurrentSourceViewUpsertHandoffReceipts($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $orderMatches = !$requireOrder || $missing !== [] || $unexpected !== [] || $required === $acknowledged;
@@ -8158,7 +8158,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $missing === []
             && $unexpected === []
             && $orderMatches;
-        $blockedReasons = self::blockedReasonsNext256(
+        $blockedReasons = self::currentSourceViewUpsertHandoffBlockedReasons(
             $base['blocked_reasons_next253'] ?? [],
             $baseVisible,
             $tokenMatches,
@@ -8168,13 +8168,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $currentTagged = self::tagRowsNext256($currentRows, true, $handoffToken, $batches, $blockedReasons);
-        $nextTagged = self::tagRowsNext256($nextRows, $complete, $handoffToken, [], $complete ? [] : $blockedReasons);
+        $currentTagged = self::tagRowsWithCurrentSourceViewUpsertHandoff($currentRows, true, $handoffToken, $batches, $blockedReasons);
+        $nextTagged = self::tagRowsWithCurrentSourceViewUpsertHandoff($nextRows, $complete, $handoffToken, [], $complete ? [] : $blockedReasons);
         $visibleRows = $complete ? array_merge($currentTagged, $nextTagged) : $currentTagged;
         $heldRows = $complete ? [] : $nextTagged;
 
         return [
-            'status_next256' => self::statusNext256($complete, $baseVisible, $tokenMatches, $missing, $unexpected, $requireOrder, $orderMatches),
+            'status_next256' => self::currentSourceViewUpsertHandoffStatus($complete, $baseVisible, $tokenMatches, $missing, $unexpected, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next256' => $baseVisible,
@@ -8233,7 +8233,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext256(mixed $rows, string $label): array
+    private static function rowsForCurrentSourceViewUpsertHandoff(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next256 {$label} must be a list");
@@ -8251,7 +8251,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function handoffBatchesNext256(array $rows, string $token, int $batchSize): array
+    private static function currentSourceViewUpsertHandoffBatches(array $rows, string $token, int $batchSize): array
     {
         $batches = [];
         foreach (array_chunk($rows, $batchSize) as $batchIndex => $batchRows) {
@@ -8288,20 +8288,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext256(array $options, array $required): array
+    private static function acknowledgedCurrentSourceViewUpsertHandoffReceipts(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_view_upsert_handoff_next256'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext256($options['acknowledged_current_source_view_upsert_handoff_receipts_next256'] ?? [], 'acknowledged handoff receipts');
+        return self::currentSourceViewUpsertHandoffReceiptList($options['acknowledged_current_source_view_upsert_handoff_receipts_next256'] ?? [], 'acknowledged handoff receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext256(mixed $values, string $label): array
+    private static function currentSourceViewUpsertHandoffReceiptList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next256 {$label} must be a list");
@@ -8321,7 +8321,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext256(array $rows, bool $visible, string $token, array $batches, array $reasons): array
+    private static function tagRowsWithCurrentSourceViewUpsertHandoff(array $rows, bool $visible, string $token, array $batches, array $reasons): array
     {
         $receiptByOrdinal = [];
         foreach ($batches as $batch) {
@@ -8349,7 +8349,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext256(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
+    private static function currentSourceViewUpsertHandoffBlockedReasons(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next256 base blocked reasons are malformed');
@@ -8374,7 +8374,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function tokenNext256(string $value, string $label): string
+    private static function currentSourceViewUpsertHandoffToken(string $value, string $label): string
     {
         if ($value === '' || preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next256 {$label} is malformed");
@@ -8383,7 +8383,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return $value;
     }
 
-    private static function positiveIntNext256(mixed $value, string $label): int
+    private static function positiveCurrentSourceViewUpsertHandoffInt(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next256 {$label} must be positive");
@@ -8396,7 +8396,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext256(bool $complete, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
+    private static function currentSourceViewUpsertHandoffStatus(bool $complete, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
     {
         if ($complete) {
             return 'trigger-recursive-view-upsert-current-source-next256-handoff-released';

@@ -16155,22 +16155,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext228(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareCurrentPageDrain(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext224($sql, $currentTables, $nextTables, self::baseCursorNext228($cursor));
-            $drain = self::drainFenceNext228($base);
-            self::validateCursorNext228($cursor, $drain);
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext224($sql, $currentTables, $nextTables, self::baseCursorCurrentPageDrain($cursor));
+            $drain = self::drainFenceCurrentPageDrain($base);
+            self::validateCursorCurrentPageDrain($cursor, $drain);
 
-            $base['status'] = 'compound-select-window-recursive-limit-current-source-next228-ready';
-            $base['currentSourceDrainNext228'] = $drain;
+            $base['status'] = 'compound-select-window-recursive-limit-current-source-current-page-drain-ready';
+            $base['currentSourceDrainCurrentPageDrain'] = $drain;
             $base['cursor']['currentDrainToken'] = $drain['currentDrainToken'];
             $base['cursor']['requiredCurrentAcks'] = $drain['requiredCurrentAcks'];
             $base['cursor']['nextExposure'] = $drain['nextExposure'];
-            $base['replanReasons'][] = 'compound-recursive-window-current-limited-page-drain-next228';
-            $base['replanReasons'][] = 'next-source-window-rank-held-until-current-page-acks-next228';
-            $base['dependencies'][] = 'sqlite-compound-recursive-window-current-page-drain-next228';
-            $base['dependency_closure'] = 'no new support component needed; next228 reuses accepted compound SELECT, recursive LIMIT/OFFSET, window ranking, current-source token fencing, and adds a bounded current-page drain acknowledgement contract';
-            $base['non_overlap'] = 'next228 extends accepted next224 mixed compound/window/recursive LIMIT behavior by fencing next-source exposure until the current limited page has row-level acknowledgements; it avoids accepted next224 token fence, JSON table, WAL/VFS, B-tree, encoding, planner range-cost, and trigger surfaces';
+            $base['replanReasons'][] = 'compound-recursive-window-current-limited-page-drain-current-page-drain';
+            $base['replanReasons'][] = 'next-source-window-rank-held-until-current-page-acks-current-page-drain';
+            $base['dependencies'][] = 'sqlite-compound-recursive-window-current-page-drain-current-page-drain';
+            $base['dependency_closure'] = 'no new support component needed; current-page-drain reuses accepted compound SELECT, recursive LIMIT/OFFSET, window ranking, current-source token fencing, and adds a bounded current-page drain acknowledgement contract';
+            $base['non_overlap'] = 'current-page-drain extends accepted next224 mixed compound/window/recursive LIMIT behavior by fencing next-source exposure until the current limited page has row-level acknowledgements; it avoids accepted next224 token fence, JSON table, WAL/VFS, B-tree, encoding, planner range-cost, and trigger surfaces';
 
             return $base;
         }
@@ -16179,7 +16179,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>|null
          */
-        private static function baseCursorNext228(?array $cursor): ?array
+        private static function baseCursorCurrentPageDrain(?array $cursor): ?array
         {
             if ($cursor === null || !isset($cursor['currentToken'])) {
                 return null;
@@ -16192,24 +16192,24 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function drainFenceNext228(array $plan): array
+        private static function drainFenceCurrentPageDrain(array $plan): array
         {
-            $currentRows = self::rowsNext228($plan['currentRows'] ?? []);
-            $nextRows = self::rowsNext228($plan['nextRows'] ?? []);
+            $currentRows = self::rowsCurrentPageDrain($plan['currentRows'] ?? []);
+            $nextRows = self::rowsCurrentPageDrain($plan['nextRows'] ?? []);
             $sourceWindow = is_array($plan['sourceWindow'] ?? null) ? $plan['sourceWindow'] : [];
             $recursiveQueue = is_array($plan['recursiveQueue'] ?? null) ? $plan['recursiveQueue'] : [];
             $currentToken = (string) ($sourceWindow['currentToken'] ?? '');
             $nextToken = (string) ($sourceWindow['nextToken'] ?? '');
-            $requiredAcks = self::ackTokensNext228($currentRows, $currentToken);
-            $nextOnly = self::stringListNext228($sourceWindow['nextOnlyAdmittedLabels'] ?? []);
-            $currentOnly = self::stringListNext228($sourceWindow['currentOnlyAdmittedLabels'] ?? []);
-            $skippedNext = self::stringListNext228($sourceWindow['nextSkippedLabels'] ?? []);
+            $requiredAcks = self::ackTokensCurrentPageDrain($currentRows, $currentToken);
+            $nextOnly = self::stringListCurrentPageDrain($sourceWindow['nextOnlyAdmittedLabels'] ?? []);
+            $currentOnly = self::stringListCurrentPageDrain($sourceWindow['currentOnlyAdmittedLabels'] ?? []);
+            $skippedNext = self::stringListCurrentPageDrain($sourceWindow['nextSkippedLabels'] ?? []);
             $payload = [
                 'currentToken' => $currentToken,
                 'currentRows' => $currentRows,
                 'requiredAcks' => $requiredAcks,
-                'recursiveSkipped' => self::stringListNext228($recursiveQueue['currentSkippedLabels'] ?? []),
-                'recursiveEmitted' => self::stringListNext228($recursiveQueue['currentEmittedLabels'] ?? []),
+                'recursiveSkipped' => self::stringListCurrentPageDrain($recursiveQueue['currentSkippedLabels'] ?? []),
+                'recursiveEmitted' => self::stringListCurrentPageDrain($recursiveQueue['currentEmittedLabels'] ?? []),
                 'nextSkipped' => $skippedNext,
             ];
             $drainToken = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
@@ -16218,8 +16218,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'currentDrainToken' => $drainToken,
                 'requiredCurrentAcks' => $requiredAcks,
                 'requiredAckCount' => count($requiredAcks),
-                'currentLabels' => self::labelsNext228($currentRows),
-                'nextLabels' => self::labelsNext228($nextRows),
+                'currentLabels' => self::labelsCurrentPageDrain($currentRows),
+                'nextLabels' => self::labelsCurrentPageDrain($nextRows),
                 'nextOnlyLabels' => $nextOnly,
                 'currentOnlyLabels' => $currentOnly,
                 'nextSkippedLabels' => $skippedNext,
@@ -16227,7 +16227,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'nextToken' => $nextToken,
                 'tokensDiffer' => $currentToken !== $nextToken,
                 'nextExposure' => 'held-until-current-page-drained',
-                'yieldBoundary' => 'compound-recursive-window-next228-current-page-drain-fences-next-source',
+                'yieldBoundary' => 'compound-recursive-window-current-page-drain-current-page-drain-fences-next-source',
             ];
         }
 
@@ -16235,27 +16235,27 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @param array<string,mixed> $drain
          */
-        private static function validateCursorNext228(?array $cursor, array $drain): void
+        private static function validateCursorCurrentPageDrain(?array $cursor, array $drain): void
         {
             if ($cursor === null) {
                 return;
             }
             if (isset($cursor['currentDrainToken']) && $cursor['currentDrainToken'] !== $drain['currentDrainToken']) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next228 cursor does not match current drain token');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-page-drain cursor does not match current drain token');
             }
             if (!array_key_exists('acknowledgedCurrentAcks', $cursor)) {
                 return;
             }
             if (!is_array($cursor['acknowledgedCurrentAcks'])) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next228 acknowledged current rows must be a list');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-page-drain acknowledged current rows must be a list');
             }
 
             $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedCurrentAcks']));
-            $required = self::stringListNext228($drain['requiredCurrentAcks'] ?? []);
+            $required = self::stringListCurrentPageDrain($drain['requiredCurrentAcks'] ?? []);
             $missing = array_values(array_diff($required, $acknowledged));
             $unexpected = array_values(array_diff($acknowledged, $required));
             if ($missing !== [] || $unexpected !== []) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next228 current-page acknowledgements do not match required drain set');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-page-drain current-page acknowledgements do not match required drain set');
             }
         }
 
@@ -16263,7 +16263,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param mixed $value
          * @return list<array<string,mixed>>
          */
-        private static function rowsNext228(mixed $value): array
+        private static function rowsCurrentPageDrain(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -16284,7 +16284,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function labelsNext228(array $rows): array
+        private static function labelsCurrentPageDrain(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
         }
@@ -16293,7 +16293,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function ackTokensNext228(array $rows, string $currentToken): array
+        private static function ackTokensCurrentPageDrain(array $rows, string $currentToken): array
         {
             $tokens = [];
             foreach ($rows as $index => $row) {
@@ -16311,7 +16311,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param mixed $value
          * @return list<string>
          */
-        private static function stringListNext228(mixed $value): array
+        private static function stringListCurrentPageDrain(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -16328,44 +16328,44 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext229(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareUnionExceptDenseRankLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext229($sql, $currentPlan, $nextPlan);
+            self::assertSupportedUnionExceptDenseRankLimit($sql, $currentPlan, $nextPlan);
 
-            $preLimitSql = self::withoutFinalLimitNext229($sql);
-            $traceSql = self::recursiveTraceSqlNext229($sql);
+            $preLimitSql = self::withoutFinalLimitUnionExceptDenseRankLimit($sql);
+            $traceSql = self::recursiveTraceSqlUnionExceptDenseRankLimit($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $currentTables);
             $nextPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $nextTables);
             $currentRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $currentTables);
             $nextRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
-            $currentWindows = self::windowTermsNext229($currentPlan);
-            $nextWindows = self::windowTermsNext229($nextPlan);
-            $currentToken = self::tokenNext229($currentRows, $currentPreLimitRows, $currentRecursive['trace'], $currentWindows);
-            $nextToken = self::tokenNext229($nextRows, $nextPreLimitRows, $nextRecursive['trace'], $nextWindows);
-            self::validateCursorNext229($cursor, $currentToken);
+            $currentWindows = self::windowTermsUnionExceptDenseRankLimit($currentPlan);
+            $nextWindows = self::windowTermsUnionExceptDenseRankLimit($nextPlan);
+            $currentToken = self::tokenUnionExceptDenseRankLimit($currentRows, $currentPreLimitRows, $currentRecursive['trace'], $currentWindows);
+            $nextToken = self::tokenUnionExceptDenseRankLimit($nextRows, $nextPreLimitRows, $nextRecursive['trace'], $nextWindows);
+            self::validateCursorUnionExceptDenseRankLimit($cursor, $currentToken);
 
-            $offset = self::offsetNext229($currentPlan);
-            $limit = self::limitNext229($currentPlan);
+            $offset = self::offsetUnionExceptDenseRankLimit($currentPlan);
+            $limit = self::limitUnionExceptDenseRankLimit($currentPlan);
 
             return [
-                'status' => 'compound-select-window-recursive-limit-current-source-next229-ready',
+                'status' => 'compound-select-window-recursive-limit-current-source-union-except-dense-rank-limit-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
                 'currentPreLimitRows' => $currentPreLimitRows,
                 'nextPreLimitRows' => $nextPreLimitRows,
                 'compound' => [
-                    'operators' => self::operatorsNext229($currentPlan),
+                    'operators' => self::operatorsUnionExceptDenseRankLimit($currentPlan),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext229($currentPlan),
+                    'orderColumns' => self::orderColumnsUnionExceptDenseRankLimit($currentPlan),
                     'limit' => $limit,
                     'offset' => $offset,
-                    'hasUnionDistinctHead' => (self::operatorsNext229($currentPlan)[0] ?? null) === 'UNION',
-                    'hasExceptTail' => in_array('EXCEPT', self::operatorsNext229($currentPlan), true),
+                    'hasUnionDistinctHead' => (self::operatorsUnionExceptDenseRankLimit($currentPlan)[0] ?? null) === 'UNION',
+                    'hasExceptTail' => in_array('EXCEPT', self::operatorsUnionExceptDenseRankLimit($currentPlan), true),
                 ],
                 'recursiveQueue' => [
                     'name' => $currentRecursive['name'],
@@ -16373,31 +16373,31 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'operator' => $currentRecursive['operator'],
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
-                    'currentSkippedLabels' => self::traceLabelsNext229($currentRecursive['trace'], false),
-                    'nextSkippedLabels' => self::traceLabelsNext229($nextRecursive['trace'], false),
-                    'currentEmittedLabels' => self::traceLabelsNext229($currentRecursive['trace'], true),
-                    'nextEmittedLabels' => self::traceLabelsNext229($nextRecursive['trace'], true),
-                    'currentLimitRemaining' => self::lastTraceValueNext229($currentRecursive['trace'], 'limit_remaining'),
-                    'currentOffsetRemaining' => self::lastTraceValueNext229($currentRecursive['trace'], 'offset_remaining'),
+                    'currentSkippedLabels' => self::traceLabelsUnionExceptDenseRankLimit($currentRecursive['trace'], false),
+                    'nextSkippedLabels' => self::traceLabelsUnionExceptDenseRankLimit($nextRecursive['trace'], false),
+                    'currentEmittedLabels' => self::traceLabelsUnionExceptDenseRankLimit($currentRecursive['trace'], true),
+                    'nextEmittedLabels' => self::traceLabelsUnionExceptDenseRankLimit($nextRecursive['trace'], true),
+                    'currentLimitRemaining' => self::lastTraceValueUnionExceptDenseRankLimit($currentRecursive['trace'], 'limit_remaining'),
+                    'currentOffsetRemaining' => self::lastTraceValueUnionExceptDenseRankLimit($currentRecursive['trace'], 'offset_remaining'),
                 ],
                 'windows' => [
                     'current' => $currentWindows,
                     'next' => $nextWindows,
                     'functions' => array_values(array_unique(array_column($currentWindows, 'function'))),
-                    'currentRanks' => self::columnValuesNext229($currentPreLimitRows, 'rn'),
-                    'nextRanks' => self::columnValuesNext229($nextPreLimitRows, 'rn'),
+                    'currentRanks' => self::columnValuesUnionExceptDenseRankLimit($currentPreLimitRows, 'rn'),
+                    'nextRanks' => self::columnValuesUnionExceptDenseRankLimit($nextPreLimitRows, 'rn'),
                 ],
                 'sourceWindow' => [
                     'currentToken' => $currentToken,
                     'nextToken' => $nextToken,
-                    'currentAdmittedLabels' => self::labelsNext229($currentRows),
-                    'nextAdmittedLabels' => self::labelsNext229($nextRows),
-                    'currentSkippedLabels' => self::labelsNext229(array_slice($currentPreLimitRows, 0, $offset)),
-                    'nextSkippedLabels' => self::labelsNext229(array_slice($nextPreLimitRows, 0, $offset)),
-                    'currentTruncatedLabels' => self::labelsNext229(array_slice($currentPreLimitRows, $offset + $limit)),
-                    'nextTruncatedLabels' => self::labelsNext229(array_slice($nextPreLimitRows, $offset + $limit)),
-                    'nextOnlyAdmittedLabels' => self::changedLabelsNext229($currentRows, $nextRows, true),
-                    'currentOnlyAdmittedLabels' => self::changedLabelsNext229($currentRows, $nextRows, false),
+                    'currentAdmittedLabels' => self::labelsUnionExceptDenseRankLimit($currentRows),
+                    'nextAdmittedLabels' => self::labelsUnionExceptDenseRankLimit($nextRows),
+                    'currentSkippedLabels' => self::labelsUnionExceptDenseRankLimit(array_slice($currentPreLimitRows, 0, $offset)),
+                    'nextSkippedLabels' => self::labelsUnionExceptDenseRankLimit(array_slice($nextPreLimitRows, 0, $offset)),
+                    'currentTruncatedLabels' => self::labelsUnionExceptDenseRankLimit(array_slice($currentPreLimitRows, $offset + $limit)),
+                    'nextTruncatedLabels' => self::labelsUnionExceptDenseRankLimit(array_slice($nextPreLimitRows, $offset + $limit)),
+                    'nextOnlyAdmittedLabels' => self::changedLabelsUnionExceptDenseRankLimit($currentRows, $nextRows, true),
+                    'currentOnlyAdmittedLabels' => self::changedLabelsUnionExceptDenseRankLimit($currentRows, $nextRows, false),
                     'intersectExceptBoundaryChanged' => $currentToken !== $nextToken,
                 ],
                 'cursor' => [
@@ -16408,18 +16408,18 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'nextRowCount' => count($nextRows),
                 ],
                 'replanReasons' => [
-                    'compound-union-distinct-except-dense-rank-current-source-next229',
-                    'recursive-limit-offset-before-union-except-window-next229',
-                    'dense-rank-shift-changes-except-final-limit-page-next229',
-                    'wordpress-option-preview-stale-cursor-fence-next229',
+                    'compound-union-distinct-except-dense-rank-current-source-union-except-dense-rank-limit',
+                    'recursive-limit-offset-before-union-except-window-union-except-dense-rank-limit',
+                    'dense-rank-shift-changes-except-final-limit-page-union-except-dense-rank-limit',
+                    'wordpress-option-preview-stale-cursor-fence-union-except-dense-rank-limit',
                 ],
                 'dependencies' => [
-                    'sqlite-select-sql-recursive-queue-limit-offset-next229',
-                    'sqlite-select-sql-dense-rank-window-union-except-next229',
-                    'sqlite-compound-current-source-token-fence-next229',
+                    'sqlite-select-sql-recursive-queue-limit-offset-union-except-dense-rank-limit',
+                    'sqlite-select-sql-dense-rank-window-union-except-union-except-dense-rank-limit',
+                    'sqlite-compound-current-source-token-fence-union-except-dense-rank-limit',
                 ],
-                'dependency_closure' => 'no new support component needed; next229 reuses native SELECT SQL compound execution, recursive queue LIMIT/OFFSET tracing, dense_rank window output, UNION DISTINCT/EXCEPT membership, and final LIMIT helpers',
-                'non_overlap' => 'next229 extends the accepted compound/window/recursive LIMIT family with a UNION DISTINCT -> EXCEPT chain where a next-source wp_options row shifts dense_rank output and the final LIMIT page after EXCEPT; it does not repeat next224 UNION ALL/INTERSECT/EXCEPT row_number rank shift, next218 UNION ALL/INTERSECT-only rank shift, next190 expression LIMIT, or accepted window/JSON/WAL/B-tree/VFS clusters',
+                'dependency_closure' => 'no new support component needed; union-except-dense-rank-limit reuses native SELECT SQL compound execution, recursive queue LIMIT/OFFSET tracing, dense_rank window output, UNION DISTINCT/EXCEPT membership, and final LIMIT helpers',
+                'non_overlap' => 'union-except-dense-rank-limit extends the accepted compound/window/recursive LIMIT family with a UNION DISTINCT -> EXCEPT chain where a next-source wp_options row shifts dense_rank output and the final LIMIT page after EXCEPT; it does not repeat next224 UNION ALL/INTERSECT/EXCEPT row_number rank shift, next218 UNION ALL/INTERSECT-only rank shift, next190 expression LIMIT, or accepted window/JSON/WAL/B-tree/VFS clusters',
             ];
         }
 
@@ -16427,58 +16427,58 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @param array<string,mixed> $nextPlan
          */
-        private static function assertSupportedNext229(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertSupportedUnionExceptDenseRankLimit(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next229 needs WITH RECURSIVE SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-except-dense-rank-limit needs WITH RECURSIVE SQL');
             }
             if (!is_array($currentPlan['compound'] ?? null) || !is_array($nextPlan['compound'] ?? null)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next229 needs compound SELECT SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-except-dense-rank-limit needs compound SELECT SQL');
             }
-            $operators = self::operatorsNext229($currentPlan);
+            $operators = self::operatorsUnionExceptDenseRankLimit($currentPlan);
             foreach (['UNION', 'EXCEPT'] as $operator) {
                 if (!in_array($operator, $operators, true)) {
-                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next229 needs UNION DISTINCT and EXCEPT');
+                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-except-dense-rank-limit needs UNION DISTINCT and EXCEPT');
                 }
             }
             if (($currentPlan['compound']['limit'] ?? null) === null || (($currentPlan['compound']['offset'] ?? 0) < 1)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next229 needs final LIMIT/OFFSET');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-except-dense-rank-limit needs final LIMIT/OFFSET');
             }
-            if (preg_match('/\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyNext229($sql)) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next229 needs recursive LIMIT/OFFSET');
+            if (preg_match('/\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyUnionExceptDenseRankLimit($sql)) !== 1) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-except-dense-rank-limit needs recursive LIMIT/OFFSET');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext229($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTermsUnionExceptDenseRankLimit($currentPlan), 'function'));
             if (!in_array('dense_rank', $functions, true)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next229 needs dense_rank window output');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-except-dense-rank-limit needs dense_rank window output');
             }
         }
 
-        private static function recursiveBodyNext229(string $sql): string
+        private static function recursiveBodyUnionExceptDenseRankLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^WITH\s+RECURSIVE\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s+AS\s*\((.*)\)\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next229 cannot isolate recursive CTE body');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-except-dense-rank-limit cannot isolate recursive CTE body');
             }
 
             return $match[1];
         }
 
-        private static function recursiveTraceSqlNext229(string $sql): string
+        private static function recursiveTraceSqlUnionExceptDenseRankLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^(WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s+AS\s*\(.*\))\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next229 cannot isolate recursive CTE');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-except-dense-rank-limit cannot isolate recursive CTE');
             }
 
             return $match[1] . ' SELECT * FROM ' . $match[2];
         }
 
-        private static function withoutFinalLimitNext229(string $sql): string
+        private static function withoutFinalLimitUnionExceptDenseRankLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
             if (!is_string($without) || $without === $trimmed) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next229 cannot isolate final LIMIT');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-except-dense-rank-limit cannot isolate final LIMIT');
             }
 
             return $without;
@@ -16488,7 +16488,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function operatorsNext229(array $plan): array
+        private static function operatorsUnionExceptDenseRankLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -16499,7 +16499,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext229(array $plan): array
+        private static function orderColumnsUnionExceptDenseRankLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             if (!is_array($compound['orderBy'] ?? null)) {
@@ -16513,7 +16513,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext229(array $plan): array
+        private static function windowTermsUnionExceptDenseRankLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $windows = [];
@@ -16541,7 +16541,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function labelsNext229(array $rows): array
+        private static function labelsUnionExceptDenseRankLimit(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
         }
@@ -16550,7 +16550,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<mixed>
          */
-        private static function columnValuesNext229(array $rows, string $column): array
+        private static function columnValuesUnionExceptDenseRankLimit(array $rows, string $column): array
         {
             return array_values(array_map(static fn (array $row): mixed => $row[$column] ?? null, $rows));
         }
@@ -16559,7 +16559,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @return list<string>
          */
-        private static function traceLabelsNext229(array $trace, bool $emitted): array
+        private static function traceLabelsUnionExceptDenseRankLimit(array $trace, bool $emitted): array
         {
             $labels = [];
             foreach ($trace as $entry) {
@@ -16576,7 +16576,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $trace
          */
-        private static function lastTraceValueNext229(array $trace, string $key): ?int
+        private static function lastTraceValueUnionExceptDenseRankLimit(array $trace, string $key): ?int
         {
             if ($trace === []) {
                 return null;
@@ -16592,10 +16592,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedLabelsNext229(array $currentRows, array $nextRows, bool $nextOnly): array
+        private static function changedLabelsUnionExceptDenseRankLimit(array $currentRows, array $nextRows, bool $nextOnly): array
         {
-            $current = self::labelsNext229($currentRows);
-            $next = self::labelsNext229($nextRows);
+            $current = self::labelsUnionExceptDenseRankLimit($currentRows);
+            $next = self::labelsUnionExceptDenseRankLimit($nextRows);
 
             return array_values(array_diff($nextOnly ? $next : $current, $nextOnly ? $current : $next));
         }
@@ -16603,7 +16603,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function limitNext229(array $plan): int
+        private static function limitUnionExceptDenseRankLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -16613,7 +16613,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function offsetNext229(array $plan): int
+        private static function offsetUnionExceptDenseRankLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -16626,7 +16626,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @param list<array<string,mixed>> $windows
          */
-        private static function tokenNext229(array $rows, array $preLimitRows, array $trace, array $windows): string
+        private static function tokenUnionExceptDenseRankLimit(array $rows, array $preLimitRows, array $trace, array $windows): string
         {
             return hash('sha256', json_encode([
                 'rows' => $rows,
@@ -16639,13 +16639,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed>|null $cursor
          */
-        private static function validateCursorNext229(?array $cursor, string $currentToken): void
+        private static function validateCursorUnionExceptDenseRankLimit(?array $cursor, string $currentToken): void
         {
             if ($cursor === null || !array_key_exists('currentToken', $cursor)) {
                 return;
             }
             if ($cursor['currentToken'] !== $currentToken) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next229 cursor does not match current-source token');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-except-dense-rank-limit cursor does not match current-source token');
             }
         }
 
@@ -16657,45 +16657,45 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext230(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareUnionIntersectExceptWindowLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext230($sql, $currentPlan, $nextPlan);
+            self::assertSupportedUnionIntersectExceptWindowLimit($sql, $currentPlan, $nextPlan);
 
-            $preLimitSql = self::withoutFinalLimitNext230($sql);
-            $traceSql = self::recursiveTraceSqlNext230($sql);
+            $preLimitSql = self::withoutFinalLimitUnionIntersectExceptWindowLimit($sql);
+            $traceSql = self::recursiveTraceSqlUnionIntersectExceptWindowLimit($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $currentTables);
             $nextPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $nextTables);
             $currentRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $currentTables);
             $nextRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
-            $currentWindows = self::windowTermsNext230($currentPlan);
-            $nextWindows = self::windowTermsNext230($nextPlan);
-            $currentToken = self::sourceTokenNext230($currentRows, $currentPreLimitRows, $currentRecursive['trace'], $currentWindows);
-            $nextToken = self::sourceTokenNext230($nextRows, $nextPreLimitRows, $nextRecursive['trace'], $nextWindows);
-            self::validateCursorNext230($cursor, $currentToken);
+            $currentWindows = self::windowTermsUnionIntersectExceptWindowLimit($currentPlan);
+            $nextWindows = self::windowTermsUnionIntersectExceptWindowLimit($nextPlan);
+            $currentToken = self::sourceTokenUnionIntersectExceptWindowLimit($currentRows, $currentPreLimitRows, $currentRecursive['trace'], $currentWindows);
+            $nextToken = self::sourceTokenUnionIntersectExceptWindowLimit($nextRows, $nextPreLimitRows, $nextRecursive['trace'], $nextWindows);
+            self::validateCursorUnionIntersectExceptWindowLimit($cursor, $currentToken);
 
-            $limit = self::limitNext230($currentPlan);
-            $offset = self::offsetNext230($currentPlan);
+            $limit = self::limitUnionIntersectExceptWindowLimit($currentPlan);
+            $offset = self::offsetUnionIntersectExceptWindowLimit($currentPlan);
 
             return [
-                'status' => 'compound-select-window-recursive-limit-current-source-next230-ready',
+                'status' => 'compound-select-window-recursive-limit-current-source-union-intersect-except-window-limit-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
                 'currentPreLimitRows' => $currentPreLimitRows,
                 'nextPreLimitRows' => $nextPreLimitRows,
                 'compound' => [
-                    'operators' => self::operatorsNext230($currentPlan),
+                    'operators' => self::operatorsUnionIntersectExceptWindowLimit($currentPlan),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext230($currentPlan),
+                    'orderColumns' => self::orderColumnsUnionIntersectExceptWindowLimit($currentPlan),
                     'limit' => $limit,
                     'offset' => $offset,
-                    'hasUnionDistinctHead' => (self::operatorsNext230($currentPlan)[0] ?? null) === 'UNION',
-                    'hasIntersectMiddle' => in_array('INTERSECT', self::operatorsNext230($currentPlan), true),
-                    'hasExceptTail' => in_array('EXCEPT', self::operatorsNext230($currentPlan), true),
+                    'hasUnionDistinctHead' => (self::operatorsUnionIntersectExceptWindowLimit($currentPlan)[0] ?? null) === 'UNION',
+                    'hasIntersectMiddle' => in_array('INTERSECT', self::operatorsUnionIntersectExceptWindowLimit($currentPlan), true),
+                    'hasExceptTail' => in_array('EXCEPT', self::operatorsUnionIntersectExceptWindowLimit($currentPlan), true),
                 ],
                 'recursiveQueue' => [
                     'name' => $currentRecursive['name'],
@@ -16703,36 +16703,36 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'operator' => $currentRecursive['operator'],
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
-                    'currentSkippedLabels' => self::traceLabelsNext230($currentRecursive['trace'], false),
-                    'nextSkippedLabels' => self::traceLabelsNext230($nextRecursive['trace'], false),
-                    'currentEmittedLabels' => self::traceLabelsNext230($currentRecursive['trace'], true),
-                    'nextEmittedLabels' => self::traceLabelsNext230($nextRecursive['trace'], true),
-                    'currentLimitRemaining' => self::lastTraceValueNext230($currentRecursive['trace'], 'limit_remaining'),
-                    'currentOffsetRemaining' => self::lastTraceValueNext230($currentRecursive['trace'], 'offset_remaining'),
+                    'currentSkippedLabels' => self::traceLabelsUnionIntersectExceptWindowLimit($currentRecursive['trace'], false),
+                    'nextSkippedLabels' => self::traceLabelsUnionIntersectExceptWindowLimit($nextRecursive['trace'], false),
+                    'currentEmittedLabels' => self::traceLabelsUnionIntersectExceptWindowLimit($currentRecursive['trace'], true),
+                    'nextEmittedLabels' => self::traceLabelsUnionIntersectExceptWindowLimit($nextRecursive['trace'], true),
+                    'currentLimitRemaining' => self::lastTraceValueUnionIntersectExceptWindowLimit($currentRecursive['trace'], 'limit_remaining'),
+                    'currentOffsetRemaining' => self::lastTraceValueUnionIntersectExceptWindowLimit($currentRecursive['trace'], 'offset_remaining'),
                 ],
                 'windows' => [
                     'current' => $currentWindows,
                     'next' => $nextWindows,
                     'functions' => array_values(array_unique(array_column($currentWindows, 'function'))),
-                    'aggregateMetrics' => self::numericMetricsForAliasNext230($currentPreLimitRows, 'metric'),
-                    'nextAggregateMetrics' => self::numericMetricsForAliasNext230($nextPreLimitRows, 'metric'),
+                    'aggregateMetrics' => self::numericMetricsForAliasUnionIntersectExceptWindowLimit($currentPreLimitRows, 'metric'),
+                    'nextAggregateMetrics' => self::numericMetricsForAliasUnionIntersectExceptWindowLimit($nextPreLimitRows, 'metric'),
                 ],
                 'sourceWindow' => [
                     'currentToken' => $currentToken,
                     'nextToken' => $nextToken,
-                    'currentAdmittedLabels' => self::labelsNext230($currentRows),
-                    'nextAdmittedLabels' => self::labelsNext230($nextRows),
-                    'currentSkippedLabels' => self::labelsNext230(array_slice($currentPreLimitRows, 0, $offset)),
-                    'nextSkippedLabels' => self::labelsNext230(array_slice($nextPreLimitRows, 0, $offset)),
-                    'currentTruncatedLabels' => self::labelsNext230(array_slice($currentPreLimitRows, $offset + $limit)),
-                    'nextTruncatedLabels' => self::labelsNext230(array_slice($nextPreLimitRows, $offset + $limit)),
-                    'nextOnlyAdmittedLabels' => self::changedLabelsNext230($currentRows, $nextRows, true),
-                    'currentOnlyAdmittedLabels' => self::changedLabelsNext230($currentRows, $nextRows, false),
-                    'exceptFilteredLabels' => self::exceptFilteredLabelsNext230($currentPreLimitRows, $nextPreLimitRows),
+                    'currentAdmittedLabels' => self::labelsUnionIntersectExceptWindowLimit($currentRows),
+                    'nextAdmittedLabels' => self::labelsUnionIntersectExceptWindowLimit($nextRows),
+                    'currentSkippedLabels' => self::labelsUnionIntersectExceptWindowLimit(array_slice($currentPreLimitRows, 0, $offset)),
+                    'nextSkippedLabels' => self::labelsUnionIntersectExceptWindowLimit(array_slice($nextPreLimitRows, 0, $offset)),
+                    'currentTruncatedLabels' => self::labelsUnionIntersectExceptWindowLimit(array_slice($currentPreLimitRows, $offset + $limit)),
+                    'nextTruncatedLabels' => self::labelsUnionIntersectExceptWindowLimit(array_slice($nextPreLimitRows, $offset + $limit)),
+                    'nextOnlyAdmittedLabels' => self::changedLabelsUnionIntersectExceptWindowLimit($currentRows, $nextRows, true),
+                    'currentOnlyAdmittedLabels' => self::changedLabelsUnionIntersectExceptWindowLimit($currentRows, $nextRows, false),
+                    'exceptFilteredLabels' => self::exceptFilteredLabelsUnionIntersectExceptWindowLimit($currentPreLimitRows, $nextPreLimitRows),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext230($currentPreLimitRows, $currentRows, $offset, $limit),
-                    'next' => self::limitTraceNext230($nextPreLimitRows, $nextRows, $offset, $limit),
+                    'current' => self::limitTraceUnionIntersectExceptWindowLimit($currentPreLimitRows, $currentRows, $offset, $limit),
+                    'next' => self::limitTraceUnionIntersectExceptWindowLimit($nextPreLimitRows, $nextRows, $offset, $limit),
                 ],
                 'cursor' => [
                     'currentToken' => $currentToken,
@@ -16742,81 +16742,81 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'nextRowCount' => count($nextRows),
                 ],
                 'replanReasons' => [
-                    'compound-avg-first-value-union-distinct-current-source-next230',
-                    'recursive-ordered-limit-before-avg-window-next230',
-                    'intersect-except-after-window-output-next230',
-                    'wordpress-option-preview-stale-cursor-fence-next230',
+                    'compound-avg-first-value-union-distinct-current-source-union-intersect-except-window-limit',
+                    'recursive-ordered-limit-before-avg-window-union-intersect-except-window-limit',
+                    'intersect-except-after-window-output-union-intersect-except-window-limit',
+                    'wordpress-option-preview-stale-cursor-fence-union-intersect-except-window-limit',
                 ],
                 'dependencies' => [
-                    'sqlite-select-sql-recursive-queue-order-limit-next230',
-                    'sqlite-select-sql-avg-first-value-window-next230',
-                    'sqlite-compound-union-intersect-except-current-source-token-fence-next230',
+                    'sqlite-select-sql-recursive-queue-order-limit-union-intersect-except-window-limit',
+                    'sqlite-select-sql-avg-first-value-window-union-intersect-except-window-limit',
+                    'sqlite-compound-union-intersect-except-current-source-token-fence-union-intersect-except-window-limit',
                 ],
-                'dependency_closure' => 'no new support component needed; next230 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, avg window dispatch, first_value frame dispatch, UNION distinct plus INTERSECT/EXCEPT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next226 sum/count EXCEPT+INTERSECT fencing, next225 lag/last_value INTERSECT+EXCEPT fencing, next219 percent_rank/cume_dist EXCEPT fencing, next217 rank/dense_rank INTERSECT fencing, next213 min/max INTERSECT fencing, next212 group_concat/row_number EXCEPT fencing, accepted JSON/WAL/B-tree/VFS clusters, and grouped/JOIN/subquery/ORDER SQL text work; next230 fences avg window output and first_value frame output through UNION distinct, INTERSECT, and EXCEPT before final compound LIMIT over current and next wp_options sources',
+                'dependency_closure' => 'no new support component needed; union-intersect-except-window-limit reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, avg window dispatch, first_value frame dispatch, UNION distinct plus INTERSECT/EXCEPT membership, current-source tokens, and final LIMIT helpers',
+                'non_overlap' => 'avoids accepted next226 sum/count EXCEPT+INTERSECT fencing, next225 lag/last_value INTERSECT+EXCEPT fencing, next219 percent_rank/cume_dist EXCEPT fencing, next217 rank/dense_rank INTERSECT fencing, next213 min/max INTERSECT fencing, next212 group_concat/row_number EXCEPT fencing, accepted JSON/WAL/B-tree/VFS clusters, and grouped/JOIN/subquery/ORDER SQL text work; union-intersect-except-window-limit fences avg window output and first_value frame output through UNION distinct, INTERSECT, and EXCEPT before final compound LIMIT over current and next wp_options sources',
             ];
         }
 
         /** @param array<string,mixed> $currentPlan @param array<string,mixed> $nextPlan */
-        private static function assertSupportedNext230(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertSupportedUnionIntersectExceptWindowLimit(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next230 needs WITH RECURSIVE SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-intersect-except-window-limit needs WITH RECURSIVE SQL');
             }
             if (!is_array($currentPlan['compound'] ?? null) || !is_array($nextPlan['compound'] ?? null)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next230 needs compound SELECT SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-intersect-except-window-limit needs compound SELECT SQL');
             }
-            $operators = self::operatorsNext230($currentPlan);
+            $operators = self::operatorsUnionIntersectExceptWindowLimit($currentPlan);
             if (!in_array('UNION', $operators, true) || !in_array('INTERSECT', $operators, true) || !in_array('EXCEPT', $operators, true)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next230 needs UNION, INTERSECT, and EXCEPT');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-intersect-except-window-limit needs UNION, INTERSECT, and EXCEPT');
             }
             if (($currentPlan['compound']['limit'] ?? null) === null || (($currentPlan['compound']['offset'] ?? 0) < 1)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next230 needs final LIMIT/OFFSET');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-intersect-except-window-limit needs final LIMIT/OFFSET');
             }
-            if (preg_match('/\bORDER\s+BY\b.*?\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyNext230($sql)) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next230 needs ordered recursive LIMIT/OFFSET');
+            if (preg_match('/\bORDER\s+BY\b.*?\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyUnionIntersectExceptWindowLimit($sql)) !== 1) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-intersect-except-window-limit needs ordered recursive LIMIT/OFFSET');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext230($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTermsUnionIntersectExceptWindowLimit($currentPlan), 'function'));
             foreach (['avg', 'first_value'] as $function) {
                 if (!in_array($function, $functions, true)) {
-                    throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT next230 needs {$function} window output");
+                    throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT union-intersect-except-window-limit needs {$function} window output");
                 }
             }
         }
 
-        private static function recursiveBodyNext230(string $sql): string
+        private static function recursiveBodyUnionIntersectExceptWindowLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^WITH\s+RECURSIVE\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s+AS\s*\((.*)\)\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next230 cannot isolate recursive CTE body');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-intersect-except-window-limit cannot isolate recursive CTE body');
             }
 
             return $match[1];
         }
 
-        private static function recursiveTraceSqlNext230(string $sql): string
+        private static function recursiveTraceSqlUnionIntersectExceptWindowLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^(WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s+AS\s*\(.*\))\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next230 cannot isolate recursive CTE');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-intersect-except-window-limit cannot isolate recursive CTE');
             }
 
             return $match[1] . ' SELECT * FROM ' . $match[2];
         }
 
-        private static function withoutFinalLimitNext230(string $sql): string
+        private static function withoutFinalLimitUnionIntersectExceptWindowLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
             if (!is_string($without) || $without === $trimmed) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next230 cannot isolate final LIMIT');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-intersect-except-window-limit cannot isolate final LIMIT');
             }
 
             return $without;
         }
 
         /** @param array<string,mixed> $plan @return list<string> */
-        private static function operatorsNext230(array $plan): array
+        private static function operatorsUnionIntersectExceptWindowLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -16824,7 +16824,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan @return list<string> */
-        private static function orderColumnsNext230(array $plan): array
+        private static function orderColumnsUnionIntersectExceptWindowLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             if (!is_array($compound['orderBy'] ?? null)) {
@@ -16835,7 +16835,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan @return list<array<string,mixed>> */
-        private static function windowTermsNext230(array $plan): array
+        private static function windowTermsUnionIntersectExceptWindowLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $windows = [];
@@ -16860,7 +16860,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan */
-        private static function limitNext230(array $plan): int
+        private static function limitUnionIntersectExceptWindowLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -16868,7 +16868,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan */
-        private static function offsetNext230(array $plan): int
+        private static function offsetUnionIntersectExceptWindowLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -16876,24 +16876,24 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
-        private static function labelsNext230(array $rows): array
+        private static function labelsUnionIntersectExceptWindowLimit(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? ''), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<float> */
-        private static function numericMetricsForAliasNext230(array $rows, string $alias): array
+        private static function numericMetricsForAliasUnionIntersectExceptWindowLimit(array $rows, string $alias): array
         {
             return array_values(array_map(static fn (array $row): float => (float) ($row[$alias] ?? 0.0), $rows));
         }
 
         /** @param list<array<string,mixed>> $current @param list<array<string,mixed>> $next @return list<string> */
-        private static function changedLabelsNext230(array $current, array $next, bool $nextOnly): array
+        private static function changedLabelsUnionIntersectExceptWindowLimit(array $current, array $next, bool $nextOnly): array
         {
-            $left = array_fill_keys(self::rowSignaturesNext230($current), true);
+            $left = array_fill_keys(self::rowSignaturesUnionIntersectExceptWindowLimit($current), true);
             $labels = [];
             foreach ($next as $row) {
-                $signature = self::rowSignatureNext230($row);
+                $signature = self::rowSignatureUnionIntersectExceptWindowLimit($row);
                 if ($nextOnly === isset($left[$signature])) {
                     continue;
                 }
@@ -16904,22 +16904,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $current @param list<array<string,mixed>> $next @return list<string> */
-        private static function exceptFilteredLabelsNext230(array $current, array $next): array
+        private static function exceptFilteredLabelsUnionIntersectExceptWindowLimit(array $current, array $next): array
         {
-            $preLimitLabels = array_fill_keys([...self::labelsNext230($current), ...self::labelsNext230($next)], true);
+            $preLimitLabels = array_fill_keys([...self::labelsUnionIntersectExceptWindowLimit($current), ...self::labelsUnionIntersectExceptWindowLimit($next)], true);
             unset($preLimitLabels['plugin_old'], $preLimitLabels['plugin_legacy']);
 
             return ['plugin_old', 'plugin_legacy'];
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
-        private static function rowSignaturesNext230(array $rows): array
+        private static function rowSignaturesUnionIntersectExceptWindowLimit(array $rows): array
         {
-            return array_values(array_map([self::class, 'rowSignatureNext230'], $rows));
+            return array_values(array_map([self::class, 'rowSignatureUnionIntersectExceptWindowLimit'], $rows));
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowSignatureNext230(array $row): string
+        private static function rowSignatureUnionIntersectExceptWindowLimit(array $row): string
         {
             ksort($row);
 
@@ -16931,7 +16931,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $finalRows
          * @return array<string,mixed>
          */
-        private static function limitTraceNext230(array $rows, array $finalRows, int $offset, int $limit): array
+        private static function limitTraceUnionIntersectExceptWindowLimit(array $rows, array $finalRows, int $offset, int $limit): array
         {
             return [
                 'preLimitCount' => count($rows),
@@ -16949,24 +16949,24 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @param list<array<string,mixed>> $windows
          */
-        private static function sourceTokenNext230(array $rows, array $preLimitRows, array $trace, array $windows): string
+        private static function sourceTokenUnionIntersectExceptWindowLimit(array $rows, array $preLimitRows, array $trace, array $windows): string
         {
             return hash('sha256', json_encode([$rows, $preLimitRows, $trace, $windows], JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION) ?: '');
         }
 
         /** @param array<string,mixed>|null $cursor */
-        private static function validateCursorNext230(?array $cursor, string $currentToken): void
+        private static function validateCursorUnionIntersectExceptWindowLimit(?array $cursor, string $currentToken): void
         {
             if ($cursor === null) {
                 return;
             }
             if (($cursor['currentToken'] ?? null) !== $currentToken) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next230 current-source cursor is stale');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT union-intersect-except-window-limit current-source cursor is stale');
             }
         }
 
         /** @param list<array<string,mixed>> $trace @return list<string> */
-        private static function traceLabelsNext230(array $trace, bool $emitted): array
+        private static function traceLabelsUnionIntersectExceptWindowLimit(array $trace, bool $emitted): array
         {
             $labels = [];
             foreach ($trace as $row) {
@@ -16984,7 +16984,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $trace */
-        private static function lastTraceValueNext230(array $trace, string $key): int
+        private static function lastTraceValueUnionIntersectExceptWindowLimit(array $trace, string $key): int
         {
             if ($trace === []) {
                 return 0;
@@ -17002,22 +17002,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext232(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareCurrentPageHandoff(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext229($sql, $currentTables, $nextTables, self::baseCursorNext232($cursor));
-            $handoff = self::handoffNext232($base);
-            self::validateCursorNext232($cursor, $handoff);
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionExceptDenseRankLimit($sql, $currentTables, $nextTables, self::baseCursorCurrentPageHandoff($cursor));
+            $handoff = self::handoffCurrentPageHandoff($base);
+            self::validateCursorCurrentPageHandoff($cursor, $handoff);
 
-            $base['status'] = 'compound-select-window-recursive-limit-current-source-next232-ready';
-            $base['currentSourceHandoffNext232'] = $handoff;
-            $base['cursor']['currentPageTokenNext232'] = $handoff['currentPageToken'];
-            $base['cursor']['requiredCurrentAcksNext232'] = $handoff['requiredCurrentAcks'];
-            $base['cursor']['nextSourceCursorNext232'] = $handoff['nextSourceCursor'];
-            $base['replanReasons'][] = 'compound-dense-rank-except-current-page-handoff-next232';
-            $base['replanReasons'][] = 'recursive-limit-window-page-acks-before-next-source-next232';
-            $base['dependencies'][] = 'sqlite-compound-recursive-window-next-source-handoff-next232';
-            $base['dependency_closure'] = 'no new support component needed; next232 reuses accepted next229 compound SELECT, recursive LIMIT/OFFSET, dense_rank window output, UNION DISTINCT/EXCEPT membership, current-source tokens, and adds a bounded current-page acknowledgement handoff to the next-source cursor';
-            $base['non_overlap'] = 'next232 extends accepted next229 dense_rank UNION/EXCEPT compound recursive LIMIT behavior by requiring exact current-page acknowledgements before exposing the next-source cursor; it avoids next228 current-page drain over next224 rank/window behavior, next226 sum/count EXCEPT+INTERSECT, JSON table, WAL/VFS, B-tree, encoding, planner range-cost, and status-only surfaces';
+            $base['status'] = 'compound-select-window-recursive-limit-current-source-current-page-handoff-ready';
+            $base['currentSourceHandoffCurrentPageHandoff'] = $handoff;
+            $base['cursor']['currentPageTokenCurrentPageHandoff'] = $handoff['currentPageToken'];
+            $base['cursor']['requiredCurrentAcksCurrentPageHandoff'] = $handoff['requiredCurrentAcks'];
+            $base['cursor']['nextSourceCursorCurrentPageHandoff'] = $handoff['nextSourceCursor'];
+            $base['replanReasons'][] = 'compound-dense-rank-except-current-page-handoff-current-page-handoff';
+            $base['replanReasons'][] = 'recursive-limit-window-page-acks-before-next-source-current-page-handoff';
+            $base['dependencies'][] = 'sqlite-compound-recursive-window-next-source-handoff-current-page-handoff';
+            $base['dependency_closure'] = 'no new support component needed; current-page-handoff reuses accepted union-except-dense-rank-limit compound SELECT, recursive LIMIT/OFFSET, dense_rank window output, UNION DISTINCT/EXCEPT membership, current-source tokens, and adds a bounded current-page acknowledgement handoff to the next-source cursor';
+            $base['non_overlap'] = 'current-page-handoff extends accepted union-except-dense-rank-limit dense_rank UNION/EXCEPT compound recursive LIMIT behavior by requiring exact current-page acknowledgements before exposing the next-source cursor; it avoids current-page-drain current-page drain over next224 rank/window behavior, next226 sum/count EXCEPT+INTERSECT, JSON table, WAL/VFS, B-tree, encoding, planner range-cost, and status-only surfaces';
 
             return $base;
         }
@@ -17026,7 +17026,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>|null
          */
-        private static function baseCursorNext232(?array $cursor): ?array
+        private static function baseCursorCurrentPageHandoff(?array $cursor): ?array
         {
             if ($cursor === null || !isset($cursor['currentToken'])) {
                 return null;
@@ -17039,22 +17039,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function handoffNext232(array $plan): array
+        private static function handoffCurrentPageHandoff(array $plan): array
         {
-            $currentRows = self::rowsNext232($plan['currentRows'] ?? []);
-            $nextRows = self::rowsNext232($plan['nextRows'] ?? []);
+            $currentRows = self::rowsCurrentPageHandoff($plan['currentRows'] ?? []);
+            $nextRows = self::rowsCurrentPageHandoff($plan['nextRows'] ?? []);
             $sourceWindow = is_array($plan['sourceWindow'] ?? null) ? $plan['sourceWindow'] : [];
             $recursiveQueue = is_array($plan['recursiveQueue'] ?? null) ? $plan['recursiveQueue'] : [];
             $currentToken = (string) ($sourceWindow['currentToken'] ?? '');
             $nextToken = (string) ($sourceWindow['nextToken'] ?? '');
-            $requiredAcks = self::ackTokensNext232($currentRows, $currentToken);
+            $requiredAcks = self::ackTokensCurrentPageHandoff($currentRows, $currentToken);
             $pagePayload = [
                 'currentToken' => $currentToken,
                 'currentRows' => $currentRows,
-                'currentSkippedLabels' => self::stringListNext232($sourceWindow['currentSkippedLabels'] ?? []),
-                'currentTruncatedLabels' => self::stringListNext232($sourceWindow['currentTruncatedLabels'] ?? []),
-                'recursiveSkippedLabels' => self::stringListNext232($recursiveQueue['currentSkippedLabels'] ?? []),
-                'recursiveEmittedLabels' => self::stringListNext232($recursiveQueue['currentEmittedLabels'] ?? []),
+                'currentSkippedLabels' => self::stringListCurrentPageHandoff($sourceWindow['currentSkippedLabels'] ?? []),
+                'currentTruncatedLabels' => self::stringListCurrentPageHandoff($sourceWindow['currentTruncatedLabels'] ?? []),
+                'recursiveSkippedLabels' => self::stringListCurrentPageHandoff($recursiveQueue['currentSkippedLabels'] ?? []),
+                'recursiveEmittedLabels' => self::stringListCurrentPageHandoff($recursiveQueue['currentEmittedLabels'] ?? []),
                 'requiredAcks' => $requiredAcks,
             ];
             $currentPageToken = hash('sha256', json_encode($pagePayload, JSON_THROW_ON_ERROR));
@@ -17063,8 +17063,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'sourceEpoch' => hash('sha256', json_encode([
                     'nextToken' => $nextToken,
                     'nextRows' => $nextRows,
-                    'nextSkippedLabels' => self::stringListNext232($sourceWindow['nextSkippedLabels'] ?? []),
-                    'nextTruncatedLabels' => self::stringListNext232($sourceWindow['nextTruncatedLabels'] ?? []),
+                    'nextSkippedLabels' => self::stringListCurrentPageHandoff($sourceWindow['nextSkippedLabels'] ?? []),
+                    'nextTruncatedLabels' => self::stringListCurrentPageHandoff($sourceWindow['nextTruncatedLabels'] ?? []),
                 ], JSON_THROW_ON_ERROR)),
                 'resumeOffset' => is_array($plan['cursor'] ?? null) ? (int) ($plan['cursor']['resumeOffset'] ?? 0) : 0,
                 'rowCount' => count($nextRows),
@@ -17074,20 +17074,20 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'currentPageToken' => $currentPageToken,
                 'requiredCurrentAcks' => $requiredAcks,
                 'requiredAckCount' => count($requiredAcks),
-                'currentLabels' => self::labelsNext232($currentRows),
-                'nextLabels' => self::labelsNext232($nextRows),
-                'nextOnlyLabels' => self::stringListNext232($sourceWindow['nextOnlyAdmittedLabels'] ?? []),
-                'currentOnlyLabels' => self::stringListNext232($sourceWindow['currentOnlyAdmittedLabels'] ?? []),
-                'currentSkippedLabels' => self::stringListNext232($sourceWindow['currentSkippedLabels'] ?? []),
-                'nextSkippedLabels' => self::stringListNext232($sourceWindow['nextSkippedLabels'] ?? []),
-                'currentTruncatedLabels' => self::stringListNext232($sourceWindow['currentTruncatedLabels'] ?? []),
-                'nextTruncatedLabels' => self::stringListNext232($sourceWindow['nextTruncatedLabels'] ?? []),
+                'currentLabels' => self::labelsCurrentPageHandoff($currentRows),
+                'nextLabels' => self::labelsCurrentPageHandoff($nextRows),
+                'nextOnlyLabels' => self::stringListCurrentPageHandoff($sourceWindow['nextOnlyAdmittedLabels'] ?? []),
+                'currentOnlyLabels' => self::stringListCurrentPageHandoff($sourceWindow['currentOnlyAdmittedLabels'] ?? []),
+                'currentSkippedLabels' => self::stringListCurrentPageHandoff($sourceWindow['currentSkippedLabels'] ?? []),
+                'nextSkippedLabels' => self::stringListCurrentPageHandoff($sourceWindow['nextSkippedLabels'] ?? []),
+                'currentTruncatedLabels' => self::stringListCurrentPageHandoff($sourceWindow['currentTruncatedLabels'] ?? []),
+                'nextTruncatedLabels' => self::stringListCurrentPageHandoff($sourceWindow['nextTruncatedLabels'] ?? []),
                 'currentToken' => $currentToken,
                 'nextToken' => $nextToken,
                 'tokensDiffer' => $currentToken !== $nextToken,
                 'nextSourceCursor' => $nextSourceCursor,
                 'nextExposure' => 'held-until-current-page-acks-match',
-                'yieldBoundary' => 'compound-recursive-window-next232-current-page-handoff-fences-next-source',
+                'yieldBoundary' => 'compound-recursive-window-current-page-handoff-current-page-handoff-fences-next-source',
             ];
         }
 
@@ -17095,27 +17095,27 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @param array<string,mixed> $handoff
          */
-        private static function validateCursorNext232(?array $cursor, array $handoff): void
+        private static function validateCursorCurrentPageHandoff(?array $cursor, array $handoff): void
         {
             if ($cursor === null) {
                 return;
             }
-            if (isset($cursor['currentPageTokenNext232']) && $cursor['currentPageTokenNext232'] !== $handoff['currentPageToken']) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next232 cursor does not match current page token');
+            if (isset($cursor['currentPageTokenCurrentPageHandoff']) && $cursor['currentPageTokenCurrentPageHandoff'] !== $handoff['currentPageToken']) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-page-handoff cursor does not match current page token');
             }
-            if (!array_key_exists('acknowledgedCurrentAcksNext232', $cursor)) {
+            if (!array_key_exists('acknowledgedCurrentAcksCurrentPageHandoff', $cursor)) {
                 return;
             }
-            if (!is_array($cursor['acknowledgedCurrentAcksNext232'])) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next232 acknowledged current rows must be a list');
+            if (!is_array($cursor['acknowledgedCurrentAcksCurrentPageHandoff'])) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-page-handoff acknowledged current rows must be a list');
             }
 
-            $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedCurrentAcksNext232']));
-            $required = self::stringListNext232($handoff['requiredCurrentAcks'] ?? []);
+            $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedCurrentAcksCurrentPageHandoff']));
+            $required = self::stringListCurrentPageHandoff($handoff['requiredCurrentAcks'] ?? []);
             $missing = array_values(array_diff($required, $acknowledged));
             $unexpected = array_values(array_diff($acknowledged, $required));
             if ($missing !== [] || $unexpected !== []) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next232 current-page acknowledgements do not match required handoff set');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT current-page-handoff current-page acknowledgements do not match required handoff set');
             }
         }
 
@@ -17123,7 +17123,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param mixed $value
          * @return list<array<string,mixed>>
          */
-        private static function rowsNext232(mixed $value): array
+        private static function rowsCurrentPageHandoff(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -17143,7 +17143,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function labelsNext232(array $rows): array
+        private static function labelsCurrentPageHandoff(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
         }
@@ -17152,7 +17152,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function ackTokensNext232(array $rows, string $currentToken): array
+        private static function ackTokensCurrentPageHandoff(array $rows, string $currentToken): array
         {
             $tokens = [];
             foreach ($rows as $index => $row) {
@@ -17170,7 +17170,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param mixed $value
          * @return list<string>
          */
-        private static function stringListNext232(mixed $value): array
+        private static function stringListCurrentPageHandoff(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -17187,22 +17187,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext233(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareFinalOrderResume(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext230($sql, $currentTables, $nextTables, self::baseCursorNext233($cursor));
-            $resume = self::resumeFenceNext233($base);
-            self::validateCursorNext233($cursor, $resume);
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionIntersectExceptWindowLimit($sql, $currentTables, $nextTables, self::baseCursorFinalOrderResume($cursor));
+            $resume = self::resumeFenceFinalOrderResume($base);
+            self::validateCursorFinalOrderResume($cursor, $resume);
 
-            $base['status'] = 'compound-select-window-recursive-limit-current-source-next233-ready';
-            $base['currentSourceResumeNext233'] = $resume;
+            $base['status'] = 'compound-select-window-recursive-limit-current-source-final-order-resume-ready';
+            $base['currentSourceResumeFinalOrderResume'] = $resume;
             $base['cursor']['currentResumeToken'] = $resume['currentResumeToken'];
             $base['cursor']['requiredCurrentOrdinalAcks'] = $resume['requiredCurrentOrdinalAcks'];
             $base['cursor']['nextExposure'] = $resume['nextExposure'];
-            $base['replanReasons'][] = 'compound-window-current-final-order-ordinal-resume-next233';
-            $base['replanReasons'][] = 'next-source-compound-page-held-until-current-ordinal-acks-next233';
-            $base['dependencies'][] = 'sqlite-compound-window-current-source-resume-ordinal-next233';
-            $base['dependency_closure'] = 'no new support component needed; next233 reuses accepted next230 compound SELECT, recursive LIMIT/OFFSET, avg/first_value windows, current-source tokens, and adds a bounded final-order ordinal acknowledgement contract before next-source rows are exposed';
-            $base['non_overlap'] = 'next233 extends accepted next230 avg/first_value UNION/INTERSECT/EXCEPT fencing with a final ORDER BY ordinal resume token for current-source page handoff; it avoids accepted next228 drain acknowledgements, suite next233 evidence, JSON table, WAL/VFS, B-tree, encoding, planner range-cost, trigger, and PRAGMA surfaces';
+            $base['replanReasons'][] = 'compound-window-current-final-order-ordinal-resume-final-order-resume';
+            $base['replanReasons'][] = 'next-source-compound-page-held-until-current-ordinal-acks-final-order-resume';
+            $base['dependencies'][] = 'sqlite-compound-window-current-source-resume-ordinal-final-order-resume';
+            $base['dependency_closure'] = 'no new support component needed; final-order-resume reuses accepted union-intersect-except-window-limit compound SELECT, recursive LIMIT/OFFSET, avg/first_value windows, current-source tokens, and adds a bounded final-order ordinal acknowledgement contract before next-source rows are exposed';
+            $base['non_overlap'] = 'final-order-resume extends accepted union-intersect-except-window-limit avg/first_value UNION/INTERSECT/EXCEPT fencing with a final ORDER BY ordinal resume token for current-source page handoff; it avoids accepted current-page-drain drain acknowledgements, suite final-order-resume evidence, JSON table, WAL/VFS, B-tree, encoding, planner range-cost, trigger, and PRAGMA surfaces';
 
             return $base;
         }
@@ -17211,7 +17211,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>|null
          */
-        private static function baseCursorNext233(?array $cursor): ?array
+        private static function baseCursorFinalOrderResume(?array $cursor): ?array
         {
             if ($cursor === null || !isset($cursor['currentToken'])) {
                 return null;
@@ -17224,19 +17224,19 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function resumeFenceNext233(array $plan): array
+        private static function resumeFenceFinalOrderResume(array $plan): array
         {
-            $currentRows = self::rowsNext233($plan['currentRows'] ?? []);
-            $nextRows = self::rowsNext233($plan['nextRows'] ?? []);
+            $currentRows = self::rowsFinalOrderResume($plan['currentRows'] ?? []);
+            $nextRows = self::rowsFinalOrderResume($plan['nextRows'] ?? []);
             $sourceWindow = is_array($plan['sourceWindow'] ?? null) ? $plan['sourceWindow'] : [];
             $currentToken = (string) ($sourceWindow['currentToken'] ?? '');
             $nextToken = (string) ($sourceWindow['nextToken'] ?? '');
-            $currentOrdinals = self::ordinalAcksNext233($currentRows, $currentToken);
-            $nextOnly = self::stringListNext233($sourceWindow['nextOnlyAdmittedLabels'] ?? []);
+            $currentOrdinals = self::ordinalAcksFinalOrderResume($currentRows, $currentToken);
+            $nextOnly = self::stringListFinalOrderResume($sourceWindow['nextOnlyAdmittedLabels'] ?? []);
             $payload = [
                 'currentToken' => $currentToken,
-                'currentOrder' => self::orderedLabelsNext233($currentRows),
-                'nextOrder' => self::orderedLabelsNext233($nextRows),
+                'currentOrder' => self::orderedLabelsFinalOrderResume($currentRows),
+                'nextOrder' => self::orderedLabelsFinalOrderResume($nextRows),
                 'requiredOrdinals' => $currentOrdinals,
                 'nextOnly' => $nextOnly,
             ];
@@ -17246,17 +17246,17 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'currentResumeToken' => $resumeToken,
                 'requiredCurrentOrdinalAcks' => $currentOrdinals,
                 'requiredAckCount' => count($currentOrdinals),
-                'currentFinalOrderLabels' => self::orderedLabelsNext233($currentRows),
-                'nextFinalOrderLabels' => self::orderedLabelsNext233($nextRows),
+                'currentFinalOrderLabels' => self::orderedLabelsFinalOrderResume($currentRows),
+                'nextFinalOrderLabels' => self::orderedLabelsFinalOrderResume($nextRows),
                 'currentLastOrdinal' => count($currentRows),
                 'nextFirstOrdinal' => $nextRows === [] ? null : 1,
                 'nextOnlyLabels' => $nextOnly,
-                'currentOnlyLabels' => self::stringListNext233($sourceWindow['currentOnlyAdmittedLabels'] ?? []),
+                'currentOnlyLabels' => self::stringListFinalOrderResume($sourceWindow['currentOnlyAdmittedLabels'] ?? []),
                 'currentToken' => $currentToken,
                 'nextToken' => $nextToken,
                 'tokensDiffer' => $currentToken !== $nextToken,
                 'nextExposure' => 'held-until-current-final-order-ordinals-acked',
-                'yieldBoundary' => 'compound-window-next233-current-final-order-resume-fences-next-source',
+                'yieldBoundary' => 'compound-window-final-order-resume-current-final-order-resume-fences-next-source',
             ];
         }
 
@@ -17264,27 +17264,27 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @param array<string,mixed> $resume
          */
-        private static function validateCursorNext233(?array $cursor, array $resume): void
+        private static function validateCursorFinalOrderResume(?array $cursor, array $resume): void
         {
             if ($cursor === null) {
                 return;
             }
             if (isset($cursor['currentResumeToken']) && $cursor['currentResumeToken'] !== $resume['currentResumeToken']) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next233 cursor does not match current resume token');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-order-resume cursor does not match current resume token');
             }
             if (!array_key_exists('acknowledgedCurrentOrdinalAcks', $cursor)) {
                 return;
             }
             if (!is_array($cursor['acknowledgedCurrentOrdinalAcks'])) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next233 acknowledged ordinals must be a list');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-order-resume acknowledged ordinals must be a list');
             }
 
             $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedCurrentOrdinalAcks']));
-            $required = self::stringListNext233($resume['requiredCurrentOrdinalAcks'] ?? []);
+            $required = self::stringListFinalOrderResume($resume['requiredCurrentOrdinalAcks'] ?? []);
             $missing = array_values(array_diff($required, $acknowledged));
             $unexpected = array_values(array_diff($acknowledged, $required));
             if ($missing !== [] || $unexpected !== []) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next233 current ordinal acknowledgements do not match required resume set');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-order-resume current ordinal acknowledgements do not match required resume set');
             }
         }
 
@@ -17292,7 +17292,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param mixed $value
          * @return list<array<string,mixed>>
          */
-        private static function rowsNext233(mixed $value): array
+        private static function rowsFinalOrderResume(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -17312,7 +17312,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function orderedLabelsNext233(array $rows): array
+        private static function orderedLabelsFinalOrderResume(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
         }
@@ -17321,7 +17321,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function ordinalAcksNext233(array $rows, string $currentToken): array
+        private static function ordinalAcksFinalOrderResume(array $rows, string $currentToken): array
         {
             $acks = [];
             foreach ($rows as $index => $row) {
@@ -17340,7 +17340,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param mixed $value
          * @return list<string>
          */
-        private static function stringListNext233(mixed $value): array
+        private static function stringListFinalOrderResume(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -17357,45 +17357,45 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext234(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareFinalPageWindowLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext234($sql, $currentPlan, $nextPlan);
+            self::assertSupportedFinalPageWindowLimit($sql, $currentPlan, $nextPlan);
 
-            $preLimitSql = self::withoutFinalLimitNext234($sql);
-            $traceSql = self::recursiveTraceSqlNext234($sql);
+            $preLimitSql = self::withoutFinalLimitFinalPageWindowLimit($sql);
+            $traceSql = self::recursiveTraceSqlFinalPageWindowLimit($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $currentTables);
             $nextPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $nextTables);
             $currentRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $currentTables);
             $nextRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
-            $currentWindows = self::windowTermsNext234($currentPlan);
-            $nextWindows = self::windowTermsNext234($nextPlan);
-            $currentToken = self::sourceTokenNext234($currentRows, $currentPreLimitRows, $currentRecursive['trace'], $currentWindows);
-            $nextToken = self::sourceTokenNext234($nextRows, $nextPreLimitRows, $nextRecursive['trace'], $nextWindows);
-            self::validateCursorNext234($cursor, $currentToken);
+            $currentWindows = self::windowTermsFinalPageWindowLimit($currentPlan);
+            $nextWindows = self::windowTermsFinalPageWindowLimit($nextPlan);
+            $currentToken = self::sourceTokenFinalPageWindowLimit($currentRows, $currentPreLimitRows, $currentRecursive['trace'], $currentWindows);
+            $nextToken = self::sourceTokenFinalPageWindowLimit($nextRows, $nextPreLimitRows, $nextRecursive['trace'], $nextWindows);
+            self::validateCursorFinalPageWindowLimit($cursor, $currentToken);
 
-            $limit = self::limitNext234($currentPlan);
-            $offset = self::offsetNext234($currentPlan);
+            $limit = self::limitFinalPageWindowLimit($currentPlan);
+            $offset = self::offsetFinalPageWindowLimit($currentPlan);
 
             return [
-                'status' => 'compound-select-window-recursive-limit-current-source-next234-ready',
+                'status' => 'compound-select-window-recursive-limit-current-source-final-page-window-limit-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
                 'currentPreLimitRows' => $currentPreLimitRows,
                 'nextPreLimitRows' => $nextPreLimitRows,
                 'compound' => [
-                    'operators' => self::operatorsNext234($currentPlan),
+                    'operators' => self::operatorsFinalPageWindowLimit($currentPlan),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext234($currentPlan),
+                    'orderColumns' => self::orderColumnsFinalPageWindowLimit($currentPlan),
                     'limit' => $limit,
                     'offset' => $offset,
-                    'hasUnionDistinctHead' => (self::operatorsNext234($currentPlan)[0] ?? null) === 'UNION',
-                    'hasIntersectMiddle' => in_array('INTERSECT', self::operatorsNext234($currentPlan), true),
-                    'hasExceptTail' => in_array('EXCEPT', self::operatorsNext234($currentPlan), true),
+                    'hasUnionDistinctHead' => (self::operatorsFinalPageWindowLimit($currentPlan)[0] ?? null) === 'UNION',
+                    'hasIntersectMiddle' => in_array('INTERSECT', self::operatorsFinalPageWindowLimit($currentPlan), true),
+                    'hasExceptTail' => in_array('EXCEPT', self::operatorsFinalPageWindowLimit($currentPlan), true),
                 ],
                 'recursiveQueue' => [
                     'name' => $currentRecursive['name'],
@@ -17403,36 +17403,36 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'operator' => $currentRecursive['operator'],
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
-                    'currentSkippedLabels' => self::traceLabelsNext234($currentRecursive['trace'], false),
-                    'nextSkippedLabels' => self::traceLabelsNext234($nextRecursive['trace'], false),
-                    'currentEmittedLabels' => self::traceLabelsNext234($currentRecursive['trace'], true),
-                    'nextEmittedLabels' => self::traceLabelsNext234($nextRecursive['trace'], true),
-                    'currentLimitRemaining' => self::lastTraceValueNext234($currentRecursive['trace'], 'limit_remaining'),
-                    'currentOffsetRemaining' => self::lastTraceValueNext234($currentRecursive['trace'], 'offset_remaining'),
+                    'currentSkippedLabels' => self::traceLabelsFinalPageWindowLimit($currentRecursive['trace'], false),
+                    'nextSkippedLabels' => self::traceLabelsFinalPageWindowLimit($nextRecursive['trace'], false),
+                    'currentEmittedLabels' => self::traceLabelsFinalPageWindowLimit($currentRecursive['trace'], true),
+                    'nextEmittedLabels' => self::traceLabelsFinalPageWindowLimit($nextRecursive['trace'], true),
+                    'currentLimitRemaining' => self::lastTraceValueFinalPageWindowLimit($currentRecursive['trace'], 'limit_remaining'),
+                    'currentOffsetRemaining' => self::lastTraceValueFinalPageWindowLimit($currentRecursive['trace'], 'offset_remaining'),
                 ],
                 'windows' => [
                     'current' => $currentWindows,
                     'next' => $nextWindows,
                     'functions' => array_values(array_unique(array_column($currentWindows, 'function'))),
-                    'aggregateMetrics' => self::numericMetricsForAliasNext234($currentPreLimitRows, 'metric'),
-                    'nextAggregateMetrics' => self::numericMetricsForAliasNext234($nextPreLimitRows, 'metric'),
+                    'aggregateMetrics' => self::numericMetricsForAliasFinalPageWindowLimit($currentPreLimitRows, 'metric'),
+                    'nextAggregateMetrics' => self::numericMetricsForAliasFinalPageWindowLimit($nextPreLimitRows, 'metric'),
                 ],
                 'sourceWindow' => [
                     'currentToken' => $currentToken,
                     'nextToken' => $nextToken,
-                    'currentAdmittedLabels' => self::labelsNext234($currentRows),
-                    'nextAdmittedLabels' => self::labelsNext234($nextRows),
-                    'currentSkippedLabels' => self::labelsNext234(array_slice($currentPreLimitRows, 0, $offset)),
-                    'nextSkippedLabels' => self::labelsNext234(array_slice($nextPreLimitRows, 0, $offset)),
-                    'currentTruncatedLabels' => self::labelsNext234(array_slice($currentPreLimitRows, $offset + $limit)),
-                    'nextTruncatedLabels' => self::labelsNext234(array_slice($nextPreLimitRows, $offset + $limit)),
-                    'nextOnlyAdmittedLabels' => self::changedLabelsNext234($currentRows, $nextRows, true),
-                    'currentOnlyAdmittedLabels' => self::changedLabelsNext234($currentRows, $nextRows, false),
-                    'exceptFilteredLabels' => self::exceptFilteredLabelsNext234($currentPreLimitRows, $nextPreLimitRows),
+                    'currentAdmittedLabels' => self::labelsFinalPageWindowLimit($currentRows),
+                    'nextAdmittedLabels' => self::labelsFinalPageWindowLimit($nextRows),
+                    'currentSkippedLabels' => self::labelsFinalPageWindowLimit(array_slice($currentPreLimitRows, 0, $offset)),
+                    'nextSkippedLabels' => self::labelsFinalPageWindowLimit(array_slice($nextPreLimitRows, 0, $offset)),
+                    'currentTruncatedLabels' => self::labelsFinalPageWindowLimit(array_slice($currentPreLimitRows, $offset + $limit)),
+                    'nextTruncatedLabels' => self::labelsFinalPageWindowLimit(array_slice($nextPreLimitRows, $offset + $limit)),
+                    'nextOnlyAdmittedLabels' => self::changedLabelsFinalPageWindowLimit($currentRows, $nextRows, true),
+                    'currentOnlyAdmittedLabels' => self::changedLabelsFinalPageWindowLimit($currentRows, $nextRows, false),
+                    'exceptFilteredLabels' => self::exceptFilteredLabelsFinalPageWindowLimit($currentPreLimitRows, $nextPreLimitRows),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext234($currentPreLimitRows, $currentRows, $offset, $limit),
-                    'next' => self::limitTraceNext234($nextPreLimitRows, $nextRows, $offset, $limit),
+                    'current' => self::limitTraceFinalPageWindowLimit($currentPreLimitRows, $currentRows, $offset, $limit),
+                    'next' => self::limitTraceFinalPageWindowLimit($nextPreLimitRows, $nextRows, $offset, $limit),
                 ],
                 'cursor' => [
                     'currentToken' => $currentToken,
@@ -17442,85 +17442,85 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'nextRowCount' => count($nextRows),
                 ],
                 'replanReasons' => [
-                    'compound-multi-anchor-recursive-row-number-first-value-next234',
-                    'recursive-anchor-wp-options-limit-before-window-next234',
-                    'intersect-except-after-anchor-shift-window-output-next234',
-                    'wordpress-option-preview-stale-cursor-fence-next234',
+                    'compound-multi-anchor-recursive-row-number-first-value-final-page-window-limit',
+                    'recursive-anchor-wp-options-limit-before-window-final-page-window-limit',
+                    'intersect-except-after-anchor-shift-window-output-final-page-window-limit',
+                    'wordpress-option-preview-stale-cursor-fence-final-page-window-limit',
                 ],
                 'dependencies' => [
-                    'sqlite-select-sql-recursive-multi-anchor-queue-limit-next234',
-                    'sqlite-select-sql-row-number-first-value-window-next234',
-                    'sqlite-compound-union-intersect-except-current-source-token-fence-next234',
+                    'sqlite-select-sql-recursive-multi-anchor-queue-limit-final-page-window-limit',
+                    'sqlite-select-sql-row-number-first-value-window-final-page-window-limit',
+                    'sqlite-compound-union-intersect-except-current-source-token-fence-final-page-window-limit',
                 ],
-                'dependency_closure' => 'no new support component needed; next234 reuses native SELECT SQL compound execution, recursive CTE compound-anchor queue LIMIT/OFFSET tracing, row_number and first_value window dispatch, UNION distinct plus INTERSECT/EXCEPT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'next234 covers a compound recursive CTE whose anchor is partly sourced from wp_options before recursive expansion, then fences row_number and first_value window outputs through UNION distinct, INTERSECT, and EXCEPT before the final compound LIMIT; it avoids accepted next230 avg/first_value recursive-body-only queue work, next229 dense_rank UNION/EXCEPT, next228 row_number INTERSECT/EXCEPT drain, next224 compound rank shift, and accepted JSON/WAL/B-tree/VFS clusters',
+                'dependency_closure' => 'no new support component needed; final-page-window-limit reuses native SELECT SQL compound execution, recursive CTE compound-anchor queue LIMIT/OFFSET tracing, row_number and first_value window dispatch, UNION distinct plus INTERSECT/EXCEPT membership, current-source tokens, and final LIMIT helpers',
+                'non_overlap' => 'final-page-window-limit covers a compound recursive CTE whose anchor is partly sourced from wp_options before recursive expansion, then fences row_number and first_value window outputs through UNION distinct, INTERSECT, and EXCEPT before the final compound LIMIT; it avoids accepted union-intersect-except-window-limit avg/first_value recursive-body-only queue work, union-except-dense-rank-limit dense_rank UNION/EXCEPT, current-page-drain row_number INTERSECT/EXCEPT drain, next224 compound rank shift, and accepted JSON/WAL/B-tree/VFS clusters',
             ];
         }
 
         /** @param array<string,mixed> $currentPlan @param array<string,mixed> $nextPlan */
-        private static function assertSupportedNext234(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertSupportedFinalPageWindowLimit(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next234 needs WITH RECURSIVE SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit needs WITH RECURSIVE SQL');
             }
             if (!is_array($currentPlan['compound'] ?? null) || !is_array($nextPlan['compound'] ?? null)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next234 needs compound SELECT SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit needs compound SELECT SQL');
             }
-            $operators = self::operatorsNext234($currentPlan);
+            $operators = self::operatorsFinalPageWindowLimit($currentPlan);
             if (!in_array('UNION', $operators, true) || !in_array('INTERSECT', $operators, true) || !in_array('EXCEPT', $operators, true)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next234 needs UNION, INTERSECT, and EXCEPT');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit needs UNION, INTERSECT, and EXCEPT');
             }
             if (($currentPlan['compound']['limit'] ?? null) === null || (($currentPlan['compound']['offset'] ?? 0) < 1)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next234 needs final LIMIT/OFFSET');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit needs final LIMIT/OFFSET');
             }
-            $recursiveBody = self::recursiveBodyNext234($sql);
+            $recursiveBody = self::recursiveBodyFinalPageWindowLimit($sql);
             if (preg_match('/\bUNION\s+ALL\s+SELECT\b.*?\bFROM\s+wp_options\b/is', $recursiveBody) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next234 needs a wp_options recursive CTE anchor arm');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit needs a wp_options recursive CTE anchor arm');
             }
             if (preg_match('/\bORDER\s+BY\b.*?\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', $recursiveBody) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next234 needs ordered recursive LIMIT/OFFSET');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit needs ordered recursive LIMIT/OFFSET');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext234($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTermsFinalPageWindowLimit($currentPlan), 'function'));
             foreach (['row_number', 'first_value'] as $function) {
                 if (!in_array($function, $functions, true)) {
-                    throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT next234 needs {$function} window output");
+                    throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT final-page-window-limit needs {$function} window output");
                 }
             }
         }
 
-        private static function recursiveBodyNext234(string $sql): string
+        private static function recursiveBodyFinalPageWindowLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^WITH\s+RECURSIVE\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s+AS\s*\((.*)\)\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next234 cannot isolate recursive CTE body');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit cannot isolate recursive CTE body');
             }
 
             return $match[1];
         }
 
-        private static function recursiveTraceSqlNext234(string $sql): string
+        private static function recursiveTraceSqlFinalPageWindowLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^(WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s+AS\s*\(.*\))\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next234 cannot isolate recursive CTE');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit cannot isolate recursive CTE');
             }
 
             return $match[1] . ' SELECT * FROM ' . $match[2];
         }
 
-        private static function withoutFinalLimitNext234(string $sql): string
+        private static function withoutFinalLimitFinalPageWindowLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
             if (!is_string($without) || $without === $trimmed) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next234 cannot isolate final LIMIT');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit cannot isolate final LIMIT');
             }
 
             return $without;
         }
 
         /** @param array<string,mixed> $plan @return list<string> */
-        private static function operatorsNext234(array $plan): array
+        private static function operatorsFinalPageWindowLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -17528,7 +17528,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan @return list<string> */
-        private static function orderColumnsNext234(array $plan): array
+        private static function orderColumnsFinalPageWindowLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             if (!is_array($compound['orderBy'] ?? null)) {
@@ -17539,7 +17539,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan @return list<array<string,mixed>> */
-        private static function windowTermsNext234(array $plan): array
+        private static function windowTermsFinalPageWindowLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $windows = [];
@@ -17564,7 +17564,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan */
-        private static function limitNext234(array $plan): int
+        private static function limitFinalPageWindowLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -17572,7 +17572,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan */
-        private static function offsetNext234(array $plan): int
+        private static function offsetFinalPageWindowLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -17580,24 +17580,24 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
-        private static function labelsNext234(array $rows): array
+        private static function labelsFinalPageWindowLimit(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? ''), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<float> */
-        private static function numericMetricsForAliasNext234(array $rows, string $alias): array
+        private static function numericMetricsForAliasFinalPageWindowLimit(array $rows, string $alias): array
         {
             return array_values(array_map(static fn (array $row): float => (float) ($row[$alias] ?? 0.0), $rows));
         }
 
         /** @param list<array<string,mixed>> $current @param list<array<string,mixed>> $next @return list<string> */
-        private static function changedLabelsNext234(array $current, array $next, bool $nextOnly): array
+        private static function changedLabelsFinalPageWindowLimit(array $current, array $next, bool $nextOnly): array
         {
-            $left = array_fill_keys(self::rowSignaturesNext234($current), true);
+            $left = array_fill_keys(self::rowSignaturesFinalPageWindowLimit($current), true);
             $labels = [];
             foreach ($next as $row) {
-                $signature = self::rowSignatureNext234($row);
+                $signature = self::rowSignatureFinalPageWindowLimit($row);
                 if ($nextOnly === isset($left[$signature])) {
                     continue;
                 }
@@ -17608,22 +17608,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $current @param list<array<string,mixed>> $next @return list<string> */
-        private static function exceptFilteredLabelsNext234(array $current, array $next): array
+        private static function exceptFilteredLabelsFinalPageWindowLimit(array $current, array $next): array
         {
-            $preLimitLabels = array_fill_keys([...self::labelsNext234($current), ...self::labelsNext234($next)], true);
+            $preLimitLabels = array_fill_keys([...self::labelsFinalPageWindowLimit($current), ...self::labelsFinalPageWindowLimit($next)], true);
             unset($preLimitLabels['plugin_old'], $preLimitLabels['plugin_legacy']);
 
             return ['plugin_old', 'plugin_legacy'];
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
-        private static function rowSignaturesNext234(array $rows): array
+        private static function rowSignaturesFinalPageWindowLimit(array $rows): array
         {
-            return array_values(array_map([self::class, 'rowSignatureNext234'], $rows));
+            return array_values(array_map([self::class, 'rowSignatureFinalPageWindowLimit'], $rows));
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowSignatureNext234(array $row): string
+        private static function rowSignatureFinalPageWindowLimit(array $row): string
         {
             ksort($row);
 
@@ -17635,7 +17635,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $finalRows
          * @return array<string,mixed>
          */
-        private static function limitTraceNext234(array $rows, array $finalRows, int $offset, int $limit): array
+        private static function limitTraceFinalPageWindowLimit(array $rows, array $finalRows, int $offset, int $limit): array
         {
             return [
                 'preLimitCount' => count($rows),
@@ -17653,24 +17653,24 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @param list<array<string,mixed>> $windows
          */
-        private static function sourceTokenNext234(array $rows, array $preLimitRows, array $trace, array $windows): string
+        private static function sourceTokenFinalPageWindowLimit(array $rows, array $preLimitRows, array $trace, array $windows): string
         {
             return hash('sha256', json_encode([$rows, $preLimitRows, $trace, $windows], JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION) ?: '');
         }
 
         /** @param array<string,mixed>|null $cursor */
-        private static function validateCursorNext234(?array $cursor, string $currentToken): void
+        private static function validateCursorFinalPageWindowLimit(?array $cursor, string $currentToken): void
         {
             if ($cursor === null) {
                 return;
             }
             if (($cursor['currentToken'] ?? null) !== $currentToken) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next234 current-source cursor is stale');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit current-source cursor is stale');
             }
         }
 
         /** @param list<array<string,mixed>> $trace @return list<string> */
-        private static function traceLabelsNext234(array $trace, bool $emitted): array
+        private static function traceLabelsFinalPageWindowLimit(array $trace, bool $emitted): array
         {
             $labels = [];
             foreach ($trace as $row) {
@@ -17689,7 +17689,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $trace */
-        private static function lastTraceValueNext234(array $trace, string $key): int
+        private static function lastTraceValueFinalPageWindowLimit(array $trace, string $key): int
         {
             if ($trace === []) {
                 return 0;
@@ -17707,25 +17707,25 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext235(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareRecursiveWindowPromotionBarrier(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext232($sql, $currentTables, $nextTables, self::baseCursorNext235($cursor));
-            $barrier = self::barrierNext235($base);
-            self::validateCursorNext235($cursor, $barrier);
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCurrentPageHandoff($sql, $currentTables, $nextTables, self::baseCursorRecursiveWindowPromotionBarrier($cursor));
+            $barrier = self::barrierRecursiveWindowPromotionBarrier($base);
+            self::validateCursorRecursiveWindowPromotionBarrier($cursor, $barrier);
 
-            $base['status'] = 'compound-select-window-recursive-limit-current-source-next235-ready';
-            $base['recursiveWindowPromotionBarrierNext235'] = $barrier;
-            $base['cursor']['promotionBarrierTokenNext235'] = $barrier['barrierToken'];
-            $base['cursor']['requiredPromotionAcksNext235'] = $barrier['requiredPromotionAcks'];
-            $base['cursor']['currentPageTokenNext235'] = $barrier['currentPageToken'];
-            $base['cursor']['recursiveTraceTokenNext235'] = $barrier['recursiveTraceToken'];
-            $base['cursor']['windowFrameTokenNext235'] = $barrier['windowFrameToken'];
-            $base['cursor']['nextSourceCursorNext235'] = $barrier['promotedNextSourceCursor'];
-            $base['replanReasons'][] = 'compound-recursive-window-promotion-barrier-next235';
-            $base['replanReasons'][] = 'recursive-limit-trace-and-window-frame-acks-next235';
-            $base['dependencies'][] = 'sqlite-compound-recursive-window-promotion-barrier-next235';
-            $base['dependency_closure'] = 'no new support component needed; next235 reuses accepted next232 compound SELECT recursive/window current-page handoff and adds bounded recursive trace plus window-frame acknowledgement tokens before promoting a next-source cursor';
-            $base['non_overlap'] = 'next235 extends accepted next232 page-ack handoff by requiring recursive queue and window-frame acknowledgements before next-source promotion; it avoids accepted next226 sum/count EXCEPT+INTERSECT, next229 dense-rank UNION/EXCEPT source tokens, JSON table, WAL/VFS, B-tree, encoding, planner range-cost, and status-only surfaces';
+            $base['status'] = 'compound-select-window-recursive-limit-current-source-recursive-window-promotion-barrier-ready';
+            $base['recursiveWindowPromotionBarrierRecursiveWindowPromotionBarrier'] = $barrier;
+            $base['cursor']['promotionBarrierTokenRecursiveWindowPromotionBarrier'] = $barrier['barrierToken'];
+            $base['cursor']['requiredPromotionAcksRecursiveWindowPromotionBarrier'] = $barrier['requiredPromotionAcks'];
+            $base['cursor']['currentPageTokenRecursiveWindowPromotionBarrier'] = $barrier['currentPageToken'];
+            $base['cursor']['recursiveTraceTokenRecursiveWindowPromotionBarrier'] = $barrier['recursiveTraceToken'];
+            $base['cursor']['windowFrameTokenRecursiveWindowPromotionBarrier'] = $barrier['windowFrameToken'];
+            $base['cursor']['nextSourceCursorRecursiveWindowPromotionBarrier'] = $barrier['promotedNextSourceCursor'];
+            $base['replanReasons'][] = 'compound-recursive-window-promotion-barrier-recursive-window-promotion-barrier';
+            $base['replanReasons'][] = 'recursive-limit-trace-and-window-frame-acks-recursive-window-promotion-barrier';
+            $base['dependencies'][] = 'sqlite-compound-recursive-window-promotion-barrier-recursive-window-promotion-barrier';
+            $base['dependency_closure'] = 'no new support component needed; recursive-window-promotion-barrier reuses accepted current-page-handoff compound SELECT recursive/window current-page handoff and adds bounded recursive trace plus window-frame acknowledgement tokens before promoting a next-source cursor';
+            $base['non_overlap'] = 'recursive-window-promotion-barrier extends accepted current-page-handoff page-ack handoff by requiring recursive queue and window-frame acknowledgements before next-source promotion; it avoids accepted next226 sum/count EXCEPT+INTERSECT, union-except-dense-rank-limit dense-rank UNION/EXCEPT source tokens, JSON table, WAL/VFS, B-tree, encoding, planner range-cost, and status-only surfaces';
 
             return $base;
         }
@@ -17734,14 +17734,14 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>|null
          */
-        private static function baseCursorNext235(?array $cursor): ?array
+        private static function baseCursorRecursiveWindowPromotionBarrier(?array $cursor): ?array
         {
             if ($cursor === null) {
                 return null;
             }
 
             $base = [];
-            foreach (['currentToken', 'currentPageTokenNext232', 'acknowledgedCurrentAcksNext232'] as $key) {
+            foreach (['currentToken', 'currentPageTokenCurrentPageHandoff', 'acknowledgedCurrentAcksCurrentPageHandoff'] as $key) {
                 if (array_key_exists($key, $cursor)) {
                     $base[$key] = $cursor[$key];
                 }
@@ -17754,46 +17754,46 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function barrierNext235(array $plan): array
+        private static function barrierRecursiveWindowPromotionBarrier(array $plan): array
         {
-            $handoff = is_array($plan['currentSourceHandoffNext232'] ?? null) ? $plan['currentSourceHandoffNext232'] : [];
+            $handoff = is_array($plan['currentSourceHandoffCurrentPageHandoff'] ?? null) ? $plan['currentSourceHandoffCurrentPageHandoff'] : [];
             $recursiveQueue = is_array($plan['recursiveQueue'] ?? null) ? $plan['recursiveQueue'] : [];
             $windows = is_array($plan['windows'] ?? null) ? $plan['windows'] : [];
             $limitTrace = is_array($plan['limitTrace'] ?? null) ? $plan['limitTrace'] : [];
             $sourceWindow = is_array($plan['sourceWindow'] ?? null) ? $plan['sourceWindow'] : [];
             $currentPageToken = (string) ($handoff['currentPageToken'] ?? '');
-            $recursiveTraceToken = self::tokenNext235([
+            $recursiveTraceToken = self::tokenRecursiveWindowPromotionBarrier([
                 'name' => $recursiveQueue['name'] ?? null,
-                'columns' => self::stringListNext235($recursiveQueue['columns'] ?? []),
+                'columns' => self::stringListRecursiveWindowPromotionBarrier($recursiveQueue['columns'] ?? []),
                 'operator' => $recursiveQueue['operator'] ?? null,
                 'currentTraceCount' => (int) ($recursiveQueue['currentTraceCount'] ?? 0),
-                'currentSkippedLabels' => self::stringListNext235($recursiveQueue['currentSkippedLabels'] ?? []),
-                'currentEmittedLabels' => self::stringListNext235($recursiveQueue['currentEmittedLabels'] ?? []),
+                'currentSkippedLabels' => self::stringListRecursiveWindowPromotionBarrier($recursiveQueue['currentSkippedLabels'] ?? []),
+                'currentEmittedLabels' => self::stringListRecursiveWindowPromotionBarrier($recursiveQueue['currentEmittedLabels'] ?? []),
                 'currentLimitRemaining' => (int) ($recursiveQueue['currentLimitRemaining'] ?? 0),
                 'currentOffsetRemaining' => (int) ($recursiveQueue['currentOffsetRemaining'] ?? 0),
             ]);
-            $windowFrameToken = self::tokenNext235([
-                'functions' => self::stringListNext235($windows['functions'] ?? []),
-                'currentWindowTerms' => self::windowTermSummaryNext235($windows['current'] ?? []),
-                'aggregateMetrics' => self::floatListNext235($windows['aggregateMetrics'] ?? []),
+            $windowFrameToken = self::tokenRecursiveWindowPromotionBarrier([
+                'functions' => self::stringListRecursiveWindowPromotionBarrier($windows['functions'] ?? []),
+                'currentWindowTerms' => self::windowTermSummaryRecursiveWindowPromotionBarrier($windows['current'] ?? []),
+                'aggregateMetrics' => self::floatListRecursiveWindowPromotionBarrier($windows['aggregateMetrics'] ?? []),
                 'currentPreLimitCount' => is_array($limitTrace['current'] ?? null) ? (int) ($limitTrace['current']['preLimitCount'] ?? 0) : 0,
-                'currentSkippedLabels' => self::stringListNext235($sourceWindow['currentSkippedLabels'] ?? []),
-                'currentTruncatedLabels' => self::stringListNext235($sourceWindow['currentTruncatedLabels'] ?? []),
+                'currentSkippedLabels' => self::stringListRecursiveWindowPromotionBarrier($sourceWindow['currentSkippedLabels'] ?? []),
+                'currentTruncatedLabels' => self::stringListRecursiveWindowPromotionBarrier($sourceWindow['currentTruncatedLabels'] ?? []),
             ]);
             $requiredPromotionAcks = [
                 'page:' . $currentPageToken,
                 'recursive:' . $recursiveTraceToken,
                 'window:' . $windowFrameToken,
             ];
-            $barrierToken = self::tokenNext235([
+            $barrierToken = self::tokenRecursiveWindowPromotionBarrier([
                 'currentPageToken' => $currentPageToken,
                 'recursiveTraceToken' => $recursiveTraceToken,
                 'windowFrameToken' => $windowFrameToken,
                 'requiredPromotionAcks' => $requiredPromotionAcks,
                 'nextCursor' => is_array($handoff['nextSourceCursor'] ?? null) ? $handoff['nextSourceCursor'] : [],
             ]);
-            $currentLabels = self::stringListNext235($handoff['currentLabels'] ?? []);
-            $nextLabels = self::stringListNext235($handoff['nextLabels'] ?? []);
+            $currentLabels = self::stringListRecursiveWindowPromotionBarrier($handoff['currentLabels'] ?? []);
+            $nextLabels = self::stringListRecursiveWindowPromotionBarrier($handoff['nextLabels'] ?? []);
 
             return [
                 'barrierToken' => $barrierToken,
@@ -17804,16 +17804,16 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'requiredPromotionAckCount' => count($requiredPromotionAcks),
                 'currentLabels' => $currentLabels,
                 'nextLabels' => $nextLabels,
-                'nextOnlyLabels' => self::stringListNext235($handoff['nextOnlyLabels'] ?? []),
-                'currentOnlyLabels' => self::stringListNext235($handoff['currentOnlyLabels'] ?? []),
-                'recursiveSkippedLabels' => self::stringListNext235($recursiveQueue['currentSkippedLabels'] ?? []),
-                'recursiveEmittedLabels' => self::stringListNext235($recursiveQueue['currentEmittedLabels'] ?? []),
-                'windowFunctions' => self::stringListNext235($windows['functions'] ?? []),
-                'windowMetricCount' => count(self::floatListNext235($windows['aggregateMetrics'] ?? [])),
+                'nextOnlyLabels' => self::stringListRecursiveWindowPromotionBarrier($handoff['nextOnlyLabels'] ?? []),
+                'currentOnlyLabels' => self::stringListRecursiveWindowPromotionBarrier($handoff['currentOnlyLabels'] ?? []),
+                'recursiveSkippedLabels' => self::stringListRecursiveWindowPromotionBarrier($recursiveQueue['currentSkippedLabels'] ?? []),
+                'recursiveEmittedLabels' => self::stringListRecursiveWindowPromotionBarrier($recursiveQueue['currentEmittedLabels'] ?? []),
+                'windowFunctions' => self::stringListRecursiveWindowPromotionBarrier($windows['functions'] ?? []),
+                'windowMetricCount' => count(self::floatListRecursiveWindowPromotionBarrier($windows['aggregateMetrics'] ?? [])),
                 'currentPageAckCount' => (int) ($handoff['requiredAckCount'] ?? 0),
                 'promotionState' => 'held-until-page-recursive-and-window-acks-match',
                 'promotedNextSourceCursor' => is_array($handoff['nextSourceCursor'] ?? null) ? $handoff['nextSourceCursor'] : [],
-                'yieldBoundary' => 'compound-recursive-window-next235-promotion-barrier-fences-next-source',
+                'yieldBoundary' => 'compound-recursive-window-recursive-window-promotion-barrier-promotion-barrier-fences-next-source',
             ];
         }
 
@@ -17821,39 +17821,39 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @param array<string,mixed> $barrier
          */
-        private static function validateCursorNext235(?array $cursor, array $barrier): void
+        private static function validateCursorRecursiveWindowPromotionBarrier(?array $cursor, array $barrier): void
         {
             if ($cursor === null) {
                 return;
             }
             foreach ([
-                'promotionBarrierTokenNext235' => 'barrierToken',
-                'currentPageTokenNext235' => 'currentPageToken',
-                'recursiveTraceTokenNext235' => 'recursiveTraceToken',
-                'windowFrameTokenNext235' => 'windowFrameToken',
+                'promotionBarrierTokenRecursiveWindowPromotionBarrier' => 'barrierToken',
+                'currentPageTokenRecursiveWindowPromotionBarrier' => 'currentPageToken',
+                'recursiveTraceTokenRecursiveWindowPromotionBarrier' => 'recursiveTraceToken',
+                'windowFrameTokenRecursiveWindowPromotionBarrier' => 'windowFrameToken',
             ] as $cursorKey => $barrierKey) {
                 if (isset($cursor[$cursorKey]) && $cursor[$cursorKey] !== $barrier[$barrierKey]) {
-                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next235 cursor does not match promotion barrier');
+                    throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT recursive-window-promotion-barrier cursor does not match promotion barrier');
                 }
             }
-            if (!array_key_exists('acknowledgedPromotionAcksNext235', $cursor)) {
+            if (!array_key_exists('acknowledgedPromotionAcksRecursiveWindowPromotionBarrier', $cursor)) {
                 return;
             }
-            if (!is_array($cursor['acknowledgedPromotionAcksNext235'])) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next235 promotion acknowledgements must be a list');
+            if (!is_array($cursor['acknowledgedPromotionAcksRecursiveWindowPromotionBarrier'])) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT recursive-window-promotion-barrier promotion acknowledgements must be a list');
             }
 
-            $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedPromotionAcksNext235']));
-            $required = self::stringListNext235($barrier['requiredPromotionAcks'] ?? []);
+            $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedPromotionAcksRecursiveWindowPromotionBarrier']));
+            $required = self::stringListRecursiveWindowPromotionBarrier($barrier['requiredPromotionAcks'] ?? []);
             $missing = array_values(array_diff($required, $acknowledged));
             $unexpected = array_values(array_diff($acknowledged, $required));
             if ($missing !== [] || $unexpected !== []) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next235 promotion acknowledgements do not match required page/recursive/window set');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT recursive-window-promotion-barrier promotion acknowledgements do not match required page/recursive/window set');
             }
         }
 
         /** @param mixed $value @return list<array<string,int|string>> */
-        private static function windowTermSummaryNext235(mixed $value): array
+        private static function windowTermSummaryRecursiveWindowPromotionBarrier(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -17876,7 +17876,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param mixed $value @return list<string> */
-        private static function stringListNext235(mixed $value): array
+        private static function stringListRecursiveWindowPromotionBarrier(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -17886,7 +17886,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param mixed $value @return list<float> */
-        private static function floatListNext235(mixed $value): array
+        private static function floatListRecursiveWindowPromotionBarrier(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -17896,7 +17896,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $payload */
-        private static function tokenNext235(array $payload): string
+        private static function tokenRecursiveWindowPromotionBarrier(array $payload): string
         {
             return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
         }
@@ -17909,22 +17909,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext236(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareWindowMetricFence(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext233($sql, $currentTables, $nextTables, self::baseCursorNext236($cursor));
-            $fence = self::metricFenceNext236($base);
-            self::validateCursorNext236($cursor, $fence);
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareFinalOrderResume($sql, $currentTables, $nextTables, self::baseCursorWindowMetricFence($cursor));
+            $fence = self::metricFenceWindowMetricFence($base);
+            self::validateCursorWindowMetricFence($cursor, $fence);
 
-            $base['status'] = 'compound-select-window-recursive-limit-current-source-next236-ready';
-            $base['windowMetricFenceNext236'] = $fence;
-            $base['cursor']['currentMetricFenceTokenNext236'] = $fence['currentMetricFenceToken'];
-            $base['cursor']['requiredMetricAcksNext236'] = $fence['requiredMetricAcks'];
+            $base['status'] = 'compound-select-window-recursive-limit-current-source-window-metric-fence-ready';
+            $base['windowMetricFenceWindowMetricFence'] = $fence;
+            $base['cursor']['currentMetricFenceTokenWindowMetricFence'] = $fence['currentMetricFenceToken'];
+            $base['cursor']['requiredMetricAcksWindowMetricFence'] = $fence['requiredMetricAcks'];
             $base['cursor']['nextExposure'] = $fence['nextExposure'];
-            $base['replanReasons'][] = 'compound-window-metric-ack-fence-next236';
-            $base['replanReasons'][] = 'recursive-window-metric-drift-holds-next-source-next236';
-            $base['dependencies'][] = 'sqlite-compound-recursive-window-metric-fence-next236';
-            $base['dependency_closure'] = 'no new support component needed; next236 reuses accepted next233 compound SELECT, recursive LIMIT/OFFSET, window evaluation, final-order ordinal acknowledgements, and adds a per-row window metric acknowledgement fence before next-source rows are exposed';
-            $base['non_overlap'] = 'next236 extends accepted next233 final ordinal resume by requiring current-source window metric acknowledgements; it avoids accepted next226/next228/next230/next233 compound recursive/window LIMIT variants, suite236 evidence, JSON table, WAL/VFS, B-tree, planner, trigger, PRAGMA, and encoding surfaces';
+            $base['replanReasons'][] = 'compound-window-metric-ack-fence-window-metric-fence';
+            $base['replanReasons'][] = 'recursive-window-metric-drift-holds-next-source-window-metric-fence';
+            $base['dependencies'][] = 'sqlite-compound-recursive-window-metric-fence-window-metric-fence';
+            $base['dependency_closure'] = 'no new support component needed; window-metric-fence reuses accepted final-order-resume compound SELECT, recursive LIMIT/OFFSET, window evaluation, final-order ordinal acknowledgements, and adds a per-row window metric acknowledgement fence before next-source rows are exposed';
+            $base['non_overlap'] = 'window-metric-fence extends accepted final-order-resume final ordinal resume by requiring current-source window metric acknowledgements; it avoids accepted next226/current-page-drain/union-intersect-except-window-limit/final-order-resume compound recursive/window LIMIT variants, suite236 evidence, JSON table, WAL/VFS, B-tree, planner, trigger, PRAGMA, and encoding surfaces';
 
             return $base;
         }
@@ -17933,7 +17933,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>|null
          */
-        private static function baseCursorNext236(?array $cursor): ?array
+        private static function baseCursorWindowMetricFence(?array $cursor): ?array
         {
             if ($cursor === null || !isset($cursor['currentResumeToken'])) {
                 return null;
@@ -17951,14 +17951,14 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function metricFenceNext236(array $plan): array
+        private static function metricFenceWindowMetricFence(array $plan): array
         {
-            $currentRows = self::rowsNext236($plan['currentRows'] ?? []);
-            $nextRows = self::rowsNext236($plan['nextRows'] ?? []);
-            $resume = is_array($plan['currentSourceResumeNext233'] ?? null) ? $plan['currentSourceResumeNext233'] : [];
+            $currentRows = self::rowsWindowMetricFence($plan['currentRows'] ?? []);
+            $nextRows = self::rowsWindowMetricFence($plan['nextRows'] ?? []);
+            $resume = is_array($plan['currentSourceResumeFinalOrderResume'] ?? null) ? $plan['currentSourceResumeFinalOrderResume'] : [];
             $currentToken = (string) ($resume['currentToken'] ?? '');
-            $currentMetrics = self::rowMetricsNext236($currentRows, $currentToken);
-            $nextMetrics = self::rowMetricsNext236($nextRows, (string) ($resume['nextToken'] ?? ''));
+            $currentMetrics = self::rowMetricsWindowMetricFence($currentRows, $currentToken);
+            $nextMetrics = self::rowMetricsWindowMetricFence($nextRows, (string) ($resume['nextToken'] ?? ''));
             $required = array_column($currentMetrics, 'ack');
             $currentSignatures = array_column($currentMetrics, 'signature');
             $nextSignatures = array_column($nextMetrics, 'signature');
@@ -17977,10 +17977,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'nextMetricSignatures' => $nextSignatures,
                 'currentMetricLabels' => array_column($currentMetrics, 'label'),
                 'nextMetricLabels' => array_column($nextMetrics, 'label'),
-                'metricDriftLabels' => self::metricDriftLabelsNext236($currentMetrics, $nextMetrics),
-                'nextOnlyMetricLabels' => self::nextOnlyLabelsNext236($currentMetrics, $nextMetrics),
+                'metricDriftLabels' => self::metricDriftLabelsWindowMetricFence($currentMetrics, $nextMetrics),
+                'nextOnlyMetricLabels' => self::nextOnlyLabelsWindowMetricFence($currentMetrics, $nextMetrics),
                 'nextExposure' => 'held-until-current-window-metric-acks-match',
-                'yieldBoundary' => 'compound-window-next236-current-window-metric-fence',
+                'yieldBoundary' => 'compound-window-window-metric-fence-current-window-metric-fence',
             ];
         }
 
@@ -17988,27 +17988,27 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @param array<string,mixed> $fence
          */
-        private static function validateCursorNext236(?array $cursor, array $fence): void
+        private static function validateCursorWindowMetricFence(?array $cursor, array $fence): void
         {
             if ($cursor === null) {
                 return;
             }
-            if (isset($cursor['currentMetricFenceTokenNext236']) && $cursor['currentMetricFenceTokenNext236'] !== $fence['currentMetricFenceToken']) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next236 cursor does not match current metric fence token');
+            if (isset($cursor['currentMetricFenceTokenWindowMetricFence']) && $cursor['currentMetricFenceTokenWindowMetricFence'] !== $fence['currentMetricFenceToken']) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT window-metric-fence cursor does not match current metric fence token');
             }
-            if (!array_key_exists('acknowledgedMetricAcksNext236', $cursor)) {
+            if (!array_key_exists('acknowledgedMetricAcksWindowMetricFence', $cursor)) {
                 return;
             }
-            if (!is_array($cursor['acknowledgedMetricAcksNext236'])) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next236 acknowledged metrics must be a list');
+            if (!is_array($cursor['acknowledgedMetricAcksWindowMetricFence'])) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT window-metric-fence acknowledged metrics must be a list');
             }
 
-            $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedMetricAcksNext236']));
-            $required = self::stringListNext236($fence['requiredMetricAcks'] ?? []);
+            $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedMetricAcksWindowMetricFence']));
+            $required = self::stringListWindowMetricFence($fence['requiredMetricAcks'] ?? []);
             $missing = array_values(array_diff($required, $acknowledged));
             $unexpected = array_values(array_diff($acknowledged, $required));
             if ($missing !== [] || $unexpected !== []) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next236 current window metric acknowledgements do not match required fence set');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT window-metric-fence current window metric acknowledgements do not match required fence set');
             }
         }
 
@@ -18016,7 +18016,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param mixed $value
          * @return list<array<string,mixed>>
          */
-        private static function rowsNext236(mixed $value): array
+        private static function rowsWindowMetricFence(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -18036,7 +18036,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<array{label:string,metric:mixed,signature:string,ack:string}>
          */
-        private static function rowMetricsNext236(array $rows, string $token): array
+        private static function rowMetricsWindowMetricFence(array $rows, string $token): array
         {
             $metrics = [];
             foreach ($rows as $index => $row) {
@@ -18066,7 +18066,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array{label:string,metric:mixed,signature:string,ack:string}> $next
          * @return list<string>
          */
-        private static function metricDriftLabelsNext236(array $current, array $next): array
+        private static function metricDriftLabelsWindowMetricFence(array $current, array $next): array
         {
             $currentByLabel = [];
             foreach ($current as $metric) {
@@ -18088,7 +18088,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array{label:string,metric:mixed,signature:string,ack:string}> $next
          * @return list<string>
          */
-        private static function nextOnlyLabelsNext236(array $current, array $next): array
+        private static function nextOnlyLabelsWindowMetricFence(array $current, array $next): array
         {
             $currentLabels = array_flip(array_column($current, 'label'));
             $labels = [];
@@ -18105,7 +18105,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param mixed $value
          * @return list<string>
          */
-        private static function stringListNext236(mixed $value): array
+        private static function stringListWindowMetricFence(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -18219,7 +18219,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-current-source-dequeue-token-fence-next237',
                 ],
                 'dependency_closure' => 'no new support component needed; next237 reuses native SELECT SQL compound execution, recursive queue LIMIT/OFFSET tracing, rank/row_number window output, INTERSECT/EXCEPT membership, and final LIMIT helpers',
-                'non_overlap' => 'next237 adds a current-source recursive dequeue acknowledgement fence for a UNION ALL -> INTERSECT -> EXCEPT chain using rank and row_number window output; it avoids accepted next233 final-order ordinal resume, next229 UNION DISTINCT -> EXCEPT dense_rank, next226 aggregate windows through EXCEPT/INTERSECT, next196 ntile/first_value, JSON, WAL/VFS, B-tree, encoding, trigger, PRAGMA, and suite evidence clusters',
+                'non_overlap' => 'next237 adds a current-source recursive dequeue acknowledgement fence for a UNION ALL -> INTERSECT -> EXCEPT chain using rank and row_number window output; it avoids accepted final-order-resume final-order ordinal resume, union-except-dense-rank-limit UNION DISTINCT -> EXCEPT dense_rank, next226 aggregate windows through EXCEPT/INTERSECT, next196 ntile/first_value, JSON, WAL/VFS, B-tree, encoding, trigger, PRAGMA, and suite evidence clusters',
             ];
         }
 
@@ -18513,7 +18513,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         public static function compareSourceGenerationSeal(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext235($sql, $currentTables, $nextTables, self::baseCursorNext238($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowPromotionBarrier($sql, $currentTables, $nextTables, self::baseCursorNext238($cursor));
             $seal = self::sourceGenerationSealNext238($base);
             self::validateCursorNext238($cursor, $seal);
 
@@ -18526,8 +18526,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['replanReasons'][] = 'compound-recursive-window-source-generation-seal-next238';
             $base['replanReasons'][] = 'final-compound-limit-boundary-next238';
             $base['dependencies'][] = 'sqlite-compound-recursive-window-current-source-generation-next238';
-            $base['dependency_closure'] = 'no new support component needed; next238 reuses accepted next235 page/recursive/window promotion barriers and adds a source-generation seal over final compound LIMIT boundary movement before next-source cursor admission';
-            $base['non_overlap'] = 'next238 extends accepted next235 promotion barriers with source-generation and final-boundary acknowledgements; it avoids accepted next226 sum/count EXCEPT+INTERSECT, next229 dense-rank source tokens, next232 page acknowledgements, next235 promotion barriers, row-value/window RETURNING, trigger recursive UPSERT, JSON table, WAL/VFS, B-tree, planner, PRAGMA, and encoding clusters';
+            $base['dependency_closure'] = 'no new support component needed; next238 reuses accepted recursive-window-promotion-barrier page/recursive/window promotion barriers and adds a source-generation seal over final compound LIMIT boundary movement before next-source cursor admission';
+            $base['non_overlap'] = 'next238 extends accepted recursive-window-promotion-barrier promotion barriers with source-generation and final-boundary acknowledgements; it avoids accepted next226 sum/count EXCEPT+INTERSECT, union-except-dense-rank-limit dense-rank source tokens, current-page-handoff page acknowledgements, recursive-window-promotion-barrier promotion barriers, row-value/window RETURNING, trigger recursive UPSERT, JSON table, WAL/VFS, B-tree, planner, PRAGMA, and encoding clusters';
 
             return $base;
         }
@@ -18545,13 +18545,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentPageTokenNext232',
-                'acknowledgedCurrentAcksNext232',
-                'promotionBarrierTokenNext235',
-                'currentPageTokenNext235',
-                'recursiveTraceTokenNext235',
-                'windowFrameTokenNext235',
-                'acknowledgedPromotionAcksNext235',
+                'currentPageTokenCurrentPageHandoff',
+                'acknowledgedCurrentAcksCurrentPageHandoff',
+                'promotionBarrierTokenRecursiveWindowPromotionBarrier',
+                'currentPageTokenRecursiveWindowPromotionBarrier',
+                'recursiveTraceTokenRecursiveWindowPromotionBarrier',
+                'windowFrameTokenRecursiveWindowPromotionBarrier',
+                'acknowledgedPromotionAcksRecursiveWindowPromotionBarrier',
             ] as $key) {
                 if (array_key_exists($key, $cursor)) {
                     $base[$key] = $cursor[$key];
@@ -18567,7 +18567,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         private static function sourceGenerationSealNext238(array $plan): array
         {
-            $barrier = is_array($plan['recursiveWindowPromotionBarrierNext235'] ?? null) ? $plan['recursiveWindowPromotionBarrierNext235'] : [];
+            $barrier = is_array($plan['recursiveWindowPromotionBarrierRecursiveWindowPromotionBarrier'] ?? null) ? $plan['recursiveWindowPromotionBarrierRecursiveWindowPromotionBarrier'] : [];
             $sourceWindow = is_array($plan['sourceWindow'] ?? null) ? $plan['sourceWindow'] : [];
             $limitTrace = is_array($plan['limitTrace'] ?? null) ? $plan['limitTrace'] : [];
             $cursor = is_array($plan['cursor'] ?? null) ? $plan['cursor'] : [];
@@ -18619,7 +18619,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'currentTruncatedLabels' => $currentTruncated,
                 'nextTruncatedLabels' => $nextTruncated,
                 'promotionBarrierToken' => (string) ($barrier['barrierToken'] ?? ''),
-                'nextSourceCursor' => is_array($cursor['nextSourceCursorNext235'] ?? null) ? $cursor['nextSourceCursorNext235'] : [],
+                'nextSourceCursor' => is_array($cursor['nextSourceCursorRecursiveWindowPromotionBarrier'] ?? null) ? $cursor['nextSourceCursorRecursiveWindowPromotionBarrier'] : [],
                 'admissionState' => 'held-until-source-generation-and-final-boundary-acks-match',
                 'yieldBoundary' => 'compound-recursive-window-next238-source-generation-seal-fences-next-source',
             ];
@@ -18713,7 +18713,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         public static function compareCompoundLimitResumeFence(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext235(
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowPromotionBarrier(
                 $sql,
                 $currentTables,
                 $nextTables,
@@ -18733,7 +18733,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['replanReasons'][] = 'current-output-recursive-window-signature-next239';
             $base['dependencies'][] = 'sqlite-compound-limit-resume-fence-current-source-next239';
             $base['dependency_closure'] = 'no new support component needed; next239 reuses accepted compound SELECT, recursive CTE trace, window ranking, and current-source cursor tokens to fence LIMIT/OFFSET resume promotion';
-            $base['non_overlap'] = 'next239 extends accepted next235 promotion barriers by binding the final current LIMIT output signature to recursive and window signatures before replaying a next-source cursor; it avoids accepted compound row composition, JSON table, WAL/VFS, B-tree, encoding, and status-only surfaces';
+            $base['non_overlap'] = 'next239 extends accepted recursive-window-promotion-barrier promotion barriers by binding the final current LIMIT output signature to recursive and window signatures before replaying a next-source cursor; it avoids accepted compound row composition, JSON table, WAL/VFS, B-tree, encoding, and status-only surfaces';
 
             return $base;
         }
@@ -18751,13 +18751,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentPageTokenNext232',
-                'acknowledgedCurrentAcksNext232',
-                'promotionBarrierTokenNext235',
-                'currentPageTokenNext235',
-                'recursiveTraceTokenNext235',
-                'windowFrameTokenNext235',
-                'acknowledgedPromotionAcksNext235',
+                'currentPageTokenCurrentPageHandoff',
+                'acknowledgedCurrentAcksCurrentPageHandoff',
+                'promotionBarrierTokenRecursiveWindowPromotionBarrier',
+                'currentPageTokenRecursiveWindowPromotionBarrier',
+                'recursiveTraceTokenRecursiveWindowPromotionBarrier',
+                'windowFrameTokenRecursiveWindowPromotionBarrier',
+                'acknowledgedPromotionAcksRecursiveWindowPromotionBarrier',
             ] as $key) {
                 if (array_key_exists($key, $cursor)) {
                     $base[$key] = $cursor[$key];
@@ -18773,8 +18773,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         private static function resumeFenceNext239(array $plan): array
         {
-            $barrier = is_array($plan['recursiveWindowPromotionBarrierNext235'] ?? null)
-                ? $plan['recursiveWindowPromotionBarrierNext235']
+            $barrier = is_array($plan['recursiveWindowPromotionBarrierRecursiveWindowPromotionBarrier'] ?? null)
+                ? $plan['recursiveWindowPromotionBarrierRecursiveWindowPromotionBarrier']
                 : [];
             $limitTrace = is_array($plan['limitTrace'] ?? null) ? $plan['limitTrace'] : [];
             $recursiveQueue = is_array($plan['recursiveQueue'] ?? null) ? $plan['recursiveQueue'] : [];
@@ -18942,7 +18942,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['replanReasons'][] = 'current-source-window-spillover-holds-next-source-next240';
             $base['dependencies'][] = 'sqlite-compound-final-page-spillover-drain-next240';
             $base['dependency_closure'] = 'no new support component needed; next240 reuses accepted compound SELECT recursive LIMIT/OFFSET, rank/row_number window dispatch, INTERSECT/EXCEPT membership, and adds a final-page spillover acknowledgement fence before next-source promotion';
-            $base['non_overlap'] = 'next240 extends accepted next237 recursive dequeue fencing by acknowledging current-source compound rows skipped or truncated by the final LIMIT/OFFSET page; it avoids accepted next236 metric fences, next237 dequeue fences, next226/next228/next230/next233 aggregate/window page handoffs, JSON table, WAL/VFS, B-tree, planner, trigger, PRAGMA, encoding, and suite evidence clusters';
+            $base['non_overlap'] = 'next240 extends accepted next237 recursive dequeue fencing by acknowledging current-source compound rows skipped or truncated by the final LIMIT/OFFSET page; it avoids accepted window-metric-fence metric fences, next237 dequeue fences, next226/current-page-drain/union-intersect-except-window-limit/final-order-resume aggregate/window page handoffs, JSON table, WAL/VFS, B-tree, planner, trigger, PRAGMA, encoding, and suite evidence clusters';
 
             return $base;
         }
@@ -19145,13 +19145,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentPageTokenNext232',
-                'acknowledgedCurrentAcksNext232',
-                'promotionBarrierTokenNext235',
-                'currentPageTokenNext235',
-                'recursiveTraceTokenNext235',
-                'windowFrameTokenNext235',
-                'acknowledgedPromotionAcksNext235',
+                'currentPageTokenCurrentPageHandoff',
+                'acknowledgedCurrentAcksCurrentPageHandoff',
+                'promotionBarrierTokenRecursiveWindowPromotionBarrier',
+                'currentPageTokenRecursiveWindowPromotionBarrier',
+                'recursiveTraceTokenRecursiveWindowPromotionBarrier',
+                'windowFrameTokenRecursiveWindowPromotionBarrier',
+                'acknowledgedPromotionAcksRecursiveWindowPromotionBarrier',
                 'sourceGenerationTokenNext238',
                 'finalBoundaryTokenNext238',
                 'acknowledgedSourceGenerationAcksNext238',
@@ -19346,7 +19346,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['replanReasons'][] = 'recursive-queue-window-final-page-acks-next242';
             $base['dependencies'][] = 'sqlite-compound-recursive-window-commit-fence-current-source-next242';
             $base['dependency_closure'] = 'no new support component needed; next242 reuses native SELECT SQL compound, recursive queue LIMIT/OFFSET, window row-array output, and next238 source-generation seal machinery';
-            $base['non_overlap'] = 'next242 extends accepted next238 source-generation seal with a commit fence over recursive queue, window output, and final page acknowledgements; it avoids accepted next235 promotion barriers, next238 source-generation seals, batch209 next238 behavior, JSON table, WAL/VFS, B-tree, planner, PRAGMA, trigger, row-value, and encoding clusters';
+            $base['non_overlap'] = 'next242 extends accepted next238 source-generation seal with a commit fence over recursive queue, window output, and final page acknowledgements; it avoids accepted recursive-window-promotion-barrier promotion barriers, next238 source-generation seals, batch209 next238 behavior, JSON table, WAL/VFS, B-tree, planner, PRAGMA, trigger, row-value, and encoding clusters';
 
             return $base;
         }
@@ -19364,13 +19364,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentPageTokenNext232',
-                'acknowledgedCurrentAcksNext232',
-                'promotionBarrierTokenNext235',
-                'currentPageTokenNext235',
-                'recursiveTraceTokenNext235',
-                'windowFrameTokenNext235',
-                'acknowledgedPromotionAcksNext235',
+                'currentPageTokenCurrentPageHandoff',
+                'acknowledgedCurrentAcksCurrentPageHandoff',
+                'promotionBarrierTokenRecursiveWindowPromotionBarrier',
+                'currentPageTokenRecursiveWindowPromotionBarrier',
+                'recursiveTraceTokenRecursiveWindowPromotionBarrier',
+                'windowFrameTokenRecursiveWindowPromotionBarrier',
+                'acknowledgedPromotionAcksRecursiveWindowPromotionBarrier',
                 'sourceGenerationTokenNext238',
                 'finalBoundaryTokenNext238',
                 'acknowledgedSourceGenerationAcksNext238',
@@ -19801,13 +19801,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentPageTokenNext232',
-                'acknowledgedCurrentAcksNext232',
-                'promotionBarrierTokenNext235',
-                'currentPageTokenNext235',
-                'recursiveTraceTokenNext235',
-                'windowFrameTokenNext235',
-                'acknowledgedPromotionAcksNext235',
+                'currentPageTokenCurrentPageHandoff',
+                'acknowledgedCurrentAcksCurrentPageHandoff',
+                'promotionBarrierTokenRecursiveWindowPromotionBarrier',
+                'currentPageTokenRecursiveWindowPromotionBarrier',
+                'recursiveTraceTokenRecursiveWindowPromotionBarrier',
+                'windowFrameTokenRecursiveWindowPromotionBarrier',
+                'acknowledgedPromotionAcksRecursiveWindowPromotionBarrier',
                 'sourceGenerationTokenNext238',
                 'finalBoundaryTokenNext238',
                 'acknowledgedSourceGenerationAcksNext238',
@@ -20408,13 +20408,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base = [];
             foreach ([
                 'currentToken',
-                'currentPageTokenNext232',
-                'acknowledgedCurrentAcksNext232',
-                'promotionBarrierTokenNext235',
-                'currentPageTokenNext235',
-                'recursiveTraceTokenNext235',
-                'windowFrameTokenNext235',
-                'acknowledgedPromotionAcksNext235',
+                'currentPageTokenCurrentPageHandoff',
+                'acknowledgedCurrentAcksCurrentPageHandoff',
+                'promotionBarrierTokenRecursiveWindowPromotionBarrier',
+                'currentPageTokenRecursiveWindowPromotionBarrier',
+                'recursiveTraceTokenRecursiveWindowPromotionBarrier',
+                'windowFrameTokenRecursiveWindowPromotionBarrier',
+                'acknowledgedPromotionAcksRecursiveWindowPromotionBarrier',
                 'sourceGenerationTokenNext238',
                 'finalBoundaryTokenNext238',
                 'acknowledgedSourceGenerationAcksNext238',

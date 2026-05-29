@@ -109,7 +109,7 @@ $terms229 = static fn (): array => [
     $eq229('blog_id', 1),
     $like229('option_name', 'plugin_%'),
 ];
-$plan229 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext229(
+$plan229 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4ExpressionPartialSelectivity(
     $prepared ?? $prepared229(),
     $current ?? $current229(),
     $terms ?? $terms229(),

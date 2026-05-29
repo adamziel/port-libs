@@ -12585,27 +12585,27 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($admissionPlan, $savepointScopes);
     }
 
-    public static function next221Plan(array $next217Plan, array $sidecarReceipts): array
+    public static function sidecarRetirementPlan(array $checkpointAdmissionPlan, array $sidecarReceipts): array
     {
         $impl = new class {
                 /**
-                 * @param array<string,mixed> $next217Plan
+                 * @param array<string,mixed> $checkpointAdmissionPlan
                  * @param list<array<string,mixed>> $sidecarReceipts
                  * @return array<string,mixed>
                  */
-                public static function plan(array $next217Plan, array $sidecarReceipts): array
+                public static function plan(array $checkpointAdmissionPlan, array $sidecarReceipts): array
                 {
-                    self::assertNext217Plan($next217Plan);
+                    self::assertCheckpointAdmissionPlan($checkpointAdmissionPlan);
                     if ($sidecarReceipts === []) {
                         throw new \InvalidArgumentException('SQLite WAL current-source next221 requires sidecar retirement receipts');
                     }
 
-                    $token = $next217Plan['current_source_token'];
+                    $token = $checkpointAdmissionPlan['current_source_token'];
                     $sourceId = (string) $token['id'];
                     $sourceEpoch = (int) $token['epoch'];
-                    $nextEpoch = (int) ($next217Plan['next_source_epoch'] ?? ($sourceEpoch + 1));
-                    $checkpointFrame = (int) $next217Plan['checkpoint_frame'];
-                    $checkpointCookie = (int) $next217Plan['checkpoint_cookie'];
+                    $nextEpoch = (int) ($checkpointAdmissionPlan['next_source_epoch'] ?? ($sourceEpoch + 1));
+                    $checkpointFrame = (int) $checkpointAdmissionPlan['checkpoint_frame'];
+                    $checkpointCookie = (int) $checkpointAdmissionPlan['checkpoint_cookie'];
 
                     $rows = [];
                     foreach ($sidecarReceipts as $receipt) {
@@ -12621,9 +12621,9 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                     $requiredKinds = ['hot-journal', 'wal', 'shm'];
                     $missingKinds = array_values(array_filter($requiredKinds, static fn (string $kind): bool => !isset($byKind[$kind])));
                     $guards = [
-                        'next217_checkpoint_admitted' => ($next217Plan['status'] ?? null) === 'wal-hot-journal-savepoint-checkpoint-current-source-next217'
-                            && ($next217Plan['checkpoint_admitted'] ?? false) === true,
-                        'next217_has_no_blocked_readers' => ($next217Plan['blocked_reader_names'] ?? []) === [],
+                        'next217_checkpoint_admitted' => ($checkpointAdmissionPlan['status'] ?? null) === 'wal-hot-journal-savepoint-checkpoint-current-source-next217'
+                            && ($checkpointAdmissionPlan['checkpoint_admitted'] ?? false) === true,
+                        'next217_has_no_blocked_readers' => ($checkpointAdmissionPlan['blocked_reader_names'] ?? []) === [],
                         'required_sidecars_observed' => $missingKinds === [],
                         'sidecar_receipts_match_next_source' => $blockedRows === [],
                         'old_hot_journal_retired' => self::kindHasAction($rows, 'hot-journal', 'delete'),
@@ -12640,10 +12640,10 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'reason' => $blocked === []
                             ? 'sidecar_retirement_receipts_publish_next_current_source'
                             : 'sidecar_retirement_receipts_block_next_current_source',
-                        'database_path' => (string) $next217Plan['database_path'],
-                        'wal_path' => (string) $next217Plan['wal_path'],
-                        'journal_path' => (string) $next217Plan['journal_path'],
-                        'shm_path' => (string) ($next217Plan['shm_path'] ?? ((string) $next217Plan['wal_path'] . '-shm')),
+                        'database_path' => (string) $checkpointAdmissionPlan['database_path'],
+                        'wal_path' => (string) $checkpointAdmissionPlan['wal_path'],
+                        'journal_path' => (string) $checkpointAdmissionPlan['journal_path'],
+                        'shm_path' => (string) ($checkpointAdmissionPlan['shm_path'] ?? ((string) $checkpointAdmissionPlan['wal_path'] . '-shm')),
                         'current_source_token' => $token,
                         'next_source_token' => [
                             'id' => $sourceId . ':next221',
@@ -12664,7 +12664,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'checkpoint_admitted' => $blocked === [],
                         'retirement_digest' => hash('sha256', json_encode($rows, JSON_THROW_ON_ERROR)),
                         'operation_names' => array_values(array_unique(array_merge(
-                            is_array($next217Plan['operation_names'] ?? null) ? $next217Plan['operation_names'] : [],
+                            is_array($checkpointAdmissionPlan['operation_names'] ?? null) ? $checkpointAdmissionPlan['operation_names'] : [],
                             [
                                 'verify_hot_journal_retirement_receipt_next221',
                                 'verify_restarted_wal_generation_receipt_next221',
@@ -12673,7 +12673,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             ]
                         ))),
                         'dependencies' => array_values(array_unique(array_merge(
-                            is_array($next217Plan['dependencies'] ?? null) ? $next217Plan['dependencies'] : [],
+                            is_array($checkpointAdmissionPlan['dependencies'] ?? null) ? $checkpointAdmissionPlan['dependencies'] : [],
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next221',
                                 'sqlite-wal-sidecar-retirement-current-source-barrier',
@@ -12688,7 +12688,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 /**
                  * @param array<string,mixed> $plan
                  */
-                private static function assertNext217Plan(array $plan): void
+                private static function assertCheckpointAdmissionPlan(array $plan): void
                 {
                     foreach (['status', 'database_path', 'wal_path', 'journal_path', 'current_source_token', 'checkpoint_frame', 'checkpoint_cookie', 'blocked_reader_names'] as $key) {
                         if (!array_key_exists($key, $plan)) {
@@ -12801,7 +12801,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 }
         };
 
-        return $impl::plan($next217Plan, $sidecarReceipts);
+        return $impl::plan($checkpointAdmissionPlan, $sidecarReceipts);
     }
 
     public static function next220ReaderReopenPlan(array $next219Plan, array $readerReceipts): array
@@ -13250,26 +13250,26 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::publishCurrentSource($resetPlan, $receipts, $nextSourceEpoch);
     }
 
-    public static function next222SourceTicketPlan(array $next221Plan, array $tickets): array
+    public static function sourceTicketPlan(array $sidecarRetirementPlan, array $tickets): array
     {
         $impl = new class {
                 /**
-                 * @param array<string,mixed> $next221Plan
+                 * @param array<string,mixed> $sidecarRetirementPlan
                  * @param list<array<string,mixed>> $tickets
                  * @return array<string,mixed>
                  */
-                public static function plan(array $next221Plan, array $tickets): array
+                public static function plan(array $sidecarRetirementPlan, array $tickets): array
                 {
-                    if (($next221Plan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next221') {
+                    if (($sidecarRetirementPlan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next221') {
                         throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next222 requires an admitted next221 plan');
                     }
                     if ($tickets === []) {
                         throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next222 requires source tickets');
                     }
 
-                    $token = self::token($next221Plan['next_source_token'] ?? null);
-                    $frame = self::positiveInt($next221Plan, 'checkpoint_frame');
-                    $cookie = self::positiveInt($next221Plan, 'checkpoint_cookie');
+                    $token = self::token($sidecarRetirementPlan['next_source_token'] ?? null);
+                    $frame = self::positiveInt($sidecarRetirementPlan, 'checkpoint_frame');
+                    $cookie = self::positiveInt($sidecarRetirementPlan, 'checkpoint_cookie');
                     $requiredKinds = ['database', 'wal', 'journal', 'shm'];
 
                     $rows = [];
@@ -13283,7 +13283,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                     $canSeal = $blocked === [] && $missingKinds === [];
 
                     $guardRows = [
-                        ['name' => 'next221_sidecars_retired', 'matched' => ($next221Plan['checkpoint_admitted'] ?? false) === true],
+                        ['name' => 'next221_sidecars_retired', 'matched' => ($sidecarRetirementPlan['checkpoint_admitted'] ?? false) === true],
                         ['name' => 'all_source_tickets_current', 'matched' => $blocked === []],
                         ['name' => 'required_source_ticket_kinds_present', 'matched' => $missingKinds === []],
                     ];
@@ -13295,11 +13295,11 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'reason' => $canSeal
                             ? 'source_tickets_seal_sidecar_retired_checkpoint_source'
                             : 'source_tickets_wait_for_sidecar_retired_checkpoint_source',
-                        'base_status' => $next221Plan['status'],
-                        'database_path' => $next221Plan['database_path'] ?? null,
-                        'wal_path' => $next221Plan['wal_path'] ?? null,
-                        'journal_path' => $next221Plan['journal_path'] ?? null,
-                        'shm_path' => $next221Plan['shm_path'] ?? null,
+                        'base_status' => $sidecarRetirementPlan['status'],
+                        'database_path' => $sidecarRetirementPlan['database_path'] ?? null,
+                        'wal_path' => $sidecarRetirementPlan['wal_path'] ?? null,
+                        'journal_path' => $sidecarRetirementPlan['journal_path'] ?? null,
+                        'shm_path' => $sidecarRetirementPlan['shm_path'] ?? null,
                         'next_source_token' => $token,
                         'checkpoint_frame' => $frame,
                         'checkpoint_cookie' => $cookie,
@@ -13316,7 +13316,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'guard_matches' => array_column($guardRows, 'matched'),
                         'blocked_guard_names' => array_values(array_column(array_filter($guardRows, static fn (array $row): bool => !$row['matched']), 'name')),
                         'operation_names' => array_values(array_unique(array_merge(
-                            is_array($next221Plan['operation_names'] ?? null) ? $next221Plan['operation_names'] : [],
+                            is_array($sidecarRetirementPlan['operation_names'] ?? null) ? $sidecarRetirementPlan['operation_names'] : [],
                             [
                                 'verify_current_source_ticket_receipts_next222',
                                 $canSeal ? 'seal_checkpoint_current_source_ticket_next222' : 'hold_checkpoint_current_source_ticket_next222',
@@ -13324,7 +13324,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         ))),
                         'ticket_digest' => hash('sha256', json_encode([$token, $frame, $cookie, $rows], JSON_THROW_ON_ERROR)),
                         'dependencies' => array_values(array_unique(array_merge(
-                            is_array($next221Plan['dependencies'] ?? null) ? $next221Plan['dependencies'] : [],
+                            is_array($sidecarRetirementPlan['dependencies'] ?? null) ? $sidecarRetirementPlan['dependencies'] : [],
                             [
                                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next222',
                                 'sqlite-checkpoint-current-source-ticket-seal',
@@ -13435,7 +13435,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 }
         };
 
-        return $impl::plan($next221Plan, $tickets);
+        return $impl::plan($sidecarRetirementPlan, $tickets);
     }
 
     public static function next224PublishReset(array $resetPlan, array $sidecars, array $readers, string $sourceToken): array

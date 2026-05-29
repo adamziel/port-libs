@@ -36053,7 +36053,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext227(
+    public static function materializeStat4ExpressionPartialPeerCardinality(
         array $preparedSource,
         array $currentSource,
         array $whereTerms,
@@ -36070,8 +36070,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $offset,
         );
         $selectedName = (string) ($base['selectedPlan']['name'] ?? '');
-        $currentIndex = self::indexByNameNext227($currentSource, $selectedName);
-        $cardinalityFence = self::peerCardinalityFenceNext227($currentIndex, self::sampleProofsNext227($base));
+        $currentIndex = self::indexByNameForStat4PeerCardinality($currentSource, $selectedName);
+        $cardinalityFence = self::stat4PeerCardinalityFence($currentIndex, self::sampleProofsForStat4PeerCardinality($base));
         $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next224-ready'
             && $cardinalityFence['allSelectedSamplePeerCountsMatchCurrentPayloads'] === true
             && $cardinalityFence['expressionKeysWithStalePeerCounts'] === [];
@@ -36090,7 +36090,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'next227PeerCardinalitySignature' => $cardinalityFence['peerCardinalitySignature'],
                 'next227PeerCardinalityProofSignature' => $cardinalityFence['proofSignature'],
             ]),
-            'cursorProgram' => self::cursorProgramNext227(
+            'cursorProgram' => self::cursorProgramForStat4PeerCardinality(
                 is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                 $ready,
                 $cardinalityFence,
@@ -36112,7 +36112,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $source @return array<string,mixed> */
-    private static function indexByNameNext227(array $source, string $name): array
+    private static function indexByNameForStat4PeerCardinality(array $source, string $name): array
     {
         $indexes = $source['indexes'] ?? null;
         if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -36131,7 +36131,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $base @return list<array<string,mixed>> */
-    private static function sampleProofsNext227(array $base): array
+    private static function sampleProofsForStat4PeerCardinality(array $base): array
     {
         $fence = $base['stat4SampleOrderFence'] ?? null;
         $proofs = is_array($fence) ? ($fence['matchedSampleProofs'] ?? null) : null;
@@ -36152,25 +36152,25 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,mixed>> $sampleProofs
      * @return array<string,mixed>
      */
-    private static function peerCardinalityFenceNext227(array $index, array $sampleProofs): array
+    private static function stat4PeerCardinalityFence(array $index, array $sampleProofs): array
     {
-        $payloadCounts = self::payloadPeerCountsNext227($index['stat4ExpressionPayloads'] ?? null);
+        $payloadCounts = self::payloadPeerCountsForStat4PeerCardinality($index['stat4ExpressionPayloads'] ?? null);
         $selected = [];
         foreach ($sampleProofs as $proof) {
-            $key = self::proofKeyNext227($proof);
+            $key = self::proofKeyForStat4PeerCardinality($proof);
             if (isset($selected[$key])) {
                 continue;
             }
-            $stat4Neq = self::proofIntNext227($proof, 'sampleNeq');
+            $stat4Neq = self::proofIntForStat4PeerCardinality($proof, 'sampleNeq');
             $payloadCount = $payloadCounts[$key] ?? 0;
             $selected[$key] = [
                 'expressionKey' => $key,
                 'stat4Neq' => $stat4Neq,
                 'currentPayloadPeerCount' => $payloadCount,
                 'matchesCurrentPayloadPeers' => $stat4Neq === $payloadCount,
-                'sampleOrdinal' => self::proofNullableIntNext227($proof, 'sampleOrdinal'),
-                'sampleNlt' => self::proofNullableIntNext227($proof, 'sampleNlt'),
-                'sampleNdlt' => self::proofNullableIntNext227($proof, 'sampleNdlt'),
+                'sampleOrdinal' => self::proofNullableIntForStat4PeerCardinality($proof, 'sampleOrdinal'),
+                'sampleNlt' => self::proofNullableIntForStat4PeerCardinality($proof, 'sampleNlt'),
+                'sampleNdlt' => self::proofNullableIntForStat4PeerCardinality($proof, 'sampleNdlt'),
             ];
         }
         $stale = array_values(array_map(
@@ -36183,7 +36183,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             'selectedPeerCounts' => array_values($selected),
             'expressionKeysWithStalePeerCounts' => $stale,
             'allSelectedSamplePeerCountsMatchCurrentPayloads' => $stale === [] && $selected !== [],
-            'peerCardinalitySignature' => self::signatureNext227(array_map(
+            'peerCardinalitySignature' => self::signatureForStat4PeerCardinality(array_map(
                 static fn (array $row): array => [
                     'expressionKey' => $row['expressionKey'],
                     'stat4Neq' => $row['stat4Neq'],
@@ -36191,12 +36191,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ],
                 array_values($selected),
             )),
-            'proofSignature' => self::signatureNext227([$payloadCounts, array_values($selected), $stale]),
+            'proofSignature' => self::signatureForStat4PeerCardinality([$payloadCounts, array_values($selected), $stale]),
         ];
     }
 
     /** @return array<string,int> */
-    private static function payloadPeerCountsNext227(mixed $payloads): array
+    private static function payloadPeerCountsForStat4PeerCardinality(mixed $payloads): array
     {
         if (!is_array($payloads) || !array_is_list($payloads) || $payloads === []) {
             throw new \InvalidArgumentException('SQLite next227 needs stat4ExpressionPayloads');
@@ -36206,7 +36206,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!is_array($payload)) {
                 throw new \InvalidArgumentException('SQLite next227 payload entries must be arrays');
             }
-            $key = self::payloadExpressionKeyNext227($payload);
+            $key = self::payloadExpressionKeyForStat4PeerCardinality($payload);
             $counts[$key] = ($counts[$key] ?? 0) + 1;
         }
         ksort($counts);
@@ -36215,7 +36215,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $payload */
-    private static function payloadExpressionKeyNext227(array $payload): string
+    private static function payloadExpressionKeyForStat4PeerCardinality(array $payload): string
     {
         if (array_key_exists('expressionKey', $payload)) {
             return strtolower((string) $payload['expressionKey']);
@@ -36232,7 +36232,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $proof */
-    private static function proofKeyNext227(array $proof): string
+    private static function proofKeyForStat4PeerCardinality(array $proof): string
     {
         if (!array_key_exists('expressionKey', $proof)) {
             throw new \InvalidArgumentException('SQLite next227 sample proof needs expressionKey');
@@ -36242,7 +36242,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $proof */
-    private static function proofIntNext227(array $proof, string $key): int
+    private static function proofIntForStat4PeerCardinality(array $proof, string $key): int
     {
         if (!array_key_exists($key, $proof) || (!is_int($proof[$key]) && !ctype_digit((string) $proof[$key]))) {
             throw new \InvalidArgumentException('SQLite next227 sample proof ' . $key . ' must be an integer');
@@ -36252,13 +36252,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $proof */
-    private static function proofNullableIntNext227(array $proof, string $key): ?int
+    private static function proofNullableIntForStat4PeerCardinality(array $proof, string $key): ?int
     {
         if (($proof[$key] ?? null) === null) {
             return null;
         }
 
-        return self::proofIntNext227($proof, $key);
+        return self::proofIntForStat4PeerCardinality($proof, $key);
     }
 
     /**
@@ -36266,7 +36266,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $fence
      * @return list<array<string,mixed>>
      */
-    private static function cursorProgramNext227(array $program, bool $ready, array $fence): array
+    private static function cursorProgramForStat4PeerCardinality(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -36281,7 +36281,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return $program;
     }
 
-    private static function signatureNext227(mixed $value): string
+    private static function signatureForStat4PeerCardinality(mixed $value): string
     {
         return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     }
@@ -36295,7 +36295,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext229(
+    public static function materializeStat4ExpressionPartialSelectivity(
         array $preparedSource,
         array $currentSource,
         array $whereTerms,
@@ -36311,8 +36311,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $limit,
             $offset,
         );
-        $fence = self::selectivityFenceNext229(
-            self::matchedRowsNext229($base),
+        $fence = self::stat4SelectivityFence(
+            self::matchedRowsForStat4Selectivity($base),
             is_array($base['stat4SampleOrderFence'] ?? null) ? $base['stat4SampleOrderFence'] : [],
             $limit,
             $offset,
@@ -36338,7 +36338,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'next229SelectivitySignature' => $fence['selectivitySignature'],
                 'next229ProofSignature' => $fence['proofSignature'],
             ]),
-            'cursorProgram' => self::cursorProgramNext229(
+            'cursorProgram' => self::cursorProgramForStat4Selectivity(
                 is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                 $ready,
                 $fence,
@@ -36360,7 +36360,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $base @return list<array<string,mixed>> */
-    private static function matchedRowsNext229(array $base): array
+    private static function matchedRowsForStat4Selectivity(array $base): array
     {
         $rows = $base['matchedRows'] ?? null;
         if (!is_array($rows) || !array_is_list($rows)) {
@@ -36380,7 +36380,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $sampleFence
      * @return array<string,mixed>
      */
-    private static function selectivityFenceNext229(array $matchedRows, array $sampleFence, int $limit, int $offset): array
+    private static function stat4SelectivityFence(array $matchedRows, array $sampleFence, int $limit, int $offset): array
     {
         if ($limit < 0 || $offset < 0) {
             throw new \InvalidArgumentException('SQLite next229 limit and offset must be non-negative');
@@ -36391,11 +36391,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $matchedCount = count($matchedRows);
-        $maxNlt = self::maxIntColumnNext229($proofs, 'sampleNlt');
-        $maxNeq = self::maxIntColumnNext229($proofs, 'sampleNeq');
+        $maxNlt = self::maxIntColumnForStat4Selectivity($proofs, 'sampleNlt');
+        $maxNeq = self::maxIntColumnForStat4Selectivity($proofs, 'sampleNeq');
         $estimatedRows = $maxNlt + $maxNeq;
         $pageEnd = $offset + $matchedCount;
-        $rowids = array_values(array_map(static fn (array $row): int => self::rowidNext229($row), $matchedRows));
+        $rowids = array_values(array_map(static fn (array $row): int => self::rowidForStat4Selectivity($row), $matchedRows));
         $rejected = [];
         if ($estimatedRows < $matchedCount || $estimatedRows < $pageEnd) {
             $rejected = $rowids;
@@ -36407,13 +36407,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite next229 sample proofs must be arrays');
             }
             $key = (string) ($proof['expressionKey'] ?? '');
-            $peerRowsByKey[$key][] = self::rowidNext229($proof);
+            $peerRowsByKey[$key][] = self::rowidForStat4Selectivity($proof);
         }
 
         $peerProofs = [];
         $peerRejected = [];
         foreach ($peerRowsByKey as $key => $peerRowids) {
-            $sampleNeq = self::sampleNeqForKeyNext229($proofs, $key);
+            $sampleNeq = self::sampleNeqForStat4SelectivityKey($proofs, $key);
             $covered = count($peerRowids) <= $sampleNeq;
             $peerProofs[] = [
                 'expressionKey' => $key,
@@ -36442,13 +36442,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             'peerSelectivityProofs' => $peerProofs,
             'samplePeerCountsCoverMatchedPeers' => $peerRejected === [],
             'rowidsRejectedBySelectivityFence' => $rejected,
-            'selectivitySignature' => self::signatureNext229([$estimatedRows, $matchedCount, $offset, $limit, $peerProofs]),
-            'proofSignature' => self::signatureNext229([$proofs, $rowids, $rejected]),
+            'selectivitySignature' => self::signatureForStat4Selectivity([$estimatedRows, $matchedCount, $offset, $limit, $peerProofs]),
+            'proofSignature' => self::signatureForStat4Selectivity([$proofs, $rowids, $rejected]),
         ];
     }
 
     /** @param list<array<string,mixed>> $proofs */
-    private static function maxIntColumnNext229(array $proofs, string $column): int
+    private static function maxIntColumnForStat4Selectivity(array $proofs, string $column): int
     {
         $values = [];
         foreach ($proofs as $proof) {
@@ -36462,7 +36462,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $proofs */
-    private static function sampleNeqForKeyNext229(array $proofs, string $key): int
+    private static function sampleNeqForStat4SelectivityKey(array $proofs, string $key): int
     {
         foreach ($proofs as $proof) {
             if ((string) ($proof['expressionKey'] ?? '') === $key) {
@@ -36478,7 +36478,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $row */
-    private static function rowidNext229(array $row): int
+    private static function rowidForStat4Selectivity(array $row): int
     {
         if (!array_key_exists('rowid', $row) || (!is_int($row['rowid']) && !ctype_digit((string) $row['rowid']))) {
             throw new \InvalidArgumentException('SQLite next229 rowid must be an integer');
@@ -36492,7 +36492,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $fence
      * @return list<array<string,mixed>>
      */
-    private static function cursorProgramNext229(array $program, bool $ready, array $fence): array
+    private static function cursorProgramForStat4Selectivity(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -36509,7 +36509,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return $program;
     }
 
-    private static function signatureNext229(mixed $value): string
+    private static function signatureForStat4Selectivity(mixed $value): string
     {
         return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     }

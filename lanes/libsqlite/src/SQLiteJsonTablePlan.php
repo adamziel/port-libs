@@ -3705,6 +3705,79 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostSelectionPlan(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+        ?string $observedXCurrentFingerprint = null,
+        ?int $observedActiveRowid = null,
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostSelection(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $projection,
+            $observedXCurrentFingerprint,
+            $observedActiveRowid,
+        );
+
+        $current = self::jsonTableGeneratedPathRowidCostCanonicalizeNumber($plan['currentGeneratedPathRowidCurrentSourceCostSelection236']);
+        $next = self::jsonTableGeneratedPathRowidCostCanonicalizeNumber($plan['nextGeneratedPathRowidCurrentSourceCostSelection236']);
+        $transitions = self::jsonTableGeneratedPathRowidCostCanonicalizeNumber($plan['generatedPathRowidCurrentSourceCostSelection236Transitions']);
+        $reasons = self::jsonTableGeneratedPathRowidCostCanonicalizeNumber($plan['next236ReplanReasons']);
+
+        $plan['currentGeneratedPathRowidCurrentSourceCostSelection'] = $current;
+        $plan['nextGeneratedPathRowidCurrentSourceCostSelection'] = $next;
+        $plan['generatedPathRowidCurrentSourceCostSelectionTransitions'] = $transitions;
+        $plan['replanReasons'] = $reasons;
+        $plan['replanRequired'] = $reasons !== [];
+        $plan['currentReaderPolicy'] = 'cost-select-current-json-table-generated-path-rowid';
+        $plan['nextReaderPolicy'] = $next['currentSourceCostReusable']
+            ? 'reuse-cost-select-current-json-table-generated-path-rowid'
+            : 'reprepare-cost-select-next-json-table-generated-path-rowid';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            array_values(array_filter(
+                $plan['dependencies'],
+                static fn (string $dependency): bool => !str_starts_with($dependency, 'sqlite-json-table-generated-path-rowid-cost-current-source-next'),
+            )),
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-selection'],
+        )));
+
+        unset(
+            $plan['currentGeneratedPathRowidCurrentSourceCostSelection236'],
+            $plan['nextGeneratedPathRowidCurrentSourceCostSelection236'],
+            $plan['generatedPathRowidCurrentSourceCostSelection236Transitions'],
+            $plan['next236ReplanReasons'],
+        );
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostSelectionAlias(
         string $function,
         int $costSelectionAlias,
@@ -3790,6 +3863,26 @@ final class SQLiteJsonTablePlan
         }
 
         return $aliased;
+    }
+
+    /**
+     * @return mixed
+     */
+    private static function jsonTableGeneratedPathRowidCostCanonicalizeNumber(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            return str_replace('next236', 'current-source-selection', $value);
+        }
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        $canonical = [];
+        foreach ($value as $key => $item) {
+            $canonical[$key] = self::jsonTableGeneratedPathRowidCostCanonicalizeNumber($item);
+        }
+
+        return $canonical;
     }
 
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext215(

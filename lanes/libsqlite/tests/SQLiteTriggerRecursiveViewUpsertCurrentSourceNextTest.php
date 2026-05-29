@@ -7,7 +7,7 @@ unset($existing253Tests);
 
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
-$plan256 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext256(
+$plan256 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentSourceViewUpsertHandoff(
     $baseRows253,
     $currentInput253,
     $nextInput253,

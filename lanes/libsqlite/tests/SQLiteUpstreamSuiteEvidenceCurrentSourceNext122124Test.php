@@ -114,7 +114,7 @@ function libsqlite_suite_next122124_record(
     ?int $expected = 44,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next122124_evidence()->upstreamRunnerSuiteEvidenceCurrentSourceNext122124(
+    return libsqlite_suite_next122124_evidence()->upstreamRunnerSuiteEvidenceRebaseGapPreparedTriplet(
         $rows,
         618,
         42144,
