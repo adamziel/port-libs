@@ -43,7 +43,7 @@ $current253 = [
     $blob253(9, 'yes-blob'),
     $bad253(10, "\x00\xd8", 2),
 ];
-$next253 = [
+$nextTwoFiveThree = [
     $text253(1, 'YES', 3),
     $text253(2, 'no-cache', 2),
     $text253(3, 'YeS plugin', 1),
@@ -67,7 +67,7 @@ $plan253 = static fn (
     int $nextCookie = 253,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressAutoloadValuePlan(
     $current ?? $current253,
-    $next ?? $next253,
+    $next ?? $nextTwoFiveThree,
     $pattern,
     $escape,
     $currentSource,
@@ -88,7 +88,7 @@ $valueAt253 = static function (array $value, string $path): mixed {
 };
 
 $cases253 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next253'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveThree'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_value COLLATE NOCASE LIKE ? /* TEXT affinity cursor */'],
     'pattern' => ['pattern', 'yes%'],
@@ -151,16 +151,16 @@ $cases253 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency affinity' => ['dependencies.1', 'sqlite-text-affinity'],
     'dependency range' => ['dependencies.2', 'sqlite-like-nocase-prefix-range'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next253'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoFiveThree'],
 ];
 
 foreach ($cases253 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next253 ' . $name] = static function (TestRunner $t) use ($plan253, $valueAt253, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFiveThree ' . $name] = static function (TestRunner $t) use ($plan253, $valueAt253, $path, $expected): void {
         $t->same($expected, $valueAt253($plan253(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next253 invalidation reason order'] = static function (TestRunner $t) use ($plan253): void {
+$tests['encoding collation affinity like current source nextTwoFiveThree invalidation reason order'] = static function (TestRunner $t) use ($plan253): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -177,7 +177,7 @@ $tests['encoding collation affinity like current source next253 invalidation rea
     ], $plan253()['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next253 stable text and scalar cursor is reusable'] = static function (TestRunner $t) use ($text253, $scalar253): void {
+$tests['encoding collation affinity like current source nextTwoFiveThree stable text and scalar cursor is reusable'] = static function (TestRunner $t) use ($text253, $scalar253): void {
     $rows = [$text253(1, 'yes', 2), $scalar253(2, 10, 'integer')];
     $result = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressAutoloadValuePlan($rows, $rows, 'yes%', null, 'stable', 'stable', 7, 7);
 
@@ -187,7 +187,7 @@ $tests['encoding collation affinity like current source next253 stable text and 
     $t->same([], $result['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next253 escaped literal percent narrows matches'] = static function (TestRunner $t) use ($text253): void {
+$tests['encoding collation affinity like current source nextTwoFiveThree escaped literal percent narrows matches'] = static function (TestRunner $t) use ($text253): void {
     $rows = [$text253(1, 'yes%literal', 2), $text253(2, 'yes-cache', 2)];
     $result = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressAutoloadValuePlan($rows, $rows, 'yes!%%', '!', 'stable', 'stable', 7, 7);
 
@@ -196,7 +196,7 @@ $tests['encoding collation affinity like current source next253 escaped literal 
     $t->same([1], $result['currentCandidateRowids']);
 };
 
-$tests['encoding collation affinity like current source next253 non ascii prefix disables nocase range'] = static function (TestRunner $t) use ($text253): void {
+$tests['encoding collation affinity like current source nextTwoFiveThree non ascii prefix disables nocase range'] = static function (TestRunner $t) use ($text253): void {
     $rows = [$text253(1, 'éyes', 2), $text253(2, 'Éyes', 3)];
     $result = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressAutoloadValuePlan($rows, $rows, 'éy%', null, 'stable', 'stable', 7, 7);
 
@@ -205,7 +205,7 @@ $tests['encoding collation affinity like current source next253 non ascii prefix
     $t->same([], $result['currentCandidateRowids']);
 };
 
-$tests['encoding collation affinity like current source next253 rejects missing storage'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFiveThree rejects missing storage'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressAutoloadValuePlan($rows, $rows));
 };

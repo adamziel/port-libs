@@ -21,7 +21,7 @@ $current261 = [
     ['option_id' => 8, 'option_name_bytes' => $enc261('theme_plugin', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => 'enabled:other'],
 ];
 
-$next261 = [
+$nextTwoSixOne = [
     ['option_id' => 1, 'option_name_bytes' => $enc261('Plugin_cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => 'enabled:core'],
     ['option_id' => 2, 'option_name_bytes' => $enc261('plugin_cache_timeout', 'UTF-16BE'), 'name_text_encoding' => 'UTF-16BE', 'option_value' => 'enabled:15'],
     ['option_id' => 3, 'option_name_bytes' => $enc261('plugin-cache', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => 'enabled:dash'],
@@ -45,7 +45,7 @@ $plan261 = static fn (
     int $nextCookie = 261,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan(
     $current ?? $current261,
-    $next ?? $next261,
+    $next ?? $nextTwoSixOne,
     $pattern261,
     'UTF-16LE',
     $valuePattern,
@@ -70,7 +70,7 @@ $valueAt261 = static function (array $value, string $path): mixed {
 };
 
 $cases261 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next261'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoSixOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_name LIKE utf16(?) ESCAPE ? AND option_value LIKE ? /* text affinity current-source fence */'],
     'name pattern' => ['namePattern', 'plugin!_%'],
@@ -138,55 +138,55 @@ $cases261 = [
     'dependency source cursor' => ['dependencies.0', 'sqlite-encoding-source-cursor'],
     'dependency tokenizer' => ['dependencies.1', 'sqlite-like-escape-tokenizer'],
     'dependency affinity' => ['dependencies.2', 'sqlite-text-affinity'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next261'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nexttwoSixOne'],
 ];
 
 foreach ($cases261 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next261 ' . $name] = static function (TestRunner $t) use ($plan261, $valueAt261, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoSixOne ' . $name] = static function (TestRunner $t) use ($plan261, $valueAt261, $path, $expected): void {
         $t->same($expected, $valueAt261($plan261(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next261 stable source is reusable'] = static function (TestRunner $t) use ($current261, $plan261): void {
+$tests['encoding collation affinity like current source nextTwoSixOne stable source is reusable'] = static function (TestRunner $t) use ($current261, $plan261): void {
     $stable = $plan261(current: $current261, next: $current261, currentSource: 'same', nextSource: 'same', currentCookie: 261, nextCookie: 261);
     $t->same(false, $stable['cursorInvalidated']);
     $t->same(true, $stable['cursorReusable']);
     $t->same([], $stable['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next261 case sensitive mode keeps uppercase name out'] = static function (TestRunner $t) use ($plan261): void {
+$tests['encoding collation affinity like current source nextTwoSixOne case sensitive mode keeps uppercase name out'] = static function (TestRunner $t) use ($plan261): void {
     $plan = $plan261(caseSensitive: true);
     $t->same('BINARY', $plan['collation']);
     $t->same([6, 2, 7, 4, 5], $plan['currentCandidateRowids']);
     $t->same([4], $plan['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next261 boolean value uses integer text affinity'] = static function (TestRunner $t) use ($plan261): void {
+$tests['encoding collation affinity like current source nextTwoSixOne boolean value uses integer text affinity'] = static function (TestRunner $t) use ($plan261): void {
     $plan = $plan261(valuePattern: '1');
     $t->same([9], $plan['nextMatchedRowids']);
     $t->same('1', $plan['nextValueText'][9]);
 };
 
-$tests['encoding collation affinity like current source next261 rejects malformed utf16 pattern'] = static function (TestRunner $t) use ($current261, $next261): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan($current261, $next261, "\x00", 'UTF-16LE'));
+$tests['encoding collation affinity like current source nextTwoSixOne rejects malformed utf16 pattern'] = static function (TestRunner $t) use ($current261, $nextTwoSixOne): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan($current261, $nextTwoSixOne, "\x00", 'UTF-16LE'));
 };
 
-$tests['encoding collation affinity like current source next261 rejects missing encoded name metadata'] = static function (TestRunner $t) use ($current261, $next261, $pattern261): void {
+$tests['encoding collation affinity like current source nextTwoSixOne rejects missing encoded name metadata'] = static function (TestRunner $t) use ($current261, $nextTwoSixOne, $pattern261): void {
     $bad = $current261;
     unset($bad[0]['name_text_encoding']);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan($bad, $next261, $pattern261, 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan($bad, $nextTwoSixOne, $pattern261, 'UTF-16LE'));
 };
 
-$tests['encoding collation affinity like current source next261 rejects array value'] = static function (TestRunner $t) use ($current261, $next261, $pattern261): void {
+$tests['encoding collation affinity like current source nextTwoSixOne rejects array value'] = static function (TestRunner $t) use ($current261, $nextTwoSixOne, $pattern261): void {
     $bad = $current261;
     $bad[0]['option_value'] = ['enabled:core'];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan($bad, $next261, $pattern261, 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan($bad, $nextTwoSixOne, $pattern261, 'UTF-16LE'));
 };
 
-$tests['encoding collation affinity like current source next261 records dependency closure'] = static function (TestRunner $t) use ($plan261): void {
+$tests['encoding collation affinity like current source nextTwoSixOne records dependency closure'] = static function (TestRunner $t) use ($plan261): void {
     $plan = $plan261();
     $t->contains('no new support component needed', $plan['dependency_closure']);
-    $t->contains('avoids accepted next240', $plan['non_overlap']);
+    $t->contains('avoids accepted nextTwoFourZero', $plan['non_overlap']);
 };
 
 return $tests;

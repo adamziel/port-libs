@@ -138,11 +138,11 @@ $cases = [
     'bool false exits next' => ['1', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'nextRowids', []],
     'source switch reason first' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'invalidationReasons.0', 'source-name', 'main.wp_options', 'temp.wp_options'],
     'dependency pattern decode' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'dependencies.0', 'sqlite-utf16-pattern-decode'],
-    'dependency collation next118' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'dependencies.2', 'sqlite-collation-range-current-source-next118'],
+    'dependency collation nextOneOneEight' => ['autoload:%', 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'dependencies.2', 'sqlite-collation-range-current-source-nextoneOneEight'],
 ];
 
 foreach ($cases as $name => $case) {
-    $tests['utf16 collation affinity pattern current source next118 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $case): void {
+    $tests['utf16 collation affinity pattern current source nextOneOneEight ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $case): void {
         [$pattern, $patternEncoding, $operator, $collation, $escape, $escapeEncoding, $caseSensitiveLike, $path, $expected] = $case;
         $currentSource = $case[9] ?? 'main.wp_options';
         $nextSource = $case[10] ?? 'main.wp_options';
@@ -155,7 +155,7 @@ $stableRows = [
     $textRow(2, 'theme:yes', 'UTF-16LE'),
 ];
 
-$tests['utf16 collation affinity pattern current source next118 stable reusable with same range encoding'] = static function (TestRunner $t) use ($bytes, $stableRows): void {
+$tests['utf16 collation affinity pattern current source nextOneOneEight stable reusable with same range encoding'] = static function (TestRunner $t) use ($bytes, $stableRows): void {
     $plan = SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan(
         $stableRows,
         $stableRows,
@@ -175,23 +175,23 @@ $tests['utf16 collation affinity pattern current source next118 stable reusable 
     $t->same([], $plan['invalidationReasons']);
 };
 
-$tests['utf16 collation affinity pattern current source next118 rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 collation affinity pattern current source nextOneOneEight rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $bytes('autoload:%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'UNICODE'));
 };
 
-$tests['utf16 collation affinity pattern current source next118 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 collation affinity pattern current source nextOneOneEight rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $bytes('autoload:%', 'UTF-16LE'), 'UTF-16LE', 'REGEXP'));
 };
 
-$tests['utf16 collation affinity pattern current source next118 rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 collation affinity pattern current source nextOneOneEight rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $bytes('plugin:*', 'UTF-16LE'), 'UTF-16LE', 'GLOB', 'BINARY', $bytes('!', 'UTF-16LE')));
 };
 
-$tests['utf16 collation affinity pattern current source next118 rejects malformed pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
+$tests['utf16 collation affinity pattern current source nextOneOneEight rejects malformed pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, "\x00\xd8", 'UTF-16LE'));
 };
 
-$tests['utf16 collation affinity pattern current source next118 rejects malformed escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 collation affinity pattern current source nextOneOneEight rejects malformed escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $bytes('cache:!%%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'NOCASE', "\x00\xd8", 'UTF-16LE'));
 };
 

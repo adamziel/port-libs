@@ -121,11 +121,11 @@ $cases = [
     'unicode literal bracket current range upper bytes' => ['plugin_[draft😀', 'currentRangeBytesHex.upperBound', '70006c007500670069006e005f005b00640072006100660074003dd801de'],
     'dependencies decode' => ['plugin_[draft*', 'dependencies.0', 'sqlite-utf16-pattern-decode'],
     'dependencies affinity' => ['plugin_[draft*', 'dependencies.1', 'sqlite-like-glob-affinity'],
-    'dependencies collation' => ['plugin_[draft*', 'dependencies.2', 'sqlite-collation-range-current-source-next118'],
+    'dependencies collation' => ['plugin_[draft*', 'dependencies.2', 'sqlite-collation-range-current-source-nextoneOneEight'],
 ];
 
 foreach ($cases as $name => $case) {
-    $tests['utf16 glob literal bracket current source next122 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $case): void {
+    $tests['utf16 glob literal bracket current source nextOneTwoTwo ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $case): void {
         $pattern = $case[0];
         $path = $case[1];
         $expected = $case[2];
@@ -134,15 +134,15 @@ foreach ($cases as $name => $case) {
     };
 }
 
-$tests['utf16 glob literal bracket current source next122 static glob prefix includes unmatched bracket'] = static function (TestRunner $t): void {
+$tests['utf16 glob literal bracket current source nextOneTwoTwo static glob prefix includes unmatched bracket'] = static function (TestRunner $t): void {
     $t->same(['lowerInclusive' => 'plugin_[draft', 'upperBound' => 'plugin_[drafu'], SQLiteDatabase::globPrefixRangeBounds('plugin_[draft*'));
 };
 
-$tests['utf16 glob literal bracket current source next122 static glob prefix stops at valid bracket class'] = static function (TestRunner $t): void {
+$tests['utf16 glob literal bracket current source nextOneTwoTwo static glob prefix stops at valid bracket class'] = static function (TestRunner $t): void {
     $t->same(['lowerInclusive' => 'plugin_', 'upperBound' => 'plugin`'], SQLiteDatabase::globPrefixRangeBounds('plugin_[ab]*'));
 };
 
-$tests['utf16 glob literal bracket current source next122 stable same range encoding is reusable'] = static function (TestRunner $t) use ($currentRows, $bytes): void {
+$tests['utf16 glob literal bracket current source nextOneTwoTwo stable same range encoding is reusable'] = static function (TestRunner $t) use ($currentRows, $bytes): void {
     $stable = SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan(
         $currentRows,
         $currentRows,

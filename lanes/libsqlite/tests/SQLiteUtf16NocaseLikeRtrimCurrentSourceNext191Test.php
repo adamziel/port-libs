@@ -93,7 +93,7 @@ $valueAt191 = static function (array $value, string $path): mixed {
 };
 
 $cases191 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next191'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneNineOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 rebind */'],
     'current pattern' => ['currentPattern', 'plugin!_%'],
@@ -155,16 +155,16 @@ $cases191 = [
     'dependency rebind' => ['dependencies.1', 'sqlite-prepared-like-pattern-rebind'],
     'dependency range' => ['dependencies.2', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.3', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next191'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nextoneNineOne'],
 ];
 
 foreach ($cases191 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next191 ' . $name] = static function (TestRunner $t) use ($plan191, $valueAt191, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneNineOne ' . $name] = static function (TestRunner $t) use ($plan191, $valueAt191, $path, $expected): void {
         $t->same($expected, $valueAt191($plan191(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next191 invalidation reason order'] = static function (TestRunner $t) use ($plan191): void {
+$tests['utf16 nocase like rtrim current source nextOneNineOne invalidation reason order'] = static function (TestRunner $t) use ($plan191): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -176,7 +176,7 @@ $tests['utf16 nocase like rtrim current source next191 invalidation reason order
     ], $plan191()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next191 byte order only pattern can keep residual semantics'] = static function (TestRunner $t) use ($row191, $enc191): void {
+$tests['utf16 nocase like rtrim current source nextOneNineOne byte order only pattern can keep residual semantics'] = static function (TestRunner $t) use ($row191, $enc191): void {
     $rows = [
         $row191(1, 'Plugin_Cache', 'UTF-16LE'),
         $row191(2, 'plugin_cache  ', 'UTF-16BE'),
@@ -207,7 +207,7 @@ $tests['utf16 nocase like rtrim current source next191 byte order only pattern c
     $t->same([1, 2, 3], $result['nextMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next191 escaped wildcard tightening removes broad prefix rows'] = static function (TestRunner $t) use ($plan191): void {
+$tests['utf16 nocase like rtrim current source nextOneNineOne escaped wildcard tightening removes broad prefix rows'] = static function (TestRunner $t) use ($plan191): void {
     $result = $plan191();
     $t->same([3, 4], $result['candidateExitedRowids']);
     $t->same([3, 4], $result['matchedExitedRowids']);
@@ -215,7 +215,7 @@ $tests['utf16 nocase like rtrim current source next191 escaped wildcard tighteni
     $t->same('plugin_other', $result['currentMatchedTexts'][4]);
 };
 
-$tests['utf16 nocase like rtrim current source next191 stable byte-identical source is reusable'] = static function (TestRunner $t) use ($row191, $enc191): void {
+$tests['utf16 nocase like rtrim current source nextOneNineOne stable byte-identical source is reusable'] = static function (TestRunner $t) use ($row191, $enc191): void {
     $rows = [
         $row191(1, 'plugin_cache', 'UTF-16LE'),
         $row191(2, 'Plugin_Cache  ', 'UTF-16BE'),
@@ -244,7 +244,7 @@ $tests['utf16 nocase like rtrim current source next191 stable byte-identical sou
     $t->same([1, 2], $result['nextMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next191 malformed prepared pattern is rejected'] = static function (TestRunner $t) use ($currentRows191, $nextRows191, $nextPatternBytes191, $currentEscapeBytes191, $nextEscapeBytes191): void {
+$tests['utf16 nocase like rtrim current source nextOneNineOne malformed prepared pattern is rejected'] = static function (TestRunner $t) use ($currentRows191, $nextRows191, $nextPatternBytes191, $currentEscapeBytes191, $nextEscapeBytes191): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternRebindPlan(
         $currentRows191,
         $nextRows191,
@@ -259,7 +259,7 @@ $tests['utf16 nocase like rtrim current source next191 malformed prepared patter
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next191 malformed prepared escape is rejected'] = static function (TestRunner $t) use ($currentRows191, $nextRows191, $currentPatternBytes191, $nextPatternBytes191, $nextEscapeBytes191): void {
+$tests['utf16 nocase like rtrim current source nextOneNineOne malformed prepared escape is rejected'] = static function (TestRunner $t) use ($currentRows191, $nextRows191, $currentPatternBytes191, $nextPatternBytes191, $nextEscapeBytes191): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternRebindPlan(
         $currentRows191,
         $nextRows191,

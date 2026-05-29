@@ -72,7 +72,7 @@ function libsqlite_suite_evidence103_record(
     ?int $expected = 12,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_evidence103()->suiteEvidenceSliceCurrentNext103(
+    return libsqlite_suite_evidence103()->suiteEvidenceSlice(
         $rows,
         489,
         29294,

@@ -652,7 +652,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
      * @return array<string,mixed>
      */
-    public static function triggerViewCacheCurrentSourceNext97(
+    public static function triggerViewCacheCurrentSourceNext(
         SQLiteAttachedSchemaCatalog $current,
         SQLiteAttachedSchemaCatalog $next,
         array $preparedTriggers,
@@ -778,13 +778,13 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
      * @return array<string,mixed>
      */
-    public static function triggerViewInvalidationCurrentSourceNext108(
+    public static function triggerViewInvalidationCurrentSourceNext(
         SQLiteAttachedSchemaCatalog $current,
         SQLiteAttachedSchemaCatalog $next,
         array $preparedTriggers,
         array $schemaStates = [],
     ): array {
-        $base = self::triggerViewCacheCurrentSourceNext97($current, $next, $preparedTriggers, $schemaStates);
+        $base = self::triggerViewCacheCurrentSourceNext($current, $next, $preparedTriggers, $schemaStates);
         $dependencyExpired = [];
         $dependencyStable = [];
         $viewDependencySchemas = [];

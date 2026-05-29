@@ -26,7 +26,7 @@ $current176 = [
     $row176(6, 'theme_cache', 2),
     $row176(7, 'plugin_cache_old', 3),
 ];
-$next176 = [
+$nextOneSevenSix = [
     $row176(1, 'Plugin_Cache  ', 3),
     $row176(2, 'plugin_cache', 2),
     $row176(3, 'PLUGIN_CACHE   ', 2),
@@ -50,7 +50,7 @@ $plan176 = static fn (
     int $nextCookie = 176,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerYieldPlan(
     $current ?? $current176,
-    $next ?? $next176,
+    $next ?? $nextOneSevenSix,
     $pattern,
     $escape,
     $token,
@@ -73,7 +73,7 @@ $valueAt176 = static function (array $value, string $path): mixed {
 };
 
 $cases176 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next176'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenSix'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -132,16 +132,16 @@ $cases176 = [
     'reason malformed' => ['invalidationReasons.5', 'malformed-text'],
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency tiebreaker' => ['dependencies.2', 'sqlite-nocase-rowid-tiebreaker'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next176'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneSevenSix'],
 ];
 
 foreach ($cases176 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next176 ' . $name] = static function (TestRunner $t) use ($plan176, $valueAt176, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSevenSix ' . $name] = static function (TestRunner $t) use ($plan176, $valueAt176, $path, $expected): void {
         $t->same($expected, $valueAt176($plan176(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next176 stable peer rows can continue'] = static function (TestRunner $t) use ($row176): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSix stable peer rows can continue'] = static function (TestRunner $t) use ($row176): void {
     $current = [
         $row176(1, 'Plugin_Cache  ', 2),
         $row176(2, 'plugin_cache', 3),
@@ -161,7 +161,7 @@ $tests['utf16 nocase like rtrim current source next176 stable peer rows can cont
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next176 yield page can straddle a duplicate peer'] = static function (TestRunner $t) use ($row176): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSix yield page can straddle a duplicate peer'] = static function (TestRunner $t) use ($row176): void {
     $rows = [
         $row176(1, 'plugin_cache', 2),
         $row176(2, 'PLUGIN_CACHE ', 3),
@@ -177,7 +177,7 @@ $tests['utf16 nocase like rtrim current source next176 yield page can straddle a
     $t->same(true, $result['safeToResumeInsidePeerGroup']);
 };
 
-$tests['utf16 nocase like rtrim current source next176 unicode prefix disables range'] = static function (TestRunner $t) use ($row176): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSix unicode prefix disables range'] = static function (TestRunner $t) use ($row176): void {
     $rows = [
         $row176(1, 'éclair_cache', 2),
         $row176(2, 'Éclair_Cache  ', 3),
@@ -189,15 +189,15 @@ $tests['utf16 nocase like rtrim current source next176 unicode prefix disables r
     $t->same(null, $result['highWaterToken']);
 };
 
-$tests['utf16 nocase like rtrim current source next176 rejects malformed token'] = static function (TestRunner $t) use ($plan176): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSix rejects malformed token'] = static function (TestRunner $t) use ($plan176): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan176(token: ['key' => 'plugin_cache']));
 };
 
-$tests['utf16 nocase like rtrim current source next176 rejects zero page'] = static function (TestRunner $t) use ($plan176): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSix rejects zero page'] = static function (TestRunner $t) use ($plan176): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan176(pageSize: 0));
 };
 
-$tests['utf16 nocase like rtrim current source next176 rejects missing bytes'] = static function (TestRunner $t): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSix rejects missing bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerYieldPlan(
         [['option_id' => 1, 'text_encoding' => 2]],
         [],

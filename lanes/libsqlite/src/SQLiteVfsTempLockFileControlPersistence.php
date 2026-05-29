@@ -11,7 +11,7 @@ final class SQLiteVfsTempLockFileControlPersistence
      * @param array{temp_dir?:string,connection_id?:string,temp_store?:string,directory_writable?:bool,current?:array<string,mixed>} $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentNext76(array $operations, array $options = []): array
+    public static function tempLockFileControlPersistenceSequence(array $operations, array $options = []): array
     {
         $state = self::normalizeCurrent($options['current'] ?? null);
         $events = [];
@@ -21,7 +21,7 @@ final class SQLiteVfsTempLockFileControlPersistence
             $before = self::snapshot($state);
 
             if ($op['kind'] === 'open') {
-                $lifecycle = SQLiteVfsTempFileOpenLifecycle::currentNext73(
+                $lifecycle = SQLiteVfsTempFileOpenLifecycle::tempFileOpenLifecycleSequence(
                     [[
                         'op' => 'open',
                         'suffix' => $op['suffix'],

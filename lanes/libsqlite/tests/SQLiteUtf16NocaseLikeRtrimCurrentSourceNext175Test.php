@@ -26,7 +26,7 @@ $current175 = [
     $row175(4, "plugin_cache_tab\t", 3),
     $row175(5, 'plugin_other', 2),
 ];
-$next175 = [
+$nextOneSevenFive = [
     $row175(1, 'Plugin_Cache', 3),
     $row175(2, 'plugin_cache_alpha', 3),
     $row175(3, 'plugin_cache_beta  ', 2),
@@ -52,7 +52,7 @@ $plan175 = static fn (
     ?string $escape = '!',
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan(
     $current ?? $current175,
-    $next ?? $next175,
+    $next ?? $nextOneSevenFive,
     $pattern,
     $escape,
     $token ?? $token175,
@@ -74,8 +74,8 @@ $valueAt175 = static function (array $value, string $path): mixed {
 };
 
 $cases175 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next175'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next171'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenFive'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSevenOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -108,12 +108,12 @@ $cases175 = [
 ];
 
 foreach ($cases175 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next175 ' . $name] = static function (TestRunner $t) use ($plan175, $valueAt175, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSevenFive ' . $name] = static function (TestRunner $t) use ($plan175, $valueAt175, $path, $expected): void {
         $t->same($expected, $valueAt175($plan175(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next175 clean byte token can continue'] = static function (TestRunner $t) use ($row175, $enc175): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenFive clean byte token can continue'] = static function (TestRunner $t) use ($row175, $enc175): void {
     $current = [
         $row175(1, 'Plugin_Cache', 2),
         $row175(2, 'plugin_cache_alpha', 3),
@@ -135,7 +135,7 @@ $tests['utf16 nocase like rtrim current source next175 clean byte token can cont
     $t->same([3], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next175 token byte mismatch reparses'] = static function (TestRunner $t) use ($row175, $enc175): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenFive token byte mismatch reparses'] = static function (TestRunner $t) use ($row175, $enc175): void {
     $current = [
         $row175(1, 'Plugin_Cache', 2),
         $row175(2, 'plugin_cache_alpha', 3),
@@ -160,7 +160,7 @@ $tests['utf16 nocase like rtrim current source next175 token byte mismatch repar
     $t->same([1, 2, 3], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next175 token encoding mismatch reparses'] = static function (TestRunner $t) use ($row175, $enc175): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenFive token encoding mismatch reparses'] = static function (TestRunner $t) use ($row175, $enc175): void {
     $current = [
         $row175(1, 'Plugin_Cache', 2),
         $row175(2, 'plugin_cache_alpha', 3),
@@ -183,7 +183,7 @@ $tests['utf16 nocase like rtrim current source next175 token encoding mismatch r
     $t->same(true, $result['mustReprepareBeforeReplay']);
 };
 
-$tests['utf16 nocase like rtrim current source next175 token row exit reparses'] = static function (TestRunner $t) use ($row175, $enc175): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenFive token row exit reparses'] = static function (TestRunner $t) use ($row175, $enc175): void {
     $current = [
         $row175(1, 'Plugin_Cache', 2),
         $row175(2, 'plugin_cache_alpha', 3),
@@ -205,7 +205,7 @@ $tests['utf16 nocase like rtrim current source next175 token row exit reparses']
     $t->same([1, 3], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next175 source cookie invalidation composes with fingerprint'] = static function (TestRunner $t) use ($row175, $enc175): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenFive source cookie invalidation composes with fingerprint'] = static function (TestRunner $t) use ($row175, $enc175): void {
     $current = [
         $row175(1, 'Plugin_Cache', 2),
         $row175(2, 'plugin_cache_alpha', 3),
@@ -226,7 +226,7 @@ $tests['utf16 nocase like rtrim current source next175 source cookie invalidatio
     $t->same(['source-name', 'schema-cookie', 'bytes-changed', 'yielded-token-bytes-changed', 'current-next-token-bytes-changed'], $result['replayInvalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next175 malformed row is still isolated'] = static function (TestRunner $t) use ($row175, $bad175, $enc175): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenFive malformed row is still isolated'] = static function (TestRunner $t) use ($row175, $bad175, $enc175): void {
     $current = [
         $row175(1, 'Plugin_Cache', 2),
         $row175(2, 'plugin_cache_alpha', 3),
@@ -249,10 +249,10 @@ $tests['utf16 nocase like rtrim current source next175 malformed row is still is
     $t->same(true, $result['mustReprepareBeforeReplay']);
 };
 
-$tests['utf16 nocase like rtrim current source next175 rejects bad token'] = static function (TestRunner $t) use ($current175, $next175): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenFive rejects bad token'] = static function (TestRunner $t) use ($current175, $nextOneSevenFive): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan(
         $current175,
-        $next175,
+        $nextOneSevenFive,
         'plugin%',
         null,
         ['key' => 'plugin_cache'],

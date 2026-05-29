@@ -89,7 +89,7 @@ $planCases = [
 ];
 
 foreach ($planCases as $name => [$pattern, $operator, $collation, $escape, $caseSensitive, $advance, $path, $expected]) {
-    $tests['utf16 like glob affinity current source next87 plan ' . $name] = static function (TestRunner $t) use ($cursor, $valueAt, $pattern, $operator, $collation, $escape, $caseSensitive, $advance, $path, $expected): void {
+    $tests['utf16 like glob affinity current source nextEightSeven plan ' . $name] = static function (TestRunner $t) use ($cursor, $valueAt, $pattern, $operator, $collation, $escape, $caseSensitive, $advance, $path, $expected): void {
         $scan = $cursor($pattern, $operator, $collation, $escape, $caseSensitive);
         for ($i = 0; $i < $advance; $i++) {
             $scan->next();
@@ -119,32 +119,32 @@ $matchCases = [
 ];
 
 foreach ($matchCases as $name => [$pattern, $operator, $collation, $escape, $caseSensitive, $expectedRowids]) {
-    $tests['utf16 like glob affinity current source next87 matched rows ' . $name] = static function (TestRunner $t) use ($cursor, $pattern, $operator, $collation, $escape, $caseSensitive, $expectedRowids): void {
+    $tests['utf16 like glob affinity current source nextEightSeven matched rows ' . $name] = static function (TestRunner $t) use ($cursor, $pattern, $operator, $collation, $escape, $caseSensitive, $expectedRowids): void {
         $t->same($expectedRowids, array_column($cursor($pattern, $operator, $collation, $escape, $caseSensitive)->matchedRows(), 'rowid'));
     };
 }
 
-$tests['utf16 like glob affinity current source next87 matched rows preserve original storage classes'] = static function (TestRunner $t) use ($cursor): void {
+$tests['utf16 like glob affinity current source nextEightSeven matched rows preserve original storage classes'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor('10%', 'LIKE', 'BINARY', null, true)->matchedRows();
     $t->same(['text', 'integer', 'real'], array_column($rows, 'originalStorage'));
 };
 
-$tests['utf16 like glob affinity current source next87 matched rows preserve utf16 encodings'] = static function (TestRunner $t) use ($cursor): void {
+$tests['utf16 like glob affinity current source nextEightSeven matched rows preserve utf16 encodings'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor('plugin_1%', 'LIKE', 'BINARY', null, true)->matchedRows();
     $t->same(['UTF-16LE', 'UTF-16BE'], array_column($rows, 'textEncoding'));
 };
 
-$tests['utf16 like glob affinity current source next87 matched rows preserve payload'] = static function (TestRunner $t) use ($cursor): void {
+$tests['utf16 like glob affinity current source nextEightSeven matched rows preserve payload'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor('plugin_😀%', 'LIKE', 'BINARY', null, true)->matchedRows();
     $t->same('plugin_😀_cache', $rows[0]['payload']['option_name']);
 };
 
-$tests['utf16 like glob affinity current source next87 matched rows expose emoji utf16 surrogate bytes'] = static function (TestRunner $t) use ($cursor): void {
+$tests['utf16 like glob affinity current source nextEightSeven matched rows expose emoji utf16 surrogate bytes'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor('plugin_😀%', 'LIKE', 'BINARY', null, true)->matchedRows();
     $t->same('70006c007500670069006e005f003dd800de5f0063006100630068006500', $rows[0]['bytesHex']);
 };
 
-$tests['utf16 like glob affinity current source next87 wordpress value scan matches numeric-looking autoload values'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven wordpress value scan matches numeric-looking autoload values'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 101, 'option_name' => 'blog_public', 'option_value' => 1, 'autoload' => 'yes'],
         ['option_id' => 102, 'option_name' => 'rewrite_rules', 'option_value' => '10-rules', 'autoload' => 'yes'],
@@ -155,7 +155,7 @@ $tests['utf16 like glob affinity current source next87 wordpress value scan matc
     $t->same([101, 102], array_column($matched, 'rowid'));
 };
 
-$tests['utf16 like glob affinity current source next87 wordpress value scan matches unicode glob values'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven wordpress value scan matches unicode glob values'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 201, 'option_name' => 'theme_mods', 'option_value' => 'plugin_éclair'],
         ['option_id' => 202, 'option_name' => 'theme_mods_old', 'option_value' => 'plugin_alpha'],
@@ -166,39 +166,39 @@ $tests['utf16 like glob affinity current source next87 wordpress value scan matc
     $t->same('UTF-16BE', $matched[0]['textEncoding']);
 };
 
-$tests['utf16 like glob affinity current source next87 rejects malformed utf8 string before utf16 encoding'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven rejects malformed utf8 string before utf16 encoding'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobAffinityCurrentSourceCursor([['key' => "plugin_\xc3", 'rowid' => 1]], 'plugin%'));
 };
 
-$tests['utf16 like glob affinity current source next87 rejects unsupported operator'] = static function (TestRunner $t) use ($entries): void {
+$tests['utf16 like glob affinity current source nextEightSeven rejects unsupported operator'] = static function (TestRunner $t) use ($entries): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobAffinityCurrentSourceCursor($entries, 'plugin%', 'REGEXP'));
 };
 
-$tests['utf16 like glob affinity current source next87 rejects unsupported collation'] = static function (TestRunner $t) use ($entries): void {
+$tests['utf16 like glob affinity current source nextEightSeven rejects unsupported collation'] = static function (TestRunner $t) use ($entries): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobAffinityCurrentSourceCursor($entries, 'plugin%', 'LIKE', 'UNICODE'));
 };
 
-$tests['utf16 like glob affinity current source next87 rejects malformed escape'] = static function (TestRunner $t) use ($entries): void {
+$tests['utf16 like glob affinity current source nextEightSeven rejects malformed escape'] = static function (TestRunner $t) use ($entries): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobAffinityCurrentSourceCursor($entries, 'plugin%', 'LIKE', 'NOCASE', 'xx'));
 };
 
-$tests['utf16 like glob affinity current source next87 rejects unsupported text encoding'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven rejects unsupported text encoding'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobAffinityCurrentSourceCursor([['key' => 'plugin', 'textEncoding' => 4, 'rowid' => 1]], 'plugin%'));
 };
 
-$tests['utf16 like glob affinity current source next87 rejects array key'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven rejects array key'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobAffinityCurrentSourceCursor([['key' => [], 'rowid' => 1]], 'plugin%'));
 };
 
-$tests['utf16 like glob affinity current source next87 rejects non integer rowid'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven rejects non integer rowid'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobAffinityCurrentSourceCursor([['key' => 'plugin', 'rowid' => '1']], 'plugin%'));
 };
 
-$tests['utf16 like glob affinity current source next87 rejects non array payload'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven rejects non array payload'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobAffinityCurrentSourceCursor([['key' => 'plugin', 'rowid' => 1, 'payload' => 'bad']], 'plugin%'));
 };
 
-$tests['utf16 like glob affinity current source next87 wordpress scan rejects missing column'] = static function (TestRunner $t): void {
+$tests['utf16 like glob affinity current source nextEightSeven wordpress scan rejects missing column'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityCurrentSourceCursor::wordpressOptionValueScan([['option_id' => 1, 'option_name' => 'siteurl']], 'option_value', 's%'));
 };
 

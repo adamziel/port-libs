@@ -105,7 +105,7 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan
             'dependencies' => [
                 'sqlite-utf16-decode',
                 'sqlite-like-glob-affinity',
-                'sqlite-current-source-next92',
+                'sqlite-current-source-nextnineTwo',
             ],
         ];
     }

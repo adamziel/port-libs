@@ -129,7 +129,7 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$pattern, $collation, $path, $expected]) {
-    $tests['utf16 glob range current source next102 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $pattern, $collation, $path, $expected): void {
+    $tests['utf16 glob range current source nextOneZeroTwo ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $pattern, $collation, $path, $expected): void {
         $t->same($expected, $valueAt($plan($pattern, $collation), $path));
     };
 }
@@ -149,7 +149,7 @@ $stableCases = [
 ];
 
 foreach ($stableCases as $name => [$path, $expected]) {
-    $tests['utf16 glob range current source next102 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $stableRows, $path, $expected): void {
+    $tests['utf16 glob range current source nextOneZeroTwo ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $stableRows, $path, $expected): void {
         $result = $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'stable', 'stable', 7, 7, $stableRows, $stableRows);
         $t->same($expected, $valueAt($result, $path));
     };
@@ -160,29 +160,29 @@ $beRows = [
     $row(2, 'plugin_beta', 'UTF-16BE'),
 ];
 
-$tests['utf16 glob range current source next102 utf16be range bytes force reprepare'] = static function (TestRunner $t) use ($plan, $valueAt, $stableRows, $beRows): void {
+$tests['utf16 glob range current source nextOneZeroTwo utf16be range bytes force reprepare'] = static function (TestRunner $t) use ($plan, $valueAt, $stableRows, $beRows): void {
     $result = $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-16BE', 'stable', 'stable', 7, 7, $stableRows, $beRows);
     $t->same(['text-encoding', 'range-bytes', 'key-bytes'], $result['reprepareReasons']);
     $t->same('0070006c007500670069006e005f', $valueAt($result, 'next.rangeBytesHex.lowerInclusive'));
 };
 
-$tests['utf16 glob range current source next102 rejects unsupported collation'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 glob range current source nextOneZeroTwo rejects unsupported collation'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', 'UNICODE'));
 };
 
-$tests['utf16 glob range current source next102 rejects unsupported next encoding'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 glob range current source nextOneZeroTwo rejects unsupported next encoding'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-32LE'));
 };
 
-$tests['utf16 glob range current source next102 rejects missing current rowid'] = static function (TestRunner $t) use ($plan, $nextRows): void {
+$tests['utf16 glob range current source nextOneZeroTwo rejects missing current rowid'] = static function (TestRunner $t) use ($plan, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'stable', 'stable', 1, 1, [['option_name_utf16' => 'p']], $nextRows));
 };
 
-$tests['utf16 glob range current source next102 rejects missing next utf16 bytes'] = static function (TestRunner $t) use ($plan, $currentRows): void {
+$tests['utf16 glob range current source nextOneZeroTwo rejects missing next utf16 bytes'] = static function (TestRunner $t) use ($plan, $currentRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'stable', 'stable', 1, 1, $currentRows, [['option_id' => 1]]));
 };
 
-$tests['utf16 glob range current source next102 rejects malformed next utf16 bytes'] = static function (TestRunner $t) use ($plan, $currentRows): void {
+$tests['utf16 glob range current source nextOneZeroTwo rejects malformed next utf16 bytes'] = static function (TestRunner $t) use ($plan, $currentRows): void {
     $bad = [['option_id' => 1, 'option_name_utf16' => "\x3d\xd8"]];
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'stable', 'stable', 1, 1, $currentRows, $bad));
 };

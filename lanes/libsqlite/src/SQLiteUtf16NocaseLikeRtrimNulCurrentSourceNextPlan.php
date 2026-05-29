@@ -66,7 +66,7 @@ final class SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan
         }
 
         return [
-            'status' => 'utf16-nocase-like-rtrim-nul-current-source-next174',
+            'status' => 'utf16-nocase-like-rtrim-nul-current-source-nextoneSevenFour',
             'operator' => 'LIKE',
             'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ?',
             'pattern' => $pattern,
@@ -124,7 +124,7 @@ final class SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan
                 'sqlite-utf16-decode',
                 'sqlite-like-nocase-prefix-range',
                 'sqlite-embedded-nul-text-comparison',
-                'sqlite-current-source-next174',
+                'sqlite-current-source-nextoneSevenFour',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 decode and LIKE/NOCASE/RTRIM comparison while adding embedded-NUL full-text diagnostics for current-source cursor transitions',
         ];
@@ -208,13 +208,13 @@ final class SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan
     private static function assertRow(array $row): void
     {
         if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM NUL next174 rows require integer option_id');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM NUL nextOneSevenFour rows require integer option_id');
         }
         if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM NUL next174 rows require option_name_bytes');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM NUL nextOneSevenFour rows require option_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM NUL next174 rows require integer text_encoding');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM NUL nextOneSevenFour rows require integer text_encoding');
         }
     }
 

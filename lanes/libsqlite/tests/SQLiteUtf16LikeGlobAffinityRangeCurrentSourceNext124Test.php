@@ -133,12 +133,12 @@ $cases = [
     'reusable flag stays true' => ['plugin_α:%', 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', null, null, true, 'cursorReusable', true, 'main.wp_options', 'main.wp_options', 1240, 1240],
     'dependency pattern decode' => ['autoload:%', 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', null, null, true, 'dependencies.0', 'sqlite-utf16-like-glob-pattern-decode'],
     'dependency affinity range' => ['autoload:%', 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', null, null, true, 'dependencies.1', 'sqlite-like-glob-affinity-range'],
-    'dependency current source' => ['autoload:%', 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', null, null, true, 'dependencies.2', 'sqlite-current-source-next124'],
+    'dependency current source' => ['autoload:%', 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', null, null, true, 'dependencies.2', 'sqlite-current-source-nextoneTwoFour'],
     'pattern source marker' => ['autoload:%', 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', null, null, true, 'patternSource', 'decoded-utf16-pattern-bytes'],
 ];
 
 foreach ($cases as $name => $case) {
-    $tests['utf16 like glob affinity range current source next124 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $case): void {
+    $tests['utf16 like glob affinity range current source nextOneTwoFour ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $case): void {
         [$pattern, $patternEncoding, $operator, $affinity, $collation, $escape, $escapeEncoding, $caseSensitiveLike, $path, $expected] = $case;
         $currentSource = $case[10] ?? 'main.wp_options';
         $nextSource = $case[11] ?? 'main.wp_options';
@@ -148,37 +148,37 @@ foreach ($cases as $name => $case) {
     };
 }
 
-$tests['utf16 like glob affinity range current source next124 accepts utf8 pattern bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 like glob affinity range current source nextOneTwoFour accepts utf8 pattern bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $plan = SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:%', 'UTF-8'), 'UTF-8');
     $t->same([1], $plan['currentRowids']);
 };
 
-$tests['utf16 like glob affinity range current source next124 accepts utf16 keyword alias'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 like glob affinity range current source nextOneTwoFour accepts utf16 keyword alias'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $plan = SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:%', 'UTF-16LE'), 'UTF-16');
     $t->same('UTF-16LE', $plan['patternEncoding']);
 };
 
-$tests['utf16 like glob affinity range current source next124 rejects invalid encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 like glob affinity range current source nextOneTwoFour rejects invalid encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:%', 'UTF-16LE'), 'UTF-32'));
 };
 
-$tests['utf16 like glob affinity range current source next124 rejects malformed utf16 pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
+$tests['utf16 like glob affinity range current source nextOneTwoFour rejects malformed utf16 pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', "\x00\xd8", 'UTF-16LE'));
 };
 
-$tests['utf16 like glob affinity range current source next124 rejects malformed utf16 escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 like glob affinity range current source nextOneTwoFour rejects malformed utf16 escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('cache:!%%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', "\x00\xd8", 'UTF-16LE'));
 };
 
-$tests['utf16 like glob affinity range current source next124 rejects multi-character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 like glob affinity range current source nextOneTwoFour rejects multi-character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('cache:!!%%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', $bytes('!!', 'UTF-16LE'), 'UTF-16LE'));
 };
 
-$tests['utf16 like glob affinity range current source next124 rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 like glob affinity range current source nextOneTwoFour rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:*', 'UTF-16LE'), 'UTF-16LE', 'GLOB', 'TEXT', 'BINARY', $bytes('!', 'UTF-16LE'), 'UTF-16LE'));
 };
 
-$tests['utf16 like glob affinity range current source next124 rejects malformed row text after decode'] = static function (TestRunner $t) use ($bytes, $nextRows): void {
+$tests['utf16 like glob affinity range current source nextOneTwoFour rejects malformed row text after decode'] = static function (TestRunner $t) use ($bytes, $nextRows): void {
     $badRows = [['option_id' => 12, 'option_value' => "bad\xc3"]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($badRows, $nextRows, 'option_value', $bytes('bad%', 'UTF-16LE'), 'UTF-16LE'));
 };

@@ -28,7 +28,7 @@ $current180 = [
     $row180(6, 'éclair_cache_tab' . "\t", 2),
     $bad180(7, "\x00\xd8", 2),
 ];
-$next180 = [
+$nextOneEightZero = [
     $row180(1, 'éclair_cache  ', 3),
     $row180(2, 'éclair_cache', 2),
     $row180(3, 'ÉCLAIR_cache', 3),
@@ -49,7 +49,7 @@ $plan180 = static fn (
     int $nextCookie = 180,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixPlan(
     $current ?? $current180,
-    $next ?? $next180,
+    $next ?? $nextOneEightZero,
     $pattern,
     $escape,
     $currentSource,
@@ -70,7 +70,7 @@ $valueAt180 = static function (array $value, string $path): mixed {
 };
 
 $cases180 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next180'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ?'],
     'pattern' => ['pattern', 'éclair!_%'],
@@ -120,16 +120,16 @@ $cases180 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency full scan' => ['dependencies.1', 'sqlite-like-nocase-full-scan'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next180'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneEightZero'],
 ];
 
 foreach ($cases180 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next180 ' . $name] = static function (TestRunner $t) use ($plan180, $valueAt180, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneEightZero ' . $name] = static function (TestRunner $t) use ($plan180, $valueAt180, $path, $expected): void {
         $t->same($expected, $valueAt180($plan180(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next180 invalidation reason order'] = static function (TestRunner $t) use ($plan180): void {
+$tests['utf16 nocase like rtrim current source nextOneEightZero invalidation reason order'] = static function (TestRunner $t) use ($plan180): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -142,7 +142,7 @@ $tests['utf16 nocase like rtrim current source next180 invalidation reason order
     ], $plan180()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next180 stable full scan remains reusable'] = static function (TestRunner $t) use ($row180): void {
+$tests['utf16 nocase like rtrim current source nextOneEightZero stable full scan remains reusable'] = static function (TestRunner $t) use ($row180): void {
     $rows = [
         $row180(1, 'éclair_cache', 2),
         $row180(2, 'éCLAIR_cache ', 3),
@@ -164,7 +164,7 @@ $tests['utf16 nocase like rtrim current source next180 stable full scan remains 
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next180 ascii prefix still uses range'] = static function (TestRunner $t) use ($row180): void {
+$tests['utf16 nocase like rtrim current source nextOneEightZero ascii prefix still uses range'] = static function (TestRunner $t) use ($row180): void {
     $rows = [
         $row180(1, 'Plugin_Cache', 2),
         $row180(2, 'plugin_cache ', 3),
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source next180 ascii prefix still uses r
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next180 no fixed prefix stays empty'] = static function (TestRunner $t) use ($row180): void {
+$tests['utf16 nocase like rtrim current source nextOneEightZero no fixed prefix stays empty'] = static function (TestRunner $t) use ($row180): void {
     $rows = [
         $row180(1, 'éclair_cache', 2),
         $row180(2, 'plugin_cache', 3),
@@ -209,7 +209,7 @@ $tests['utf16 nocase like rtrim current source next180 no fixed prefix stays emp
     $t->same([], $result['currentMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next180 rejects missing bytes'] = static function (TestRunner $t): void {
+$tests['utf16 nocase like rtrim current source nextOneEightZero rejects missing bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixPlan(
         [['option_id' => 1, 'text_encoding' => 2]],
         [],

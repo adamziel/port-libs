@@ -96,7 +96,7 @@ final class SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan
         }
 
         return [
-            'status' => 'utf16-pattern-nocase-like-rtrim-current-source-next159',
+            'status' => 'utf16-pattern-nocase-like-rtrim-current-source-nextoneFiveNine',
             'operator' => 'LIKE',
             'indexCollation' => 'RTRIM',
             'residualCollation' => 'NOCASE',
@@ -156,7 +156,7 @@ final class SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan
                 'sqlite-utf16-text-decode',
                 'sqlite-rtrim-collation-range',
                 'sqlite-like-nocase-residual',
-                'sqlite-current-source-next159',
+                'sqlite-current-source-nextoneFiveNine',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 pattern/text decode, RTRIM range keys, and ASCII NOCASE LIKE residual matching',
         ];
@@ -168,7 +168,7 @@ final class SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan
             return null;
         }
         if ($encoding === null) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source next159 escape encoding is required');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveNine escape encoding is required');
         }
         $escape = self::decodeText($bytes, $encoding, 'escape');
         if (self::sqliteTextLength($escape) !== 1) {
@@ -182,7 +182,7 @@ final class SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan
     {
         $text = SQLiteEncodingCollationSourceCursor::decodeText($bytes, self::normalizeEncoding($encoding));
         if (preg_match('//u', $text) !== 1) {
-            throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM current-source next159 {$context} decoded to malformed UTF-8");
+            throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveNine {$context} decoded to malformed UTF-8");
         }
 
         return $text;
@@ -194,14 +194,14 @@ final class SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan
             if (in_array($encoding, [1, 2, 3], true)) {
                 return $encoding;
             }
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source next159 encoding must be UTF-8, UTF-16LE, or UTF-16BE');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveNine encoding must be UTF-8, UTF-16LE, or UTF-16BE');
         }
 
         return match (strtoupper(str_replace('_', '-', $encoding))) {
             'UTF-8', 'UTF8' => 1,
             'UTF-16LE', 'UTF16LE', 'UTF-16' => 2,
             'UTF-16BE', 'UTF16BE' => 3,
-            default => throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source next159 encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+            default => throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveNine encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
         };
     }
 
@@ -211,7 +211,7 @@ final class SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan
             1 => 'UTF-8',
             2 => 'UTF-16LE',
             3 => 'UTF-16BE',
-            default => throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source next159 encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+            default => throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveNine encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
         };
     }
 

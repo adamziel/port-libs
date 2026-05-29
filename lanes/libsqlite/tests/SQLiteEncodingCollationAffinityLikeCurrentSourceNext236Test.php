@@ -23,7 +23,7 @@ $current236 = [
     ['option_id' => 12, 'option_name' => null],
 ];
 
-$next236 = [
+$nextTwoThreeSix = [
     ['option_id' => 1, 'option_name' => 'wp_%_timeout2'],
     ['option_id' => 2, 'option_name' => 'WP_%_TIMEOUT'],
     ['option_id' => 3, 'option_name' => 'wp_cache_timeout'],
@@ -50,7 +50,7 @@ $plan236 = static fn (
     int $nextCookie = 236,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan(
     $current ?? $current236,
-    $next ?? $next236,
+    $next ?? $nextTwoThreeSix,
     $pattern,
     $escape,
     $caseSensitive,
@@ -72,7 +72,7 @@ $valueAt236 = static function (array $value, string $path): mixed {
 };
 
 $cases236 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next236'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoThreeSix'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_name COLLATE NOCASE LIKE ? ESCAPE ? /* escaped wildcard current-source fence */'],
     'pattern' => ['pattern', 'wp!_!%!_timeout%'],
@@ -126,38 +126,38 @@ $cases236 = [
     'dependency tokenizer' => ['dependencies.0', 'sqlite-like-escape-tokenizer'],
     'dependency collation' => ['dependencies.1', 'sqlite-nocase-ascii-collation'],
     'dependency affinity' => ['dependencies.2', 'sqlite-text-affinity'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next236'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoThreeSix'],
 ];
 
 foreach ($cases236 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next236 ' . $name] = static function (TestRunner $t) use ($plan236, $valueAt236, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoThreeSix ' . $name] = static function (TestRunner $t) use ($plan236, $valueAt236, $path, $expected): void {
         $t->same($expected, $valueAt236($plan236(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next236 case sensitive excludes uppercase'] = static function (TestRunner $t) use ($plan236): void {
+$tests['encoding collation affinity like current source nextTwoThreeSix case sensitive excludes uppercase'] = static function (TestRunner $t) use ($plan236): void {
     $case = $plan236(caseSensitive: true);
     $t->same([1, 9, 4], $case['currentRowids']);
 };
 
-$tests['encoding collation affinity like current source next236 stable cursor reusable'] = static function (TestRunner $t) use ($current236, $plan236): void {
+$tests['encoding collation affinity like current source nextTwoThreeSix stable cursor reusable'] = static function (TestRunner $t) use ($current236, $plan236): void {
     $stable = $plan236(current: $current236, next: $current236, currentSource: 'stable', nextSource: 'stable', currentCookie: 236, nextCookie: 236);
     $t->same(false, $stable['cursorInvalidated']);
     $t->same(true, $stable['cursorReusable']);
     $t->same([], $stable['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next236 escaped prefix can match literal prefix exactly'] = static function (TestRunner $t) use ($plan236): void {
+$tests['encoding collation affinity like current source nextTwoThreeSix escaped prefix can match literal prefix exactly'] = static function (TestRunner $t) use ($plan236): void {
     $plan = $plan236(pattern: 'wp!_!%', escape: '!');
     $t->same([5], $plan['currentRowids']);
 };
 
-$tests['encoding collation affinity like current source next236 unescaped wildcards widen rowset'] = static function (TestRunner $t) use ($plan236): void {
+$tests['encoding collation affinity like current source nextTwoThreeSix unescaped wildcards widen rowset'] = static function (TestRunner $t) use ($plan236): void {
     $plan = $plan236(pattern: 'wp_%_timeout%', escape: null);
     $t->same([2, 8, 1, 9, 4, 3, 7, 6], $plan['currentRowids']);
 };
 
-$tests['encoding collation affinity like current source next236 multibyte escape quotes wildcard'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeSix multibyte escape quotes wildcard'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_name' => 'wp_%_timeout'],
         ['option_id' => 2, 'option_name' => 'wp_cache_timeout'],
@@ -167,24 +167,24 @@ $tests['encoding collation affinity like current source next236 multibyte escape
     $t->same('c3a9', $plan['escapeHex']);
 };
 
-$tests['encoding collation affinity like current source next236 trailing escape does not match literal escape'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeSix trailing escape does not match literal escape'] = static function (TestRunner $t): void {
     $t->same(false, SQLiteDatabase::likeMatches('wp_%_timeout!', 'wp!_!%!_timeout!', '!'));
     $t->same(true, SQLiteDatabase::likeMatches('wp_%_timeout!', 'wp!_!%!_timeout!!', '!'));
 };
 
-$tests['encoding collation affinity like current source next236 ascii nocase does not fold unicode'] = static function (TestRunner $t) use ($plan236): void {
+$tests['encoding collation affinity like current source nextTwoThreeSix ascii nocase does not fold unicode'] = static function (TestRunner $t) use ($plan236): void {
     $case = $plan236(pattern: 'wp!_é%', escape: '!');
     $t->same([6], $case['currentRowids']);
 };
 
-$tests['encoding collation affinity like current source next236 unicode pattern keeps codepoint prefix range'] = static function (TestRunner $t) use ($plan236): void {
+$tests['encoding collation affinity like current source nextTwoThreeSix unicode pattern keeps codepoint prefix range'] = static function (TestRunner $t) use ($plan236): void {
     $case = $plan236(pattern: 'wp!_é%', escape: '!');
     $t->same('wp_é', $case['prefix']);
     $t->same('wp_ê', $case['binaryRange']['upperBound']);
     $t->same(false, $case['prefixIsAscii']);
 };
 
-$tests['encoding collation affinity like current source next236 numeric affinity participates'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeSix numeric affinity participates'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_name' => 404],
         ['option_id' => 2, 'option_name' => 405],
@@ -194,7 +194,7 @@ $tests['encoding collation affinity like current source next236 numeric affinity
     $t->same([1, 2], $plan['currentRowids']);
 };
 
-$tests['encoding collation affinity like current source next236 blob and null stay non text'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeSix blob and null stay non text'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_name' => new SQLiteBlobValue('wp_%_timeout')],
         ['option_id' => 2, 'option_name' => null],
@@ -203,16 +203,16 @@ $tests['encoding collation affinity like current source next236 blob and null st
     $t->same([], $plan['currentRowids']);
 };
 
-$tests['encoding collation affinity like current source next236 rejects missing option name'] = static function (TestRunner $t) use ($next236): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan([['option_id' => 1]], $next236, 'wp!_!%', '!'));
+$tests['encoding collation affinity like current source nextTwoThreeSix rejects missing option name'] = static function (TestRunner $t) use ($nextTwoThreeSix): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan([['option_id' => 1]], $nextTwoThreeSix, 'wp!_!%', '!'));
 };
 
-$tests['encoding collation affinity like current source next236 rejects non scalar option name'] = static function (TestRunner $t) use ($next236): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $next236, 'wp!_!%', '!'));
+$tests['encoding collation affinity like current source nextTwoThreeSix rejects non scalar option name'] = static function (TestRunner $t) use ($nextTwoThreeSix): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $nextTwoThreeSix, 'wp!_!%', '!'));
 };
 
-$tests['encoding collation affinity like current source next236 rejects multi character escape'] = static function (TestRunner $t) use ($current236, $next236): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan($current236, $next236, 'wp!_!%', '!!'));
+$tests['encoding collation affinity like current source nextTwoThreeSix rejects multi character escape'] = static function (TestRunner $t) use ($current236, $nextTwoThreeSix): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan($current236, $nextTwoThreeSix, 'wp!_!%', '!!'));
 };
 
 return $tests;

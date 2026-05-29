@@ -23,7 +23,7 @@ $current249 = [
     ['option_id' => 9, 'option_name_bytes' => $enc249('plugin_cache', 'UTF-16LE'), 'text_encoding' => 2],
 ];
 
-$next249 = [
+$nextTwoFourNine = [
     ['option_id' => 1, 'option_name' => 'plugin_cache ', 'text_encoding' => 'UTF-16BE'],
     ['option_id' => 2, 'option_name' => 'plugin_cache', 'text_encoding' => 'UTF-16BE'],
     ['option_id' => 3, 'option_name' => 'plugin_cache  ', 'text_encoding' => 'UTF-16LE'],
@@ -45,7 +45,7 @@ $plan249 = static fn (
     int $nextCookie = 249,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeSourcePlan(
     $current ?? $current249,
-    $next ?? $next249,
+    $next ?? $nextTwoFourNine,
     $pattern,
     $escape,
     $currentSource,
@@ -66,7 +66,7 @@ $valueAt249 = static function (array $value, string $path): mixed {
 };
 
 $cases249 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next249'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourNine'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_name COLLATE RTRIM LIKE ? ESCAPE ? /* RTRIM range, LIKE residual */'],
     'pattern hex' => ['patternHex', '706c7567696e215f6361636865'],
@@ -136,16 +136,16 @@ $cases249 = [
     'dependency cursor' => ['dependencies.0', 'sqlite-encoding-source-cursor'],
     'dependency tokenizer' => ['dependencies.1', 'sqlite-like-escape-tokenizer'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-collation-range'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next249'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoFourNine'],
 ];
 
 foreach ($cases249 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next249 ' . $name] = static function (TestRunner $t) use ($plan249, $valueAt249, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFourNine ' . $name] = static function (TestRunner $t) use ($plan249, $valueAt249, $path, $expected): void {
         $t->same($expected, $valueAt249($plan249(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next249 stable exact cursor reusable'] = static function (TestRunner $t) use ($plan249): void {
+$tests['encoding collation affinity like current source nextTwoFourNine stable exact cursor reusable'] = static function (TestRunner $t) use ($plan249): void {
     $rows = [
         ['option_id' => 1, 'option_name' => 'plugin_cache', 'text_encoding' => 'UTF-16LE'],
         ['option_id' => 2, 'option_name' => 'plugin_cache  ', 'text_encoding' => 'UTF-16BE'],
@@ -159,7 +159,7 @@ $tests['encoding collation affinity like current source next249 stable exact cur
     $t->same([2], $stable['currentRtrimResidualRejectedRowids']);
 };
 
-$tests['encoding collation affinity like current source next249 wildcard absorbs trailing spaces'] = static function (TestRunner $t) use ($plan249): void {
+$tests['encoding collation affinity like current source nextTwoFourNine wildcard absorbs trailing spaces'] = static function (TestRunner $t) use ($plan249): void {
     $wild = $plan249(pattern: 'plugin!_cache%', escape: '!');
     $t->same([1, 2, 3, 9, 4], $wild['currentMatchedRowids']);
     $t->same([1, 2, 3, 9, 10, 4], $wild['nextMatchedRowids']);
@@ -167,46 +167,46 @@ $tests['encoding collation affinity like current source next249 wildcard absorbs
     $t->same([], $wild['nextRtrimResidualRejectedRowids']);
 };
 
-$tests['encoding collation affinity like current source next249 binary case remains outside rtrim range'] = static function (TestRunner $t) use ($plan249): void {
+$tests['encoding collation affinity like current source nextTwoFourNine binary case remains outside rtrim range'] = static function (TestRunner $t) use ($plan249): void {
     $plan = $plan249();
     $t->same(false, in_array(5, $plan['currentCandidateRowids'], true));
     $t->same(false, in_array(5, $plan['nextCandidateRowids'], true));
 };
 
-$tests['encoding collation affinity like current source next249 direct like proves rtrim contrast'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFourNine direct like proves rtrim contrast'] = static function (TestRunner $t): void {
     $t->same(true, SQLiteDatabase::likeMatches('plugin_cache', 'plugin!_cache', '!'));
     $t->same(false, SQLiteDatabase::likeMatches('plugin_cache ', 'plugin!_cache', '!'));
     $t->same(true, SQLiteDatabase::likeMatches('plugin_cache ', 'plugin!_cache%', '!'));
 };
 
-$tests['encoding collation affinity like current source next249 skips blob null but keeps scalar false outside range'] = static function (TestRunner $t) use ($plan249): void {
+$tests['encoding collation affinity like current source nextTwoFourNine skips blob null but keeps scalar false outside range'] = static function (TestRunner $t) use ($plan249): void {
     $plan = $plan249();
     $t->same(false, in_array(7, $plan['currentCandidateRowids'], true));
     $t->same(false, in_array(8, $plan['currentCandidateRowids'], true));
     $t->same(false, in_array(11, $plan['nextCandidateRowids'], true));
 };
 
-$tests['encoding collation affinity like current source next249 rejects multi character escape'] = static function (TestRunner $t) use ($current249, $next249): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeSourcePlan($current249, $next249, 'plugin!!_cache', '!!'));
+$tests['encoding collation affinity like current source nextTwoFourNine rejects multi character escape'] = static function (TestRunner $t) use ($current249, $nextTwoFourNine): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeSourcePlan($current249, $nextTwoFourNine, 'plugin!!_cache', '!!'));
 };
 
-$tests['encoding collation affinity like current source next249 rejects missing option name'] = static function (TestRunner $t) use ($next249): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeSourcePlan([['option_id' => 1]], $next249));
+$tests['encoding collation affinity like current source nextTwoFourNine rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFourNine): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeSourcePlan([['option_id' => 1]], $nextTwoFourNine));
 };
 
-$tests['encoding collation affinity like current source next249 rejects invalid encoded bytes'] = static function (TestRunner $t) use ($next249): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeSourcePlan([['option_id' => 1, 'option_name_bytes' => 'p', 'text_encoding' => 2]], $next249));
+$tests['encoding collation affinity like current source nextTwoFourNine rejects invalid encoded bytes'] = static function (TestRunner $t) use ($nextTwoFourNine): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeSourcePlan([['option_id' => 1, 'option_name_bytes' => 'p', 'text_encoding' => 2]], $nextTwoFourNine));
 };
 
-$tests['encoding collation affinity like current source next249 rejects non scalar option name'] = static function (TestRunner $t) use ($next249): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeSourcePlan([['option_id' => 1, 'option_name' => ['plugin']]], $next249));
+$tests['encoding collation affinity like current source nextTwoFourNine rejects non scalar option name'] = static function (TestRunner $t) use ($nextTwoFourNine): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeSourcePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFourNine));
 };
 
-$tests['encoding collation affinity like current source next249 note fields stay explicit'] = static function (TestRunner $t) use ($plan249): void {
+$tests['encoding collation affinity like current source nextTwoFourNine note fields stay explicit'] = static function (TestRunner $t) use ($plan249): void {
     $plan = $plan249();
     $t->true(str_contains($plan['dependency_closure'], 'no new support component needed'));
     $t->true(str_contains($plan['non_overlap'], 'RTRIM-collation LIKE range admission'));
-    $t->true(str_contains($plan['non_overlap'], 'next245 dangling ESCAPE'));
+    $t->true(str_contains($plan['non_overlap'], 'nextTwoFourFive dangling ESCAPE'));
 };
 
 return $tests;

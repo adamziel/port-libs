@@ -20,7 +20,7 @@ $current240 = [
     ['option_id' => 10, 'option_name' => 'scientific', 'option_value' => 4000000000000000.0],
 ];
 
-$next240 = [
+$nextTwoFourZero = [
     ['option_id' => 1, 'option_name' => 'rewrite_rules_version', 'option_value' => '404'],
     ['option_id' => 2, 'option_name' => 'rewrite_rules_preview', 'option_value' => 405.50],
     ['option_id' => 3, 'option_name' => 'rewrite_rules_text', 'option_value' => 404],
@@ -44,7 +44,7 @@ $plan240 = static fn (
     int $nextCookie = 240,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan(
     $current ?? $current240,
-    $next ?? $next240,
+    $next ?? $nextTwoFourZero,
     $pattern,
     $escape,
     $caseSensitive,
@@ -66,7 +66,7 @@ $valueAt240 = static function (array $value, string $path): mixed {
 };
 
 $cases240 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next240'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'CAST(option_value AS NUMERIC) LIKE ? ESCAPE ? /* numeric affinity current-source fence */'],
     'pattern' => ['pattern', '40%'],
@@ -122,49 +122,49 @@ $cases240 = [
     'real formatting flag' => ['sqliteRealFormattingUsesSignificantDigits', true],
     'dependency numeric' => ['dependencies.0', 'sqlite-numeric-affinity-format'],
     'dependency tokenizer' => ['dependencies.1', 'sqlite-like-escape-tokenizer'],
-    'dependency source' => ['dependencies.2', 'sqlite-current-source-next240'],
+    'dependency source' => ['dependencies.2', 'sqlite-current-source-nexttwoFourZero'],
 ];
 
 foreach ($cases240 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next240 ' . $name] = static function (TestRunner $t) use ($plan240, $valueAt240, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFourZero ' . $name] = static function (TestRunner $t) use ($plan240, $valueAt240, $path, $expected): void {
         $t->same($expected, $valueAt240($plan240(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next240 stable cursor reusable'] = static function (TestRunner $t) use ($current240, $plan240): void {
+$tests['encoding collation affinity like current source nextTwoFourZero stable cursor reusable'] = static function (TestRunner $t) use ($current240, $plan240): void {
     $stable = $plan240(current: $current240, next: $current240, currentSource: 'same', nextSource: 'same', currentCookie: 240, nextCookie: 240);
     $t->same(false, $stable['cursorInvalidated']);
     $t->same(true, $stable['cursorReusable']);
     $t->same([], $stable['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next240 boolean numeric text matches'] = static function (TestRunner $t) use ($plan240): void {
+$tests['encoding collation affinity like current source nextTwoFourZero boolean numeric text matches'] = static function (TestRunner $t) use ($plan240): void {
     $plan = $plan240(pattern: '_');
     $t->same([5, 4], $plan['currentRowids']);
     $t->same('1', $plan['currentFormatted'][4]);
     $t->same('0', $plan['currentFormatted'][5]);
 };
 
-$tests['encoding collation affinity like current source next240 real formatter trims trailing zeroes'] = static function (TestRunner $t) use ($plan240): void {
+$tests['encoding collation affinity like current source nextTwoFourZero real formatter trims trailing zeroes'] = static function (TestRunner $t) use ($plan240): void {
     $plan = $plan240(pattern: '4.25');
     $t->same([6], $plan['currentRowids']);
     $t->same('4.25', $plan['currentFormatted'][6]);
 };
 
-$tests['encoding collation affinity like current source next240 negative real participates in like'] = static function (TestRunner $t) use ($plan240): void {
+$tests['encoding collation affinity like current source nextTwoFourZero negative real participates in like'] = static function (TestRunner $t) use ($plan240): void {
     $plan = $plan240(pattern: '-40%');
     $t->same([9], $plan['currentRowids']);
     $t->same('-40.5', $plan['currentFormatted'][9]);
 };
 
-$tests['encoding collation affinity like current source next240 blob and null are skipped'] = static function (TestRunner $t) use ($plan240): void {
+$tests['encoding collation affinity like current source nextTwoFourZero blob and null are skipped'] = static function (TestRunner $t) use ($plan240): void {
     $plan = $plan240(pattern: '%04%');
     $t->same([3, 1], $plan['currentRowids']);
     $t->same(false, array_key_exists(7, $plan['currentFormatted']));
     $t->same(false, array_key_exists(8, $plan['currentFormatted']));
 };
 
-$tests['encoding collation affinity like current source next240 escaped literal percent in numeric text'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFourZero escaped literal percent in numeric text'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_name' => 'literal', 'option_value' => '40%'],
         ['option_id' => 2, 'option_name' => 'numeric', 'option_value' => 404],
@@ -174,13 +174,13 @@ $tests['encoding collation affinity like current source next240 escaped literal 
     $t->same('21', $plan['escapeHex']);
 };
 
-$tests['encoding collation affinity like current source next240 case sensitive changes collation only'] = static function (TestRunner $t) use ($plan240): void {
+$tests['encoding collation affinity like current source nextTwoFourZero case sensitive changes collation only'] = static function (TestRunner $t) use ($plan240): void {
     $plan = $plan240(pattern: '40%', caseSensitive: true);
     $t->same('BINARY', $plan['collation']);
     $t->same([1, 2], $plan['currentRowids']);
 };
 
-$tests['encoding collation affinity like current source next240 storage-only change invalidates'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFourZero storage-only change invalidates'] = static function (TestRunner $t): void {
     $current = [['option_id' => 1, 'option_name' => 'same_text', 'option_value' => 404]];
     $next = [['option_id' => 1, 'option_name' => 'same_text', 'option_value' => '404']];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan($current, $next, '404', null, false, 'same', 'same', 1, 1);
@@ -189,16 +189,16 @@ $tests['encoding collation affinity like current source next240 storage-only cha
     $t->same(['storage-class'], $plan['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next240 rejects missing option value'] = static function (TestRunner $t) use ($next240): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan([['option_id' => 1]], $next240, '40%'));
+$tests['encoding collation affinity like current source nextTwoFourZero rejects missing option value'] = static function (TestRunner $t) use ($nextTwoFourZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan([['option_id' => 1]], $nextTwoFourZero, '40%'));
 };
 
-$tests['encoding collation affinity like current source next240 rejects array option value'] = static function (TestRunner $t) use ($next240): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan([['option_id' => 1, 'option_value' => ['404']]], $next240, '40%'));
+$tests['encoding collation affinity like current source nextTwoFourZero rejects array option value'] = static function (TestRunner $t) use ($nextTwoFourZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan([['option_id' => 1, 'option_value' => ['404']]], $nextTwoFourZero, '40%'));
 };
 
-$tests['encoding collation affinity like current source next240 rejects invalid escape'] = static function (TestRunner $t) use ($current240, $next240): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan($current240, $next240, '40!!', '!!'));
+$tests['encoding collation affinity like current source nextTwoFourZero rejects invalid escape'] = static function (TestRunner $t) use ($current240, $nextTwoFourZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan($current240, $nextTwoFourZero, '40!!', '!!'));
 };
 
 return $tests;

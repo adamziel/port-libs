@@ -76,10 +76,10 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next172'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenTwo'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next165'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSixFive'],
     'current source' => ['currentSource', 'stable'],
     'next source' => ['nextSource', 'stable'],
     'current cookie' => ['currentSchemaCookie', 12],
@@ -112,12 +112,12 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next172 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSevenTwo ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next172 stable token does not reprepare'] = static function (TestRunner $t) use ($plan, $row): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenTwo stable token does not reprepare'] = static function (TestRunner $t) use ($plan, $row): void {
     $rows = [
         $row(1, 'plugin_cache', 'UTF-16LE'),
         $row(2, 'plugin_cache_alpha  ', 'UTF-16BE'),
@@ -131,7 +131,7 @@ $tests['utf16 nocase like rtrim current source next172 stable token does not rep
     $t->same([3], $result['resumePlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next172 same key case and space mutation remains after token safe'] = static function (TestRunner $t) use ($plan, $row): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenTwo same key case and space mutation remains after token safe'] = static function (TestRunner $t) use ($plan, $row): void {
     $current = [
         $row(1, 'plugin_cache', 'UTF-16LE'),
         $row(2, 'plugin_cache_alpha  ', 'UTF-16BE'),
@@ -150,7 +150,7 @@ $tests['utf16 nocase like rtrim current source next172 same key case and space m
     $t->same([3], $result['resumePlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next172 row before token forces base reprepare'] = static function (TestRunner $t) use ($plan, $nextRows, $row): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenTwo row before token forces base reprepare'] = static function (TestRunner $t) use ($plan, $nextRows, $row): void {
     $next = array_merge($nextRows, [$row(7, 'plugin_cache_aaa', 'UTF-16LE')]);
     $result = $plan(next: $next);
     $t->same([1, 7], $result['nextBeforeOrAtTokenRowids']);
@@ -158,7 +158,7 @@ $tests['utf16 nocase like rtrim current source next172 row before token forces b
     $t->same(true, $result['mustReprepareBeforeResume']);
 };
 
-$tests['utf16 nocase like rtrim current source next172 yielded row exiting is recorded but can continue'] = static function (TestRunner $t) use ($plan, $currentRows, $row): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenTwo yielded row exiting is recorded but can continue'] = static function (TestRunner $t) use ($plan, $currentRows, $row): void {
     $next = [
         $row(1, 'plugin_cache', 'UTF-16BE'),
         $row(3, 'plugin_cache_beta', 'UTF-16LE'),
@@ -171,7 +171,7 @@ $tests['utf16 nocase like rtrim current source next172 yielded row exiting is re
     $t->same([3, 4], $result['resumePlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next172 no token still uses range start reprepare'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenTwo no token still uses range start reprepare'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(token: null);
     $t->same(null, $result['lastYielded']);
     $t->same(false, $result['yieldedReenteredAfterToken']);

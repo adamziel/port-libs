@@ -61,7 +61,7 @@ function libsqlite_suite_evidence100_rows(string $head = 'c196709c053869bec78f15
 function libsqlite_suite_evidence100_record(array $rows, string $output = null, ?int $expected = 12, string $snapshot = ''): array
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json')
-        ->suiteEvidenceSliceCurrentNext100(
+        ->suiteEvidenceSlice(
             $rows,
             486,
             29258,

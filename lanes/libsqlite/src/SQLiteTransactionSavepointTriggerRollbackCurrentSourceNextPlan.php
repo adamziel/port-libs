@@ -34,7 +34,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
 
             try {
                 $before = self::fireTriggers('before', 'delete', $old, null, $triggers, $ordinal);
-            } catch (SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Signal $signal) {
+            } catch (SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextSignal $signal) {
                 if ($signal->action === 'ignore') {
                     $skipped[] = self::skip('delete', $ordinal, $index, $old, 'before', $signal->reason);
                     ++$ordinal;
@@ -63,7 +63,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
 
             try {
                 $after = self::fireTriggers('after', 'delete', $old, null, $triggers, $ordinal);
-            } catch (SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Signal $signal) {
+            } catch (SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextSignal $signal) {
                 $sourceTrace[array_key_last($sourceTrace)]['next_source_count'] = count($working);
                 $sourceTrace[array_key_last($sourceTrace)]['next_source_names'] = self::column($working, 'option_name');
                 if ($signal->action === 'ignore') {
@@ -121,7 +121,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
 
             try {
                 $before = self::fireTriggers('before', 'update', $old, $next, $triggers, $ordinal);
-            } catch (SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Signal $signal) {
+            } catch (SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextSignal $signal) {
                 if ($signal->action === 'ignore') {
                     $skipped[] = self::skip('update', $ordinal, $index, $old, 'before', $signal->reason);
                     ++$ordinal;
@@ -150,7 +150,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
 
             try {
                 $after = self::fireTriggers('after', 'update', $old, $next, $triggers, $ordinal);
-            } catch (SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Signal $signal) {
+            } catch (SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextSignal $signal) {
                 $sourceTrace[array_key_last($sourceTrace)]['next_source_count'] = count($working);
                 $sourceTrace[array_key_last($sourceTrace)]['next_source_names'] = self::column($working, 'option_name');
                 if ($signal->action === 'ignore') {
@@ -263,7 +263,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
                 if (!in_array($raise, ['ignore', 'rollback'], true)) {
                     throw new \InvalidArgumentException('SQLite transaction savepoint trigger rollback current-source RAISE action is unsupported');
                 }
-                throw new SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Signal($raise, (string) ($trigger['reason'] ?? 'trigger-raise'));
+                throw new SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextSignal($raise, (string) ($trigger['reason'] ?? 'trigger-raise'));
             }
             if ($action === 'set-new') {
                 if ($next === null) {
@@ -448,7 +448,7 @@ final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
     }
 }
 
-final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Signal extends \RuntimeException
+final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextSignal extends \RuntimeException
 {
     public function __construct(public readonly string $action, public readonly string $reason)
     {

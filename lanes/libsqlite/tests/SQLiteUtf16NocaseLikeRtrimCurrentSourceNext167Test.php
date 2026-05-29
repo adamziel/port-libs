@@ -23,7 +23,7 @@ $current167 = [
     $row167(6, 'élan_cache', 3),
     ['option_id' => 7, 'option_name_bytes' => "\x00\xd8", 'text_encoding' => 2],
 ];
-$next167 = [
+$nextOneSixSeven = [
     $row167(1, 'éclair_cache', 3),
     $row167(2, 'Éclair_Cache  ', 3),
     $row167(4, 'éclair_shadow', 1),
@@ -35,7 +35,7 @@ $next167 = [
 
 $plan167 = static fn (?array $current = null, ?array $next = null, string $pattern = 'éclair%', ?string $escape = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFallbackPlan(
     $current ?? $current167,
-    $next ?? $next167,
+    $next ?? $nextOneSixSeven,
     $pattern,
     $escape,
 );
@@ -49,7 +49,7 @@ $valueAt167 = static function (array $value, string $path): mixed {
 };
 
 $cases167 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next167'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSixSeven'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'éclair%'],
@@ -114,16 +114,16 @@ $cases167 = [
     'dependency utf16' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency rtrim' => ['dependencies.1', 'sqlite-rtrim-expression'],
     'dependency full scan' => ['dependencies.2', 'sqlite-like-nocase-full-scan-fallback'],
-    'dependency next167' => ['dependencies.3', 'sqlite-current-source-next167'],
+    'dependency nextOneSixSeven' => ['dependencies.3', 'sqlite-current-source-nextoneSixSeven'],
 ];
 
 foreach ($cases167 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next167 ' . $name] = static function (TestRunner $t) use ($plan167, $valueAt167, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSixSeven ' . $name] = static function (TestRunner $t) use ($plan167, $valueAt167, $path, $expected): void {
         $t->same($expected, $valueAt167($plan167(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next167 leading wildcard also full scans'] = static function (TestRunner $t) use ($plan167): void {
+$tests['utf16 nocase like rtrim current source nextOneSixSeven leading wildcard also full scans'] = static function (TestRunner $t) use ($plan167): void {
     $result = $plan167(null, null, '%cache');
     $t->same('', $result['prefix']);
     $t->same('no_fixed_prefix', $result['rejectedReason']);
@@ -133,7 +133,7 @@ $tests['utf16 nocase like rtrim current source next167 leading wildcard also ful
     $t->true(in_array('full-scan-like-residual', $result['invalidationReasons'], true));
 };
 
-$tests['utf16 nocase like rtrim current source next167 escaped wildcard keeps residual fallback'] = static function (TestRunner $t) use ($row167): void {
+$tests['utf16 nocase like rtrim current source nextOneSixSeven escaped wildcard keeps residual fallback'] = static function (TestRunner $t) use ($row167): void {
     $rows = [
         $row167(1, 'éclair_%cache', 2),
         $row167(2, 'éclair_admin_cache', 2),
@@ -156,7 +156,7 @@ $tests['utf16 nocase like rtrim current source next167 escaped wildcard keeps re
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next167 ascii prefix still uses nocase range'] = static function (TestRunner $t) use ($row167): void {
+$tests['utf16 nocase like rtrim current source nextOneSixSeven ascii prefix still uses nocase range'] = static function (TestRunner $t) use ($row167): void {
     $rows = [
         $row167(1, 'plugin_cache  ', 2),
         $row167(2, 'Plugin_Cache', 3),
@@ -180,7 +180,7 @@ $tests['utf16 nocase like rtrim current source next167 ascii prefix still uses n
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next167 rejects missing bytes'] = static function (TestRunner $t): void {
+$tests['utf16 nocase like rtrim current source nextOneSixSeven rejects missing bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFallbackPlan([['option_id' => 1, 'text_encoding' => 2]], [], 'éclair%'));
 };
 

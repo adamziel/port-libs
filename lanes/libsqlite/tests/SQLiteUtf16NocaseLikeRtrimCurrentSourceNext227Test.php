@@ -34,7 +34,7 @@ $current227 = [
     $row227(7, 'theme_cache ', 'UTF-16BE'),
     $bad227(8, "\x00\xd8", 2),
 ];
-$next227 = [
+$nextTwoTwoSeven = [
     $row227(1, 'plugin_cache ', 'UTF-16BE'),
     $row227(2, 'Plugin_Cache' . $nbsp227, 'UTF-16LE'),
     $row227(3, 'plugin_cache  ', 'UTF-16BE'),
@@ -56,7 +56,7 @@ $plan227 = static fn (
     int $nextCookie = 227,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceBoundaryPlan(
     $current ?? $current227,
-    $next ?? $next227,
+    $next ?? $nextTwoTwoSeven,
     $pattern,
     $escape,
     $currentSource,
@@ -77,7 +77,7 @@ $valueAt227 = static function (array $value, string $path): mixed {
 };
 
 $cases227 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next227'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoTwoSeven'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? /* ASCII-space RTRIM boundary */'],
     'pattern' => ['pattern', 'plugin_cache'],
@@ -134,16 +134,16 @@ $cases227 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency prefix range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next227'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoTwoSeven'],
 ];
 
 foreach ($cases227 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next227 ' . $name] = static function (TestRunner $t) use ($plan227, $valueAt227, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoTwoSeven ' . $name] = static function (TestRunner $t) use ($plan227, $valueAt227, $path, $expected): void {
         $t->same($expected, $valueAt227($plan227(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next227 invalidation reason order'] = static function (TestRunner $t) use ($plan227): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoSeven invalidation reason order'] = static function (TestRunner $t) use ($plan227): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -158,7 +158,7 @@ $tests['utf16 nocase like rtrim current source next227 invalidation reason order
     ], $plan227()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next227 stable ascii space cursor is reusable'] = static function (TestRunner $t) use ($row227): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoSeven stable ascii space cursor is reusable'] = static function (TestRunner $t) use ($row227): void {
     $rows = [
         $row227(1, 'plugin_cache', 'UTF-16LE'),
         $row227(2, 'PLUGIN_CACHE ', 'UTF-16BE'),
@@ -179,7 +179,7 @@ $tests['utf16 nocase like rtrim current source next227 stable ascii space cursor
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next227 nbsp alone prevents equality match'] = static function (TestRunner $t) use ($row227, $nbsp227): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoSeven nbsp alone prevents equality match'] = static function (TestRunner $t) use ($row227, $nbsp227): void {
     $rows = [
         $row227(1, 'plugin_cache' . $nbsp227, 'UTF-16LE'),
         $row227(2, 'plugin_cache ', 'UTF-16BE'),
@@ -191,7 +191,7 @@ $tests['utf16 nocase like rtrim current source next227 nbsp alone prevents equal
     $t->same([1], $result['currentNbspSuffixRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next227 rejects malformed row shape'] = static function (TestRunner $t) use ($enc227): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoSeven rejects malformed row shape'] = static function (TestRunner $t) use ($enc227): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc227('plugin_cache', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceBoundaryPlan($rows, $rows));
 };

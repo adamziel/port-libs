@@ -155,7 +155,7 @@ final class SQLiteUtf16NocaseLikeCurrentSourceNextRangeBytesImpl
             'dependencies' => [
                 'sqlite-like-collation-prefix-range',
                 'sqlite-encoding-source-cursor',
-                'sqlite-utf16-nocase-current-source-next126',
+                'sqlite-utf16-nocase-current-source-nextoneTwoSix',
             ],
         ];
     }
@@ -383,7 +383,7 @@ final class SQLiteUtf16NocaseLikeCurrentSourceNextResidualImpl
                 'sqlite-utf16-decode',
                 'sqlite-like-nocase-range',
                 'sqlite-like-residual-byte-preserving',
-                'sqlite-current-source-next141',
+                'sqlite-current-source-nextoneFourOne',
             ],
         ];
     }
@@ -399,13 +399,13 @@ final class SQLiteUtf16NocaseLikeCurrentSourceNextResidualImpl
         $errors = [];
         foreach ($rows as $row) {
             if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE current-source next141 rows require integer option_id');
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE current-source nextOneFourOne rows require integer option_id');
             }
             if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE current-source next141 rows require option_name_bytes');
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE current-source nextOneFourOne rows require option_name_bytes');
             }
             if (!isset($row['text_encoding']) || !in_array($row['text_encoding'], [2, 3], true)) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE current-source next141 rows require UTF-16 text_encoding');
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE current-source nextOneFourOne rows require UTF-16 text_encoding');
             }
 
             try {
@@ -580,7 +580,7 @@ final class SQLiteUtf16NocaseLikeCurrentSourceNextResidualImpl
         return match (strtoupper(str_replace('_', '-', $encoding))) {
             'UTF-16LE', 'UTF16LE' => 'UTF-16LE',
             'UTF-16BE', 'UTF16BE' => 'UTF-16BE',
-            default => throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE current-source next141 requires UTF-16LE or UTF-16BE database encoding'),
+            default => throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE current-source nextOneFourOne requires UTF-16LE or UTF-16BE database encoding'),
         };
     }
 

@@ -7,7 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan
 {
     private function __construct(
-        public readonly SQLiteBTreeFreeblockRebalanceCellOverflowCurrentNext76Plan $rebalancePlan,
+        public readonly SQLiteBTreeFreeblockRebalanceCellOverflowCurrentNextPlan $rebalancePlan,
         public readonly SQLiteDatabase $databaseBefore,
     ) {
     }
@@ -28,7 +28,7 @@ final class SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan
         bool $allowAppend = true,
     ): self {
         return new self(
-            SQLiteBTreeFreeblockRebalanceCellOverflowCurrentNext76Plan::tableDeleteRebalanceThenReplaceOverflow(
+            SQLiteBTreeFreeblockRebalanceCellOverflowCurrentNextPlan::tableDeleteRebalanceThenReplaceOverflow(
                 $database,
                 $parentPageNumber,
                 $currentPageNumber,

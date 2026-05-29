@@ -30,7 +30,7 @@ final class SQLiteVfsFileControlPersistence
      * @param array<string|int, mixed> $controls
      * @return array{status:string,path:string,connection:string,current:array<string, mixed>,lock:array<string, mixed>,file_control:array<string, mixed>,persisted:array<string, mixed>,release:array<string, mixed>,next:array<string, mixed>,sidecar:string,dependencies:list<string>}
      */
-    public function currentNext75(
+    public function persistentFileControlApply(
         string $filename,
         bool $fileExists,
         bool $directoryWritable,
@@ -95,12 +95,12 @@ final class SQLiteVfsFileControlPersistence
                     'holders' => [],
                     'blocking' => [],
                     'ranges' => [],
-                    'dependencies' => ['sqlite-lock-byte-range', 'vfs-file-control-persistence-current-next75'],
+                    'dependencies' => ['sqlite-lock-byte-range', 'vfs-file-control-persistence-persistent-file-control-apply'],
                     'reason' => 'current_handle_lock_not_acquired',
                 ],
                 'next' => $current,
                 'sidecar' => $this->sidecarPath($path),
-                'dependencies' => self::dependencies($current['dependencies'], $lock['dependencies'], ['vfs-file-control-persistence-current-next75']),
+                'dependencies' => self::dependencies($current['dependencies'], $lock['dependencies'], ['vfs-file-control-persistence-persistent-file-control-apply']),
             ];
         }
 
@@ -122,7 +122,7 @@ final class SQLiteVfsFileControlPersistence
             'release' => $release,
             'next' => $next,
             'sidecar' => $this->sidecarPath($path),
-            'dependencies' => self::dependencies($batch['dependencies'], $lock['dependencies'], $release['dependencies'], ['vfs-file-control-persistence-current-next75']),
+            'dependencies' => self::dependencies($batch['dependencies'], $lock['dependencies'], $release['dependencies'], ['vfs-file-control-persistence-persistent-file-control-apply']),
         ];
     }
 

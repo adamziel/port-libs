@@ -35,7 +35,7 @@ $current196 = [
     $row196(9, 'theme_cache', 'UTF-16LE'),
     $bad196(10, "\x00\xd8", 2),
 ];
-$next196 = [
+$nextOneNineSix = [
     $row196(1, 'plugin_cache', 'UTF-16BE'),
     $row196(2, 'Plugin_Cache   ', 'UTF-16LE'),
     $row196(3, 'plugin_cache', 'UTF-8'),
@@ -57,7 +57,7 @@ $plan196 = static fn (
     int $nextCookie = 196,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
     $current ?? $current196,
-    $next ?? $next196,
+    $next ?? $nextOneNineSix,
     'plugin!_cache',
     '!',
     $token,
@@ -79,13 +79,13 @@ $valueAt196 = static function (array $value, string $path): mixed {
 };
 
 $cases196 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next196'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneNineSix'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* duplicate comparison-key peers */'],
     'pattern' => ['pattern', 'plugin!_cache'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next192'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneNineTwo'],
     'current source' => ['currentSource', 'main.wp_options@195'],
     'next source' => ['nextSource', 'main.wp_options@196'],
     'current cookie' => ['currentSchemaCookie', 195],
@@ -134,16 +134,16 @@ $cases196 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency peer' => ['dependencies.2', 'sqlite-rtrim-duplicate-peer-key'],
     'dependency residual' => ['dependencies.3', 'sqlite-like-residual-recheck'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next196'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nextoneNineSix'],
 ];
 
 foreach ($cases196 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next196 ' . $name] = static function (TestRunner $t) use ($plan196, $valueAt196, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneNineSix ' . $name] = static function (TestRunner $t) use ($plan196, $valueAt196, $path, $expected): void {
         $t->same($expected, $valueAt196($plan196(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next196 stable duplicate peers resume after token'] = static function (TestRunner $t) use ($row196): void {
+$tests['utf16 nocase like rtrim current source nextOneNineSix stable duplicate peers resume after token'] = static function (TestRunner $t) use ($row196): void {
     $rows = [
         $row196(1, 'Plugin_Cache', 'UTF-16LE'),
         $row196(2, 'plugin_cache  ', 'UTF-16BE'),
@@ -174,7 +174,7 @@ $tests['utf16 nocase like rtrim current source next196 stable duplicate peers re
     $t->same([11, 12], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next196 duplicate peer inserted before token blocks resume'] = static function (TestRunner $t) use ($row196): void {
+$tests['utf16 nocase like rtrim current source nextOneNineSix duplicate peer inserted before token blocks resume'] = static function (TestRunner $t) use ($row196): void {
     $current = [
         $row196(2, 'plugin_cache  ', 'UTF-16BE'),
         $row196(6, 'plugin_cache', 'UTF-16LE'),
@@ -204,7 +204,7 @@ $tests['utf16 nocase like rtrim current source next196 duplicate peer inserted b
     $t->same(false, $result['candidateTokenResumeSafe']);
 };
 
-$tests['utf16 nocase like rtrim current source next196 false positive duplicate peer change blocks resume'] = static function (TestRunner $t) use ($row196): void {
+$tests['utf16 nocase like rtrim current source nextOneNineSix false positive duplicate peer change blocks resume'] = static function (TestRunner $t) use ($row196): void {
     $current = [
         $row196(1, 'plugin_cache', 'UTF-16LE'),
         $row196(6, 'plugin_cache', 'UTF-16BE'),
@@ -234,7 +234,7 @@ $tests['utf16 nocase like rtrim current source next196 false positive duplicate 
     $t->same(['false-positive-before-token-changed', 'matched-before-token-changed', 'duplicate-key-peers-before-token-changed', 'duplicate-key-false-positive-peers-changed'], $result['candidateTokenUnsafeReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next196 canonical token key is unsafe'] = static function (TestRunner $t) use ($row196): void {
+$tests['utf16 nocase like rtrim current source nextOneNineSix canonical token key is unsafe'] = static function (TestRunner $t) use ($row196): void {
     $rows = [
         $row196(1, 'Plugin_Cache', 'UTF-16LE'),
         $row196(2, 'plugin_cache_zip', 'UTF-16BE'),
@@ -256,7 +256,7 @@ $tests['utf16 nocase like rtrim current source next196 canonical token key is un
     $t->same(['yield-token-not-canonical'], $result['candidateTokenUnsafeReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next196 missing token blocks duplicate peer resume'] = static function (TestRunner $t) use ($row196): void {
+$tests['utf16 nocase like rtrim current source nextOneNineSix missing token blocks duplicate peer resume'] = static function (TestRunner $t) use ($row196): void {
     $rows = [
         $row196(1, 'plugin_cache', 'UTF-16LE'),
         $row196(2, 'plugin_cache', 'UTF-16BE'),
@@ -279,7 +279,7 @@ $tests['utf16 nocase like rtrim current source next196 missing token blocks dupl
     $t->same('reprepare-from-range-start', $result['replayPlanMode']);
 };
 
-$tests['utf16 nocase like rtrim current source next196 rejects malformed token key'] = static function (TestRunner $t) use ($row196): void {
+$tests['utf16 nocase like rtrim current source nextOneNineSix rejects malformed token key'] = static function (TestRunner $t) use ($row196): void {
     $rows = [$row196(1, 'plugin_cache', 'UTF-16LE')];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
         $rows,
@@ -290,7 +290,7 @@ $tests['utf16 nocase like rtrim current source next196 rejects malformed token k
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next196 rejects malformed token rowid'] = static function (TestRunner $t) use ($row196): void {
+$tests['utf16 nocase like rtrim current source nextOneNineSix rejects malformed token rowid'] = static function (TestRunner $t) use ($row196): void {
     $rows = [$row196(1, 'plugin_cache', 'UTF-16LE')];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
         $rows,

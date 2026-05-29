@@ -142,17 +142,17 @@ $cases = [
     'dependency range' => ['dependencies.1', 'sqlite-glob-prefix-range'],
     'dependency nocase cursor' => ['dependencies.2', 'sqlite-nocase-collation-source-cursor'],
     'dependency residual' => ['dependencies.3', 'sqlite-glob-case-sensitive-residual'],
-    'dependency marker' => ['dependencies.4', 'sqlite-current-source-next148'],
+    'dependency marker' => ['dependencies.4', 'sqlite-current-source-nextoneFourEight'],
     'dependency closure note' => ['dependency_closure', 'no new support component needed; reuses native UTF-16 decoding, TEXT affinity casting, NOCASE source cursor keys, and case-sensitive GLOB residual matching'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase glob affinity current source next148 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase glob affinity current source nextOneFourEight ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase glob affinity current source next148 uppercase pattern folds range but residual keeps uppercase'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase glob affinity current source nextOneFourEight uppercase pattern folds range but residual keeps uppercase'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('PLUGIN_cache*');
     $t->same('PLUGIN_cache', $result['prefix']);
     $t->same('plugin_cache', $result['prefixFolded']);
@@ -162,7 +162,7 @@ $tests['utf16 nocase glob affinity current source next148 uppercase pattern fold
     $t->same([12], $result['nextRowids']);
 };
 
-$tests['utf16 nocase glob affinity current source next148 unicode suffix stays residual only'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase glob affinity current source nextOneFourEight unicode suffix stays residual only'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('plugin_é*');
     $t->same(['lowerInclusive' => 'plugin_é', 'upperBound' => 'plugin_ê'], $result['range']);
     $t->same([7], $result['currentCandidateRowids']);
@@ -172,7 +172,7 @@ $tests['utf16 nocase glob affinity current source next148 unicode suffix stays r
     $t->same([], $result['nextResidualRejectedRowids']);
 };
 
-$tests['utf16 nocase glob affinity current source next148 leading class has no prefix range'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase glob affinity current source nextOneFourEight leading class has no prefix range'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('[Pp]lugin_cache*');
     $t->same(null, $result['range']);
     $t->same(false, $result['indexUsable']);
@@ -181,7 +181,7 @@ $tests['utf16 nocase glob affinity current source next148 leading class has no p
     $t->same('no-prefix-range', $result['invalidationReasons'][2]);
 };
 
-$tests['utf16 nocase glob affinity current source next148 stable exact cursor is reusable'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase glob affinity current source nextOneFourEight stable exact cursor is reusable'] = static function (TestRunner $t) use ($row): void {
     $rows = [
         $row(1, 'plugin_cache', 'UTF-16LE'),
         $row(2, 'Plugin_Cache', 'UTF-16LE'),
@@ -195,7 +195,7 @@ $tests['utf16 nocase glob affinity current source next148 stable exact cursor is
     $t->true($result['cursorReusable']);
 };
 
-$tests['utf16 nocase glob affinity current source next148 malformed error change invalidates only malformed text'] = static function (TestRunner $t) use ($row, $bad): void {
+$tests['utf16 nocase glob affinity current source nextOneFourEight malformed error change invalidates only malformed text'] = static function (TestRunner $t) use ($row, $bad): void {
     $current = [$row(1, 'plugin_cache'), $bad(9, "\xff")];
     $next = [$row(1, 'plugin_cache'), $bad(9, "\x3d\xd8")];
     $result = SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::wordpressOptionNameGlobPlan($current, $next, 'plugin_cache*', 'stable', 'stable', 'UTF-16LE', 'UTF-16LE');
@@ -204,24 +204,24 @@ $tests['utf16 nocase glob affinity current source next148 malformed error change
     $t->same(['malformed-text'], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase glob affinity current source next148 rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 nocase glob affinity current source nextOneFourEight rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::wordpressOptionNameGlobPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 2]], $nextRows, 'plugin*'));
 };
 
-$tests['utf16 nocase glob affinity current source next148 rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 nocase glob affinity current source nextOneFourEight rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::wordpressOptionNameGlobPlan([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin*'));
 };
 
-$tests['utf16 nocase glob affinity current source next148 rejects non utf16 row encoding'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 nocase glob affinity current source nextOneFourEight rejects non utf16 row encoding'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::wordpressOptionNameGlobPlan([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin*'));
 };
 
-$tests['utf16 nocase glob affinity current source next148 rejects unsupported storage class'] = static function (TestRunner $t): void {
+$tests['utf16 nocase glob affinity current source nextOneFourEight rejects unsupported storage class'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_cache', 'UTF-16LE'), 'text_encoding' => 2, 'storage_class' => 'integer']];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::wordpressOptionNameGlobPlan($rows, $rows, 'p*'));
 };
 
-$tests['utf16 nocase glob affinity current source next148 rejects non utf16 database encoding'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase glob affinity current source nextOneFourEight rejects non utf16 database encoding'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin*', null, null, 'stable', 'stable', 'UTF-8', 'UTF-16LE'));
 };
 

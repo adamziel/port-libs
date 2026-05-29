@@ -33,7 +33,7 @@ $current193 = [
     $row193(7, 'plugin_config', 'UTF-16BE'),
     $bad193(8, "\x00\xd8", 2),
 ];
-$next193 = [
+$nextOneNineThree = [
     $row193(1, 'Plugin_Cache ', 'UTF-16BE'),
     $row193(2, 'plugin_cache   ', 'UTF-16LE'),
     $row193(9, 'plugin_cache_aardvark', 'UTF-16LE'),
@@ -56,7 +56,7 @@ $plan193 = static fn (
     int $nextCookie = 193,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLimitOffsetPlan(
     $current ?? $current193,
-    $next ?? $next193,
+    $next ?? $nextOneNineThree,
     'plugin!_cache%',
     '!',
     $limit,
@@ -79,7 +79,7 @@ $valueAt193 = static function (array $value, string $path): mixed {
 };
 
 $cases193 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next193'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneNineThree'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? LIMIT ? OFFSET ?'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -87,7 +87,7 @@ $cases193 = [
     'limit' => ['limit', 3],
     'offset' => ['offset', 2],
     'collation' => ['collation', 'NOCASE'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next183'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightThree'],
     'current source' => ['currentSource', 'main.wp_options@192'],
     'next source' => ['nextSource', 'main.wp_options@193'],
     'current cookie' => ['currentSchemaCookie', 192],
@@ -138,16 +138,16 @@ $cases193 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency window' => ['dependencies.2', 'sqlite-rtrim-limit-offset-window'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next193'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nextoneNineThree'],
 ];
 
 foreach ($cases193 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next193 ' . $name] = static function (TestRunner $t) use ($plan193, $valueAt193, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneNineThree ' . $name] = static function (TestRunner $t) use ($plan193, $valueAt193, $path, $expected): void {
         $t->same($expected, $valueAt193($plan193(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next193 stable limit window resumes after window'] = static function (TestRunner $t) use ($row193): void {
+$tests['utf16 nocase like rtrim current source nextOneNineThree stable limit window resumes after window'] = static function (TestRunner $t) use ($row193): void {
     $rows = [
         $row193(1, 'plugin_cache', 'UTF-16LE'),
         $row193(2, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -174,7 +174,7 @@ $tests['utf16 nocase like rtrim current source next193 stable limit window resum
     $t->same([4, 5], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next193 inserted offset row is unsafe even when window text repeats'] = static function (TestRunner $t) use ($row193): void {
+$tests['utf16 nocase like rtrim current source nextOneNineThree inserted offset row is unsafe even when window text repeats'] = static function (TestRunner $t) use ($row193): void {
     $current = [
         $row193(2, 'plugin_cache_alpha', 'UTF-16LE'),
         $row193(3, 'plugin_cache_beta', 'UTF-16LE'),
@@ -205,7 +205,7 @@ $tests['utf16 nocase like rtrim current source next193 inserted offset row is un
     $t->same(['offset-prefix-rowset-changed', 'limit-window-rowset-changed', 'rtrim-like-residual-changed'], $result['limitOffsetUnsafeReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next193 zero limit tracks offset without row output'] = static function (TestRunner $t) use ($row193): void {
+$tests['utf16 nocase like rtrim current source nextOneNineThree zero limit tracks offset without row output'] = static function (TestRunner $t) use ($row193): void {
     $rows = [
         $row193(1, 'plugin_cache', 'UTF-16LE'),
         $row193(2, 'plugin_cache_alpha', 'UTF-16LE'),
@@ -229,7 +229,7 @@ $tests['utf16 nocase like rtrim current source next193 zero limit tracks offset 
     $t->same([3], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next193 rejects negative limit'] = static function (TestRunner $t) use ($row193): void {
+$tests['utf16 nocase like rtrim current source nextOneNineThree rejects negative limit'] = static function (TestRunner $t) use ($row193): void {
     $rows = [$row193(1, 'plugin_cache', 'UTF-16LE')];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLimitOffsetPlan(
         $rows,
@@ -241,7 +241,7 @@ $tests['utf16 nocase like rtrim current source next193 rejects negative limit'] 
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next193 rejects negative offset'] = static function (TestRunner $t) use ($row193): void {
+$tests['utf16 nocase like rtrim current source nextOneNineThree rejects negative offset'] = static function (TestRunner $t) use ($row193): void {
     $rows = [$row193(1, 'plugin_cache', 'UTF-16LE')];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLimitOffsetPlan(
         $rows,

@@ -35,7 +35,7 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
 
             if ($op['kind'] === 'open') {
                 $source = $op['source'] ?? $state['current_source'];
-                $lifecycle = SQLiteVfsTempFileOpenLifecycle::currentNext73(
+                $lifecycle = SQLiteVfsTempFileOpenLifecycle::tempFileOpenLifecycleSequence(
                     [[
                         'op' => 'open',
                         'suffix' => $op['suffix'],

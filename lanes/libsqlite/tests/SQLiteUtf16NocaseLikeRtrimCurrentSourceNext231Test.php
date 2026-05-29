@@ -34,7 +34,7 @@ $current231 = [
     $row231(8, 'theme_cafÉ_main', 'UTF-16LE'),
     $bad231(9, "\x00\xd8", 2),
 ];
-$next231 = [
+$nextTwoThreeOne = [
     $row231(1, 'plugin_café_main ', 'UTF-16BE'),
     $row231(2, 'plugin_cafÉ_main', 'UTF-16LE'),
     $row231(3, 'PLUGIN_CAFÉ_AUX ', 'UTF-8'),
@@ -56,7 +56,7 @@ $plan231 = static fn (
     int $nextCookie = 231,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan(
     $current ?? $current231,
-    $next ?? $next231,
+    $next ?? $nextTwoThreeOne,
     $pattern,
     $escape,
     $currentSource,
@@ -77,7 +77,7 @@ $valueAt231 = static function (array $value, string $path): mixed {
 };
 
 $cases231 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next231'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoThreeOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? /* ASCII-only NOCASE boundary */'],
     'pattern' => ['pattern', 'plugin_cafÉ%'],
@@ -132,16 +132,16 @@ $cases231 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
     'dependency ascii nocase' => ['dependencies.3', 'sqlite-ascii-only-nocase'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next231'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoThreeOne'],
 ];
 
 foreach ($cases231 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next231 ' . $name] = static function (TestRunner $t) use ($plan231, $valueAt231, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoThreeOne ' . $name] = static function (TestRunner $t) use ($plan231, $valueAt231, $path, $expected): void {
         $t->same($expected, $valueAt231($plan231(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next231 invalidation reason order'] = static function (TestRunner $t) use ($plan231): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeOne invalidation reason order'] = static function (TestRunner $t) use ($plan231): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -156,7 +156,7 @@ $tests['utf16 nocase like rtrim current source next231 invalidation reason order
     ], $plan231()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next231 stable ascii folded cursor is reusable'] = static function (TestRunner $t) use ($row231): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeOne stable ascii folded cursor is reusable'] = static function (TestRunner $t) use ($row231): void {
     $rows = [
         $row231(1, 'PLUGIN_CAFÉ_MAIN ', 'UTF-16LE'),
         $row231(2, 'plugin_cafÉ_aux', 'UTF-16BE'),
@@ -178,7 +178,7 @@ $tests['utf16 nocase like rtrim current source next231 stable ascii folded curso
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next231 lower e acute does not match upper e acute pattern'] = static function (TestRunner $t) use ($row231): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeOne lower e acute does not match upper e acute pattern'] = static function (TestRunner $t) use ($row231): void {
     $rows = [
         $row231(1, 'plugin_café_main', 'UTF-16LE'),
         $row231(2, 'plugin_cafÉ_main', 'UTF-16BE'),
@@ -200,7 +200,7 @@ $tests['utf16 nocase like rtrim current source next231 lower e acute does not ma
     $t->same('upper-non-ascii-case', $result['currentNonAsciiCaseClasses'][2]);
 };
 
-$tests['utf16 nocase like rtrim current source next231 ascii prefix still folds before non ascii suffix'] = static function (TestRunner $t) use ($row231): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeOne ascii prefix still folds before non ascii suffix'] = static function (TestRunner $t) use ($row231): void {
     $rows = [
         $row231(1, 'PLUGIN_CAFÉ_MAIN', 'UTF-16LE'),
         $row231(2, 'plugin_cafÉ_main', 'UTF-16BE'),
@@ -222,7 +222,7 @@ $tests['utf16 nocase like rtrim current source next231 ascii prefix still folds 
     $t->same('plugin_cafÉ_main', $result['currentNocaseKeys'][1]);
 };
 
-$tests['utf16 nocase like rtrim current source next231 rejects malformed row shape'] = static function (TestRunner $t) use ($enc231): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeOne rejects malformed row shape'] = static function (TestRunner $t) use ($enc231): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc231('plugin_cafÉ_main', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan($rows, $rows));
 };

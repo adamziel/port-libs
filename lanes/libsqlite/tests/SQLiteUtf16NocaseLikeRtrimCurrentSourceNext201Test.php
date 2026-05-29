@@ -76,7 +76,7 @@ $valueAt201 = static function (array $value, string $path): mixed {
 };
 
 $cases201 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next201'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* NULL pattern rebind */'],
     'current pattern' => ['currentPattern', 'plugin!_cache%'],
@@ -132,16 +132,16 @@ $cases201 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency null pattern' => ['dependencies.1', 'sqlite-like-null-pattern-rebind'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next201'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoZeroOne'],
 ];
 
 foreach ($cases201 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next201 ' . $name] = static function (TestRunner $t) use ($plan201, $valueAt201, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoZeroOne ' . $name] = static function (TestRunner $t) use ($plan201, $valueAt201, $path, $expected): void {
         $t->same($expected, $valueAt201($plan201(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next201 invalidation reason order'] = static function (TestRunner $t) use ($plan201): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroOne invalidation reason order'] = static function (TestRunner $t) use ($plan201): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -154,7 +154,7 @@ $tests['utf16 nocase like rtrim current source next201 invalidation reason order
     ], $plan201()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next201 stable non null pattern can reuse cursor'] = static function (TestRunner $t) use ($row201): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroOne stable non null pattern can reuse cursor'] = static function (TestRunner $t) use ($row201): void {
     $rows = [
         $row201(1, 'plugin_cache', 'UTF-16LE'),
         $row201(2, 'Plugin_Cache  ', 'UTF-16BE'),
@@ -181,7 +181,7 @@ $tests['utf16 nocase like rtrim current source next201 stable non null pattern c
     $t->same([], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next201 null to non null pattern repopulates range'] = static function (TestRunner $t) use ($row201): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroOne null to non null pattern repopulates range'] = static function (TestRunner $t) use ($row201): void {
     $rows = [
         $row201(1, 'plugin_cache', 'UTF-16LE'),
         $row201(2, 'Plugin_Cache  ', 'UTF-16BE'),
@@ -208,7 +208,7 @@ $tests['utf16 nocase like rtrim current source next201 null to non null pattern 
     $t->same(['pattern-rebound', 'null-like-pattern', 'like-range', 'candidate-rowset', 'matched-rowset'], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next201 both null patterns are reusable after decode'] = static function (TestRunner $t) use ($row201): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroOne both null patterns are reusable after decode'] = static function (TestRunner $t) use ($row201): void {
     $rows = [
         $row201(1, 'plugin_cache', 'UTF-16LE'),
         $row201(2, 'Plugin_Cache  ', 'UTF-16BE'),
@@ -234,11 +234,11 @@ $tests['utf16 nocase like rtrim current source next201 both null patterns are re
     $t->same([], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next201 rejects invalid escape length before scan'] = static function (TestRunner $t) use ($currentRows201, $nextRows201): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroOne rejects invalid escape length before scan'] = static function (TestRunner $t) use ($currentRows201, $nextRows201): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNullPatternRebindPlan($currentRows201, $nextRows201, 'plugin!_cache%', null, '!!'));
 };
 
-$tests['utf16 nocase like rtrim current source next201 rejects missing option id'] = static function (TestRunner $t) use ($nextRows201): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroOne rejects missing option id'] = static function (TestRunner $t) use ($nextRows201): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNullPatternRebindPlan([
         ['option_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
     ], $nextRows201));

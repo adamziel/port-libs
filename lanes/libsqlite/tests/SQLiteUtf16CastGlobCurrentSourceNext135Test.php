@@ -143,16 +143,16 @@ $cases = [
     'dependency utf16 decode' => ['plugin_*', 'dependencies.0', 'sqlite-utf16-decode'],
     'dependency cast expression' => ['plugin_*', 'dependencies.1', 'sqlite-select-cast-expression'],
     'dependency glob range' => ['plugin_*', 'dependencies.2', 'sqlite-glob-prefix-range'],
-    'dependency current source' => ['plugin_*', 'dependencies.3', 'sqlite-current-source-next135'],
+    'dependency current source' => ['plugin_*', 'dependencies.3', 'sqlite-current-source-nextoneThreeFive'],
 ];
 
 foreach ($cases as $name => [$pattern, $path, $expected]) {
-    $tests['utf16 cast glob current source next135 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $pattern, $path, $expected): void {
+    $tests['utf16 cast glob current source nextOneThreeFive ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $pattern, $path, $expected): void {
         $t->same($expected, $valueAt($plan($pattern), $path));
     };
 }
 
-$tests['utf16 cast glob current source next135 stable rows are reusable'] = static function (TestRunner $t) use ($enc): void {
+$tests['utf16 cast glob current source nextOneThreeFive stable rows are reusable'] = static function (TestRunner $t) use ($enc): void {
     $rows = [
         ['option_id' => 1, 'option_value_bytes' => $enc('plugin_cache', 2), 'text_encoding' => 2],
         ['option_id' => 2, 'option_value_bytes' => $enc('plugin_cache_extra', 3), 'text_encoding' => 3],
@@ -163,7 +163,7 @@ $tests['utf16 cast glob current source next135 stable rows are reusable'] = stat
     $t->same(true, $plan['cursorReusable']);
 };
 
-$tests['utf16 cast glob current source next135 stable malformed row keeps blocker reason'] = static function (TestRunner $t): void {
+$tests['utf16 cast glob current source nextOneThreeFive stable malformed row keeps blocker reason'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value_bytes' => "p\0x", 'text_encoding' => 2],
     ];
@@ -173,19 +173,19 @@ $tests['utf16 cast glob current source next135 stable malformed row keeps blocke
     $t->same(['malformed-text'], $plan['invalidationReasons']);
 };
 
-$tests['utf16 cast glob current source next135 rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 cast glob current source nextOneThreeFive rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::wordpressOptionValuePlan([['option_value_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p*'));
 };
 
-$tests['utf16 cast glob current source next135 rejects missing value bytes'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 cast glob current source nextOneThreeFive rejects missing value bytes'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::wordpressOptionValuePlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p*'));
 };
 
-$tests['utf16 cast glob current source next135 rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 cast glob current source nextOneThreeFive rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::wordpressOptionValuePlan([['option_id' => 1, 'option_value_bytes' => 'p']], $nextRows, 'p*'));
 };
 
-$tests['utf16 cast glob current source next135 rejects unsupported storage class'] = static function (TestRunner $t): void {
+$tests['utf16 cast glob current source nextOneThreeFive rejects unsupported storage class'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value_bytes' => 'p', 'text_encoding' => 1, 'storage_class' => 'integer']];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CastGlobCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'p*'));
 };

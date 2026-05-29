@@ -28,7 +28,7 @@ $current195 = [
     $row195(7, 'plugin_a_cache', 'UTF-16LE'),
     $row195(8, 'theme_%_cache', 'UTF-16BE'),
 ];
-$next195 = [
+$nextOneNineFive = [
     $row195(1, 'plugin_%_cache', 'UTF-16BE'),
     $row195(2, 'Plugin_%_Cache', 'UTF-16LE'),
     $row195(3, 'plugin_%_cache', 'UTF-16LE'),
@@ -50,7 +50,7 @@ $plan195 = static fn (
     int $nextCookie = 195,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedLiteralTailPlan(
     $current ?? $current195,
-    $next ?? $next195,
+    $next ?? $nextOneNineFive,
     $pattern,
     $escape,
     $currentSource,
@@ -71,10 +71,10 @@ $valueAt195 = static function (array $value, string $path): mixed {
 };
 
 $cases195 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next195'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneNineFive'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* escaped literal tail */'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next183'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightThree'],
     'pattern' => ['pattern', 'plugin!_!%!_cache'],
     'escape' => ['escape', '!'],
     'current source' => ['currentSource', 'main.wp_options@194'],
@@ -133,16 +133,16 @@ $cases195 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency escaped range' => ['dependencies.1', 'sqlite-like-escaped-literal-prefix-range'],
     'dependency residual' => ['dependencies.2', 'sqlite-rtrim-residual-match'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next195'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneNineFive'],
 ];
 
 foreach ($cases195 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next195 ' . $name] = static function (TestRunner $t) use ($plan195, $valueAt195, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneNineFive ' . $name] = static function (TestRunner $t) use ($plan195, $valueAt195, $path, $expected): void {
         $t->same($expected, $valueAt195($plan195(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next195 stable exact literal cursor is reusable'] = static function (TestRunner $t) use ($row195): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFive stable exact literal cursor is reusable'] = static function (TestRunner $t) use ($row195): void {
     $rows = [
         $row195(1, 'plugin_%_cache', 'UTF-16LE'),
         $row195(2, 'PLUGIN_%_CACHE  ', 'UTF-16BE'),
@@ -165,7 +165,7 @@ $tests['utf16 nocase like rtrim current source next195 stable exact literal curs
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next195 demoted exact row forces residual restart'] = static function (TestRunner $t) use ($row195): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFive demoted exact row forces residual restart'] = static function (TestRunner $t) use ($row195): void {
     $current = [
         $row195(1, 'plugin_%_cache', 'UTF-16LE'),
         $row195(2, 'PLUGIN_%_CACHE', 'UTF-16BE'),
@@ -182,14 +182,14 @@ $tests['utf16 nocase like rtrim current source next195 demoted exact row forces 
     $t->same(true, $result['cursorInvalidated']);
 };
 
-$tests['utf16 nocase like rtrim current source next195 changed escape disables escaped literal semantics'] = static function (TestRunner $t) use ($plan195): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFive changed escape disables escaped literal semantics'] = static function (TestRunner $t) use ($plan195): void {
     $result = $plan195(pattern: 'plugin#_#%#_cache', escape: '#');
     $t->same('plugin_%_cache', $result['prefix']);
     $t->same([1, 2], $result['currentMatchedRowids']);
     $t->same([1, 2, 3, 9], $result['nextMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next195 unescaped wildcard broadens range'] = static function (TestRunner $t) use ($plan195): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFive unescaped wildcard broadens range'] = static function (TestRunner $t) use ($plan195): void {
     $result = $plan195(pattern: 'plugin_%_cache', escape: null);
     $t->same('plugin', $result['prefix']);
     $t->same('plugin', $result['rangeLowerInclusive']);
@@ -198,9 +198,9 @@ $tests['utf16 nocase like rtrim current source next195 unescaped wildcard broade
     $t->same([6, 1, 2, 3, 9, 5, 4, 10], $result['nextCandidateRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next195 malformed row is isolated'] = static function (TestRunner $t) use ($current195, $next195): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFive malformed row is isolated'] = static function (TestRunner $t) use ($current195, $nextOneNineFive): void {
     $badCurrent = array_merge($current195, [['option_id' => 11, 'option_name_bytes' => "\x00\xd8", 'text_encoding' => 2]]);
-    $badNext = array_merge($next195, [['option_id' => 12, 'option_name_bytes' => "x\0y", 'text_encoding' => 2]]);
+    $badNext = array_merge($nextOneNineFive, [['option_id' => 12, 'option_name_bytes' => "x\0y", 'text_encoding' => 2]]);
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedLiteralTailPlan($badCurrent, $badNext);
     $t->same([11], $result['currentMalformedRowids']);
     $t->same([12], $result['nextMalformedRowids']);

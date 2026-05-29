@@ -21,7 +21,7 @@ $current245 = [
     ['option_id' => 10, 'option_name' => 'plugin_cache' . chr(0xc3)],
 ];
 
-$next245 = [
+$nextTwoFourFive = [
     ['option_id' => 1, 'option_name' => 'plugin_cache2'],
     ['option_id' => 2, 'option_name' => 'Plugin_Cache'],
     ['option_id' => 3, 'option_name' => 'plugin_cache!'],
@@ -45,7 +45,7 @@ $plan245 = static fn (
     int $nextCookie = 245,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan(
     $current ?? $current245,
-    $next ?? $next245,
+    $next ?? $nextTwoFourFive,
     $pattern,
     $escape,
     $caseSensitive,
@@ -67,7 +67,7 @@ $valueAt245 = static function (array $value, string $path): mixed {
 };
 
 $cases245 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next245'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourFive'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_name COLLATE NOCASE LIKE ? ESCAPE ? /* dangling ESCAPE residual */'],
     'pattern hex' => ['patternHex', '706c7567696e215f636163686521'],
@@ -134,23 +134,23 @@ $cases245 = [
     'dependency residual' => ['dependencies.0', 'sqlite-like-dangling-escape-residual'],
     'dependency range' => ['dependencies.1', 'sqlite-like-escape-prefix-range'],
     'dependency affinity' => ['dependencies.2', 'sqlite-text-affinity'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next245'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoFourFive'],
 ];
 
 foreach ($cases245 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next245 ' . $name] = static function (TestRunner $t) use ($plan245, $valueAt245, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFourFive ' . $name] = static function (TestRunner $t) use ($plan245, $valueAt245, $path, $expected): void {
         $t->same($expected, $valueAt245($plan245(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next245 stable rejected cursor still invalidated by dangling residual'] = static function (TestRunner $t) use ($current245, $plan245): void {
+$tests['encoding collation affinity like current source nextTwoFourFive stable rejected cursor still invalidated by dangling residual'] = static function (TestRunner $t) use ($current245, $plan245): void {
     $stable = $plan245(current: $current245, next: $current245, currentSource: 'same', nextSource: 'same', currentCookie: 245, nextCookie: 245);
     $t->same(true, $stable['cursorInvalidated']);
     $t->same(false, $stable['cursorReusable']);
     $t->same(['malformed-text', 'dangling-escape-residual'], $stable['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next245 clean stable cursor still reports residual invalidation'] = static function (TestRunner $t) use ($plan245): void {
+$tests['encoding collation affinity like current source nextTwoFourFive clean stable cursor still reports residual invalidation'] = static function (TestRunner $t) use ($plan245): void {
     $rows = [
         ['option_id' => 1, 'option_name' => 'plugin_cache'],
         ['option_id' => 2, 'option_name' => 'plugin_cache_extra'],
@@ -160,28 +160,28 @@ $tests['encoding collation affinity like current source next245 clean stable cur
     $t->same([1, 2], $stable['currentResidualRejectedRowids']);
 };
 
-$tests['encoding collation affinity like current source next245 completed escaped suffix can match literal bang'] = static function (TestRunner $t) use ($current245, $next245, $plan245): void {
-    $complete = $plan245(current: $current245, next: $next245, pattern: 'plugin!_cache!!', escape: '!');
+$tests['encoding collation affinity like current source nextTwoFourFive completed escaped suffix can match literal bang'] = static function (TestRunner $t) use ($current245, $nextTwoFourFive, $plan245): void {
+    $complete = $plan245(current: $current245, next: $nextTwoFourFive, pattern: 'plugin!_cache!!', escape: '!');
     $t->same([3], $complete['currentMatchedRowids']);
     $t->same([3], $complete['nextMatchedRowids']);
     $t->same(false, in_array('dangling-escape-residual', $complete['invalidationReasons'], true));
 };
 
-$tests['encoding collation affinity like current source next245 case sensitive keeps uppercase outside range'] = static function (TestRunner $t) use ($plan245): void {
+$tests['encoding collation affinity like current source nextTwoFourFive case sensitive keeps uppercase outside range'] = static function (TestRunner $t) use ($plan245): void {
     $case = $plan245(caseSensitive: true);
     $t->same('BINARY', $case['collation']);
     $t->same([1, 3, 4, 10], $case['currentCandidateRowids']);
     $t->same([3, 1, 4, 12, 10], $case['nextCandidateRowids']);
 };
 
-$tests['encoding collation affinity like current source next245 non dangling wildcard proves contrast'] = static function (TestRunner $t) use ($plan245): void {
+$tests['encoding collation affinity like current source nextTwoFourFive non dangling wildcard proves contrast'] = static function (TestRunner $t) use ($plan245): void {
     $wild = $plan245(pattern: 'plugin!_cache%', escape: '!');
     $t->same([1, 2, 3, 4, 10], $wild['currentMatchedRowids']);
     $t->same([2, 11, 3, 1, 4, 12, 10], $wild['nextMatchedRowids']);
     $t->same([], $wild['currentResidualRejectedRowids']);
 };
 
-$tests['encoding collation affinity like current source next245 blob null and scalar affinity split'] = static function (TestRunner $t) use ($plan245): void {
+$tests['encoding collation affinity like current source nextTwoFourFive blob null and scalar affinity split'] = static function (TestRunner $t) use ($plan245): void {
     $rows = [
         ['option_id' => 1, 'option_name' => new SQLiteBlobValue('plugin_cache')],
         ['option_id' => 2, 'option_name' => null],
@@ -194,28 +194,28 @@ $tests['encoding collation affinity like current source next245 blob null and sc
     $t->same('text', $plan['currentStorage'][4]);
 };
 
-$tests['encoding collation affinity like current source next245 direct dangling like returns false'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFourFive direct dangling like returns false'] = static function (TestRunner $t): void {
     $t->same(false, SQLiteDatabase::likeMatches('plugin_cache', 'plugin!_cache!', '!'));
     $t->same(true, SQLiteDatabase::likeMatches('plugin_cache!', 'plugin!_cache!!', '!'));
 };
 
-$tests['encoding collation affinity like current source next245 rejects multi character escape'] = static function (TestRunner $t) use ($current245, $next245): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan($current245, $next245, 'plugin!!_cache!!', '!!'));
+$tests['encoding collation affinity like current source nextTwoFourFive rejects multi character escape'] = static function (TestRunner $t) use ($current245, $nextTwoFourFive): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan($current245, $nextTwoFourFive, 'plugin!!_cache!!', '!!'));
 };
 
-$tests['encoding collation affinity like current source next245 rejects missing option name'] = static function (TestRunner $t) use ($next245): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan([['option_id' => 1]], $next245));
+$tests['encoding collation affinity like current source nextTwoFourFive rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFourFive): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan([['option_id' => 1]], $nextTwoFourFive));
 };
 
-$tests['encoding collation affinity like current source next245 rejects non scalar option name'] = static function (TestRunner $t) use ($next245): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan([['option_id' => 1, 'option_name' => ['plugin']]], $next245));
+$tests['encoding collation affinity like current source nextTwoFourFive rejects non scalar option name'] = static function (TestRunner $t) use ($nextTwoFourFive): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFourFive));
 };
 
-$tests['encoding collation affinity like current source next245 note fields stay explicit'] = static function (TestRunner $t) use ($plan245): void {
+$tests['encoding collation affinity like current source nextTwoFourFive note fields stay explicit'] = static function (TestRunner $t) use ($plan245): void {
     $plan = $plan245();
     $t->true(str_contains($plan['dependency_closure'], 'no new support component needed'));
     $t->true(str_contains($plan['non_overlap'], 'dangling ESCAPE LIKE residual'));
-    $t->true(str_contains($plan['non_overlap'], 'next242 embedded-NUL'));
+    $t->true(str_contains($plan['non_overlap'], 'nextTwoFourTwo embedded-NUL'));
 };
 
 return $tests;

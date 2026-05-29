@@ -32,7 +32,7 @@ $current141 = [
     $bad141(8, "p\x00l\x00u\x00g\x00i\x00n\x00_", 2),
 ];
 
-$next141 = [
+$nextOneFourOne = [
     $row141(1, 'plugin_cache', 'UTF-16BE'),
     $row141(2, 'plugin_cache', 'UTF-16BE'),
     $row141(3, 'plugin_cache', 'UTF-16LE'),
@@ -54,7 +54,7 @@ $plan141 = static fn (
     string $nextEncoding = 'UTF-16BE',
 ): array => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan(
     $current ?? $current141,
-    $next ?? $next141,
+    $next ?? $nextOneFourOne,
     $pattern,
     $escape,
     $currentSource,
@@ -140,16 +140,16 @@ $cases141 = [
     'dependency utf16' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-range'],
     'dependency residual' => ['dependencies.2', 'sqlite-like-residual-byte-preserving'],
-    'dependency marker' => ['dependencies.3', 'sqlite-current-source-next141'],
+    'dependency marker' => ['dependencies.3', 'sqlite-current-source-nextoneFourOne'],
 ];
 
 foreach ($cases141 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like current source next141 ' . $name] = static function (TestRunner $t) use ($plan141, $value141, $path, $expected): void {
+    $tests['utf16 nocase like current source nextOneFourOne ' . $name] = static function (TestRunner $t) use ($plan141, $value141, $path, $expected): void {
         $t->same($expected, $value141($plan141(), $path));
     };
 }
 
-$tests['utf16 nocase like current source next141 fixed-width wildcard records residual rejects'] = static function (TestRunner $t) use ($plan141): void {
+$tests['utf16 nocase like current source nextOneFourOne fixed-width wildcard records residual rejects'] = static function (TestRunner $t) use ($plan141): void {
     $plan = $plan141('plugin!_cache__', '!');
     $t->same([1, 2, 3, 4], $plan['currentCandidateRowids']);
     $t->same([3], $plan['currentRowids']);
@@ -158,7 +158,7 @@ $tests['utf16 nocase like current source next141 fixed-width wildcard records re
     $t->same([1, 2, 3, 10, 4, 9], $plan['nextResidualRejectedRowids']);
 };
 
-$tests['utf16 nocase like current source next141 stable cursor survives unchanged malformed row outside scan'] = static function (TestRunner $t) use ($row141, $bad141, $plan141): void {
+$tests['utf16 nocase like current source nextOneFourOne stable cursor survives unchanged malformed row outside scan'] = static function (TestRunner $t) use ($row141, $bad141, $plan141): void {
     $current = [$row141(1, 'plugin_cache', 'UTF-16LE'), $bad141(8, "x\x00_", 2)];
     $next = [$row141(1, 'plugin_cache', 'UTF-16LE'), $bad141(8, "y\x00_", 2)];
     $plan = $plan141('plugin!_cache%', '!', $current, $next, 'stable', 'stable', 'UTF-16LE', 'UTF-16LE');
@@ -170,7 +170,7 @@ $tests['utf16 nocase like current source next141 stable cursor survives unchange
     $t->true($plan['cursorReusable']);
 };
 
-$tests['utf16 nocase like current source next141 stable malformed error change invalidates only malformed text'] = static function (TestRunner $t) use ($row141, $bad141, $plan141): void {
+$tests['utf16 nocase like current source nextOneFourOne stable malformed error change invalidates only malformed text'] = static function (TestRunner $t) use ($row141, $bad141, $plan141): void {
     $current = [$row141(1, 'plugin_cache', 'UTF-16LE'), $bad141(8, "\xff", 2)];
     $next = [$row141(1, 'plugin_cache', 'UTF-16LE'), $bad141(8, "\x3d\xd8", 2)];
     $plan = $plan141('plugin!_cache%', '!', $current, $next, 'stable', 'stable', 'UTF-16LE', 'UTF-16LE');
@@ -181,7 +181,7 @@ $tests['utf16 nocase like current source next141 stable malformed error change i
     $t->same(['malformed-text'], $plan['invalidationReasons']);
 };
 
-$tests['utf16 nocase like current source next141 non ascii prefix rejects range without scanning matches'] = static function (TestRunner $t) use ($plan141): void {
+$tests['utf16 nocase like current source nextOneFourOne non ascii prefix rejects range without scanning matches'] = static function (TestRunner $t) use ($plan141): void {
     $plan = $plan141('plugin!_caché%', '!');
     $t->same(false, $plan['indexUsable']);
     $t->same('nocase_like_prefix_must_be_ascii_for_range', $plan['rejectedReason']);
@@ -189,24 +189,24 @@ $tests['utf16 nocase like current source next141 non ascii prefix rejects range 
     $t->same([], $plan['currentRowids']);
 };
 
-$tests['utf16 nocase like current source next141 rejects bad escape length'] = static function (TestRunner $t) use ($plan141): void {
+$tests['utf16 nocase like current source nextOneFourOne rejects bad escape length'] = static function (TestRunner $t) use ($plan141): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan141('plugin%', '!!'));
 };
 
-$tests['utf16 nocase like current source next141 rejects non utf16 database encoding'] = static function (TestRunner $t) use ($plan141): void {
+$tests['utf16 nocase like current source nextOneFourOne rejects non utf16 database encoding'] = static function (TestRunner $t) use ($plan141): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan141('plugin%', null, null, null, 'stable', 'stable', 'UTF-8', 'UTF-16LE'));
 };
 
-$tests['utf16 nocase like current source next141 rejects non integer option id'] = static function (TestRunner $t) use ($next141): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 2]], $next141, 'plugin%'));
+$tests['utf16 nocase like current source nextOneFourOne rejects non integer option id'] = static function (TestRunner $t) use ($nextOneFourOne): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 2]], $nextOneFourOne, 'plugin%'));
 };
 
-$tests['utf16 nocase like current source next141 rejects missing option bytes'] = static function (TestRunner $t) use ($next141): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => 1, 'text_encoding' => 2]], $next141, 'plugin%'));
+$tests['utf16 nocase like current source nextOneFourOne rejects missing option bytes'] = static function (TestRunner $t) use ($nextOneFourOne): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => 1, 'text_encoding' => 2]], $nextOneFourOne, 'plugin%'));
 };
 
-$tests['utf16 nocase like current source next141 rejects non utf16 row encoding'] = static function (TestRunner $t) use ($next141): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 1]], $next141, 'plugin%'));
+$tests['utf16 nocase like current source nextOneFourOne rejects non utf16 row encoding'] = static function (TestRunner $t) use ($nextOneFourOne): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextOneFourOne, 'plugin%'));
 };
 
 return $tests;

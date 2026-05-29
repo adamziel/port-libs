@@ -54,7 +54,7 @@ $numericCases = [
 ];
 
 foreach ($numericCases as $name => [$advance, $path, $expected]) {
-    $tests['utf16 collation affinity current source next85 numeric ' . $name] = static function (TestRunner $t) use ($numeric, $advance, $path, $expected): void {
+    $tests['utf16 collation affinity current source nextEightFive numeric ' . $name] = static function (TestRunner $t) use ($numeric, $advance, $path, $expected): void {
         $cursor = $numeric();
         for ($i = 0; $i < $advance; $i++) {
             $cursor->next();
@@ -100,7 +100,7 @@ $textCases = [
 ];
 
 foreach ($textCases as $name => [$collation, $probe, $advance, $path, $expected]) {
-    $tests['utf16 collation affinity current source next85 text ' . $name] = static function (TestRunner $t) use ($text, $collation, $probe, $advance, $path, $expected): void {
+    $tests['utf16 collation affinity current source nextEightFive text ' . $name] = static function (TestRunner $t) use ($text, $collation, $probe, $advance, $path, $expected): void {
         $cursor = $text($collation, $probe);
         for ($i = 0; $i < $advance; $i++) {
             $cursor->next();
@@ -109,25 +109,25 @@ foreach ($textCases as $name => [$collation, $probe, $advance, $path, $expected]
     };
 }
 
-$tests['utf16 collation affinity current source next85 remaining numeric rowids after seek'] = static function (TestRunner $t) use ($numeric): void {
+$tests['utf16 collation affinity current source nextEightFive remaining numeric rowids after seek'] = static function (TestRunner $t) use ($numeric): void {
     $t->same([1, 2, 3, 6, 7, 4, 5, 8], array_column($numeric()->remaining(), 'rowid'));
 };
 
-$tests['utf16 collation affinity current source next85 remaining rtrim rowids after padded alpha seek'] = static function (TestRunner $t) use ($text): void {
+$tests['utf16 collation affinity current source nextEightFive remaining rtrim rowids after padded alpha seek'] = static function (TestRunner $t) use ($text): void {
     $t->same([11, 12, 13, 14, 15, 16], array_column($text('RTRIM', 'plugin_alpha ')->remaining(), 'rowid'));
 };
 
-$tests['utf16 collation affinity current source next85 seek can replace probe with utf16be bytes'] = static function (TestRunner $t) use ($text, $enc): void {
+$tests['utf16 collation affinity current source nextEightFive seek can replace probe with utf16be bytes'] = static function (TestRunner $t) use ($text, $enc): void {
     $cursor = $text('NOCASE', 'zzz');
     $cursor->seek(['valueBytes' => $enc('plugin_beta', 'UTF-16BE'), 'textEncoding' => 3]);
     $t->same(13, $cursor->currentNextPlan()['currentRowid']);
 };
 
-$tests['utf16 collation affinity current source next85 seek high value reaches eof'] = static function (TestRunner $t) use ($text): void {
+$tests['utf16 collation affinity current source nextEightFive seek high value reaches eof'] = static function (TestRunner $t) use ($text): void {
     $t->same(true, $text('BINARY', 'zzzz')->currentNextPlan()['eof']);
 };
 
-$tests['utf16 collation affinity current source next85 eof keeps dependency tags'] = static function (TestRunner $t) use ($text): void {
+$tests['utf16 collation affinity current source nextEightFive eof keeps dependency tags'] = static function (TestRunner $t) use ($text): void {
     $t->same('sqlite-utf16-decode', $text('BINARY', 'zzzz')->currentNextPlan()['dependencies'][0]);
 };
 
@@ -138,70 +138,70 @@ $wpRows = [
     ['option_id' => 24, 'option_value' => 2, 'autoload' => 'yes'],
 ];
 
-$tests['utf16 collation affinity current source next85 wordpress numeric seek includes utf16 and integer peers'] = static function (TestRunner $t) use ($wpRows, $enc): void {
+$tests['utf16 collation affinity current source nextEightFive wordpress numeric seek includes utf16 and integer peers'] = static function (TestRunner $t) use ($wpRows, $enc): void {
     $rows = SQLiteUtf16CollationAffinityCursor::wordpressOptionValueSeek($wpRows, ['valueBytes' => $enc('2', 'UTF-16BE'), 'textEncoding' => 3], 'NUMERIC', 'NONE');
     $t->same([21, 24, 22, 23], array_column($rows, 'rowid'));
 };
 
-$tests['utf16 collation affinity current source next85 wordpress text seek reports decoded payload'] = static function (TestRunner $t) use ($wpRows): void {
+$tests['utf16 collation affinity current source nextEightFive wordpress text seek reports decoded payload'] = static function (TestRunner $t) use ($wpRows): void {
     $rows = SQLiteUtf16CollationAffinityCursor::wordpressOptionValueSeek($wpRows, 'Plugin_Alpha', 'TEXT', 'TEXT', 'RTRIM');
     $t->same('Plugin_Alpha ', $rows[0]['value']);
 };
 
-$tests['utf16 collation affinity current source next85 wordpress text seek reports utf16le encoding'] = static function (TestRunner $t) use ($wpRows): void {
+$tests['utf16 collation affinity current source nextEightFive wordpress text seek reports utf16le encoding'] = static function (TestRunner $t) use ($wpRows): void {
     $rows = SQLiteUtf16CollationAffinityCursor::wordpressOptionValueSeek($wpRows, 'Plugin_Alpha', 'TEXT', 'TEXT', 'RTRIM');
     $t->same('UTF-16LE', $rows[0]['encoding']);
 };
 
-$tests['utf16 collation affinity current source next85 encoder rejects malformed utf8'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive encoder rejects malformed utf8'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::encodeText("plugin_\xc3", 'UTF-16LE'));
 };
 
-$tests['utf16 collation affinity current source next85 rejects odd utf16 source bytes'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive rejects odd utf16 source bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor([['valueBytes' => "\x70", 'textEncoding' => 2, 'rowid' => 1, 'payload' => []]], 'p'));
 };
 
-$tests['utf16 collation affinity current source next85 rejects high surrogate source bytes'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive rejects high surrogate source bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor([['valueBytes' => "\x3d\xd8", 'textEncoding' => 2, 'rowid' => 1, 'payload' => []]], 'p'));
 };
 
-$tests['utf16 collation affinity current source next85 rejects low surrogate source bytes'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive rejects low surrogate source bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor([['valueBytes' => "\xdc\x00", 'textEncoding' => 3, 'rowid' => 1, 'payload' => []]], 'p'));
 };
 
-$tests['utf16 collation affinity current source next85 rejects unsupported encoding'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive rejects unsupported encoding'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor([['valueBytes' => 'p', 'textEncoding' => 4, 'rowid' => 1, 'payload' => []]], 'p'));
 };
 
-$tests['utf16 collation affinity current source next85 rejects unsupported affinity'] = static function (TestRunner $t) use ($numericEntries): void {
+$tests['utf16 collation affinity current source nextEightFive rejects unsupported affinity'] = static function (TestRunner $t) use ($numericEntries): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor($numericEntries, 2, 'VECTOR'));
 };
 
-$tests['utf16 collation affinity current source next85 rejects unsupported collation'] = static function (TestRunner $t) use ($textEntries): void {
+$tests['utf16 collation affinity current source nextEightFive rejects unsupported collation'] = static function (TestRunner $t) use ($textEntries): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor($textEntries, 'p', 'TEXT', 'TEXT', 'WP_LOCALE'));
 };
 
-$tests['utf16 collation affinity current source next85 rejects missing payload'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive rejects missing payload'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor([['value' => 'p', 'rowid' => 1]], 'p'));
 };
 
-$tests['utf16 collation affinity current source next85 rejects non integer rowid'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive rejects non integer rowid'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor([['value' => 'p', 'rowid' => '1', 'payload' => []]], 'p'));
 };
 
-$tests['utf16 collation affinity current source next85 rejects non string bytes'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive rejects non string bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16CollationAffinityCursor([['valueBytes' => 10, 'textEncoding' => 2, 'rowid' => 1, 'payload' => []]], 'p'));
 };
 
-$tests['utf16 collation affinity current source next85 wordpress rejects missing option value'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive wordpress rejects missing option value'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::wordpressOptionValueSeek([['option_id' => 1]], 'p'));
 };
 
-$tests['utf16 collation affinity current source next85 wordpress rejects missing encoding'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive wordpress rejects missing encoding'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::wordpressOptionValueSeek([['option_id' => 1, 'option_value_bytes' => 'p']], 'p'));
 };
 
-$tests['utf16 collation affinity current source next85 wordpress rejects non integer option id'] = static function (TestRunner $t): void {
+$tests['utf16 collation affinity current source nextEightFive wordpress rejects non integer option id'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16CollationAffinityCursor::wordpressOptionValueSeek([['option_id' => '1', 'option_value' => 'p']], 'p'));
 };
 

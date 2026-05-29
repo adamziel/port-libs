@@ -34,7 +34,7 @@ $current229 = [
     $row229(7, 'pluginXcache', 'UTF-16BE'),
     $bad229(8, "\x00\xd8", 2),
 ];
-$next229 = [
+$nextTwoTwoNine = [
     $row229(1, 'Plugin_Cache', 'UTF-16BE'),
     $row229(2, 'plugin_cache', 'UTF-16LE'),
     $row229(3, "plugin_cache\u{00a0}", 'UTF-16BE'),
@@ -47,7 +47,7 @@ $next229 = [
 
 $plan229 = static fn (?array $current = null, ?array $next = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeSpaceRtrimPlan(
     $current ?? $current229,
-    $next ?? $next229,
+    $next ?? $nextTwoTwoNine,
     'plugin!_cache%',
     $enc229('!', 'UTF-16LE'),
     'UTF-16LE',
@@ -72,8 +72,8 @@ $valueAt229 = static function (array $value, string $path): mixed {
 };
 
 $cases229 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next229'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next224'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoTwoNine'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoTwoFour'],
     'operator' => ['operator', 'LIKE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
     'escape' => ['currentEscape', '!'],
@@ -119,16 +119,16 @@ $cases229 = [
     'current error' => ['currentErrors.8', 'SQLite encoding source UTF-16 text payload ends with a high surrogate'],
     'next error' => ['nextErrors.10', 'SQLite encoding source UTF-16 text payload has an odd byte length'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-ascii-space-only'],
-    'dependency current source' => ['dependencies.4', 'sqlite-current-source-next229'],
+    'dependency current source' => ['dependencies.4', 'sqlite-current-source-nexttwoTwoNine'],
 ];
 
 foreach ($cases229 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next229 ' . $name] = static function (TestRunner $t) use ($plan229, $valueAt229, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoTwoNine ' . $name] = static function (TestRunner $t) use ($plan229, $valueAt229, $path, $expected): void {
         $t->same($expected, $valueAt229($plan229(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next229 invalidation reasons include unicode whitespace fences'] = static function (TestRunner $t) use ($plan229): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoNine invalidation reasons include unicode whitespace fences'] = static function (TestRunner $t) use ($plan229): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -142,7 +142,7 @@ $tests['utf16 nocase like rtrim current source next229 invalidation reasons incl
     ], $plan229()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next229 groups visual peers without merging SQLite keys'] = static function (TestRunner $t) use ($plan229): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoNine groups visual peers without merging SQLite keys'] = static function (TestRunner $t) use ($plan229): void {
     $result = $plan229();
     $t->same([1, 2, 3, 4, 6], $result['currentVisualSpacePeerRowids']['plugin_cache']);
     $t->same([1, 2, 3, 4, 6, 9], $result['nextVisualSpacePeerRowids']['plugin_cache']);
@@ -150,7 +150,7 @@ $tests['utf16 nocase like rtrim current source next229 groups visual peers witho
     $t->same("plugin_cache\u{3000}", $result['currentRtrimTexts'][4]);
 };
 
-$tests['utf16 nocase like rtrim current source next229 reusable when unicode whitespace rows are byte-stable'] = static function (TestRunner $t) use ($row229): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoNine reusable when unicode whitespace rows are byte-stable'] = static function (TestRunner $t) use ($row229): void {
     $rows = [
         $row229(1, 'plugin_cache', 'UTF-16LE'),
         $row229(2, "plugin_cache\u{00a0}", 'UTF-16BE'),
@@ -175,7 +175,7 @@ $tests['utf16 nocase like rtrim current source next229 reusable when unicode whi
     $t->same([2, 3], $result['currentUnicodeSpaceMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next229 detects ascii space changing into nbsp'] = static function (TestRunner $t) use ($row229): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoNine detects ascii space changing into nbsp'] = static function (TestRunner $t) use ($row229): void {
     $current = [
         $row229(1, 'plugin_cache  ', 'UTF-16LE'),
         $row229(2, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -204,10 +204,10 @@ $tests['utf16 nocase like rtrim current source next229 detects ascii space chang
     $t->same(true, in_array('ascii-space-rtrim-rowset', $result['invalidationReasons'], true));
 };
 
-$tests['utf16 nocase like rtrim current source next229 rejects invalid page size through base keyset plan'] = static function (TestRunner $t) use ($current229, $next229, $enc229): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoNine rejects invalid page size through base keyset plan'] = static function (TestRunner $t) use ($current229, $nextTwoTwoNine, $enc229): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeSpaceRtrimPlan(
         $current229,
-        $next229,
+        $nextTwoTwoNine,
         'plugin!_cache%',
         $enc229('!', 'UTF-16LE'),
         'UTF-16LE',

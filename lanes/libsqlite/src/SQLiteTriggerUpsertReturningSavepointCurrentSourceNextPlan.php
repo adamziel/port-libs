@@ -107,7 +107,7 @@ final class SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan
             $rowBefore = $rows;
             try {
                 $applied = self::applyUpsert($rows, $incoming, $uniqueColumns, $assignments, $triggers, $returning, $phase, (int) $ordinal, $effects);
-            } catch (SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Signal $signal) {
+            } catch (SQLiteTriggerUpsertReturningSavepointCurrentSourceNextSignal $signal) {
                 $rolledBack = true;
                 $rollbackReason = $signal->reason;
                 $effects[] = [
@@ -209,7 +209,7 @@ final class SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan
                     $new[$column] = self::value($value, $old, $new);
                 }
             } elseif ($action === 'raise') {
-                throw new SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Signal((string) ($trigger['reason'] ?? 'trigger-rollback'), $ordinal);
+                throw new SQLiteTriggerUpsertReturningSavepointCurrentSourceNextSignal((string) ($trigger['reason'] ?? 'trigger-rollback'), $ordinal);
             } elseif ($action !== 'audit') {
                 throw new \InvalidArgumentException('SQLite trigger UPSERT RETURNING savepoint current-source trigger action is unsupported');
             }
@@ -411,7 +411,7 @@ final class SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan
     }
 }
 
-final class SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Signal extends \RuntimeException
+final class SQLiteTriggerUpsertReturningSavepointCurrentSourceNextSignal extends \RuntimeException
 {
     public function __construct(public readonly string $reason, public readonly int $ordinal)
     {

@@ -128,12 +128,12 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$probe, $path, $expected]) {
-    $tests['utf16 rtrim nocase current source next132 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $probe, $path, $expected): void {
+    $tests['utf16 rtrim nocase current source nextOneThreeTwo ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $probe, $path, $expected): void {
         $t->same($expected, $valueAt($plan($probe), $path));
     };
 }
 
-$tests['utf16 rtrim nocase current source next132 invalidates retained rowids for byte changes only'] = static function (TestRunner $t) use ($row, $plan): void {
+$tests['utf16 rtrim nocase current source nextOneThreeTwo invalidates retained rowids for byte changes only'] = static function (TestRunner $t) use ($row, $plan): void {
     $current = [$row(1, 'Plugin_Cache   ', 'UTF-16LE'), $row(2, 'plugin_cache', 'UTF-16BE')];
     $next = [$row(1, 'Plugin_Cache', 'UTF-16BE'), $row(2, 'plugin_cache  ', 'UTF-16LE')];
     $result = $plan('plugin_cache', $current, $next, 'stable', 'stable');
@@ -146,7 +146,7 @@ $tests['utf16 rtrim nocase current source next132 invalidates retained rowids fo
     $t->same(true, $result['reprepareRequired']);
 };
 
-$tests['utf16 rtrim nocase current source next132 invalidates retained rowids for comparison key change'] = static function (TestRunner $t) use ($row, $plan): void {
+$tests['utf16 rtrim nocase current source nextOneThreeTwo invalidates retained rowids for comparison key change'] = static function (TestRunner $t) use ($row, $plan): void {
     $current = [$row(1, 'plugin_cache ', 'UTF-16LE')];
     $next = [$row(1, "plugin_cache\t", 'UTF-16LE')];
     $result = $plan('plugin_cache', $current, $next, 'stable', 'stable');
@@ -161,7 +161,7 @@ $tests['utf16 rtrim nocase current source next132 invalidates retained rowids fo
     $t->same(['matched-rowset'], $tab['reprepareReasons']);
 };
 
-$tests['utf16 rtrim nocase current source next132 unchanged retained source stays reusable'] = static function (TestRunner $t) use ($row, $plan): void {
+$tests['utf16 rtrim nocase current source nextOneThreeTwo unchanged retained source stays reusable'] = static function (TestRunner $t) use ($row, $plan): void {
     $rows = [$row(1, 'Plugin_Cache   ', 'UTF-16LE'), $row(2, 'plugin_cache', 'UTF-16BE')];
     $result = $plan('plugin_cache', $rows, $rows, 'stable', 'stable');
     $t->same([1, 2], $result['currentRowids']);
@@ -172,7 +172,7 @@ $tests['utf16 rtrim nocase current source next132 unchanged retained source stay
     $t->same(false, $result['reprepareRequired']);
 };
 
-$tests['utf16 rtrim nocase current source next132 rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 rtrim nocase current source nextOneThreeTwo rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::wordpressOptionNameCurrentNext([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin_cache'));
 };
 

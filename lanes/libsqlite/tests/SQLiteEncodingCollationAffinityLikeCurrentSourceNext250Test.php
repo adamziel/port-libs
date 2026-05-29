@@ -26,7 +26,7 @@ $current250 = [
     ['option_id' => 12, 'option_name' => null],
 ];
 
-$next250 = [
+$nextTwoFiveZero = [
     ['option_id' => 1, 'option_name' => 'plugin_cache  '],
     ['option_id' => 2, 'option_name' => 'plugin_cache'],
     ['option_id' => 3, 'option_name' => "plugin_cache\t"],
@@ -53,7 +53,7 @@ $plan250 = static fn (
     int $nextCookie = 250,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualSourcePlan(
     $current ?? $current250,
-    $next ?? $next250,
+    $next ?? $nextTwoFiveZero,
     $pattern,
     $escape,
     $caseSensitive,
@@ -75,7 +75,7 @@ $valueAt250 = static function (array $value, string $path): mixed {
 };
 
 $cases250 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next250'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_name COLLATE RTRIM LIKE ? ESCAPE ? /* RTRIM key never trims LIKE residual */'],
     'pattern' => ['pattern', 'plugin!_cache'],
@@ -148,42 +148,42 @@ $cases250 = [
     'dependency rtrim' => ['dependencies.1', 'sqlite-rtrim-collation-key'],
     'dependency residual' => ['dependencies.2', 'sqlite-like-residual-raw-text'],
     'dependency utf' => ['dependencies.3', 'sqlite-mixed-utf-source-decoder'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next250'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoFiveZero'],
 ];
 
 foreach ($cases250 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next250 ' . $name] = static function (TestRunner $t) use ($plan250, $valueAt250, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFiveZero ' . $name] = static function (TestRunner $t) use ($plan250, $valueAt250, $path, $expected): void {
         $t->same($expected, $valueAt250($plan250(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next250 stable cursor reusable'] = static function (TestRunner $t) use ($current250, $plan250): void {
+$tests['encoding collation affinity like current source nextTwoFiveZero stable cursor reusable'] = static function (TestRunner $t) use ($current250, $plan250): void {
     $stable = $plan250(current: $current250, next: $current250, currentSource: 'same', nextSource: 'same', currentCookie: 250, nextCookie: 250);
     $t->same(false, $stable['cursorInvalidated']);
     $t->same(true, $stable['cursorReusable']);
     $t->same([], $stable['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next250 wildcard admits trailing spaces after raw prefix'] = static function (TestRunner $t) use ($plan250): void {
+$tests['encoding collation affinity like current source nextTwoFiveZero wildcard admits trailing spaces after raw prefix'] = static function (TestRunner $t) use ($plan250): void {
     $plan = $plan250(pattern: 'plugin!_cache%', escape: '!');
     $t->same([4, 5, 1, 2, 3, 6], $plan['currentMatchedRowids']);
     $t->same([], $plan['currentRtrimPeerRejectedRowids']);
 };
 
-$tests['encoding collation affinity like current source next250 rtrim equality differs from like residual'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFiveZero rtrim equality differs from like residual'] = static function (TestRunner $t): void {
     $t->same(0, PortLibs\LibSqlite\SQLiteAffinityComparison::compare('plugin_cache  ', 'plugin_cache', 'TEXT', 'TEXT', 'RTRIM'));
     $t->same(false, SQLiteDatabase::likeMatches('plugin_cache  ', 'plugin!_cache', '!', false));
     $t->same(true, SQLiteDatabase::likeMatches('Plugin_Cache', 'plugin!_cache', '!', false));
 };
 
-$tests['encoding collation affinity like current source next250 case sensitive binary residual rejects uppercase'] = static function (TestRunner $t) use ($plan250): void {
+$tests['encoding collation affinity like current source nextTwoFiveZero case sensitive binary residual rejects uppercase'] = static function (TestRunner $t) use ($plan250): void {
     $plan = $plan250(pattern: 'plugin!_cache', escape: '!', caseSensitive: true);
     $t->same([1], $plan['currentMatchedRowids']);
     $t->same(false, $plan['asciiNoCaseLikeStillFoldsAscii']);
     $t->same(false, $plan['currentTrace'][3]['residualMatch']);
 };
 
-$tests['encoding collation affinity like current source next250 numeric text affinity participates'] = static function (TestRunner $t) use ($plan250): void {
+$tests['encoding collation affinity like current source nextTwoFiveZero numeric text affinity participates'] = static function (TestRunner $t) use ($plan250): void {
     $rows = [
         ['option_id' => 1, 'option_name' => 404],
         ['option_id' => 2, 'option_name' => 404.0],
@@ -195,7 +195,7 @@ $tests['encoding collation affinity like current source next250 numeric text aff
     $t->same('real', $plan['currentStorage'][2]);
 };
 
-$tests['encoding collation affinity like current source next250 blob and null stay outside candidates'] = static function (TestRunner $t) use ($plan250): void {
+$tests['encoding collation affinity like current source nextTwoFiveZero blob and null stay outside candidates'] = static function (TestRunner $t) use ($plan250): void {
     $rows = [
         ['option_id' => 1, 'option_name' => new SQLiteBlobValue('plugin_cache')],
         ['option_id' => 2, 'option_name' => null],
@@ -205,20 +205,20 @@ $tests['encoding collation affinity like current source next250 blob and null st
     $t->same([], $plan['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next250 rejects malformed utf8 string'] = static function (TestRunner $t) use ($next250): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualSourcePlan([['option_id' => 1, 'option_name' => "plugin_cache\xc3"]], $next250, 'plugin%'));
+$tests['encoding collation affinity like current source nextTwoFiveZero rejects malformed utf8 string'] = static function (TestRunner $t) use ($nextTwoFiveZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualSourcePlan([['option_id' => 1, 'option_name' => "plugin_cache\xc3"]], $nextTwoFiveZero, 'plugin%'));
 };
 
-$tests['encoding collation affinity like current source next250 rejects missing option name'] = static function (TestRunner $t) use ($next250): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualSourcePlan([['option_id' => 1]], $next250, 'plugin%'));
+$tests['encoding collation affinity like current source nextTwoFiveZero rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFiveZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualSourcePlan([['option_id' => 1]], $nextTwoFiveZero, 'plugin%'));
 };
 
-$tests['encoding collation affinity like current source next250 rejects array option name'] = static function (TestRunner $t) use ($next250): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualSourcePlan([['option_id' => 1, 'option_name' => ['plugin']]], $next250, 'plugin%'));
+$tests['encoding collation affinity like current source nextTwoFiveZero rejects array option name'] = static function (TestRunner $t) use ($nextTwoFiveZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualSourcePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFiveZero, 'plugin%'));
 };
 
-$tests['encoding collation affinity like current source next250 rejects invalid byte encoding'] = static function (TestRunner $t) use ($next250): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualSourcePlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], $next250, 'plugin%'));
+$tests['encoding collation affinity like current source nextTwoFiveZero rejects invalid byte encoding'] = static function (TestRunner $t) use ($nextTwoFiveZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualSourcePlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], $nextTwoFiveZero, 'plugin%'));
 };
 
 return $tests;

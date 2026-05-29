@@ -112,7 +112,7 @@ final class SQLiteUtf16RtrimGlobCurrentSourceNextPlan
                 'sqlite-utf16-decode',
                 'sqlite-rtrim-glob-prefix-range',
                 'sqlite-glob-residual-scan',
-                'sqlite-current-source-next125',
+                'sqlite-current-source-nextoneTwoFive',
             ],
         ];
     }

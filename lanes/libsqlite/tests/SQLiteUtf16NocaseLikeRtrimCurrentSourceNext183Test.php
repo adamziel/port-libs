@@ -30,7 +30,7 @@ $current183 = [
     $row183(8, 'plúgin_cache', 3),
     $bad183(9, "\x00\xd8", 2),
 ];
-$next183 = [
+$nextOneEightThree = [
     $row183(1, 'plugin_cache', 3),
     $row183(2, 'PLUGIN_CACHE  ', 2),
     $row183(3, 'plugin_cache  ', 3),
@@ -53,7 +53,7 @@ $plan183 = static fn (
     int $nextCookie = 183,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
     $current ?? $current183,
-    $next ?? $next183,
+    $next ?? $nextOneEightThree,
     $pattern,
     $escape,
     $currentSource,
@@ -74,7 +74,7 @@ $valueAt183 = static function (array $value, string $path): mixed {
 };
 
 $cases183 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next183'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightThree'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?'],
     'pattern' => ['pattern', 'plugin!_cache'],
@@ -140,16 +140,16 @@ $cases183 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim residual' => ['dependencies.2', 'sqlite-rtrim-residual-match'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next183'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneEightThree'],
 ];
 
 foreach ($cases183 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next183 ' . $name] = static function (TestRunner $t) use ($plan183, $valueAt183, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneEightThree ' . $name] = static function (TestRunner $t) use ($plan183, $valueAt183, $path, $expected): void {
         $t->same($expected, $valueAt183($plan183(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next183 invalidation reason order'] = static function (TestRunner $t) use ($plan183): void {
+$tests['utf16 nocase like rtrim current source nextOneEightThree invalidation reason order'] = static function (TestRunner $t) use ($plan183): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -162,7 +162,7 @@ $tests['utf16 nocase like rtrim current source next183 invalidation reason order
     ], $plan183()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next183 stable cursor remains reusable'] = static function (TestRunner $t) use ($row183): void {
+$tests['utf16 nocase like rtrim current source nextOneEightThree stable cursor remains reusable'] = static function (TestRunner $t) use ($row183): void {
     $rows = [
         $row183(1, 'Plugin_Cache   ', 2),
         $row183(2, 'plugin_cache', 3),
@@ -186,7 +186,7 @@ $tests['utf16 nocase like rtrim current source next183 stable cursor remains reu
     $t->same(false, $result['staleRangeCursorRisk']);
 };
 
-$tests['utf16 nocase like rtrim current source next183 wildcard prefix keeps residual false positives'] = static function (TestRunner $t) use ($row183): void {
+$tests['utf16 nocase like rtrim current source nextOneEightThree wildcard prefix keeps residual false positives'] = static function (TestRunner $t) use ($row183): void {
     $rows = [
         $row183(1, 'plugin_cache', 2),
         $row183(2, 'plugin_caches', 2),
@@ -208,7 +208,7 @@ $tests['utf16 nocase like rtrim current source next183 wildcard prefix keeps res
     $t->same([], $result['currentRangeFalsePositiveRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next183 no prefix rejects range'] = static function (TestRunner $t) use ($row183): void {
+$tests['utf16 nocase like rtrim current source nextOneEightThree no prefix rejects range'] = static function (TestRunner $t) use ($row183): void {
     $rows = [$row183(1, 'plugin_cache', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
         $rows,
@@ -226,7 +226,7 @@ $tests['utf16 nocase like rtrim current source next183 no prefix rejects range']
     $t->same([], $result['currentMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next183 rejects missing bytes'] = static function (TestRunner $t): void {
+$tests['utf16 nocase like rtrim current source nextOneEightThree rejects missing bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
         [['option_id' => 1, 'text_encoding' => 2]],
         [],

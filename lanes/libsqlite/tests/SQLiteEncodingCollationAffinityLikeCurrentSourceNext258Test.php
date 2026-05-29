@@ -20,7 +20,7 @@ $current258 = [
     ['option_id' => 10, 'option_name' => 123],
 ];
 
-$next258 = [
+$nextTwoFiveEight = [
     ['option_id' => 1, 'option_name' => 'plugin_cache'],
     ['option_id' => 2, 'option_name' => 'PLUGIN_cache'],
     ['option_id' => 3, 'option_name' => 'Plugin_Cache'],
@@ -45,7 +45,7 @@ $plan258 = static fn (
     int $nextCookie = 258,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan(
     $current ?? $current258,
-    $next ?? $next258,
+    $next ?? $nextTwoFiveEight,
     $pattern,
     $escape,
     $currentCaseSensitive,
@@ -68,7 +68,7 @@ $valueAt258 = static function (array $value, string $path): mixed {
 };
 
 $cases258 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next258'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveEight'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_name LIKE ? ESCAPE ? /* case_sensitive_like current-source fence */'],
     'pattern' => ['pattern', 'PLUGIN!_%'],
@@ -132,16 +132,16 @@ $cases258 = [
     'dependency pragma' => ['dependencies.0', 'sqlite-like-case-sensitive-pragma'],
     'dependency tokenizer' => ['dependencies.1', 'sqlite-like-escape-tokenizer'],
     'dependency affinity' => ['dependencies.2', 'sqlite-text-affinity'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next258'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoFiveEight'],
 ];
 
 foreach ($cases258 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next258 ' . $name] = static function (TestRunner $t) use ($plan258, $valueAt258, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFiveEight ' . $name] = static function (TestRunner $t) use ($plan258, $valueAt258, $path, $expected): void {
         $t->same($expected, $valueAt258($plan258(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next258 stable nocase cursor reusable'] = static function (TestRunner $t) use ($current258, $plan258): void {
+$tests['encoding collation affinity like current source nextTwoFiveEight stable nocase cursor reusable'] = static function (TestRunner $t) use ($current258, $plan258): void {
     $stable = $plan258(current: $current258, next: $current258, currentCaseSensitive: false, nextCaseSensitive: false, currentSource: 'same', nextSource: 'same', currentCookie: 258, nextCookie: 258);
     $t->same(false, $stable['cursorInvalidated']);
     $t->same(true, $stable['cursorReusable']);
@@ -149,7 +149,7 @@ $tests['encoding collation affinity like current source next258 stable nocase cu
     $t->same([], $stable['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next258 stable binary cursor reusable'] = static function (TestRunner $t) use ($current258, $plan258): void {
+$tests['encoding collation affinity like current source nextTwoFiveEight stable binary cursor reusable'] = static function (TestRunner $t) use ($current258, $plan258): void {
     $stable = $plan258(current: $current258, next: $current258, currentCaseSensitive: true, nextCaseSensitive: true, currentSource: 'same', nextSource: 'same', currentCookie: 258, nextCookie: 258);
     $t->same(false, $stable['cursorInvalidated']);
     $t->same(true, $stable['cursorReusable']);
@@ -157,14 +157,14 @@ $tests['encoding collation affinity like current source next258 stable binary cu
     $t->same([5, 2, 7], $stable['currentGlobProbeRowids']);
 };
 
-$tests['encoding collation affinity like current source next258 omitted escape wildcard expands'] = static function (TestRunner $t) use ($current258, $plan258): void {
+$tests['encoding collation affinity like current source nextTwoFiveEight omitted escape wildcard expands'] = static function (TestRunner $t) use ($current258, $plan258): void {
     $plan = $plan258(current: $current258, next: $current258, pattern: 'PLUGIN_%', escape: null, currentCaseSensitive: false, nextCaseSensitive: true, currentSource: 'same', nextSource: 'same', currentCookie: 258, nextCookie: 258);
     $t->same([4, 5, 6, 1, 2, 3, 7], $plan['currentMatchedRowids']);
     $t->same([5, 2, 7], $plan['nextMatchedRowids']);
     $t->same(['case-sensitive-like', 'matched-rowset', 'predicate-truth'], $plan['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next258 numeric and boolean option names use text affinity'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFiveEight numeric and boolean option names use text affinity'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_name' => 123],
         ['option_id' => 2, 'option_name' => true],
@@ -177,16 +177,16 @@ $tests['encoding collation affinity like current source next258 numeric and bool
     $t->same('integer', $plan['currentStorageClasses'][2]);
 };
 
-$tests['encoding collation affinity like current source next258 rejects invalid escape length'] = static function (TestRunner $t) use ($current258, $next258): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan($current258, $next258, 'PLUGIN!!_%', '!!'));
+$tests['encoding collation affinity like current source nextTwoFiveEight rejects invalid escape length'] = static function (TestRunner $t) use ($current258, $nextTwoFiveEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan($current258, $nextTwoFiveEight, 'PLUGIN!!_%', '!!'));
 };
 
-$tests['encoding collation affinity like current source next258 rejects missing option name'] = static function (TestRunner $t) use ($next258): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan([['option_id' => 1]], $next258));
+$tests['encoding collation affinity like current source nextTwoFiveEight rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFiveEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan([['option_id' => 1]], $nextTwoFiveEight));
 };
 
-$tests['encoding collation affinity like current source next258 rejects array option name'] = static function (TestRunner $t) use ($next258): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan([['option_id' => 1, 'option_name' => ['PLUGIN']]], $next258));
+$tests['encoding collation affinity like current source nextTwoFiveEight rejects array option name'] = static function (TestRunner $t) use ($nextTwoFiveEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan([['option_id' => 1, 'option_name' => ['PLUGIN']]], $nextTwoFiveEight));
 };
 
 return $tests;

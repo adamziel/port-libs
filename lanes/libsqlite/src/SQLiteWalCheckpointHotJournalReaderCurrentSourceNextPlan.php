@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan
 {
-    public static function next122Plan(
+    public static function checkpointHotJournalReaderPlan(
         string $databasePath,
         string $databaseBytes,
         string $journalBytes,
@@ -39,36 +39,36 @@ final class SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan
                     ?bool $superJournalExists = null
                 ): array {
                     if ($databasePath === '') {
-                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source next122 requires a database path');
+                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader requires a database path');
                     }
                     if ($journalBytes === '') {
-                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source next122 requires rollback journal bytes');
+                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader requires rollback journal bytes');
                     }
                     if ($pageNumbers === []) {
-                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source next122 requires page numbers');
+                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader requires page numbers');
                     }
 
                     $mode = strtolower(trim($mode));
                     if (!in_array($mode, ['restart', 'truncate'], true)) {
-                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source next122 requires restart or truncate mode');
+                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader requires restart or truncate mode');
                     }
 
                     $pageSize = $wal->header->pageSize;
                     if ($databaseBytes === '' || strlen($databaseBytes) % $pageSize !== 0) {
-                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source next122 database bytes must be page-size aligned');
+                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader database bytes must be page-size aligned');
                     }
                     if ($wal->toBytes() !== $walBytes) {
-                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source next122 WAL bytes do not match parsed WAL');
+                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader WAL bytes do not match parsed WAL');
                     }
 
                     $journal = SQLiteRollbackJournal::parse($journalBytes, true);
                     if ($journal->header->pageSize !== $pageSize) {
-                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source next122 journal page size does not match WAL page size');
+                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader journal page size does not match WAL page size');
                     }
 
                     $readerEndFrame ??= $wal->frameCount();
                     if ($readerEndFrame < 0 || $readerEndFrame > $wal->frameCount()) {
-                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source next122 reader frame is outside the WAL frame range');
+                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader reader frame is outside the WAL frame range');
                     }
 
                     $hot = $journal->hotJournalRecoveryResult(
@@ -92,7 +92,7 @@ final class SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan
                     $rows = [];
                     foreach ($pageNumbers as $pageNumber) {
                         if (!is_int($pageNumber)) {
-                            throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source next122 pages must be integers');
+                            throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader pages must be integers');
                         }
 
                         $dirty = self::databaseVisibility($databaseBytes, $pageSize, $pageNumber);
@@ -138,8 +138,8 @@ final class SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan
 
                     return [
                         'status' => $hot['recovered']
-                            ? 'wal-checkpoint-hot-journal-reader-current-source-next122'
-                            : 'wal-checkpoint-hot-journal-reader-current-source-blocked-next122',
+                            ? 'wal-checkpoint-hot-journal-reader-hot-journal-reader'
+                            : 'wal-checkpoint-hot-journal-reader-hot-journal-reader-blocked',
                         'reason' => $hot['recovered']
                             ? 'hot_journal_recovery_precedes_wal_reader_checkpoint_current_source'
                             : $hot['reason'],
@@ -181,7 +181,7 @@ final class SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan
                             $pinnedCheckpoint['dependencies'],
                             $releasedCheckpoint['dependencies'],
                             [
-                                'sqlite-wal-checkpoint-hot-journal-reader-current-source-next122',
+                                'sqlite-wal-checkpoint-hot-journal-reader-hot-journal-reader',
                                 'sqlite-rollback-journal-hot-recovery',
                                 'sqlite-wal-reader-checkpoint-current-source',
                             ]
@@ -195,12 +195,12 @@ final class SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan
                 private static function databaseVisibility(string $databaseBytes, int $pageSize, int $pageNumber): array
                 {
                     if (strlen($databaseBytes) % $pageSize !== 0) {
-                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source next122 database image must be page aligned');
+                        throw new \InvalidArgumentException('SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader database image must be page aligned');
                     }
 
                     $databasePageCount = intdiv(strlen($databaseBytes), $pageSize);
                     if ($pageNumber < 1 || $pageNumber > $databasePageCount) {
-                        throw new \OutOfBoundsException("SQLite WAL checkpoint hot-journal reader current-source next122 page {$pageNumber} is outside the database image");
+                        throw new \OutOfBoundsException("SQLite WAL checkpoint hot-journal reader current-source hot-journal-reader page {$pageNumber} is outside the database image");
                     }
 
                     return [

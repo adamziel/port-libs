@@ -37,7 +37,7 @@ $current224 = [
     $row224(9, "plugin_cache\t", 'UTF-16BE'),
     $bad224(10, "\x00\xd8", 2),
 ];
-$next224 = [
+$nextTwoTwoFour = [
     $row224(1, 'Plugin_Cache', 'UTF-16BE'),
     $row224(2, 'plugin_cache', 'UTF-16LE'),
     $row224(3, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -64,7 +64,7 @@ $plan224 = static fn (
     ?array $resumeToken = null,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameKeysetResumePlan(
     $current ?? $current224,
-    $next ?? $next224,
+    $next ?? $nextTwoTwoFour,
     'plugin!_cache%',
     $escapeBytes224('!', 'UTF-16LE'),
     'UTF-16LE',
@@ -92,8 +92,8 @@ $valueAt224 = static function (array $value, string $path): mixed {
 };
 
 $cases224 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next224'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next208'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoTwoFour'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroEight'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? AND (rtrim(option_name) COLLATE NOCASE, rowid) > (?, ?) ORDER BY rtrim(option_name) COLLATE NOCASE, rowid LIMIT ?'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -162,16 +162,16 @@ $cases224 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-escape-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
     'dependency resume' => ['dependencies.3', 'sqlite-nocase-keyset-resume'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next224'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoTwoFour'],
 ];
 
 foreach ($cases224 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next224 ' . $name] = static function (TestRunner $t) use ($plan224, $valueAt224, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoTwoFour ' . $name] = static function (TestRunner $t) use ($plan224, $valueAt224, $path, $expected): void {
         $t->same($expected, $valueAt224($plan224(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next224 invalidation reasons include keyset rowsets'] = static function (TestRunner $t) use ($plan224): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoFour invalidation reasons include keyset rowsets'] = static function (TestRunner $t) use ($plan224): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -182,21 +182,21 @@ $tests['utf16 nocase like rtrim current source next224 invalidation reasons incl
     ], $plan224()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next224 accepts matching current resume token'] = static function (TestRunner $t) use ($plan224): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoFour accepts matching current resume token'] = static function (TestRunner $t) use ($plan224): void {
     $first = $plan224();
     $second = $plan224(resumeToken: $first['currentResumeToken']);
     $t->same([9, 3, 4], $second['currentResumeToken']['pageRowids']);
     $t->same([9, 11, 3], $second['nextResumeToken']['pageRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next224 rejects stale resume token'] = static function (TestRunner $t) use ($plan224): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoFour rejects stale resume token'] = static function (TestRunner $t) use ($plan224): void {
     $first = $plan224();
     $token = $first['currentResumeToken'];
     $token['lastRowid'] = 1;
     $t->throws(InvalidArgumentException::class, static fn () => $plan224(resumeToken: $token));
 };
 
-$tests['utf16 nocase like rtrim current source next224 detects inserted row before resume key'] = static function (TestRunner $t) use ($row224, $plan224): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoFour detects inserted row before resume key'] = static function (TestRunner $t) use ($row224, $plan224): void {
     $current = [
         $row224(1, 'plugin_cache', 'UTF-16LE'),
         $row224(2, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -215,7 +215,7 @@ $tests['utf16 nocase like rtrim current source next224 detects inserted row befo
     $t->same(true, in_array('resume-prefix-rowset', $result['invalidationReasons'], true));
 };
 
-$tests['utf16 nocase like rtrim current source next224 stable source can reuse keyset page'] = static function (TestRunner $t) use ($row224, $plan224): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoFour stable source can reuse keyset page'] = static function (TestRunner $t) use ($row224, $plan224): void {
     $rows = [
         $row224(1, 'Plugin_Cache', 'UTF-16LE'),
         $row224(2, 'plugin_cache  ', 'UTF-16BE'),
@@ -229,7 +229,7 @@ $tests['utf16 nocase like rtrim current source next224 stable source can reuse k
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next224 defaults resume key to first ordered row'] = static function (TestRunner $t) use ($row224): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoFour defaults resume key to first ordered row'] = static function (TestRunner $t) use ($row224): void {
     $rows = [
         $row224(4, 'plugin_cache_beta', 'UTF-16LE'),
         $row224(1, 'Plugin_Cache', 'UTF-16BE'),
@@ -256,7 +256,7 @@ $tests['utf16 nocase like rtrim current source next224 defaults resume key to fi
     $t->same([2, 4], $result['currentResumePageRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next224 rejects invalid page size'] = static function (TestRunner $t) use ($plan224): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoFour rejects invalid page size'] = static function (TestRunner $t) use ($plan224): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan224(pageSize: 0));
 };
 

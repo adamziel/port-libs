@@ -20,7 +20,7 @@ $current182 = [
     $row182(3, 'plugin_%_cache_alpha', 2),
     $row182(4, 'plugin_other', 3),
 ];
-$next182 = [
+$nextOneEightTwo = [
     $row182(1, 'plugin_%_cache', 3),
     $row182(2, 'plugin_a_cache', 3),
     $row182(3, 'plugin_%_cache_alpha  ', 2),
@@ -51,7 +51,7 @@ $plan182 = static fn (
     int $nextCookie = 182,
 ): array => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
     $current ?? $current182,
-    $next ?? $next182,
+    $next ?? $nextOneEightTwo,
     $enc182($currentPattern, $currentPatternEncoding),
     $currentPatternEncoding,
     $enc182($nextPattern, $nextPatternEncoding),
@@ -79,10 +79,10 @@ $valueAt182 = static function (array $value, string $path): mixed {
 };
 
 $cases182 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-escape-current-source-next182'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-escape-current-source-nextoneEightTwo'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next175'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSevenFive'],
     'current pattern' => ['currentPattern', 'plugin!_!%!_cache%'],
     'next pattern' => ['nextPattern', 'plugin!_!%!_cache%'],
     'current pattern encoding' => ['currentPatternEncoding', 'UTF-16LE'],
@@ -108,12 +108,12 @@ $cases182 = [
 ];
 
 foreach ($cases182 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim escape current source next182 ' . $name] = static function (TestRunner $t) use ($plan182, $valueAt182, $path, $expected): void {
+    $tests['utf16 nocase like rtrim escape current source nextOneEightTwo ' . $name] = static function (TestRunner $t) use ($plan182, $valueAt182, $path, $expected): void {
         $t->same($expected, $valueAt182($plan182(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim escape current source next182 clean same bytes can continue'] = static function (TestRunner $t) use ($row182, $enc182): void {
+$tests['utf16 nocase like rtrim escape current source nextOneEightTwo clean same bytes can continue'] = static function (TestRunner $t) use ($row182, $enc182): void {
     $rows = [
         $row182(1, 'plugin_%_cache', 2),
         $row182(3, 'plugin_%_cache_alpha', 2),
@@ -150,7 +150,7 @@ $tests['utf16 nocase like rtrim escape current source next182 clean same bytes c
     $t->same([3], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim escape current source next182 changed escape text restarts with escaped wildcard semantics'] = static function (TestRunner $t) use ($plan182): void {
+$tests['utf16 nocase like rtrim escape current source nextOneEightTwo changed escape text restarts with escaped wildcard semantics'] = static function (TestRunner $t) use ($plan182): void {
     $result = $plan182(nextEscape: '#');
     $t->same('#', $result['nextEscape']);
     $t->same(['pattern-encoding-changed', 'pattern-bytes-changed', 'escape-text-changed', 'escape-encoding-changed', 'escape-bytes-changed'], $result['operandInvalidationReasons']);
@@ -158,7 +158,7 @@ $tests['utf16 nocase like rtrim escape current source next182 changed escape tex
     $t->same(true, $result['mustReprepareBeforeReplay']);
 };
 
-$tests['utf16 nocase like rtrim escape current source next182 two character escape blocks stale replay'] = static function (TestRunner $t) use ($plan182): void {
+$tests['utf16 nocase like rtrim escape current source nextOneEightTwo two character escape blocks stale replay'] = static function (TestRunner $t) use ($plan182): void {
     $result = $plan182(nextEscape: '!!');
     $t->same('!!', $result['nextEscape']);
     $t->same(2, $result['nextEscapeWidth']);
@@ -167,17 +167,17 @@ $tests['utf16 nocase like rtrim escape current source next182 two character esca
     $t->same('reprepare-from-decoded-escape-start', $result['replayPlanMode']);
 };
 
-$tests['utf16 nocase like rtrim escape current source next182 nul escape remains single character'] = static function (TestRunner $t) use ($plan182): void {
+$tests['utf16 nocase like rtrim escape current source nextOneEightTwo nul escape remains single character'] = static function (TestRunner $t) use ($plan182): void {
     $result = $plan182(currentPattern: "plugin\0_\0%\0_cache%", nextPattern: "plugin\0_\0%\0_cache%", currentEscape: "\0", nextEscape: "\0");
     $t->same("\0", $result['nextEscape']);
     $t->same(1, $result['nextEscapeWidth']);
     $t->same([], array_values(array_filter($result['operandInvalidationReasons'], static fn (string $reason): bool => str_contains($reason, 'not-single'))));
 };
 
-$tests['utf16 nocase like rtrim escape current source next182 malformed escape bytes are isolated'] = static function (TestRunner $t) use ($current182, $next182, $enc182, $token182): void {
+$tests['utf16 nocase like rtrim escape current source nextOneEightTwo malformed escape bytes are isolated'] = static function (TestRunner $t) use ($current182, $nextOneEightTwo, $enc182, $token182): void {
     $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
         $current182,
-        $next182,
+        $nextOneEightTwo,
         $enc182('plugin!_!%!_cache%', 2),
         2,
         $enc182('plugin!_!%!_cache%', 2),
@@ -198,10 +198,10 @@ $tests['utf16 nocase like rtrim escape current source next182 malformed escape b
     $t->same(true, $result['mustReprepareBeforeReplay']);
 };
 
-$tests['utf16 nocase like rtrim escape current source next182 rejects unsupported encoding'] = static function (TestRunner $t) use ($current182, $next182, $enc182, $token182): void {
+$tests['utf16 nocase like rtrim escape current source nextOneEightTwo rejects unsupported encoding'] = static function (TestRunner $t) use ($current182, $nextOneEightTwo, $enc182, $token182): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
         $current182,
-        $next182,
+        $nextOneEightTwo,
         $enc182('plugin!_!%!_cache%', 2),
         2,
         $enc182('plugin!_!%!_cache%', 2),

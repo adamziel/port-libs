@@ -45,10 +45,10 @@ final class SQLiteVfsFileControlPersistencePlan
      * @param array<string, mixed> $options
      * @return array{status:string,count:int,current:array<string, mixed>,next:array<string, mixed>,events:list<array<string, mixed>>,persistent:array<string, mixed>,dependencies:list<string>}
      */
-    public static function currentNext80(array $operations, array $options = []): array
+    public static function persistentFileControlSequence(array $operations, array $options = []): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS file-control persistence current/next80 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS file-control persistence persistent file-control sequence requires operations');
         }
 
         $plan = new self(
@@ -71,7 +71,7 @@ final class SQLiteVfsFileControlPersistencePlan
     public function run(array $operations): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS file-control persistence current/next80 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS file-control persistence persistent file-control sequence requires operations');
         }
 
         $events = [];
@@ -151,8 +151,8 @@ final class SQLiteVfsFileControlPersistencePlan
     private function applyFileControl(array $normalized): array
     {
         $sequence = is_string($normalized['source'])
-            ? $this->state->currentNext69([$normalized['source']])
-            : $this->state->currentNext69([['op' => $normalized['op'], 'value' => $normalized['value']]]);
+            ? $this->state->sqlFileControlSequence([$normalized['source']])
+            : $this->state->sqlFileControlSequence([['op' => $normalized['op'], 'value' => $normalized['value']]]);
         $result = $sequence['pairs'][0]['result'];
         $persistentBefore = $this->persistent;
         $persistentChanged = false;
@@ -265,7 +265,7 @@ final class SQLiteVfsFileControlPersistencePlan
      */
     private function dependencies(array $dependencies): array
     {
-        return array_values(array_unique(array_merge($dependencies, ['vfs-filecontrol-persistence-current-next80'])));
+        return array_values(array_unique(array_merge($dependencies, ['vfs-filecontrol-persistence-sequence'])));
     }
 
     private static function stringOption(array $options, string $key, string $default): string

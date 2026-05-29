@@ -20,7 +20,7 @@ $current238 = [
     ['option_id' => 10, 'option_name' => 'retry_timeout_case', 'option_value' => 'CACHE100.0'],
 ];
 
-$next238 = [
+$nextTwoThreeEight = [
     ['option_id' => 1, 'option_name' => 'retry_timeout_real', 'option_value' => 100.0],
     ['option_id' => 2, 'option_name' => 'retry_timeout_integer_promoted', 'option_value' => 100.0],
     ['option_id' => 3, 'option_name' => 'retry_timeout_text_changed', 'option_value' => '100'],
@@ -46,7 +46,7 @@ $plan238 = static fn (
     int $nextCookie = 238,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan(
     $current ?? $current238,
-    $next ?? $next238,
+    $next ?? $nextTwoThreeEight,
     $pattern,
     $escape,
     $caseSensitive,
@@ -68,7 +68,7 @@ $valueAt238 = static function (array $value, string $path): mixed {
 };
 
 $cases238 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next238'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoThreeEight'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'CAST(option_value AS TEXT) COLLATE BINARY LIKE ? /* REAL text-affinity decimal/exponent preservation */'],
     'pattern' => ['pattern', '100.%'],
@@ -133,23 +133,23 @@ $cases238 = [
     'dependency real affinity' => ['dependencies.0', 'sqlite-real-text-affinity'],
     'dependency range' => ['dependencies.1', 'sqlite-like-prefix-range'],
     'dependency residual' => ['dependencies.2', 'sqlite-like-residual'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next238'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoThreeEight'],
 ];
 
 foreach ($cases238 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next238 ' . $name] = static function (TestRunner $t) use ($plan238, $valueAt238, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoThreeEight ' . $name] = static function (TestRunner $t) use ($plan238, $valueAt238, $path, $expected): void {
         $t->same($expected, $valueAt238($plan238(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next238 stable cursor is reusable'] = static function (TestRunner $t) use ($current238, $plan238): void {
+$tests['encoding collation affinity like current source nextTwoThreeEight stable cursor is reusable'] = static function (TestRunner $t) use ($current238, $plan238): void {
     $stable = $plan238(current: $current238, next: $current238, currentSource: 'stable', nextSource: 'stable', currentCookie: 238, nextCookie: 238);
     $t->same(false, $stable['cursorInvalidated']);
     $t->same(true, $stable['cursorReusable']);
     $t->same([], $stable['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next238 escaped decimal prefix matches real text'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeEight escaped decimal prefix matches real text'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value' => 100.0],
         ['option_id' => 2, 'option_value' => 100],
@@ -160,21 +160,21 @@ $tests['encoding collation affinity like current source next238 escaped decimal 
     $t->same('100.', $plan['prefix']);
 };
 
-$tests['encoding collation affinity like current source next238 nocase folds only text after affinity'] = static function (TestRunner $t) use ($plan238): void {
+$tests['encoding collation affinity like current source nextTwoThreeEight nocase folds only text after affinity'] = static function (TestRunner $t) use ($plan238): void {
     $nocase = $plan238(pattern: 'cache%', caseSensitive: false);
     $t->same('NOCASE', $nocase['collation']);
     $t->same([10], $nocase['currentMatchedRowids']);
     $t->same([10], $nocase['nextMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next238 exponent pattern matches padded exponent'] = static function (TestRunner $t) use ($current238, $next238): void {
-    $exp = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan($current238, $next238, '1.0e-__', null, true);
+$tests['encoding collation affinity like current source nextTwoThreeEight exponent pattern matches padded exponent'] = static function (TestRunner $t) use ($current238, $nextTwoThreeEight): void {
+    $exp = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan($current238, $nextTwoThreeEight, '1.0e-__', null, true);
     $t->same([6], $exp['currentMatchedRowids']);
     $t->same([6], $exp['nextMatchedRowids']);
     $t->same('1.0e-', $exp['prefix']);
 };
 
-$tests['encoding collation affinity like current source next238 null and blob stay outside like rowset'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeEight null and blob stay outside like rowset'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value' => new SQLiteBlobValue('100.0')],
         ['option_id' => 2, 'option_value' => null],
@@ -185,16 +185,16 @@ $tests['encoding collation affinity like current source next238 null and blob st
     $t->same([1, 2], $plan['currentUnknownRowids']);
 };
 
-$tests['encoding collation affinity like current source next238 rejects multi character escape'] = static function (TestRunner $t) use ($current238, $next238): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan($current238, $next238, '100!.%', '!!'));
+$tests['encoding collation affinity like current source nextTwoThreeEight rejects multi character escape'] = static function (TestRunner $t) use ($current238, $nextTwoThreeEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan($current238, $nextTwoThreeEight, '100!.%', '!!'));
 };
 
-$tests['encoding collation affinity like current source next238 rejects missing option value'] = static function (TestRunner $t) use ($next238): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan([['option_id' => 1]], $next238));
+$tests['encoding collation affinity like current source nextTwoThreeEight rejects missing option value'] = static function (TestRunner $t) use ($nextTwoThreeEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan([['option_id' => 1]], $nextTwoThreeEight));
 };
 
-$tests['encoding collation affinity like current source next238 rejects non scalar value'] = static function (TestRunner $t) use ($next238): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan([['option_id' => 1, 'option_value' => ['100.0']]], $next238));
+$tests['encoding collation affinity like current source nextTwoThreeEight rejects non scalar value'] = static function (TestRunner $t) use ($nextTwoThreeEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan([['option_id' => 1, 'option_value' => ['100.0']]], $nextTwoThreeEight));
 };
 
 return $tests;

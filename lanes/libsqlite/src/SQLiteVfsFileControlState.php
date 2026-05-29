@@ -164,14 +164,14 @@ final class SQLiteVfsFileControlState
      * @param array<string|int, mixed> $controls
      * @return array{status:string,count:int,pairs:list<array{ordinal:int,op:string,current:array<string, mixed>,next:array<string, mixed>,result:array<string, mixed>}>,controls:array<string, mixed>,dependencies:list<string>}
      */
-    public function currentNext64(array $controls): array
+    public function fileControlSnapshotSequence(array $controls): array
     {
         $pairs = [];
         $ordinal = 0;
         foreach ($controls as $op => $argument) {
             if (is_int($op)) {
                 if (!is_array($argument) || !array_key_exists('op', $argument)) {
-                    throw new \InvalidArgumentException('SQLite VFS current/next64 item requires an op');
+                    throw new \InvalidArgumentException('SQLite VFS file-control snapshot sequence item requires an op');
                 }
                 $op = (string) $argument['op'];
                 $argument = $argument['value'] ?? null;
@@ -195,7 +195,7 @@ final class SQLiteVfsFileControlState
             'count' => count($pairs),
             'pairs' => $pairs,
             'controls' => $this->controls,
-            'dependencies' => array_values(array_unique(array_merge($this->dependencies(), ['vfs-file-control-current-next64']))),
+            'dependencies' => array_values(array_unique(array_merge($this->dependencies(), ['vfs-file-control-snapshot-sequence']))),
         ];
     }
 
@@ -203,14 +203,14 @@ final class SQLiteVfsFileControlState
      * @param array<string|int, mixed> $controls
      * @return array{status:string,count:int,pairs:list<array{ordinal:int,op:string,current:array<string, mixed>,next:array<string, mixed>,result:array<string, mixed>}>,controls:array<string, mixed>,dependencies:list<string>}
      */
-    public function currentNext68(array $controls): array
+    public function transactionFileControlSequence(array $controls): array
     {
         $pairs = [];
         $ordinal = 0;
         foreach ($controls as $op => $argument) {
             if (is_int($op)) {
                 if (!is_array($argument) || !array_key_exists('op', $argument)) {
-                    throw new \InvalidArgumentException('SQLite VFS current/next68 item requires an op');
+                    throw new \InvalidArgumentException('SQLite VFS transaction file-control sequence item requires an op');
                 }
                 $op = (string) $argument['op'];
                 $argument = $argument['value'] ?? null;
@@ -234,7 +234,7 @@ final class SQLiteVfsFileControlState
             'count' => count($pairs),
             'pairs' => $pairs,
             'controls' => $this->controls,
-            'dependencies' => array_values(array_unique(array_merge($this->dependencies(), ['vfs-file-control-current-next68']))),
+            'dependencies' => array_values(array_unique(array_merge($this->dependencies(), ['vfs-transaction-file-control-sequence']))),
         ];
     }
 
@@ -242,7 +242,7 @@ final class SQLiteVfsFileControlState
      * @param array<string|int, mixed> $controls
      * @return array{status:string,count:int,applied:int,ignored:int,notfound:int,changed:int,pairs:list<array{ordinal:int,source:mixed,op:string,current:array<string, mixed>,next:array<string, mixed>,result:array<string, mixed>}>,controls:array<string, mixed>,dependencies:list<string>}
      */
-    public function currentNext69(array $controls): array
+    public function sqlFileControlSequence(array $controls): array
     {
         $pairs = [];
         $applied = 0;
@@ -253,7 +253,7 @@ final class SQLiteVfsFileControlState
 
         foreach ($controls as $op => $argument) {
             $source = is_int($op) ? $argument : [$op => $argument];
-            [$normalizedOp, $value] = $this->normalizeCurrentNext69Control($op, $argument);
+            [$normalizedOp, $value] = $this->normalizeSqlFileControl($op, $argument);
             $current = $this->snapshot69();
             $result = $this->apply($normalizedOp, $value);
             $status = (string) $result['status'];
@@ -288,7 +288,7 @@ final class SQLiteVfsFileControlState
             'changed' => $changed,
             'pairs' => $pairs,
             'controls' => $this->controls,
-            'dependencies' => array_values(array_unique(array_merge($this->dependencies(), ['vfs-file-control-current-next69']))),
+            'dependencies' => array_values(array_unique(array_merge($this->dependencies(), ['vfs-sql-file-control-sequence']))),
         ];
     }
 
@@ -342,14 +342,14 @@ final class SQLiteVfsFileControlState
     /**
      * @return array{0:string,1:mixed}
      */
-    private function normalizeCurrentNext69Control(string|int $op, mixed $argument): array
+    private function normalizeSqlFileControl(string|int $op, mixed $argument): array
     {
         if (is_int($op)) {
             if (is_string($argument)) {
-                return self::parseCurrentNext69Sql($argument);
+                return self::parseSqlFileControl($argument);
             }
             if (!is_array($argument) || !array_key_exists('op', $argument)) {
-                throw new \InvalidArgumentException('SQLite VFS current/next69 item requires an op or SQL text');
+                throw new \InvalidArgumentException('SQLite VFS SQL file-control sequence item requires an op or SQL text');
             }
 
             return [(string) $argument['op'], $argument['value'] ?? null];
@@ -361,17 +361,17 @@ final class SQLiteVfsFileControlState
     /**
      * @return array{0:string,1:mixed}
      */
-    private static function parseCurrentNext69Sql(string $sql): array
+    private static function parseSqlFileControl(string $sql): array
     {
         $trimmed = trim(rtrim($sql, ';'));
         if ($trimmed === '') {
-            throw new \InvalidArgumentException('SQLite VFS current/next69 SQL control is empty');
+            throw new \InvalidArgumentException('SQLite VFS SQL file-control sequence SQL control is empty');
         }
 
         if (preg_match('/^pragma\s+(?:(?:main|temp)\s*\.\s*)?(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*(?:=\s*(?<equals>.+)|\(\s*(?<paren>[^)]*)\s*\))?$/i', $trimmed, $matches)) {
             $name = strtolower($matches['name']);
             $raw = ($matches['equals'] ?? '') !== '' ? $matches['equals'] : (($matches['paren'] ?? '') !== '' ? $matches['paren'] : null);
-            $value = self::parseCurrentNext69Value($raw);
+            $value = self::parseSqlFileControlValue($raw);
 
             return match ($name) {
                 'mmap_size' => ['mmap_size', $value],
@@ -386,13 +386,13 @@ final class SQLiteVfsFileControlState
         }
 
         if (preg_match('/^file_control\s*\(\s*(?<op>[A-Za-z_][A-Za-z0-9_-]*)\s*(?:,\s*(?<value>.*))?\)$/i', $trimmed, $matches)) {
-            return [(string) $matches['op'], self::parseCurrentNext69Value($matches['value'] ?? null)];
+            return [(string) $matches['op'], self::parseSqlFileControlValue($matches['value'] ?? null)];
         }
 
-        throw new \InvalidArgumentException('SQLite VFS current/next69 SQL control is unsupported');
+        throw new \InvalidArgumentException('SQLite VFS SQL file-control sequence SQL control is unsupported');
     }
 
-    private static function parseCurrentNext69Value(mixed $value): mixed
+    private static function parseSqlFileControlValue(mixed $value): mixed
     {
         if ($value === null) {
             return null;

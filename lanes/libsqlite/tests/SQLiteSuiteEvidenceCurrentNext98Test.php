@@ -65,7 +65,7 @@ function libsqlite_suite_evidence98_rows(int $case = 1, string $head = 'c196709c
  */
 function libsqlite_suite_evidence98_record(array $rows, string $output = null, ?int $expected = 12, string $snapshot = ''): array
 {
-    return libsqlite_suite_evidence98()->suiteEvidenceSliceCurrentNext98(
+    return libsqlite_suite_evidence98()->suiteEvidenceSlice(
         $rows,
         484,
         29234,

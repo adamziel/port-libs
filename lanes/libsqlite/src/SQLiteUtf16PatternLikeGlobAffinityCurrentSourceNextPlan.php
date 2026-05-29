@@ -60,7 +60,7 @@ final class SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan
         $plan['dependencies'] = [
             'sqlite-utf16-pattern-decode',
             'sqlite-like-glob-affinity',
-            'sqlite-current-source-next114',
+            'sqlite-current-source-nextoneOneFour',
         ];
 
         return $plan;

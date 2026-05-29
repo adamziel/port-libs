@@ -83,7 +83,7 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next162'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSixTwo'],
     'operator' => ['operator', 'LIKE'],
     'index collation' => ['indexCollation', 'RTRIM'],
     'residual collation' => ['residualCollation', 'NOCASE'],
@@ -131,16 +131,16 @@ $cases = [
     'base reason bytes' => ['baseInvalidationReasons.1', 'pattern-bytes'],
     'base reason escape bytes' => ['baseInvalidationReasons.2', 'escape-bytes'],
     'dependency normalization' => ['dependencies.0', 'sqlite-utf16-pattern-normalization'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next162'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneSixTwo'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next162 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSixTwo ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next162 source change remains semantic'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixTwo source change remains semantic'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(null, null, currentSource: 'main.wp_options@161', nextSource: 'main.wp_options@162');
     $t->same(['pattern-encoding', 'pattern-bytes', 'escape-bytes'], $result['byteReprepareReasons']);
     $t->same(['source-name'], $result['semanticInvalidationReasons']);
@@ -148,13 +148,13 @@ $tests['utf16 nocase like rtrim current source next162 source change remains sem
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next162 schema cookie change remains semantic'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixTwo schema cookie change remains semantic'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(null, null, currentSchemaCookie: 161, nextSchemaCookie: 162);
     $t->same(['schema-cookie'], $result['semanticInvalidationReasons']);
     $t->same(true, $result['cursorInvalidated']);
 };
 
-$tests['utf16 nocase like rtrim current source next162 decoded pattern text change remains semantic'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixTwo decoded pattern text change remains semantic'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(nextPattern: 'plugin\\_cache');
     $t->same(false, $result['sameDecodedPattern']);
     $t->same(['pattern-encoding', 'pattern-bytes', 'escape-bytes'], $result['byteReprepareReasons']);
@@ -162,7 +162,7 @@ $tests['utf16 nocase like rtrim current source next162 decoded pattern text chan
     $t->same([1], $result['nextMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next162 decoded escape text change remains semantic'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixTwo decoded escape text change remains semantic'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(currentPattern: 'plugin!_cache%', currentEscape: '!', nextPattern: 'plugin\\_cache%', nextEscape: '\\');
     $t->same(false, $result['sameDecodedEscape']);
     $t->same(['pattern-encoding', 'pattern-bytes', 'escape-bytes'], $result['byteReprepareReasons']);
@@ -170,7 +170,7 @@ $tests['utf16 nocase like rtrim current source next162 decoded escape text chang
     $t->same(true, $result['cursorInvalidated']);
 };
 
-$tests['utf16 nocase like rtrim current source next162 rowset changes remain semantic'] = static function (TestRunner $t) use ($plan, $stableRows, $changedRows): void {
+$tests['utf16 nocase like rtrim current source nextOneSixTwo rowset changes remain semantic'] = static function (TestRunner $t) use ($plan, $stableRows, $changedRows): void {
     $result = $plan($stableRows, $changedRows);
     $t->same(['pattern-encoding', 'pattern-bytes', 'escape-bytes'], $result['byteReprepareReasons']);
     $t->same(['candidate-rowset', 'matched-rowset', 'malformed-text'], $result['semanticInvalidationReasons']);
@@ -179,7 +179,7 @@ $tests['utf16 nocase like rtrim current source next162 rowset changes remain sem
     $t->same([9], $result['nextMalformedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next162 ascii nocase does not fold unicode'] = static function (TestRunner $t) use ($plan, $row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixTwo ascii nocase does not fold unicode'] = static function (TestRunner $t) use ($plan, $row): void {
     $rows = [
         $row(1, 'plugin_Éclair', 'UTF-16LE'),
         $row(2, 'plugin_éclair', 'UTF-16BE'),
@@ -191,7 +191,7 @@ $tests['utf16 nocase like rtrim current source next162 ascii nocase does not fol
     $t->same([], $result['currentFalsePositiveRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next162 no escape keeps wildcard underscore'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixTwo no escape keeps wildcard underscore'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(currentPattern: 'plugin_cache%', nextPattern: 'plugin_cache%', currentEscape: null, nextEscape: null);
     $t->same(null, $result['currentEscape']);
     $t->same(null, $result['nextEscape']);
@@ -199,7 +199,7 @@ $tests['utf16 nocase like rtrim current source next162 no escape keeps wildcard 
     $t->same([1, 4, 2, 3], $result['currentMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next162 malformed pattern bytes throw before planning'] = static function (TestRunner $t) use ($stableRows): void {
+$tests['utf16 nocase like rtrim current source nextOneSixTwo malformed pattern bytes throw before planning'] = static function (TestRunner $t) use ($stableRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNormalizedPatternPlan(
         $stableRows,
         $stableRows,
@@ -210,7 +210,7 @@ $tests['utf16 nocase like rtrim current source next162 malformed pattern bytes t
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next162 multi-character escape bytes throw before planning'] = static function (TestRunner $t) use ($stableRows, $enc): void {
+$tests['utf16 nocase like rtrim current source nextOneSixTwo multi-character escape bytes throw before planning'] = static function (TestRunner $t) use ($stableRows, $enc): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNormalizedPatternPlan(
         $stableRows,
         $stableRows,

@@ -143,16 +143,16 @@ $cases = [
     'dependency decode' => ['plugin_cache', 'dependencies.0', 'sqlite-utf16-decode'],
     'dependency rtrim range' => ['plugin_cache', 'dependencies.1', 'sqlite-rtrim-glob-prefix-range'],
     'dependency residual' => ['plugin_cache', 'dependencies.2', 'sqlite-glob-residual-scan'],
-    'dependency marker' => ['plugin_cache', 'dependencies.3', 'sqlite-current-source-next125'],
+    'dependency marker' => ['plugin_cache', 'dependencies.3', 'sqlite-current-source-nextoneTwoFive'],
 ];
 
 foreach ($cases as $name => [$pattern, $path, $expected]) {
-    $tests['utf16 rtrim glob current source next125 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $pattern, $path, $expected): void {
+    $tests['utf16 rtrim glob current source nextOneTwoFive ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $pattern, $path, $expected): void {
         $t->same($expected, $valueAt($plan($pattern), $path));
     };
 }
 
-$tests['utf16 rtrim glob current source next125 stable exact still rejects rtrim peers without invalidation'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 rtrim glob current source nextOneTwoFive stable exact still rejects rtrim peers without invalidation'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 'UTF-16LE'), $row(2, 'plugin_cache ', 'UTF-16BE')];
     $plan = SQLiteUtf16RtrimGlobCurrentSourceNextPlan::wordpressOptionNamePlan($rows, $rows, 'plugin_cache', 'stable', 'stable');
     $t->same([1, 2], $plan['currentCandidateRowids']);
@@ -162,7 +162,7 @@ $tests['utf16 rtrim glob current source next125 stable exact still rejects rtrim
     $t->same(true, $plan['cursorReusable']);
 };
 
-$tests['utf16 rtrim glob current source next125 stable leading class has no prefix invalidation'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 rtrim glob current source nextOneTwoFive stable leading class has no prefix invalidation'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 'UTF-16LE'), $row(2, 'Plugin_Cache', 'UTF-8')];
     $plan = SQLiteUtf16RtrimGlobCurrentSourceNextPlan::wordpressOptionNamePlan($rows, $rows, '[Pp]lugin_*', 'stable', 'stable');
     $t->same(null, $plan['range']);
@@ -170,15 +170,15 @@ $tests['utf16 rtrim glob current source next125 stable leading class has no pref
     $t->same(['no-prefix-range'], $plan['invalidationReasons']);
 };
 
-$tests['utf16 rtrim glob current source next125 rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 rtrim glob current source nextOneTwoFive rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::wordpressOptionNamePlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p*'));
 };
 
-$tests['utf16 rtrim glob current source next125 rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 rtrim glob current source nextOneTwoFive rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p*'));
 };
 
-$tests['utf16 rtrim glob current source next125 rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 rtrim glob current source nextOneTwoFive rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, 'p*'));
 };
 

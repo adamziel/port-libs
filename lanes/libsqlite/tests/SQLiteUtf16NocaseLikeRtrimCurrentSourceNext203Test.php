@@ -33,7 +33,7 @@ $current203 = [
     $row203(7, 'café cache', 'UTF-16BE'),
     $bad203(8, "\x00\xd8", 2),
 ];
-$next203 = [
+$nextTwoZeroThree = [
     $row203(1, 'PLUGIN CACHE ', 'UTF-16BE'),
     $row203(2, 'plugin-cache', 'UTF-16LE'),
     $row203(3, 'theme cache', 'UTF-8'),
@@ -56,7 +56,7 @@ $plan203 = static fn (
     int $nextCookie = 203,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan(
     $current ?? $current203,
-    $next ?? $next203,
+    $next ?? $nextTwoZeroThree,
     $pattern,
     $escape,
     $currentSource,
@@ -77,7 +77,7 @@ $valueAt203 = static function (array $value, string $path): mixed {
 };
 
 $cases203 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next203'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroThree'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? /* no fixed prefix */'],
     'pattern' => ['pattern', '%cache'],
@@ -135,16 +135,16 @@ $cases203 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency full scan' => ['dependencies.1', 'sqlite-like-no-fixed-prefix-full-scan'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-residual-match'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next203'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoZeroThree'],
 ];
 
 foreach ($cases203 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next203 ' . $name] = static function (TestRunner $t) use ($plan203, $valueAt203, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoZeroThree ' . $name] = static function (TestRunner $t) use ($plan203, $valueAt203, $path, $expected): void {
         $t->same($expected, $valueAt203($plan203(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next203 invalidation reasons include no fixed prefix'] = static function (TestRunner $t) use ($plan203): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroThree invalidation reasons include no fixed prefix'] = static function (TestRunner $t) use ($plan203): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -158,7 +158,7 @@ $tests['utf16 nocase like rtrim current source next203 invalidation reasons incl
     ], $plan203()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next203 stable source still cannot reuse prefix cursor'] = static function (TestRunner $t) use ($row203): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroThree stable source still cannot reuse prefix cursor'] = static function (TestRunner $t) use ($row203): void {
     $rows = [
         $row203(1, 'plugin cache', 'UTF-16LE'),
         $row203(2, 'theme cache  ', 'UTF-16BE'),
@@ -182,7 +182,7 @@ $tests['utf16 nocase like rtrim current source next203 stable source still canno
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next203 escaped leading percent is rejected as ranged slice'] = static function (TestRunner $t) use ($row203): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroThree escaped leading percent is rejected as ranged slice'] = static function (TestRunner $t) use ($row203): void {
     $rows = [
         $row203(1, '%cache', 'UTF-16LE'),
         $row203(2, 'plugin%cache', 'UTF-16BE'),
@@ -196,7 +196,7 @@ $tests['utf16 nocase like rtrim current source next203 escaped leading percent i
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next203 accepts underscore wildcard with empty prefix'] = static function (TestRunner $t) use ($row203): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroThree accepts underscore wildcard with empty prefix'] = static function (TestRunner $t) use ($row203): void {
     $rows = [
         $row203(1, 'xcache', 'UTF-16LE'),
         $row203(2, 'cache', 'UTF-16BE'),
@@ -219,22 +219,22 @@ $tests['utf16 nocase like rtrim current source next203 accepts underscore wildca
     $t->same([2, 3], $result['currentFullScanRejectedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next203 rejects missing option id'] = static function (TestRunner $t) use ($next203): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroThree rejects missing option id'] = static function (TestRunner $t) use ($nextTwoZeroThree): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan([
         ['option_name_bytes' => 'cache', 'text_encoding' => 1],
-    ], $next203));
+    ], $nextTwoZeroThree));
 };
 
-$tests['utf16 nocase like rtrim current source next203 rejects missing bytes'] = static function (TestRunner $t) use ($next203): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroThree rejects missing bytes'] = static function (TestRunner $t) use ($nextTwoZeroThree): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan([
         ['option_id' => 1, 'text_encoding' => 1],
-    ], $next203));
+    ], $nextTwoZeroThree));
 };
 
-$tests['utf16 nocase like rtrim current source next203 rejects missing encoding'] = static function (TestRunner $t) use ($next203): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroThree rejects missing encoding'] = static function (TestRunner $t) use ($nextTwoZeroThree): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan([
         ['option_id' => 1, 'option_name_bytes' => 'cache'],
-    ], $next203));
+    ], $nextTwoZeroThree));
 };
 
 return $tests;

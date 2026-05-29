@@ -33,7 +33,7 @@ $current194 = [
     $row194(7, 'theme%cache', 'UTF-16BE'),
     $bad194(8, "\x00\xd8", 2),
 ];
-$next194 = [
+$nextOneNineFour = [
     $row194(1, 'PLUGIN%CACHE ', 'UTF-16BE'),
     $row194(2, 'Plugin%Cache', 'UTF-16LE'),
     $row194(3, 'plugin%cache_extra', 'UTF-8'),
@@ -55,7 +55,7 @@ $plan194 = static fn (
     int $nextCookie = 194,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan(
     $current ?? $current194,
-    $next ?? $next194,
+    $next ?? $nextOneNineFour,
     $pattern,
     $escape,
     $currentSource,
@@ -76,13 +76,13 @@ $valueAt194 = static function (array $value, string $path): mixed {
 };
 
 $cases194 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next194'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneNineFour'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* escaped wildcard literal prefix */'],
     'pattern' => ['pattern', 'plugin!%%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next183'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightThree'],
     'current source' => ['currentSource', 'main.wp_options@193'],
     'next source' => ['nextSource', 'main.wp_options@194'],
     'current cookie' => ['currentSchemaCookie', 193],
@@ -129,16 +129,16 @@ $cases194 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency prefix range' => ['dependencies.1', 'sqlite-like-escaped-wildcard-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next194'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nextoneNineFour'],
 ];
 
 foreach ($cases194 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next194 ' . $name] = static function (TestRunner $t) use ($plan194, $valueAt194, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneNineFour ' . $name] = static function (TestRunner $t) use ($plan194, $valueAt194, $path, $expected): void {
         $t->same($expected, $valueAt194($plan194(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next194 invalidation reasons include literal prefix residual'] = static function (TestRunner $t) use ($plan194): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFour invalidation reasons include literal prefix residual'] = static function (TestRunner $t) use ($plan194): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -152,7 +152,7 @@ $tests['utf16 nocase like rtrim current source next194 invalidation reasons incl
     ], $plan194()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next194 stable source can reuse literal percent cursor'] = static function (TestRunner $t) use ($row194): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFour stable source can reuse literal percent cursor'] = static function (TestRunner $t) use ($row194): void {
     $rows = [
         $row194(1, 'plugin%cache', 'UTF-16LE'),
         $row194(2, 'Plugin%Cache  ', 'UTF-16BE'),
@@ -176,7 +176,7 @@ $tests['utf16 nocase like rtrim current source next194 stable source can reuse l
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next194 escaped underscore becomes literal prefix'] = static function (TestRunner $t) use ($row194): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFour escaped underscore becomes literal prefix'] = static function (TestRunner $t) use ($row194): void {
     $rows = [
         $row194(1, 'plugin_cache', 'UTF-16LE'),
         $row194(2, 'PLUGIN_CACHE_A', 'UTF-16BE'),
@@ -201,7 +201,7 @@ $tests['utf16 nocase like rtrim current source next194 escaped underscore become
     $t->same([3], $result['currentExcludedDecodedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next194 unescaped percent keeps shorter prefix'] = static function (TestRunner $t) use ($row194): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFour unescaped percent keeps shorter prefix'] = static function (TestRunner $t) use ($row194): void {
     $rows = [
         $row194(1, 'plugin%cache', 'UTF-16LE'),
         $row194(2, 'plugin_cache', 'UTF-16BE'),
@@ -224,7 +224,7 @@ $tests['utf16 nocase like rtrim current source next194 unescaped percent keeps s
     $t->same([], $result['currentLiteralPrefixFalsePositiveRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next194 escaped literal exact match rejects suffix'] = static function (TestRunner $t) use ($row194): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFour escaped literal exact match rejects suffix'] = static function (TestRunner $t) use ($row194): void {
     $rows = [
         $row194(1, 'plugin%cache', 'UTF-16LE'),
         $row194(2, 'plugin%cache_extra', 'UTF-16BE'),
@@ -248,14 +248,14 @@ $tests['utf16 nocase like rtrim current source next194 escaped literal exact mat
     $t->same(['%',], $result['escapedWildcardLiteralsInPrefix']);
 };
 
-$tests['utf16 nocase like rtrim current source next194 rejects invalid escape length via base planner'] = static function (TestRunner $t) use ($current194, $next194): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan($current194, $next194, 'plugin!!%', '!!'));
+$tests['utf16 nocase like rtrim current source nextOneNineFour rejects invalid escape length via base planner'] = static function (TestRunner $t) use ($current194, $nextOneNineFour): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan($current194, $nextOneNineFour, 'plugin!!%', '!!'));
 };
 
-$tests['utf16 nocase like rtrim current source next194 rejects missing option id'] = static function (TestRunner $t) use ($next194): void {
+$tests['utf16 nocase like rtrim current source nextOneNineFour rejects missing option id'] = static function (TestRunner $t) use ($nextOneNineFour): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan([
         ['option_name_bytes' => 'plugin%cache', 'text_encoding' => 1],
-    ], $next194));
+    ], $nextOneNineFour));
 };
 
 return $tests;

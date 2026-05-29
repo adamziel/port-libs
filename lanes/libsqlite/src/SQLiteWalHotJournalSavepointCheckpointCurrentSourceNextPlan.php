@@ -3048,7 +3048,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $pageSize, $innerSavepoint, $outerSavepoint, $hotJournalPages, $savepointBeforePages, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $readerCachePages, $checkpointPages, $releasedSavepointPages, $databaseWriteReceipts, $walSyncReceipt, $mode, $readerEndFrame, $currentSourceEpoch);
     }
 
-    public static function next173Plan(
+    public static function publishDurableHotJournalSavepointCheckpointPlan(
         array $prepared,
         string $databaseBytes,
         string $journalBytes,
@@ -3076,7 +3076,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 ): array {
                     self::assertPrepared($prepared);
                     if ($journalBytes === '' || $walBytes === '') {
-                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next173 requires journal and WAL bytes');
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source publish requires journal and WAL bytes');
                     }
 
                     $paths = [
@@ -3121,56 +3121,56 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             'path' => $paths['database'],
                             'bytes' => $checkpointDatabaseBytes,
                             'durable' => false,
-                            'reason' => 'publish_hot_journal_savepoint_checkpoint_database_current_source_next173',
+                            'reason' => 'publish_hot_journal_savepoint_checkpoint_database_current_source_publish',
                         ],
                         [
                             'op' => 'truncate',
                             'path' => $paths['database'],
                             'bytes' => $checkpointDatabaseBytes,
                             'durable' => false,
-                            'reason' => 'trim_checkpoint_database_current_source_next173',
+                            'reason' => 'trim_checkpoint_database_current_source_publish',
                         ],
                         [
                             'op' => 'sync',
                             'path' => $paths['database'],
                             'bytes' => 0,
                             'durable' => true,
-                            'reason' => 'sync_checkpoint_database_current_source_next173',
+                            'reason' => 'sync_checkpoint_database_current_source_publish',
                         ],
                         [
                             'op' => 'delete',
                             'path' => $paths['journal'],
                             'bytes' => 0,
                             'durable' => false,
-                            'reason' => 'delete_hot_journal_after_current_source_match_next173',
+                            'reason' => 'delete_hot_journal_after_current_source_match_publish',
                         ],
                         [
                             'op' => 'write',
                             'path' => $paths['wal'],
                             'bytes' => $checkpointWalBytes,
                             'durable' => false,
-                            'reason' => 'publish_next_wal_after_checkpoint_current_source_next173',
+                            'reason' => 'publish_next_wal_after_checkpoint_current_source_publish',
                         ],
                         [
                             'op' => 'truncate',
                             'path' => $paths['wal'],
                             'bytes' => $checkpointWalBytes,
                             'durable' => false,
-                            'reason' => 'trim_next_wal_after_checkpoint_current_source_next173',
+                            'reason' => 'trim_next_wal_after_checkpoint_current_source_publish',
                         ],
                         [
                             'op' => 'sync',
                             'path' => $paths['wal'],
                             'bytes' => 0,
                             'durable' => true,
-                            'reason' => 'sync_next_wal_after_checkpoint_current_source_next173',
+                            'reason' => 'sync_next_wal_after_checkpoint_current_source_publish',
                         ],
                         [
                             'op' => 'sync_directory',
                             'path' => dirname($paths['database']),
                             'bytes' => 0,
                             'durable' => true,
-                            'reason' => 'persist_hot_journal_savepoint_checkpoint_current_source_next173',
+                            'reason' => 'persist_hot_journal_savepoint_checkpoint_current_source_publish',
                         ],
                     ] : [];
 
@@ -3187,8 +3187,8 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
                     return [
                         'status' => $publicationReady
-                            ? 'wal-hot-journal-savepoint-checkpoint-current-source-next173'
-                            : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next173',
+                            ? 'wal-hot-journal-savepoint-checkpoint-publish-current-source'
+                            : 'wal-hot-journal-savepoint-checkpoint-publish-current-source-blocked',
                         'reason' => $publicationReady
                             ? 'filesystem_current_source_hashes_match_guarded_wal_checkpoint_publication'
                             : 'filesystem_current_source_hashes_block_guarded_wal_checkpoint_publication',
@@ -3213,7 +3213,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'truncate_bytes' => array_sum(array_map(static fn (array $row): int => $row['op'] === 'truncate' ? (int) $row['bytes'] : 0, $operations)),
                         'delete_count' => count(array_filter($operations, static fn (array $row): bool => $row['op'] === 'delete')),
                         'dependencies' => array_values(array_unique(array_merge($prepared['dependencies'], [
-                            'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next173',
+                            'sqlite-wal-hot-journal-savepoint-checkpoint-publish-current-source',
                             'sqlite-vfs-current-source-hash-admission',
                         ]))),
                         'dependency_closure' => 'no new support component needed; reuses current-source WAL publication guards and existing VFS write ordering primitives',
@@ -3228,11 +3228,11 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 {
                     foreach (['status', 'database_path', 'journal_path', 'wal_path', 'publication_fingerprint', 'current_source_token', 'next_source_token', 'dependencies'] as $key) {
                         if (!array_key_exists($key, $prepared)) {
-                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next173 missing prepared {$key}");
+                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source publish missing prepared {$key}");
                         }
                     }
                     if (!is_array($prepared['dependencies']) || !is_array($prepared['current_source_token']) || !is_array($prepared['next_source_token'])) {
-                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next173 prepared plan has invalid token/dependency shape');
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source publish prepared plan has invalid token/dependency shape');
                     }
                 }
 
@@ -3640,13 +3640,13 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
                     $operations = [
                         [
-                            'op' => 'validate_checkpoint_page_cache_seals_before_reader_reuse_next175',
+                            'op' => 'validate_checkpoint_page_cache_seals_before_reader_reuse_publish-apply',
                             'required_pages' => $requiredPages,
                             'missing_pages' => $missingPages,
                             'blocked_pages' => $blockedPages,
                         ],
                         [
-                            'op' => 'admit_reopened_reader_cache_after_checkpoint_publish_next175',
+                            'op' => 'admit_reopened_reader_cache_after_checkpoint_publish_publish-apply',
                             'publish_ready' => $ready,
                             'current_source_id' => $expectedSourceId,
                             'current_epoch' => $expectedEpoch,
@@ -3655,27 +3655,27 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
                     return array_merge($base, [
                         'status' => $ready
-                            ? 'wal-hot-journal-savepoint-checkpoint-current-source-cache-sealed-next175'
-                            : 'wal-hot-journal-savepoint-checkpoint-current-source-cache-blocked-next175',
+                            ? 'wal-hot-journal-savepoint-checkpoint-current-source-cache-sealed-publish-apply'
+                            : 'wal-hot-journal-savepoint-checkpoint-current-source-cache-blocked-publish-apply',
                         'reason' => $ready
                             ? 'checkpoint_page_cache_seals_admit_reader_cache_reuse_after_publish'
                             : 'checkpoint_page_cache_seals_block_reader_cache_reuse_after_publish',
-                        'page_cache_seal_rows_next175' => $rows,
-                        'page_cache_sealed_page_numbers_next175' => array_values($sealedPages),
-                        'missing_page_cache_seals_next175' => $missingPages,
-                        'blocked_page_cache_seals_next175' => $blockedPages,
-                        'page_cache_seals_admitted_next175' => $missingPages === [] && $blockedPages === [],
-                        'reader_cache_reuse_ready_next175' => $ready,
-                        'operations_next175' => $operations,
-                        'operation_names_next175' => array_merge($base['operation_names_next172'], array_column($operations, 'op')),
-                        'source_digest_next175' => hash('sha256', $base['source_digest_next172'] . '|' . implode(',', $sealedPages) . '|' . implode(',', $blockedPages)),
-                        'dependencies_next175' => [
-                            'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next175',
+                        'page_cache_seal_rows_publish-apply' => $rows,
+                        'page_cache_sealed_page_numbers_publish-apply' => array_values($sealedPages),
+                        'missing_page_cache_seals_publish-apply' => $missingPages,
+                        'blocked_page_cache_seals_publish-apply' => $blockedPages,
+                        'page_cache_seals_admitted_publish-apply' => $missingPages === [] && $blockedPages === [],
+                        'reader_cache_reuse_ready_publish-apply' => $ready,
+                        'operations_publish-apply' => $operations,
+                        'operation_names_publish-apply' => array_merge($base['operation_names_next172'], array_column($operations, 'op')),
+                        'source_digest_publish-apply' => hash('sha256', $base['source_digest_next172'] . '|' . implode(',', $sealedPages) . '|' . implode(',', $blockedPages)),
+                        'dependencies_publish-apply' => [
+                            'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-publish-apply',
                             'sqlite-checkpoint-page-cache-seal-before-reader-reuse',
                             'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next172',
                         ],
-                        'dependency_closure_next175' => 'no new support component needed; reuses next172 checkpoint publish receipts and lane-local page-cache source sealing',
-                        'non_overlap_next175' => 'does not repeat next172 database/WAL sync receipt admission or next176 hot-journal delete reader tickets; this slice gates reopened reader-cache reuse on clean page-cache seal receipts',
+                        'dependency_closure_publish-apply' => 'no new support component needed; reuses next172 checkpoint publish receipts and lane-local page-cache source sealing',
+                        'non_overlap_publish-apply' => 'does not repeat next172 database/WAL sync receipt admission or next176 hot-journal delete reader tickets; this slice gates reopened reader-cache reuse on clean page-cache seal receipts',
                     ]);
                 }
 
@@ -3685,17 +3685,17 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 private static function assertSealReceipts(array $receipts): void
                 {
                     if ($receipts === []) {
-                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next175 requires page-cache seal receipts');
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source publish-apply requires page-cache seal receipts');
                     }
                     foreach ($receipts as $receipt) {
                         if (!isset($receipt['page_number'], $receipt['source_id'], $receipt['epoch'], $receipt['checkpoint_digest'])) {
-                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next175 page-cache seals require page_number, source_id, epoch, and checkpoint_digest');
+                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source publish-apply page-cache seals require page_number, source_id, epoch, and checkpoint_digest');
                         }
                         if (!is_int($receipt['page_number']) || $receipt['page_number'] < 1 || !is_int($receipt['epoch'])) {
-                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next175 page-cache seal page and epoch must be positive integers');
+                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source publish-apply page-cache seal page and epoch must be positive integers');
                         }
                         if (!is_string($receipt['source_id']) || $receipt['source_id'] === '' || !is_string($receipt['checkpoint_digest']) || $receipt['checkpoint_digest'] === '') {
-                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next175 page-cache seal source and digest must be non-empty strings');
+                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source publish-apply page-cache seal source and digest must be non-empty strings');
                         }
                     }
                 }
@@ -4227,7 +4227,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses native WAL checkpoint payloads, hot-journal deletion state, and VFS writer operation receipts',
-                        'non_overlap' => 'adds post-apply receipt validation after next175 VFS publication; does not repeat next173 hash admission, next174 file replay admission, or next175 file writes',
+                        'non_overlap' => 'adds post-apply receipt validation after publish-apply VFS publication; does not repeat publish hash admission, next174 file replay admission, or publish-apply file writes',
                     ];
                 }
 
@@ -4836,7 +4836,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses native WAL checksum parsing plus next178 post-apply receipt payloads',
-                        'non_overlap' => 'adds reopen-time WAL checksum/frame admission after next178 receipt validation; does not repeat next175 VFS writes, next173 source-hash admission, or next178 post-apply file receipt matching',
+                        'non_overlap' => 'adds reopen-time WAL checksum/frame admission after next178 receipt validation; does not repeat publish-apply VFS writes, publish source-hash admission, or next178 post-apply file receipt matching',
                     ];
                 }
 
@@ -31551,7 +31551,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
     public static function next923AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
     {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 923, 'seal_after_ready_checkpoint_current_source_next916_923');
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 923, 'seal_after_ready_checkpoint_current_source_statement-rollback6_923');
     }
 
     public static function next924AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array

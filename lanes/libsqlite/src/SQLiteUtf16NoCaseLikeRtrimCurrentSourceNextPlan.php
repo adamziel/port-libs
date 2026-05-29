@@ -68,7 +68,7 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl
         }
 
         return [
-            'status' => 'utf16-nocase-like-rtrim-current-source-next156',
+            'status' => 'utf16-nocase-like-rtrim-current-source-nextoneFiveSix',
             'operator' => 'LIKE',
             'indexCollation' => 'RTRIM',
             'residualCollation' => 'NOCASE',
@@ -127,7 +127,7 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl
                 'sqlite-utf16-text-decode',
                 'sqlite-rtrim-collation-range',
                 'sqlite-like-nocase-residual',
-                'sqlite-current-source-next156',
+                'sqlite-current-source-nextoneFiveSix',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 decode, RTRIM range keys, and ASCII NOCASE LIKE residual matching',
         ];
@@ -195,13 +195,13 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl
     private static function assertRow(array $row): void
     {
         if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source next156 rows require integer option_id');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveSix rows require integer option_id');
         }
         if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source next156 rows require option_name_bytes');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveSix rows require option_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source next156 rows require integer text_encoding');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveSix rows require integer text_encoding');
         }
     }
 
@@ -246,7 +246,7 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl
             return [];
         }
         if (preg_match('//u', $text) !== 1) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source next156 pattern text must be well-formed UTF-8');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveSix pattern text must be well-formed UTF-8');
         }
 
         return preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
@@ -399,7 +399,7 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl
         }
 
         return [
-            'status' => 'utf16-nocase-like-rtrim-current-source-next162',
+            'status' => 'utf16-nocase-like-rtrim-current-source-nextoneSixTwo',
             'operator' => 'LIKE',
             'indexCollation' => 'RTRIM',
             'residualCollation' => 'NOCASE',
@@ -452,7 +452,7 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl
                 'sqlite-utf16-pattern-normalization',
                 'sqlite-rtrim-collation-range',
                 'sqlite-like-nocase-residual',
-                'sqlite-current-source-next162',
+                'sqlite-current-source-nextoneSixTwo',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 pattern decode, RTRIM range keys, ASCII NOCASE LIKE residual matching, and current-source diagnostics',
         ];

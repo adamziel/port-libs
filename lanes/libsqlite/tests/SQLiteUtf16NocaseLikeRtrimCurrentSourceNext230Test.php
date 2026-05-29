@@ -33,7 +33,7 @@ $current230 = [
     $row230(7, 'theme_cache', 'UTF-16BE'),
     $bad230(8, "\x00\xd8", 2),
 ];
-$next230 = [
+$nextTwoThreeZero = [
     $row230(1, 'plugin_cache ', 'UTF-16BE'),
     $row230(2, 'Plugin_Cache', 'UTF-16LE'),
     $row230(3, "plugin_cache\n", 'UTF-16BE'),
@@ -55,7 +55,7 @@ $plan230 = static fn (
     int $nextCookie = 230,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLineBreakBoundaryPlan(
     $current ?? $current230,
-    $next ?? $next230,
+    $next ?? $nextTwoThreeZero,
     $pattern,
     $escape,
     $currentSource,
@@ -76,7 +76,7 @@ $valueAt230 = static function (array $value, string $path): mixed {
 };
 
 $cases230 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next230'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoThreeZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? /* line-break RTRIM boundary */'],
     'pattern' => ['pattern', 'plugin_cache'],
@@ -142,16 +142,16 @@ $cases230 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
     'dependency boundary' => ['dependencies.3', 'sqlite-line-break-rtrim-boundary'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next230'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoThreeZero'],
 ];
 
 foreach ($cases230 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next230 ' . $name] = static function (TestRunner $t) use ($plan230, $valueAt230, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoThreeZero ' . $name] = static function (TestRunner $t) use ($plan230, $valueAt230, $path, $expected): void {
         $t->same($expected, $valueAt230($plan230(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next230 invalidation reason order'] = static function (TestRunner $t) use ($plan230): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeZero invalidation reason order'] = static function (TestRunner $t) use ($plan230): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -167,7 +167,7 @@ $tests['utf16 nocase like rtrim current source next230 invalidation reason order
     ], $plan230()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next230 stable line break false positive is reusable after residual recheck'] = static function (TestRunner $t) use ($row230): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeZero stable line break false positive is reusable after residual recheck'] = static function (TestRunner $t) use ($row230): void {
     $rows = [
         $row230(1, 'plugin_cache', 'UTF-16LE'),
         $row230(2, "plugin_cache\n", 'UTF-16BE'),
@@ -190,7 +190,7 @@ $tests['utf16 nocase like rtrim current source next230 stable line break false p
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next230 escaped underscore still treats newline as significant'] = static function (TestRunner $t) use ($row230): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeZero escaped underscore still treats newline as significant'] = static function (TestRunner $t) use ($row230): void {
     $rows = [
         $row230(1, 'plugin_cache', 'UTF-16LE'),
         $row230(2, "plugin_cache\r", 'UTF-16LE'),
@@ -212,7 +212,7 @@ $tests['utf16 nocase like rtrim current source next230 escaped underscore still 
     $t->same([], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next230 rejects malformed row shape'] = static function (TestRunner $t) use ($enc230): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeZero rejects malformed row shape'] = static function (TestRunner $t) use ($enc230): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc230('plugin_cache', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLineBreakBoundaryPlan($rows, $rows));
 };

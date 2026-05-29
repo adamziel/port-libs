@@ -119,12 +119,12 @@ $cases252 = [
 ];
 
 foreach ($cases252 as $name => [$callback, $arguments, $expected]) {
-    $tests['encoding collation affinity like current source next252 ' . $name] = static function (TestRunner $t) use ($callback, $arguments, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFiveTwo ' . $name] = static function (TestRunner $t) use ($callback, $arguments, $expected): void {
         $t->same($expected, $callback(...$arguments));
     };
 }
 
-$tests['encoding collation affinity like current source next252 rejects unsupported array operand'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFiveTwo rejects unsupported array operand'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobAffinityCurrentSourceCursor([
         ['key' => ['100'], 'rowid' => 1, 'textEncoding' => 'UTF-8'],
     ], '100%', 'LIKE', 'NOCASE'));

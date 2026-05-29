@@ -335,7 +335,7 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl
                 'sqlite-nocase-collation',
                 'sqlite-glob-binary-residual',
                 'sqlite-encoding-source-cursor',
-                'sqlite-current-source-next136',
+                'sqlite-current-source-nextoneThreeSix',
             ],
         ];
     }
@@ -357,13 +357,13 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl
         $errors = [];
         foreach ($rows as $row) {
             if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source next136 rows require integer option_id');
+                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source nextOneThreeSix rows require integer option_id');
             }
             if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source next136 rows require option_name_bytes');
+                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source nextOneThreeSix rows require option_name_bytes');
             }
             if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
-                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source next136 rows require integer text_encoding');
+                throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source nextOneThreeSix rows require integer text_encoding');
             }
 
             try {
@@ -513,7 +513,7 @@ final class SQLiteRtrimNocaseGlobCurrentSourceNextExpressionImpl
             1 => 'UTF-8',
             2 => 'UTF-16LE',
             3 => 'UTF-16BE',
-            default => throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source next136 rows require UTF-8, UTF-16LE, or UTF-16BE encoding'),
+            default => throw new \InvalidArgumentException('SQLite RTRIM NOCASE GLOB current-source nextOneThreeSix rows require UTF-8, UTF-16LE, or UTF-16BE encoding'),
         };
     }
 

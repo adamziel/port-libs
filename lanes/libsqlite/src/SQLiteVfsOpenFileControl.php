@@ -129,10 +129,10 @@ final class SQLiteVfsOpenFileControl
      * @param array<string, mixed> $options
      * @return array{status:string,count:int,current:array<string, mixed>,next:array<string, mixed>,events:list<array<string, mixed>>,dependencies:list<string>}
      */
-    public static function currentNext74(array $operations, array $options = []): array
+    public static function openFileControlSequence(array $operations, array $options = []): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS open file-control current/next74 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS open file-control open file-control sequence requires operations');
         }
 
         $root = self::stringOption($options, 'root', sys_get_temp_dir() . '/port-libsqlite-vfs-open-filecontrol-74-' . bin2hex(random_bytes(4)));
@@ -143,8 +143,8 @@ final class SQLiteVfsOpenFileControl
         $deviceFlags = is_array($options['device_flags'] ?? null) ? array_values($options['device_flags']) : ['powersafe_overwrite'];
         $syncMode = self::stringOption($options, 'sync_mode', 'normal');
         $persistWal = (bool) ($options['persist_wal'] ?? false);
-        $chunkSize = array_key_exists('chunk_size', $options) ? self::nullableInt($options['chunk_size'], 'SQLite VFS current/next74 chunk size') : null;
-        $mmapSize = array_key_exists('mmap_size', $options) ? self::nullableInt($options['mmap_size'], 'SQLite VFS current/next74 mmap size') : null;
+        $chunkSize = array_key_exists('chunk_size', $options) ? self::nullableInt($options['chunk_size'], 'SQLite VFS open file-control sequence chunk size') : null;
+        $mmapSize = array_key_exists('mmap_size', $options) ? self::nullableInt($options['mmap_size'], 'SQLite VFS open file-control sequence mmap size') : null;
 
         $plan = self::forFilename($root, $filename, $fileExists, $directoryWritable, $sectorSize, $deviceFlags, $syncMode, $persistWal, $chunkSize, $mmapSize);
         $locks = new SQLiteVfsLockState();
@@ -152,7 +152,7 @@ final class SQLiteVfsOpenFileControl
 
         foreach ($operations as $ordinal => $operation) {
             $current = self::currentNextSnapshot($plan, $locks);
-            $normalized = self::normalizeCurrentNext74Operation($operation);
+            $normalized = self::normalizeOpenFileControlOperation($operation);
             if ($normalized['kind'] === 'file_control') {
                 $applied = $plan->applyMany([$normalized['op'] => $normalized['value']]);
                 $event = [
@@ -204,7 +204,7 @@ final class SQLiteVfsOpenFileControl
             'current' => $events === [] ? $next : $events[0]['current'],
             'next' => $next,
             'events' => $events,
-            'dependencies' => $plan->dependencies($next['dependencies'], ['vfs-open-file-control-locking-current-next74']),
+            'dependencies' => $plan->dependencies($next['dependencies'], ['vfs-open-file-control-locking-sequence']),
         ];
     }
 
@@ -296,7 +296,7 @@ final class SQLiteVfsOpenFileControl
      * @param string|array<string, mixed> $operation
      * @return array{kind:string,op?:string,value?:mixed,level?:string,connection?:string|null,shared_index?:int|null}
      */
-    private static function normalizeCurrentNext74Operation(string|array $operation): array
+    private static function normalizeOpenFileControlOperation(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower((string) ($operation['kind'] ?? $operation['op'] ?? 'file_control'));
@@ -324,7 +324,7 @@ final class SQLiteVfsOpenFileControl
 
         $trimmed = trim(rtrim($operation, ';'));
         if ($trimmed === '') {
-            throw new \InvalidArgumentException('SQLite VFS current/next74 operation is empty');
+            throw new \InvalidArgumentException('SQLite VFS open file-control sequence operation is empty');
         }
 
         if (preg_match('/^lock\s+(?<level>shared|reserved|pending|exclusive|none)(?:\s+by\s+|\s+)(?<connection>[A-Za-z0-9_.:-]+)(?:\s+(?<shared>\d+))?$/i', $trimmed, $matches)) {
@@ -347,7 +347,7 @@ final class SQLiteVfsOpenFileControl
             return [
                 'kind' => 'file_control',
                 'op' => strtolower(str_replace('-', '_', $matches['op'])),
-                'value' => self::parseCurrentNext74Value($matches['value'] ?? null),
+                'value' => self::parseOpenFileControlValue($matches['value'] ?? null),
             ];
         }
 
@@ -362,14 +362,14 @@ final class SQLiteVfsOpenFileControl
                     'busy_timeout' => 'lock_timeout',
                     default => $name,
                 },
-                'value' => self::parseCurrentNext74Value($raw),
+                'value' => self::parseOpenFileControlValue($raw),
             ];
         }
 
-        throw new \InvalidArgumentException('SQLite VFS current/next74 operation is unsupported');
+        throw new \InvalidArgumentException('SQLite VFS open file-control sequence operation is unsupported');
     }
 
-    private static function parseCurrentNext74Value(mixed $value): mixed
+    private static function parseOpenFileControlValue(mixed $value): mixed
     {
         if ($value === null) {
             return null;
@@ -403,7 +403,7 @@ final class SQLiteVfsOpenFileControl
     {
         $value = (string) ($options[$key] ?? $default);
         if ($value === '') {
-            throw new \InvalidArgumentException("SQLite VFS current/next74 {$key} must not be empty");
+            throw new \InvalidArgumentException("SQLite VFS open file-control sequence {$key} must not be empty");
         }
 
         return $value;
@@ -427,7 +427,7 @@ final class SQLiteVfsOpenFileControl
             return null;
         }
         if (!is_string($value) || trim($value) === '') {
-            throw new \InvalidArgumentException('SQLite VFS current/next74 lock connection is required');
+            throw new \InvalidArgumentException('SQLite VFS open file-control sequence lock connection is required');
         }
 
         return $value;

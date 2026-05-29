@@ -10,7 +10,7 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan
      * @param list<array<string, mixed>> $pointerMapTransitions
      */
     private function __construct(
-        public readonly SQLiteBTreeDeleteOverflowCurrentNext80Plan $deletePlan,
+        public readonly SQLiteBTreeDeleteOverflowCurrentNextPlan $deletePlan,
         public readonly array $pointerMapTransitions,
     ) {
     }
@@ -32,7 +32,7 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan
             $secureDelete,
         );
 
-        $deletePlan = SQLiteBTreeDeleteOverflowCurrentNext80Plan::tableLeafCurrentNext(
+        $deletePlan = SQLiteBTreeDeleteOverflowCurrentNextPlan::tableLeafCurrentNext(
             $database,
             $leafPageNumber,
             $currentDelete,
@@ -69,7 +69,7 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan
             $overflowReader,
         );
 
-        $deletePlan = SQLiteBTreeDeleteOverflowCurrentNext80Plan::indexLeafCurrentNext(
+        $deletePlan = SQLiteBTreeDeleteOverflowCurrentNextPlan::indexLeafCurrentNext(
             $database,
             $leafPageNumber,
             $currentDelete,
@@ -233,7 +233,7 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function pointerMapTransitions(SQLiteDatabase $current, SQLiteBTreeDeleteOverflowCurrentNext80Plan $plan): array
+    private static function pointerMapTransitions(SQLiteDatabase $current, SQLiteBTreeDeleteOverflowCurrentNextPlan $plan): array
     {
         if (!$current->isAutoVacuum()) {
             return [];

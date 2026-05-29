@@ -81,7 +81,7 @@ $valueAt226 = static function (array $value, string $path): mixed {
 };
 
 $cases226 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next226'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoTwoSix'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? /* combining mark normalization boundary */'],
     'pattern' => ['pattern', 'plugin_caf_'],
@@ -146,16 +146,16 @@ $cases226 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
     'dependency combining' => ['dependencies.3', 'sqlite-combining-mark-like-character'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next226'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoTwoSix'],
 ];
 
 foreach ($cases226 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next226 ' . $name] = static function (TestRunner $t) use ($plan226, $valueAt226, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoTwoSix ' . $name] = static function (TestRunner $t) use ($plan226, $valueAt226, $path, $expected): void {
         $t->same($expected, $valueAt226($plan226(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next226 invalidation reason order'] = static function (TestRunner $t) use ($plan226): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoSix invalidation reason order'] = static function (TestRunner $t) use ($plan226): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -172,7 +172,7 @@ $tests['utf16 nocase like rtrim current source next226 invalidation reason order
     ], $plan226()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next226 stable composed rows are reusable'] = static function (TestRunner $t) use ($row226, $composed226): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoSix stable composed rows are reusable'] = static function (TestRunner $t) use ($row226, $composed226): void {
     $rows = [
         $row226(1, 'plugin_caf' . $composed226, 'UTF-16LE'),
         $row226(2, 'Plugin_Caf' . $composed226 . '  ', 'UTF-16BE'),
@@ -197,7 +197,7 @@ $tests['utf16 nocase like rtrim current source next226 stable composed rows are 
     $t->same([], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next226 decomposed text needs two underscores'] = static function (TestRunner $t) use ($row226, $decomposed226, $composed226): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoSix decomposed text needs two underscores'] = static function (TestRunner $t) use ($row226, $decomposed226, $composed226): void {
     $rows = [
         $row226(1, 'plugin_caf' . $decomposed226, 'UTF-16LE'),
         $row226(2, 'plugin_caf' . $composed226, 'UTF-16BE'),
@@ -220,7 +220,7 @@ $tests['utf16 nocase like rtrim current source next226 decomposed text needs two
     $t->same(12, $result['currentCharacterCounts'][1]);
 };
 
-$tests['utf16 nocase like rtrim current source next226 ascii nocase does not fold composed accents'] = static function (TestRunner $t) use ($row226, $composed226): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoSix ascii nocase does not fold composed accents'] = static function (TestRunner $t) use ($row226, $composed226): void {
     $rows = [
         $row226(1, 'PLUGIN_CAF' . $composed226, 'UTF-16LE'),
         $row226(2, 'plugin_caf' . $composed226, 'UTF-16BE'),
@@ -241,7 +241,7 @@ $tests['utf16 nocase like rtrim current source next226 ascii nocase does not fol
     $t->same('plugin_caf' . $composed226, $result['currentNocaseKeys'][2]);
 };
 
-$tests['utf16 nocase like rtrim current source next226 rejects malformed row shape'] = static function (TestRunner $t) use ($enc226): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoSix rejects malformed row shape'] = static function (TestRunner $t) use ($enc226): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc226('plugin_cafe', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan($rows, $rows));
 };

@@ -32,7 +32,7 @@ $current209 = [
     $row209(6, 'theme_plugin', 'UTF-16LE'),
     $bad209(7, "\x00\xd8", 2),
 ];
-$next209 = [
+$nextTwoZeroNine = [
     $row209(1, 'Plugin_Cache', 'UTF-16BE'),
     $row209(2, "plugin_cache\t", 'UTF-16LE'),
     $row209(3, "plugin_cache\xc2\xa0  ", 'UTF-16BE'),
@@ -44,7 +44,7 @@ $next209 = [
 
 $plan209 = static fn (?array $current = null, ?array $next = null, string $pattern = 'plugin%'): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceRtrimPlan(
     $current ?? $current209,
-    $next ?? $next209,
+    $next ?? $nextTwoZeroNine,
     $pattern,
 );
 
@@ -60,7 +60,7 @@ $valueAt209 = static function (array $value, string $path): mixed {
 };
 
 $cases209 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next209'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroNine'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* ASCII-space RTRIM only */'],
     'pattern' => ['pattern', 'plugin%'],
@@ -117,16 +117,16 @@ $cases209 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-ascii-space-only'],
     'dependency nocase' => ['dependencies.3', 'sqlite-nocase-ascii-only'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next209'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoZeroNine'],
 ];
 
 foreach ($cases209 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next209 ' . $name] = static function (TestRunner $t) use ($plan209, $valueAt209, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoZeroNine ' . $name] = static function (TestRunner $t) use ($plan209, $valueAt209, $path, $expected): void {
         $t->same($expected, $valueAt209($plan209(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next209 invalidation reasons include suffix diagnostics'] = static function (TestRunner $t) use ($plan209): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroNine invalidation reasons include suffix diagnostics'] = static function (TestRunner $t) use ($plan209): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -137,7 +137,7 @@ $tests['utf16 nocase like rtrim current source next209 invalidation reasons incl
     ], $plan209()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next209 stable ascii space trim can reuse cursor'] = static function (TestRunner $t) use ($row209): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroNine stable ascii space trim can reuse cursor'] = static function (TestRunner $t) use ($row209): void {
     $rows = [
         $row209(1, 'Plugin_Cache  ', 'UTF-16LE'),
         $row209(2, "plugin_cache\t", 'UTF-16BE'),
@@ -163,7 +163,7 @@ $tests['utf16 nocase like rtrim current source next209 stable ascii space trim c
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next209 unicode case variants are not nocase folded'] = static function (TestRunner $t) use ($row209): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroNine unicode case variants are not nocase folded'] = static function (TestRunner $t) use ($row209): void {
     $rows = [
         $row209(10, "\xc4\xb0nsert_plugin", 'UTF-16LE'),
         $row209(11, 'INSERT_plugin', 'UTF-16BE'),
@@ -187,7 +187,7 @@ $tests['utf16 nocase like rtrim current source next209 unicode case variants are
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next209 rejects invalid row shape'] = static function (TestRunner $t) use ($row209): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroNine rejects invalid row shape'] = static function (TestRunner $t) use ($row209): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceRtrimPlan(
         [['option_id' => '1', 'option_name_bytes' => 'plugin', 'text_encoding' => 1]],
         [$row209(1, 'plugin', 'UTF-8')],

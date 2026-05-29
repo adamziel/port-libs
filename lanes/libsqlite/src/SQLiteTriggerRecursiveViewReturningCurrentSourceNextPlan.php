@@ -10218,7 +10218,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $nextSourceTokenMatches,
         );
 
-        $taggedCurrent = self::tagCurrentNext205($currentRows, $sequence, $sourceToken, $nextSourceToken, $cursor);
+        $taggedCurrent = self::tagCurrentNextSourceRows($currentRows, $sequence, $sourceToken, $nextSourceToken, $cursor);
         $taggedNext = self::tagNextNext205($nextRows, $nextVisible, $sourceToken, $nextSourceToken, $cursor, $blocked);
         $visibleRows = array_values(array_filter(
             array_merge($taggedCurrent, $taggedNext),
@@ -10365,7 +10365,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $sequence
      * @return list<array<string,mixed>>
      */
-    private static function tagCurrentNext205(array $rows, array $sequence, string $sourceToken, string $nextSourceToken, string $cursor): array
+    private static function tagCurrentNextSourceRows(array $rows, array $sequence, string $sourceToken, string $nextSourceToken, string $cursor): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -10818,7 +10818,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $taggedCurrent = self::tagCurrentNext207($currentRows, $drainKeys, $drainToken, $cursor, $statementToken);
+        $taggedCurrent = self::tagCurrentNextDrainRows($currentRows, $drainKeys, $drainToken, $cursor, $statementToken);
         $taggedNext = self::tagNextNext207($nextRows, $nextVisible, $blocked, $drainToken, $cursor, $statementToken);
         $visibleRows = array_values(array_filter(
             array_merge($taggedCurrent, $taggedNext),
@@ -10965,7 +10965,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $drainKeys
      * @return list<array<string,mixed>>
      */
-    private static function tagCurrentNext207(array $rows, array $drainKeys, string $drainToken, string $cursor, string $statementToken): array
+    private static function tagCurrentNextDrainRows(array $rows, array $drainKeys, string $drainToken, string $cursor, string $statementToken): array
     {
         $out = [];
         foreach ($rows as $index => $row) {

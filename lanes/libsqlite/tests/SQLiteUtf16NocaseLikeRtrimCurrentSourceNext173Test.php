@@ -29,7 +29,7 @@ $current173 = [
     $row173(7, 'theme_cache', 2),
     $bad173(12, "\x00\xd8", 2),
 ];
-$next173 = [
+$nextOneSevenThree = [
     $row173(1, 'Plugin_Cache', 3),
     $row173(2, 'plugin_cache   ', 3),
     $row173(3, "plugin_cache\t", 2),
@@ -51,7 +51,7 @@ $plan173 = static fn (
     int $nextCookie = 173,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePlan(
     $current ?? $current173,
-    $next ?? $next173,
+    $next ?? $nextOneSevenThree,
     $pattern,
     $escape,
     $currentSource,
@@ -69,7 +69,7 @@ $valueAt173 = static function (array $value, string $path): mixed {
 };
 
 $cases173 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next173'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenThree'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache'],
@@ -129,16 +129,16 @@ $cases173 = [
     'cursor reusable false' => ['cursorReusable', false],
     'yield order unsafe' => ['safeToKeepYieldOrder', false],
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
-    'dependency next173' => ['dependencies.3', 'sqlite-current-source-next173'],
+    'dependency nextOneSevenThree' => ['dependencies.3', 'sqlite-current-source-nextoneSevenThree'],
 ];
 
 foreach ($cases173 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next173 ' . $name] = static function (TestRunner $t) use ($plan173, $valueAt173, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSevenThree ' . $name] = static function (TestRunner $t) use ($plan173, $valueAt173, $path, $expected): void {
         $t->same($expected, $valueAt173($plan173(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next173 byte only trailing spaces can keep cursor'] = static function (TestRunner $t) use ($row173): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenThree byte only trailing spaces can keep cursor'] = static function (TestRunner $t) use ($row173): void {
     $current = [
         $row173(1, 'Plugin_Cache  ', 2),
         $row173(2, 'plugin_cache', 3),
@@ -156,7 +156,7 @@ $tests['utf16 nocase like rtrim current source next173 byte only trailing spaces
     $t->same(true, $result['safeToKeepYieldOrder']);
 };
 
-$tests['utf16 nocase like rtrim current source next173 source change remains semantic even when bytes only'] = static function (TestRunner $t) use ($row173): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenThree source change remains semantic even when bytes only'] = static function (TestRunner $t) use ($row173): void {
     $current = [$row173(1, 'Plugin_Cache  ', 2)];
     $next = [$row173(1, 'Plugin_Cache', 3)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePlan($current, $next, 'plugin!_cache', '!', 'main.wp_options@172', 'main.wp_options@173', 172, 173);
@@ -166,7 +166,7 @@ $tests['utf16 nocase like rtrim current source next173 source change remains sem
     $t->same(true, $result['cursorInvalidated']);
 };
 
-$tests['utf16 nocase like rtrim current source next173 unicode prefix falls back to full scan'] = static function (TestRunner $t) use ($row173): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenThree unicode prefix falls back to full scan'] = static function (TestRunner $t) use ($row173): void {
     $rows = [
         $row173(1, 'éclair_cache  ', 2),
         $row173(2, 'Éclair_Cache', 3),
@@ -180,7 +180,7 @@ $tests['utf16 nocase like rtrim current source next173 unicode prefix falls back
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next173 rejects missing option bytes'] = static function (TestRunner $t): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenThree rejects missing option bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePlan(
         [['option_id' => 1, 'text_encoding' => 2]],
         [],

@@ -79,7 +79,7 @@ $valueAt207 = static function (array $value, string $path): mixed {
 };
 
 $cases207 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next207'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroSeven'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* rtrim collation rebind */'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -134,16 +134,16 @@ $cases207 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency range' => ['dependencies.1', 'sqlite-like-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next207'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoZeroSeven'],
 ];
 
 foreach ($cases207 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next207 ' . $name] = static function (TestRunner $t) use ($plan207, $valueAt207, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoZeroSeven ' . $name] = static function (TestRunner $t) use ($plan207, $valueAt207, $path, $expected): void {
         $t->same($expected, $valueAt207($plan207(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next207 invalidation reasons include rtrim rebind'] = static function (TestRunner $t) use ($plan207): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroSeven invalidation reasons include rtrim rebind'] = static function (TestRunner $t) use ($plan207): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -153,7 +153,7 @@ $tests['utf16 nocase like rtrim current source next207 invalidation reasons incl
     ], $plan207()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next207 stable rtrim cursor is reusable'] = static function (TestRunner $t) use ($row207): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroSeven stable rtrim cursor is reusable'] = static function (TestRunner $t) use ($row207): void {
     $rows = [
         $row207(1, 'Plugin_Cache', 'UTF-16LE'),
         $row207(2, 'plugin_cache  ', 'UTF-16BE'),
@@ -179,7 +179,7 @@ $tests['utf16 nocase like rtrim current source next207 stable rtrim cursor is re
     $t->same([], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next207 detects exact-pattern trailing-space residual flip'] = static function (TestRunner $t) use ($row207): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroSeven detects exact-pattern trailing-space residual flip'] = static function (TestRunner $t) use ($row207): void {
     $rows = [
         $row207(1, 'plugin_cache', 'UTF-16LE'),
         $row207(2, 'plugin_cache  ', 'UTF-16BE'),
@@ -207,13 +207,13 @@ $tests['utf16 nocase like rtrim current source next207 detects exact-pattern tra
     $t->same(['rtrim-collation-rebound', 'rtrim-residual-rowset', 'matched-rowset'], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next207 rejects missing option id'] = static function (TestRunner $t) use ($nextRows207): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroSeven rejects missing option id'] = static function (TestRunner $t) use ($nextRows207): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameRtrimCollationRebindPlan([
         ['option_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
     ], $nextRows207));
 };
 
-$tests['utf16 nocase like rtrim current source next207 rejects non integer encoding'] = static function (TestRunner $t) use ($rows207): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroSeven rejects non integer encoding'] = static function (TestRunner $t) use ($rows207): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameRtrimCollationRebindPlan($rows207, [
         ['option_id' => 1, 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 'UTF-8'],
     ]));

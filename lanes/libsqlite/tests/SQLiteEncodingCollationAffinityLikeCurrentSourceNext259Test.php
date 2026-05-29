@@ -29,7 +29,7 @@ $current259 = [
     ['option_id' => 10, 'option_name' => "Plugin_\xff", 'option_value' => 'malformed-name'],
 ];
 
-$next259 = [
+$nextTwoFiveNine = [
     $row259(1, 'Plugin_Cache', 1, 'mixed-case'),
     $row259(2, 'plugin_cache_v2', 2, 'lowercase-changed'),
     $row259(3, 'PLUGIN_CACHE', 3, 'uppercase'),
@@ -53,7 +53,7 @@ $plan259 = static fn (
     int $nextCookie = 259,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressBinaryCollationDefaultLikePlan(
     $current ?? $current259,
-    $next ?? $next259,
+    $next ?? $nextTwoFiveNine,
     $pattern,
     $escape,
     $caseSensitiveLike,
@@ -75,7 +75,7 @@ $valueAt259 = static function (array $value, string $path): mixed {
 };
 
 $cases259 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next259'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveNine'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_name COLLATE BINARY LIKE ? /* default LIKE ignores BINARY collation for ASCII folding */'],
     'pattern' => ['pattern', 'Plugin%'],
@@ -112,7 +112,7 @@ $cases259 = [
     'changed residual' => ['changedResidualRowids', []],
     'unknown current' => ['currentUnknownRowids', [8, 9]],
     'malformed current' => ['currentMalformedRowids', [10]],
-    'malformed error' => ['currentErrors.10', 'SQLite BINARY LIKE next259 option_name text is malformed UTF-8'],
+    'malformed error' => ['currentErrors.10', 'SQLite BINARY LIKE nextTwoFiveNine option_name text is malformed UTF-8'],
     'current row2 text' => ['currentText.2', 'plugin_cache'],
     'next row2 text' => ['nextText.2', 'plugin_cache_v2'],
     'next row12 text' => ['nextText.12', 'Plugin_literal%'],
@@ -125,16 +125,16 @@ $cases259 = [
     'dependency like' => ['dependencies.0', 'sqlite-like-default-ascii-fold'],
     'dependency binary' => ['dependencies.1', 'sqlite-binary-collation-key'],
     'dependency decoder' => ['dependencies.2', 'sqlite-mixed-utf-source-decoder'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next259'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoFiveNine'],
 ];
 
 foreach ($cases259 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next259 ' . $name] = static function (TestRunner $t) use ($plan259, $valueAt259, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFiveNine ' . $name] = static function (TestRunner $t) use ($plan259, $valueAt259, $path, $expected): void {
         $t->same($expected, $valueAt259($plan259(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next259 invalidation reason order'] = static function (TestRunner $t) use ($plan259): void {
+$tests['encoding collation affinity like current source nextTwoFiveNine invalidation reason order'] = static function (TestRunner $t) use ($plan259): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -148,7 +148,7 @@ $tests['encoding collation affinity like current source next259 invalidation rea
     ], $plan259()['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next259 stable default like still invalidates binary cursor'] = static function (TestRunner $t) use ($current259, $plan259): void {
+$tests['encoding collation affinity like current source nextTwoFiveNine stable default like still invalidates binary cursor'] = static function (TestRunner $t) use ($current259, $plan259): void {
     $rows = array_values(array_filter($current259, static fn (array $row): bool => !in_array($row['option_id'] ?? null, [8, 9, 10], true)));
     $plan = $plan259(current: $rows, next: $rows, currentSource: 'same', nextSource: 'same', currentCookie: 259, nextCookie: 259);
 
@@ -158,7 +158,7 @@ $tests['encoding collation affinity like current source next259 stable default l
     $t->same([3, 1, 2, 6], $plan['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next259 case sensitive like can use binary range'] = static function (TestRunner $t) use ($current259, $plan259): void {
+$tests['encoding collation affinity like current source nextTwoFiveNine case sensitive like can use binary range'] = static function (TestRunner $t) use ($current259, $plan259): void {
     $rows = array_values(array_filter($current259, static fn (array $row): bool => !in_array($row['option_id'] ?? null, [8, 9, 10], true)));
     $plan = $plan259(current: $rows, next: $rows, caseSensitiveLike: true, currentSource: 'same', nextSource: 'same', currentCookie: 259, nextCookie: 259);
 
@@ -169,7 +169,7 @@ $tests['encoding collation affinity like current source next259 case sensitive l
     $t->same([1], $plan['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next259 escaped literal percent uses binary range when case sensitive'] = static function (TestRunner $t) use ($plan259): void {
+$tests['encoding collation affinity like current source nextTwoFiveNine escaped literal percent uses binary range when case sensitive'] = static function (TestRunner $t) use ($plan259): void {
     $rows = [
         ['option_id' => 1, 'option_name' => 'Plugin_literal%'],
         ['option_id' => 2, 'option_name' => 'Plugin_literalx'],
@@ -183,7 +183,7 @@ $tests['encoding collation affinity like current source next259 escaped literal 
     $t->same([1, 2], $plan['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next259 null and blob option names stay unknown'] = static function (TestRunner $t) use ($plan259): void {
+$tests['encoding collation affinity like current source nextTwoFiveNine null and blob option names stay unknown'] = static function (TestRunner $t) use ($plan259): void {
     $rows = [
         ['option_id' => 1, 'option_name' => null],
         ['option_id' => 2, 'option_name' => new SQLiteBlobValue('Plugin')],
@@ -195,15 +195,15 @@ $tests['encoding collation affinity like current source next259 null and blob op
     $t->same([3], $plan['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next259 rejects invalid escape length'] = static function (TestRunner $t) use ($plan259): void {
+$tests['encoding collation affinity like current source nextTwoFiveNine rejects invalid escape length'] = static function (TestRunner $t) use ($plan259): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan259(escape: '!!'));
 };
 
-$tests['encoding collation affinity like current source next259 rejects missing option name'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFiveNine rejects missing option name'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressBinaryCollationDefaultLikePlan([['option_id' => 1]], []));
 };
 
-$tests['encoding collation affinity like current source next259 reports bad byte row encoding'] = static function (TestRunner $t) use ($enc259): void {
+$tests['encoding collation affinity like current source nextTwoFiveNine reports bad byte row encoding'] = static function (TestRunner $t) use ($enc259): void {
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressBinaryCollationDefaultLikePlan([
         ['option_id' => 1, 'option_name_bytes' => $enc259('Plugin', 1), 'text_encoding' => 9],
     ], [], currentSource: 'same', nextSource: 'same', currentSchemaCookie: 1, nextSchemaCookie: 1);

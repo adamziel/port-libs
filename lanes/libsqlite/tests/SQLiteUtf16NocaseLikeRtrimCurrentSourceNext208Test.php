@@ -34,7 +34,7 @@ $current208 = [
     $row208(7, 'theme_cache', 'UTF-16BE'),
     $bad208(8, "\x00\xd8", 2),
 ];
-$next208 = [
+$nextTwoZeroEight = [
     $row208(1, 'Plugin_Cache', 'UTF-16BE'),
     $row208(2, 'plugin_cache', 'UTF-16LE'),
     $row208(3, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -61,7 +61,7 @@ $plan208 = static fn (
     int|string $nextEscapeEncoding = 'UTF-16BE',
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedEscapePlan(
     $current ?? $current208,
-    $next ?? $next208,
+    $next ?? $nextTwoZeroEight,
     $pattern ?? 'plugin!_cache%',
     $currentEscapeBytes ?? $escapeBytes208('!', 'UTF-16LE'),
     $currentEscapeEncoding,
@@ -81,8 +81,8 @@ $valueAt208 = static function (array $value, string $path): mixed {
 };
 
 $cases208 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next208'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next200'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroEight'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 escape */'],
     'template' => ['patternTemplate', 'plugin!_cache%'],
@@ -152,16 +152,16 @@ $cases208 = [
     'dependency escape' => ['dependencies.1', 'sqlite-prepared-like-escape-decode'],
     'dependency range' => ['dependencies.2', 'sqlite-like-escape-prefix-range'],
     'dependency rtrim' => ['dependencies.3', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next208'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoZeroEight'],
 ];
 
 foreach ($cases208 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next208 ' . $name] = static function (TestRunner $t) use ($plan208, $valueAt208, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoZeroEight ' . $name] = static function (TestRunner $t) use ($plan208, $valueAt208, $path, $expected): void {
         $t->same($expected, $valueAt208($plan208(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next208 invalidation reasons include prepared escape bytes'] = static function (TestRunner $t) use ($plan208): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroEight invalidation reasons include prepared escape bytes'] = static function (TestRunner $t) use ($plan208): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -174,7 +174,7 @@ $tests['utf16 nocase like rtrim current source next208 invalidation reasons incl
     ], $plan208()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next208 stable escaped parameter can reuse cursor'] = static function (TestRunner $t) use ($row208, $escapeBytes208): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroEight stable escaped parameter can reuse cursor'] = static function (TestRunner $t) use ($row208, $escapeBytes208): void {
     $rows = [
         $row208(1, 'plugin_cache', 'UTF-16LE'),
         $row208(2, 'Plugin_Cache  ', 'UTF-16BE'),
@@ -202,7 +202,7 @@ $tests['utf16 nocase like rtrim current source next208 stable escaped parameter 
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next208 escaped percent residual differs from wildcard'] = static function (TestRunner $t) use ($row208, $escapeBytes208): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroEight escaped percent residual differs from wildcard'] = static function (TestRunner $t) use ($row208, $escapeBytes208): void {
     $rows = [
         $row208(1, 'plugin%cache', 'UTF-16LE'),
         $row208(2, 'pluginXcache', 'UTF-16BE'),
@@ -230,10 +230,10 @@ $tests['utf16 nocase like rtrim current source next208 escaped percent residual 
     $t->same(['pattern', 'escape-rebound', 'prepared-escape-bom', 'prepared-escape-bytes'], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next208 rejects malformed escape bytes'] = static function (TestRunner $t) use ($current208, $next208, $escapeBytes208): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroEight rejects malformed escape bytes'] = static function (TestRunner $t) use ($current208, $nextTwoZeroEight, $escapeBytes208): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedEscapePlan(
         $current208,
-        $next208,
+        $nextTwoZeroEight,
         'plugin!_cache%',
         $escapeBytes208('!', 'UTF-16LE'),
         'UTF-16LE',
@@ -242,10 +242,10 @@ $tests['utf16 nocase like rtrim current source next208 rejects malformed escape 
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next208 rejects multi character escape after bom'] = static function (TestRunner $t) use ($current208, $next208, $escapeBytes208): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroEight rejects multi character escape after bom'] = static function (TestRunner $t) use ($current208, $nextTwoZeroEight, $escapeBytes208): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedEscapePlan(
         $current208,
-        $next208,
+        $nextTwoZeroEight,
         'plugin!_cache%',
         $escapeBytes208('!', 'UTF-16LE'),
         'UTF-16LE',

@@ -110,7 +110,7 @@ final class SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan
                 'sqlite-utf16-pattern-decode',
                 'sqlite-utf16-row-decode',
                 'sqlite-rtrim-like-full-scan',
-                'sqlite-current-source-next138',
+                'sqlite-current-source-nextoneThreeEight',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 text decoding, LIKE pattern planning, RTRIM collation keys, and current-source invalidation metadata',
         ];

@@ -498,7 +498,7 @@ final class SQLiteVfsFileWriter
      * @param list<int> $pageNumbers
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,checkpoint:array<string, mixed>,atomic:bool,current_source:array{database_path:string,database_bytes:int,journal_path:string,journal_bytes:int,wal_path:string,wal_bytes:int}}
      */
-    public function applyWalCheckpointHotJournalReaderCurrentSourceNext125(
+    public function applyWalCheckpointHotJournalReader(
         string $databasePath,
         array $pageNumbers,
         string $mode = 'restart',
@@ -508,7 +508,7 @@ final class SQLiteVfsFileWriter
         ?bool $superJournalExists = null,
     ): array {
         if ($databasePath === '') {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal reader checkpoint VFS apply next125 requires a database path');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal reader checkpoint VFS apply hot-journal-reader-checkpoint-apply requires a database path');
         }
 
         $databaseLocalPath = $this->localPath($databasePath);
@@ -517,20 +517,20 @@ final class SQLiteVfsFileWriter
         $walPath = $databasePath . '-wal';
         $walLocalPath = $this->localPath($walPath);
         if (!is_file($databaseLocalPath)) {
-            throw new \RuntimeException("SQLite WAL hot-journal reader checkpoint VFS apply next125 database is missing: {$databasePath}");
+            throw new \RuntimeException("SQLite WAL hot-journal reader checkpoint VFS apply hot-journal-reader-checkpoint-apply database is missing: {$databasePath}");
         }
         if (!is_file($journalLocalPath)) {
-            throw new \RuntimeException("SQLite WAL hot-journal reader checkpoint VFS apply next125 journal is missing: {$journalPath}");
+            throw new \RuntimeException("SQLite WAL hot-journal reader checkpoint VFS apply hot-journal-reader-checkpoint-apply journal is missing: {$journalPath}");
         }
         if (!is_file($walLocalPath)) {
-            throw new \RuntimeException("SQLite WAL hot-journal reader checkpoint VFS apply next125 WAL is missing: {$walPath}");
+            throw new \RuntimeException("SQLite WAL hot-journal reader checkpoint VFS apply hot-journal-reader-checkpoint-apply WAL is missing: {$walPath}");
         }
 
         $databaseBytes = (string) file_get_contents($databaseLocalPath);
         $journalBytes = (string) file_get_contents($journalLocalPath);
         $walBytes = (string) file_get_contents($walLocalPath);
         $wal = SQLiteWal::parse($walBytes, null, true);
-        $plan = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan(
+        $plan = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::checkpointHotJournalReaderPlan(
             $databasePath,
             $databaseBytes,
             $journalBytes,
@@ -563,7 +563,7 @@ final class SQLiteVfsFileWriter
                 'durable_syncs' => 0,
                 'directory_syncs' => 0,
                 'operations' => [],
-                'dependencies' => array_values(array_unique(array_merge($plan['dependencies'], ['sqlite-wal-hot-journal-reader-checkpoint-vfs-apply-next125']))),
+                'dependencies' => array_values(array_unique(array_merge($plan['dependencies'], ['sqlite-wal-hot-journal-reader-checkpoint-vfs-apply-hot-journal-reader-checkpoint-apply']))),
                 'checkpoint' => $plan,
                 'atomic' => true,
                 'current_source' => $source,
@@ -669,7 +669,7 @@ final class SQLiteVfsFileWriter
             ],
             array_values(array_unique(array_merge(
                 $plan['dependencies'],
-                ['sqlite-wal-hot-journal-reader-checkpoint-vfs-apply-next125']
+                ['sqlite-wal-hot-journal-reader-checkpoint-vfs-apply-hot-journal-reader-checkpoint-apply']
             )))
         );
         $applied['checkpoint'] = $plan;
@@ -684,7 +684,7 @@ final class SQLiteVfsFileWriter
      * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $nextTransactions
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{database_path:string,database_bytes:int,journal_path:string,journal_bytes:int,wal_path:string,wal_bytes:int}}
      */
-    public function applyWalHotJournalSavepointCheckpointCurrentSourceNext158(
+    public function applyWalHotJournalSavepointCheckpoint(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         string $databasePath,
@@ -696,13 +696,13 @@ final class SQLiteVfsFileWriter
         ?bool $superJournalExists = null,
     ): array {
         if ($databasePath === '') {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 requires a database path');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source savepoint-checkpoint-apply requires a database path');
         }
         if ($pageNumbers === []) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 requires reader pages');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source savepoint-checkpoint-apply requires reader pages');
         }
         if ($nextTransactions === []) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 requires next WAL transactions');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source savepoint-checkpoint-apply requires next WAL transactions');
         }
 
         $databaseLocalPath = $this->localPath($databasePath);
@@ -711,18 +711,18 @@ final class SQLiteVfsFileWriter
         $walPath = $databasePath . '-wal';
         $walLocalPath = $this->localPath($walPath);
         if (!is_file($databaseLocalPath)) {
-            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next158 database is missing: {$databasePath}");
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source savepoint-checkpoint-apply database is missing: {$databasePath}");
         }
         if (!is_file($journalLocalPath)) {
-            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next158 journal is missing: {$journalPath}");
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source savepoint-checkpoint-apply journal is missing: {$journalPath}");
         }
         if (!is_file($walLocalPath)) {
-            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next158 WAL is missing: {$walPath}");
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source savepoint-checkpoint-apply WAL is missing: {$walPath}");
         }
 
         foreach ($pageNumbers as $pageNumber) {
             if (!is_int($pageNumber) || $pageNumber < 1) {
-                throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 reader pages must be one-based integers');
+                throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source savepoint-checkpoint-apply reader pages must be one-based integers');
             }
         }
 
@@ -732,7 +732,7 @@ final class SQLiteVfsFileWriter
         $journal = SQLiteRollbackJournal::parse($journalBytes, true);
         $wal = SQLiteWal::parse($walBytes, null, true);
         if ($readerEndFrame < 0 || $readerEndFrame > $wal->frameCount()) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 reader frame is outside the original WAL frame range');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source savepoint-checkpoint-apply reader frame is outside the original WAL frame range');
         }
 
         $hot = $journal->hotJournalRecoveryResult(
@@ -761,7 +761,7 @@ final class SQLiteVfsFileWriter
                 'durable_syncs' => 0,
                 'directory_syncs' => 0,
                 'operations' => [],
-                'dependencies' => ['sqlite-rollback-journal-recovery', 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next158'],
+                'dependencies' => ['sqlite-rollback-journal-recovery', 'sqlite-wal-hot-journal-savepoint-checkpoint-savepoint-checkpoint-apply'],
                 'recovery' => ['hot_journal' => $hot],
                 'atomic' => true,
                 'current_source' => $source,
@@ -772,7 +772,7 @@ final class SQLiteVfsFileWriter
         $truncatedWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
         $truncatedWal = SQLiteWal::parse($truncatedWalBytes, $wal->header->pageSize, true);
         if ($readerEndFrame > $truncatedWal->frameCount()) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 reader frame must survive savepoint WAL rollback');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source savepoint-checkpoint-apply reader frame must survive savepoint WAL rollback');
         }
 
         $readerRows = array_map(
@@ -791,7 +791,7 @@ final class SQLiteVfsFileWriter
                 'offset' => 0,
                 'bytes' => strlen((string) $hot['database_bytes']),
                 'durable' => false,
-                'reason' => 'restore_hot_journal_database_before_savepoint_checkpoint_next158',
+                'reason' => 'restore_hot_journal_database_before_savepoint_checkpoint_savepoint-checkpoint-apply',
                 'payload_key' => 'hot_database',
             ],
             [
@@ -799,19 +799,19 @@ final class SQLiteVfsFileWriter
                 'path' => $databasePath,
                 'bytes' => strlen((string) $hot['database_bytes']),
                 'durable' => false,
-                'reason' => 'trim_hot_journal_database_before_savepoint_checkpoint_next158',
+                'reason' => 'trim_hot_journal_database_before_savepoint_checkpoint_savepoint-checkpoint-apply',
             ],
             [
                 'op' => 'sync',
                 'path' => $databasePath,
                 'durable' => true,
-                'reason' => 'sync_hot_journal_database_before_savepoint_checkpoint_next158',
+                'reason' => 'sync_hot_journal_database_before_savepoint_checkpoint_savepoint-checkpoint-apply',
             ],
             [
                 'op' => 'delete',
                 'path' => $journalPath,
                 'durable' => false,
-                'reason' => 'delete_hot_journal_before_savepoint_checkpoint_next158',
+                'reason' => 'delete_hot_journal_before_savepoint_checkpoint_savepoint-checkpoint-apply',
             ],
             [
                 'op' => 'write',
@@ -819,7 +819,7 @@ final class SQLiteVfsFileWriter
                 'offset' => 0,
                 'bytes' => strlen((string) $releasedCheckpoint['database_bytes']),
                 'durable' => false,
-                'reason' => 'apply_released_restart_checkpoint_database_next158',
+                'reason' => 'apply_released_restart_checkpoint_database_savepoint-checkpoint-apply',
                 'payload_key' => 'checkpoint_database',
             ],
             [
@@ -827,13 +827,13 @@ final class SQLiteVfsFileWriter
                 'path' => $databasePath,
                 'bytes' => strlen((string) $releasedCheckpoint['database_bytes']),
                 'durable' => false,
-                'reason' => 'trim_released_restart_checkpoint_database_next158',
+                'reason' => 'trim_released_restart_checkpoint_database_savepoint-checkpoint-apply',
             ],
             [
                 'op' => 'sync',
                 'path' => $databasePath,
                 'durable' => true,
-                'reason' => 'sync_released_restart_checkpoint_database_next158',
+                'reason' => 'sync_released_restart_checkpoint_database_savepoint-checkpoint-apply',
             ],
             [
                 'op' => 'write',
@@ -841,7 +841,7 @@ final class SQLiteVfsFileWriter
                 'offset' => 0,
                 'bytes' => strlen((string) $nextAppend['wal_bytes']),
                 'durable' => false,
-                'reason' => 'write_next_generation_wal_after_savepoint_checkpoint_next158',
+                'reason' => 'write_next_generation_wal_after_savepoint_checkpoint_savepoint-checkpoint-apply',
                 'payload_key' => 'next_wal',
             ],
             [
@@ -849,19 +849,19 @@ final class SQLiteVfsFileWriter
                 'path' => $walPath,
                 'bytes' => strlen((string) $nextAppend['wal_bytes']),
                 'durable' => false,
-                'reason' => 'trim_next_generation_wal_after_savepoint_checkpoint_next158',
+                'reason' => 'trim_next_generation_wal_after_savepoint_checkpoint_savepoint-checkpoint-apply',
             ],
             [
                 'op' => 'sync',
                 'path' => $walPath,
                 'durable' => true,
-                'reason' => 'sync_next_generation_wal_after_savepoint_checkpoint_next158',
+                'reason' => 'sync_next_generation_wal_after_savepoint_checkpoint_savepoint-checkpoint-apply',
             ],
             [
                 'op' => 'sync_directory',
                 'path' => dirname($databasePath),
                 'durable' => true,
-                'reason' => 'persist_hot_journal_savepoint_checkpoint_sidecars_next158',
+                'reason' => 'persist_hot_journal_savepoint_checkpoint_sidecars_savepoint-checkpoint-apply',
             ],
         ];
 
@@ -877,11 +877,11 @@ final class SQLiteVfsFileWriter
                 $pinnedCheckpoint['dependencies'],
                 $releasedCheckpoint['dependencies'],
                 $nextAppend['dependencies'],
-                ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next158']
+                ['sqlite-wal-hot-journal-savepoint-checkpoint-savepoint-checkpoint-apply']
             )))
         );
         $applied['recovery'] = [
-            'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next158',
+            'status' => 'wal-hot-journal-savepoint-checkpoint-savepoint-checkpoint-apply',
             'hot_journal' => $hot,
             'rollback' => $rollback,
             'reader_rows' => $readerRows,
@@ -906,7 +906,7 @@ final class SQLiteVfsFileWriter
      * @param array<string,mixed> $prepared
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,publication:array<string, mixed>,atomic:bool,current_source:array{database_path:string,database_bytes:int,journal_path:string,journal_bytes:int,wal_path:string,wal_bytes:int}}
      */
-    public function applyWalHotJournalSavepointCheckpointCurrentSourceNext175(
+    public function publishWalHotJournalSavepointCheckpoint(
         array $prepared,
         ?string $expectedDatabaseHash = null,
         ?string $expectedJournalHash = null,
@@ -915,7 +915,7 @@ final class SQLiteVfsFileWriter
     ): array {
         foreach (['database_path', 'journal_path', 'wal_path'] as $key) {
             if (!isset($prepared[$key]) || !is_string($prepared[$key]) || $prepared[$key] === '') {
-                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next175 missing prepared {$key}");
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source publish-apply missing prepared {$key}");
             }
         }
 
@@ -926,19 +926,19 @@ final class SQLiteVfsFileWriter
         $journalLocalPath = $this->localPath($journalPath);
         $walLocalPath = $this->localPath($walPath);
         if (!is_file($databaseLocalPath)) {
-            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next175 database is missing: {$databasePath}");
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source publish-apply database is missing: {$databasePath}");
         }
         if (!is_file($journalLocalPath)) {
-            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next175 journal is missing: {$journalPath}");
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source publish-apply journal is missing: {$journalPath}");
         }
         if (!is_file($walLocalPath)) {
-            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next175 WAL is missing: {$walPath}");
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source publish-apply WAL is missing: {$walPath}");
         }
 
         $databaseBytes = (string) file_get_contents($databaseLocalPath);
         $journalBytes = (string) file_get_contents($journalLocalPath);
         $walBytes = (string) file_get_contents($walLocalPath);
-        $publication = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan(
+        $publication = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::publishDurableHotJournalSavepointCheckpointPlan(
             $prepared,
             $databaseBytes,
             $journalBytes,
@@ -968,7 +968,7 @@ final class SQLiteVfsFileWriter
                 'durable_syncs' => 0,
                 'directory_syncs' => 0,
                 'operations' => [],
-                'dependencies' => array_values(array_unique(array_merge($publication['dependencies'], ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-vfs-apply-next175']))),
+                'dependencies' => array_values(array_unique(array_merge($publication['dependencies'], ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-vfs-publish-apply']))),
                 'publication' => $publication,
                 'atomic' => true,
                 'current_source' => $source,
@@ -984,7 +984,7 @@ final class SQLiteVfsFileWriter
             $payloads,
             array_values(array_unique(array_merge(
                 $publication['dependencies'],
-                ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-vfs-apply-next175']
+                ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-vfs-publish-apply']
             )))
         );
         $applied['publication'] = $publication;
@@ -999,7 +999,7 @@ final class SQLiteVfsFileWriter
      * @param array<int,string> $currentStatementSourcePages
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{database_path:string,database_bytes:int,journal_path:string,journal_bytes:int,wal_path:string,wal_bytes:int}}
      */
-    public function applyWalHotJournalStatementCurrentSourceNext117(
+    public function applyWalHotJournalStatementRollback(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         string $currentStatementName,
@@ -1039,7 +1039,7 @@ final class SQLiteVfsFileWriter
         $journal = SQLiteRollbackJournal::parse($journalBytes, true);
         $wal = SQLiteWal::parse($walBytes, null, true);
 
-        $plan = SQLiteWalHotJournalSavepointReplayPlan::statementCurrentSourceNext91(
+        $plan = SQLiteWalHotJournalSavepointReplayPlan::statementHotJournalRollbackPlan(
             $journal,
             $databaseBytes,
             $journalBytes,
@@ -1091,7 +1091,7 @@ final class SQLiteVfsFileWriter
             $plan['payloads'],
             array_values(array_unique(array_merge(
                 $plan['dependencies'],
-                ['sqlite-wal-hot-journal-statement-current-source-vfs-apply-next117']
+                ['sqlite-wal-hot-journal-statement-statement-rollback-vfs-apply']
             )))
         );
         $applied['recovery'] = $plan;
@@ -2418,7 +2418,7 @@ final class SQLiteVfsFileWriter
      * @param list<int> $visiblePages
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,hot_journal:array<string, mixed>,savepoint_checkpoint:array<string, mixed>,reader_boundary:array<string, mixed>,atomic:bool}
      */
-    public function applyHotJournalSavepointCheckpointCurrentSourceNext160(
+    public function applyHotJournalSavepointCheckpoint(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         string $databasePath,
@@ -2431,7 +2431,7 @@ final class SQLiteVfsFileWriter
         ?bool $superJournalExists = null,
     ): array {
         if ($databasePath === '') {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint VFS apply next160 requires a database path');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint VFS apply vfs-apply requires a database path');
         }
 
         $databaseLocal = $this->localPath($databasePath);
@@ -2440,13 +2440,13 @@ final class SQLiteVfsFileWriter
         $journalLocal = $this->localPath($journalPath);
         $walLocal = $this->localPath($walPath);
         if (!is_file($databaseLocal)) {
-            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint VFS apply next160 database is missing: {$databasePath}");
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint VFS apply vfs-apply database is missing: {$databasePath}");
         }
         if (!is_file($journalLocal)) {
-            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint VFS apply next160 journal is missing: {$journalPath}");
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint VFS apply vfs-apply journal is missing: {$journalPath}");
         }
         if (!is_file($walLocal)) {
-            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint VFS apply next160 WAL is missing: {$walPath}");
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint VFS apply vfs-apply WAL is missing: {$walPath}");
         }
 
         $dirtyDatabaseBytes = (string) file_get_contents($databaseLocal);
@@ -2475,7 +2475,7 @@ final class SQLiteVfsFileWriter
                 'operations' => [],
                 'dependencies' => [
                     'sqlite-rollback-journal-hot-recovery',
-                    'sqlite-wal-hot-journal-savepoint-checkpoint-vfs-apply-next160',
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-vfs-apply',
                 ],
                 'hot_journal' => $hot,
                 'savepoint_checkpoint' => [],
@@ -2593,7 +2593,7 @@ final class SQLiteVfsFileWriter
                 $boundary['dependencies'],
                 [
                     'sqlite-rollback-journal-hot-recovery',
-                    'sqlite-wal-hot-journal-savepoint-checkpoint-vfs-apply-next160',
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-vfs-apply',
                 ]
             )))
         );
@@ -2609,7 +2609,7 @@ final class SQLiteVfsFileWriter
      * @param list<int> $visiblePages
      * @return array<string,mixed>
      */
-    public function applyHotJournalSavepointCheckpointPinnedReaderCurrentSourceNext163(
+    public function applyHotJournalSavepointCheckpointPinnedReader(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         string $databasePath,
@@ -2620,10 +2620,10 @@ final class SQLiteVfsFileWriter
         ?bool $superJournalExists = null,
     ): array {
         if ($pinnedReaderEndFrame < 1) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint pinned-reader next163 requires a positive reader frame');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint pinned-reader pinned-reader requires a positive reader frame');
         }
 
-        $applied = $this->applyHotJournalSavepointCheckpointCurrentSourceNext160(
+        $applied = $this->applyHotJournalSavepointCheckpoint(
             $savepoints,
             $savepoint,
             $databasePath,
@@ -2652,8 +2652,8 @@ final class SQLiteVfsFileWriter
             : $applied['status'];
         $applied['pinned_reader'] = [
             'status' => $applied['status'] === 'applied-pinned-reader'
-                ? 'wal-hot-journal-savepoint-checkpoint-pinned-reader-current-source-next163'
-                : 'wal-hot-journal-savepoint-checkpoint-pinned-reader-skipped-next163',
+                ? 'wal-hot-journal-savepoint-checkpoint-pinned-reader-pinned-reader'
+                : 'wal-hot-journal-savepoint-checkpoint-pinned-reader-skipped-pinned-reader',
             'reader_end_frame' => $pinnedReaderEndFrame,
             'checkpoint_busy' => is_array($checkpoint) ? (bool) ($checkpoint['busy'] ?? false) : false,
             'checkpoint_reason' => is_array($checkpoint) ? (string) ($checkpoint['reason'] ?? '') : '',
@@ -2664,11 +2664,11 @@ final class SQLiteVfsFileWriter
             'reader_kept_wal_snapshot' => $walAction === 'preserve_wal',
             'wal_prefix_preserved_for_pinned_reader' => $walAction === 'preserve_wal' && $nextWalBytes === $retainedWalBytes,
             'dependency_closure' => 'no new support component needed; reuses hot rollback-journal recovery, WAL savepoint current-prefix truncation, restart checkpoint, and native VFS file writer apply',
-            'non_overlap' => 'extends accepted next160 truncate/no-reader VFS apply by keeping a pinned current reader on the retained WAL prefix during restart checkpoint reset instead of deleting the WAL sidecar',
+            'non_overlap' => 'extends accepted vfs-apply truncate/no-reader VFS apply by keeping a pinned current reader on the retained WAL prefix during restart checkpoint reset instead of deleting the WAL sidecar',
         ];
         $applied['dependencies'] = array_values(array_unique(array_merge(
             $applied['dependencies'],
-            ['sqlite-wal-hot-journal-savepoint-checkpoint-pinned-reader-current-source-next163']
+            ['sqlite-wal-hot-journal-savepoint-checkpoint-pinned-reader-pinned-reader']
         )));
 
         return $applied;

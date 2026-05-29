@@ -86,7 +86,7 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-escape-current-source-next166'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-escape-current-source-nextoneSixSix'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE rtrim(?) ESCAPE rtrim(?)'],
     'collation' => ['collation', 'NOCASE'],
@@ -150,16 +150,16 @@ $cases = [
     'nocase ascii only' => ['nocaseFoldsAsciiOnly', true],
     'dependency escape decode' => ['dependencies.1', 'sqlite-utf16-escape-decode'],
     'dependency escape expression' => ['dependencies.3', 'sqlite-rtrim-escape-expression'],
-    'dependency current source' => ['dependencies.5', 'sqlite-current-source-next166'],
+    'dependency current source' => ['dependencies.5', 'sqlite-current-source-nextoneSixSix'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim escape current source next166 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like rtrim escape current source nextOneSixSix ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim escape current source next166 byte only escape reprepare is reusable'] = static function (TestRunner $t) use ($row, $enc): void {
+$tests['utf16 nocase like rtrim escape current source nextOneSixSix byte only escape reprepare is reusable'] = static function (TestRunner $t) use ($row, $enc): void {
     $rows = [$row(1, 'Plugin_Cache  ', 2), $row(2, 'plugin_cache', 3)];
     $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapePlan(
         $rows,
@@ -183,7 +183,7 @@ $tests['utf16 nocase like rtrim escape current source next166 byte only escape r
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim escape current source next166 semantic escape change replans wildcard prefix'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim escape current source nextOneSixSix semantic escape change replans wildcard prefix'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('plugin!%%', 2, 'plugin!%%', 2, '! ', 2, '# ', 2);
     $t->same('!', $result['currentTrimmedEscape']);
     $t->same('#', $result['nextTrimmedEscape']);
@@ -194,7 +194,7 @@ $tests['utf16 nocase like rtrim escape current source next166 semantic escape ch
     $t->same(true, in_array('escape-matched-rowset', $result['semanticInvalidationReasons'], true));
 };
 
-$tests['utf16 nocase like rtrim escape current source next166 escape tabs are not trimmed'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
+$tests['utf16 nocase like rtrim escape current source nextOneSixSix escape tabs are not trimmed'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapePlan(
         $currentRows,
         $nextRows,
@@ -209,7 +209,7 @@ $tests['utf16 nocase like rtrim escape current source next166 escape tabs are no
     ));
 };
 
-$tests['utf16 nocase like rtrim escape current source next166 rejects malformed escape bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
+$tests['utf16 nocase like rtrim escape current source nextOneSixSix rejects malformed escape bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapePlan(
         $currentRows,
         $nextRows,
@@ -224,7 +224,7 @@ $tests['utf16 nocase like rtrim escape current source next166 rejects malformed 
     ));
 };
 
-$tests['utf16 nocase like rtrim escape current source next166 rejects empty escape after rtrim'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
+$tests['utf16 nocase like rtrim escape current source nextOneSixSix rejects empty escape after rtrim'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapePlan(
         $currentRows,
         $nextRows,

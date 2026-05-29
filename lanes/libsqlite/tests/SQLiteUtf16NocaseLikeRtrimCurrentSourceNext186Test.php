@@ -30,7 +30,7 @@ $current186 = [
     $row186(8, 'theme_cache', 3),
     $bad186(9, "\x00\xd8", 2),
 ];
-$next186 = [
+$nextOneEightSix = [
     $row186(1, 'Plugin_Cache', 3),
     $row186(2, 'PLUGIN_CACHE', 2),
     $row186(3, 'plugin_cache', 3),
@@ -54,7 +54,7 @@ $plan186 = static fn (
     ?array $resumeToken = ['key' => 'plugin_cache', 'rowid' => 2],
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumeBoundaryPlan(
     $current ?? $current186,
-    $next ?? $next186,
+    $next ?? $nextOneEightSix,
     $pattern,
     $escape,
     $currentSource,
@@ -76,7 +76,7 @@ $valueAt186 = static function (array $value, string $path): mixed {
 };
 
 $cases186 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next186'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightSix'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* resume boundary */'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -139,17 +139,17 @@ $cases186 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-residual-match'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next186'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nextoneEightSix'],
     'dependency resume' => ['dependencies.4', 'sqlite-utf16-resume-boundary'],
 ];
 
 foreach ($cases186 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next186 ' . $name] = static function (TestRunner $t) use ($plan186, $valueAt186, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneEightSix ' . $name] = static function (TestRunner $t) use ($plan186, $valueAt186, $path, $expected): void {
         $t->same($expected, $valueAt186($plan186(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next186 invalidation reason order'] = static function (TestRunner $t) use ($plan186): void {
+$tests['utf16 nocase like rtrim current source nextOneEightSix invalidation reason order'] = static function (TestRunner $t) use ($plan186): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -164,7 +164,7 @@ $tests['utf16 nocase like rtrim current source next186 invalidation reason order
     ], $plan186()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next186 stable byte order refresh can resume'] = static function (TestRunner $t) use ($row186): void {
+$tests['utf16 nocase like rtrim current source nextOneEightSix stable byte order refresh can resume'] = static function (TestRunner $t) use ($row186): void {
     $current = [
         $row186(1, 'Plugin_Cache', 2),
         $row186(2, 'plugin_cache_alpha', 2),
@@ -195,7 +195,7 @@ $tests['utf16 nocase like rtrim current source next186 stable byte order refresh
     $t->same(false, $result['mustReopenSourceCursor']);
 };
 
-$tests['utf16 nocase like rtrim current source next186 rtrim tab boundary is not collapsed'] = static function (TestRunner $t) use ($row186): void {
+$tests['utf16 nocase like rtrim current source nextOneEightSix rtrim tab boundary is not collapsed'] = static function (TestRunner $t) use ($row186): void {
     $rows = [
         $row186(1, 'plugin_cache', 2),
         $row186(2, 'plugin_cache' . "\t", 2),
@@ -217,7 +217,7 @@ $tests['utf16 nocase like rtrim current source next186 rtrim tab boundary is not
     $t->same([2], $result['currentRangeFalsePositiveRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next186 rejects malformed resume key'] = static function (TestRunner $t) use ($row186): void {
+$tests['utf16 nocase like rtrim current source nextOneEightSix rejects malformed resume key'] = static function (TestRunner $t) use ($row186): void {
     $rows = [$row186(1, 'plugin_cache', 2)];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumeBoundaryPlan(
         $rows,
@@ -232,7 +232,7 @@ $tests['utf16 nocase like rtrim current source next186 rejects malformed resume 
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next186 rejects malformed resume rowid'] = static function (TestRunner $t) use ($row186): void {
+$tests['utf16 nocase like rtrim current source nextOneEightSix rejects malformed resume rowid'] = static function (TestRunner $t) use ($row186): void {
     $rows = [$row186(1, 'plugin_cache', 2)];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumeBoundaryPlan(
         $rows,

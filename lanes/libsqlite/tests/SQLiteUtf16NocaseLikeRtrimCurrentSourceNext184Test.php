@@ -71,12 +71,12 @@ $valueAt184 = static function (array $value, string $path): mixed {
 };
 
 $cases184 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next184'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightFour'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_!%cache%'],
     'escape' => ['escape', '!'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next181'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightOne'],
     'base mode' => ['baseReplayPlanMode', 'continue-after-key-rowid-peer-token'],
     'current source' => ['currentSource', 'stable'],
     'next source' => ['nextSource', 'stable'],
@@ -123,16 +123,16 @@ $cases184 = [
     'dependency residual' => ['dependencies.1', 'sqlite-like-escape-residual'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression'],
     'dependency peer' => ['dependencies.3', 'sqlite-nocase-like-peer-replay'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next184'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nextoneEightFour'],
 ];
 
 foreach ($cases184 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next184 ' . $name] = static function (TestRunner $t) use ($plan184, $valueAt184, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneEightFour ' . $name] = static function (TestRunner $t) use ($plan184, $valueAt184, $path, $expected): void {
         $t->same($expected, $valueAt184($plan184(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next184 escaped percent blocks wildcard token'] = static function (TestRunner $t) use ($rows184, $enc184, $token184): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFour escaped percent blocks wildcard token'] = static function (TestRunner $t) use ($rows184, $enc184, $token184): void {
     $bad = $token184;
     $bad['key'] = 'plugin_acache';
     $bad['rowid'] = 4;
@@ -147,7 +147,7 @@ $tests['utf16 nocase like rtrim current source next184 escaped percent blocks wi
     $t->same([1, 2, 3, 6, 5], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next184 escaped underscore blocks wildcard token'] = static function (TestRunner $t) use ($rows184, $enc184, $token184): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFour escaped underscore blocks wildcard token'] = static function (TestRunner $t) use ($rows184, $enc184, $token184): void {
     $bad = $token184;
     $bad['key'] = 'plugin__cache';
     $bad['rowid'] = 7;
@@ -159,7 +159,7 @@ $tests['utf16 nocase like rtrim current source next184 escaped underscore blocks
     $t->same('reprepare-from-range-start', $result['replayPlanMode']);
 };
 
-$tests['utf16 nocase like rtrim current source next184 token trailing spaces match after rtrim'] = static function (TestRunner $t) use ($rows184, $enc184, $token184): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFour token trailing spaces match after rtrim'] = static function (TestRunner $t) use ($rows184, $enc184, $token184): void {
     $token = $token184;
     $token['key'] = 'plugin_%cache';
     $token['rowid'] = 1;
@@ -173,7 +173,7 @@ $tests['utf16 nocase like rtrim current source next184 token trailing spaces mat
     $t->same([2, 3], $result['sameKeyReplayRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next184 tab suffix does not rtrim into escaped literal'] = static function (TestRunner $t) use ($rows184, $enc184, $token184): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFour tab suffix does not rtrim into escaped literal'] = static function (TestRunner $t) use ($rows184, $enc184, $token184): void {
     $token = $token184;
     $token['key'] = "plugin_%cache\t";
     $token['rowid'] = 6;
@@ -185,14 +185,14 @@ $tests['utf16 nocase like rtrim current source next184 tab suffix does not rtrim
     $t->same(true, in_array('yield-token-not-stable', $result['peerReplayUnsafeReasons'], true));
 };
 
-$tests['utf16 nocase like rtrim current source next184 malformed token bytes are rejected before unsafe continuation'] = static function (TestRunner $t) use ($rows184, $token184): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFour malformed token bytes are rejected before unsafe continuation'] = static function (TestRunner $t) use ($rows184, $token184): void {
     $bad = $token184;
     $bad['keyBytes'] = "\x00\xd8";
     $bad['keyEncoding'] = 2;
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedPeerReplayPlan($rows184, $rows184, 'plugin!_!%cache%', '!', $bad, 'stable', 'stable', 184, 184));
 };
 
-$tests['utf16 nocase like rtrim current source next184 source change still defeats escaped token continuation'] = static function (TestRunner $t) use ($plan184): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFour source change still defeats escaped token continuation'] = static function (TestRunner $t) use ($plan184): void {
     $result = $plan184(null, null, null, 'plugin!_!%cache%', '!', 'main.wp_options@183', 'main.wp_options@184', 183, 184);
     $t->same(['source-or-schema-changed'], $result['basePeerReplayUnsafeReasons']);
     $t->same(['source-or-schema-changed'], $result['peerReplayUnsafeReasons']);

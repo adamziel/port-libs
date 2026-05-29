@@ -105,7 +105,7 @@ final class SQLitePagerSavepointCurrentNextPlan
      * @param array<string,mixed> $action
      * @return array<string,mixed>
      */
-    public static function rollbackJournalLifecycleCurrentNext67(array $events, array $action): array
+    public static function rollbackJournalLifecycle(array $events, array $action): array
     {
         $plan = self::currentNext($events, $action);
         $mode = self::journalMode($action['journal_mode'] ?? 'delete');
@@ -151,7 +151,7 @@ final class SQLitePagerSavepointCurrentNextPlan
                 'super_journal_participant' => (bool) ($action['super_journal_participant'] ?? false),
                 'requires_reserved_lock' => $plan['pager']['lock_after'] === 'reserved',
                 'dependencies' => [
-                    'sqlite-pager-savepoint-current-next67',
+                    'sqlite-pager-savepoint-rollback-journal-lifecycle',
                     'sqlite-rollback-journal-lifecycle',
                 ],
             ],

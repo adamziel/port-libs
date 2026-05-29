@@ -32,7 +32,7 @@ $current187 = [
     $row187(6, "plugin\t", 'UTF-16LE'),
     $bad187(7, "\x00\xd8", 2),
 ];
-$next187 = [
+$nextOneEightSeven = [
     $row187(1, 'plugin', 'UTF-16BE'),
     $row187(2, 'Plugin', 'UTF-16LE'),
     $row187(3, 'plugin_extra', 'UTF-8'),
@@ -54,7 +54,7 @@ $plan187 = static fn (
     int $nextCookie = 187,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDanglingEscapePlan(
     $current ?? $current187,
-    $next ?? $next187,
+    $next ?? $nextOneEightSeven,
     $pattern,
     $escape,
     $currentSource,
@@ -75,10 +75,10 @@ $valueAt187 = static function (array $value, string $path): mixed {
 };
 
 $cases187 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next187'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightSeven'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next183'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightThree'],
     'pattern' => ['pattern', 'plugin!'],
     'escape' => ['escape', '!'],
     'prefix' => ['prefix', 'plugin'],
@@ -123,16 +123,16 @@ $cases187 = [
     'dependency dangling residual' => ['dependencies.1', 'sqlite-like-dangling-escape-residual'],
     'dependency range recheck' => ['dependencies.2', 'sqlite-nocase-prefix-range-recheck'],
     'dependency rtrim' => ['dependencies.3', 'sqlite-rtrim-expression-key'],
-    'dependency current source' => ['dependencies.4', 'sqlite-current-source-next187'],
+    'dependency current source' => ['dependencies.4', 'sqlite-current-source-nextoneEightSeven'],
 ];
 
 foreach ($cases187 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next187 ' . $name] = static function (TestRunner $t) use ($plan187, $valueAt187, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneEightSeven ' . $name] = static function (TestRunner $t) use ($plan187, $valueAt187, $path, $expected): void {
         $t->same($expected, $valueAt187($plan187(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next187 invalidation reasons include dangling escape residual'] = static function (TestRunner $t) use ($plan187): void {
+$tests['utf16 nocase like rtrim current source nextOneEightSeven invalidation reasons include dangling escape residual'] = static function (TestRunner $t) use ($plan187): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -144,7 +144,7 @@ $tests['utf16 nocase like rtrim current source next187 invalidation reasons incl
     ], $plan187()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next187 stable source still requires residual recheck'] = static function (TestRunner $t) use ($row187): void {
+$tests['utf16 nocase like rtrim current source nextOneEightSeven stable source still requires residual recheck'] = static function (TestRunner $t) use ($row187): void {
     $rows = [
         $row187(1, 'plugin', 'UTF-16LE'),
         $row187(2, 'Plugin  ', 'UTF-16BE'),
@@ -167,7 +167,7 @@ $tests['utf16 nocase like rtrim current source next187 stable source still requi
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next187 escaped bang before wildcard is not dangling'] = static function (TestRunner $t) use ($row187): void {
+$tests['utf16 nocase like rtrim current source nextOneEightSeven escaped bang before wildcard is not dangling'] = static function (TestRunner $t) use ($row187): void {
     $rows = [
         $row187(1, 'plugin!', 'UTF-16LE'),
         $row187(2, 'plugin!alpha', 'UTF-16BE'),
@@ -191,7 +191,7 @@ $tests['utf16 nocase like rtrim current source next187 escaped bang before wildc
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next187 no escape treats bang literally'] = static function (TestRunner $t) use ($row187): void {
+$tests['utf16 nocase like rtrim current source nextOneEightSeven no escape treats bang literally'] = static function (TestRunner $t) use ($row187): void {
     $rows = [
         $row187(1, 'plugin!', 'UTF-16LE'),
         $row187(2, 'Plugin!  ', 'UTF-16BE'),
@@ -214,8 +214,8 @@ $tests['utf16 nocase like rtrim current source next187 no escape treats bang lit
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next187 invalid escape length rejected by base planner'] = static function (TestRunner $t) use ($current187, $next187): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDanglingEscapePlan($current187, $next187, 'plugin!!', '!!'));
+$tests['utf16 nocase like rtrim current source nextOneEightSeven invalid escape length rejected by base planner'] = static function (TestRunner $t) use ($current187, $nextOneEightSeven): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDanglingEscapePlan($current187, $nextOneEightSeven, 'plugin!!', '!!'));
 };
 
 return $tests;

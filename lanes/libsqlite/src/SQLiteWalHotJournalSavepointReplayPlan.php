@@ -11,7 +11,7 @@ final class SQLiteWalHotJournalSavepointReplayPlan
      * @param array<int,string> $currentStatementSourcePages
      * @return array<string,mixed>
      */
-    public static function statementCurrentSourceNext91(
+    public static function statementHotJournalRollbackPlan(
         SQLiteRollbackJournal $journal,
         string $databaseBytes,
         string $journalBytes,
@@ -85,8 +85,8 @@ final class SQLiteWalHotJournalSavepointReplayPlan
             $nextCommitFrame
         );
 
-        $statementPayloadKey = $databasePath . '#statement-current-source-next91';
-        $walPayloadKey = $databasePath . '-wal#statement-current-source-next91';
+        $statementPayloadKey = $databasePath . '#statement-statement-rollback';
+        $walPayloadKey = $databasePath . '-wal#statement-statement-rollback';
         $nextWalBytes = substr($walBytes, 0, 32 + ($statement['rollback_to_wal_frame'] * (24 + $wal->header->pageSize)));
         $journalPath = $databasePath . '-journal';
         $walPath = $databasePath . '-wal';
@@ -169,7 +169,7 @@ final class SQLiteWalHotJournalSavepointReplayPlan
         $payloads[$walPayloadKey] = $nextWalBytes;
 
         return [
-            'status' => $hot['recovered'] ? 'hot_journal_wal_statement_current_source_recovered_next91' : 'hot_journal_wal_statement_current_source_skipped_next91',
+            'status' => $hot['recovered'] ? 'hot_journal_wal_statement_current_source_recovered_statement-rollback' : 'hot_journal_wal_statement_current_source_skipped_statement-rollback',
             'reason' => $hot['recovered'] ? 'hot_journal_and_current_wal_precede_statement_rollback' : 'statement_rollback_uses_current_wal_without_hot_journal_recovery',
             'database_path' => $databasePath,
             'journal_path' => $journalPath,
@@ -217,7 +217,7 @@ final class SQLiteWalHotJournalSavepointReplayPlan
                 $walRecovery['dependencies'],
                 $statement['dependencies'],
                 [
-                    'sqlite-wal-hot-journal-statement-current-source-next91',
+                    'sqlite-wal-hot-journal-statement-statement-rollback',
                     'sqlite-statement-subjournal-after-hot-journal-wal-current-source',
                 ]
             ))),

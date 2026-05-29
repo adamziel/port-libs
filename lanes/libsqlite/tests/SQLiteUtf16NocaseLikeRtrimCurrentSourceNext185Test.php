@@ -33,7 +33,7 @@ $current185 = [
     $row185(7, 'plugin_other', 'UTF-16BE'),
     $row185(8, 'theme_cache', 'UTF-16LE'),
 ];
-$next185 = [
+$nextOneEightFive = [
     $row185(1, 'Plugin_Cache  ', 'UTF-16LE'),
     $row185(3, 'PLUGIN_CACHE  ', 'UTF-8'),
     $row185(4, "plugin_cache\t", 'UTF-16LE'),
@@ -60,7 +60,7 @@ $plan185 = static fn (
     int $nextCookie = 185,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan(
     $current ?? $current185,
-    $next ?? $next185,
+    $next ?? $nextOneEightFive,
     'plugin!_cache%',
     '!',
     $token ?? $token185,
@@ -82,7 +82,7 @@ $valueAt185 = static function (array $value, string $path): mixed {
 };
 
 $cases185 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next185'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightFive'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -135,16 +135,16 @@ $cases185 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency rtrim' => ['dependencies.1', 'sqlite-rtrim-expression'],
     'dependency deleted token' => ['dependencies.2', 'sqlite-nocase-like-deleted-token-resume'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next185'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nextoneEightFive'],
 ];
 
 foreach ($cases185 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next185 ' . $name] = static function (TestRunner $t) use ($plan185, $valueAt185, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneEightFive ' . $name] = static function (TestRunner $t) use ($plan185, $valueAt185, $path, $expected): void {
         $t->same($expected, $valueAt185($plan185(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next185 source change reparses deleted token'] = static function (TestRunner $t) use ($plan185): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFive source change reparses deleted token'] = static function (TestRunner $t) use ($plan185): void {
     $result = $plan185(null, null, null, 'main.wp_options@184', 'main.wp_options@185', 184, 185);
     $t->same(['source-or-schema-changed'], $result['resumeUnsafeReasons']);
     $t->same(false, $result['deletedTokenResumeSafe']);
@@ -152,7 +152,7 @@ $tests['utf16 nocase like rtrim current source next185 source change reparses de
     $t->same([1, 3, 4, 5, 6, 9], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next185 token still present cannot use deleted boundary'] = static function (TestRunner $t) use ($plan185, $current185): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFive token still present cannot use deleted boundary'] = static function (TestRunner $t) use ($plan185, $current185): void {
     $result = $plan185($current185, $current185);
     $t->same(['yield-token-not-deleted'], $result['resumeUnsafeReasons']);
     $t->same(null, $result['deletedTokenRowid']);
@@ -160,8 +160,8 @@ $tests['utf16 nocase like rtrim current source next185 token still present canno
     $t->same([1, 2, 3, 4, 5, 6], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next185 peer inserted before token reparses'] = static function (TestRunner $t) use ($current185, $next185, $row185, $token185): void {
-    $next = $next185;
+$tests['utf16 nocase like rtrim current source nextOneEightFive peer inserted before token reparses'] = static function (TestRunner $t) use ($current185, $nextOneEightFive, $row185, $token185): void {
+    $next = $nextOneEightFive;
     $next[] = $row185(0, 'plugin_cache', 'UTF-16LE');
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan($current185, $next, 'plugin!_cache%', '!', $token185, 'stable', 'stable', 185, 185);
     $t->same(['peer-before-token-changed'], $result['resumeUnsafeReasons']);
@@ -170,7 +170,7 @@ $tests['utf16 nocase like rtrim current source next185 peer inserted before toke
     $t->same('reprepare-from-range-start', $result['replayPlanMode']);
 };
 
-$tests['utf16 nocase like rtrim current source next185 lost later peer reparses'] = static function (TestRunner $t) use ($current185, $row185, $token185): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFive lost later peer reparses'] = static function (TestRunner $t) use ($current185, $row185, $token185): void {
     $next = [
         $row185(1, 'Plugin_Cache  ', 'UTF-16LE'),
         $row185(5, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -181,8 +181,8 @@ $tests['utf16 nocase like rtrim current source next185 lost later peer reparses'
     $t->same([1, 5], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next185 malformed next row reparses'] = static function (TestRunner $t) use ($current185, $next185, $bad185, $token185): void {
-    $next = $next185;
+$tests['utf16 nocase like rtrim current source nextOneEightFive malformed next row reparses'] = static function (TestRunner $t) use ($current185, $nextOneEightFive, $bad185, $token185): void {
+    $next = $nextOneEightFive;
     $next[] = $bad185(10, "\x00\xd8", 2);
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan($current185, $next, 'plugin!_cache%', '!', $token185, 'stable', 'stable', 185, 185);
     $t->same(['malformed-text'], $result['resumeUnsafeReasons']);
@@ -190,7 +190,7 @@ $tests['utf16 nocase like rtrim current source next185 malformed next row repars
     $t->same('SQLite encoding source UTF-16 text payload ends with a high surrogate', $result['nextErrors'][10]);
 };
 
-$tests['utf16 nocase like rtrim current source next185 non canonical token reparses'] = static function (TestRunner $t) use ($plan185, $token185): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFive non canonical token reparses'] = static function (TestRunner $t) use ($plan185, $token185): void {
     $token = $token185;
     $token['key'] = 'Plugin_Cache  ';
     $result = $plan185(null, null, $token);
@@ -199,29 +199,29 @@ $tests['utf16 nocase like rtrim current source next185 non canonical token repar
     $t->same(true, $result['mustReprepareBeforeDeletedTokenResume']);
 };
 
-$tests['utf16 nocase like rtrim current source next185 null token reparses'] = static function (TestRunner $t) use ($current185, $next185): void {
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan($current185, $next185, 'plugin!_cache%', '!', null, 'stable', 'stable', 185, 185);
+$tests['utf16 nocase like rtrim current source nextOneEightFive null token reparses'] = static function (TestRunner $t) use ($current185, $nextOneEightFive): void {
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan($current185, $nextOneEightFive, 'plugin!_cache%', '!', null, 'stable', 'stable', 185, 185);
     $t->same(['yield-token-missing', 'yield-token-not-deleted'], $result['resumeUnsafeReasons']);
     $t->same(null, $result['normalizedLastYielded']);
     $t->same([1, 3, 4, 5, 6, 9], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next185 rejects missing bytes'] = static function (TestRunner $t) use ($current185, $next185, $token185): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFive rejects missing bytes'] = static function (TestRunner $t) use ($current185, $nextOneEightFive, $token185): void {
     $bad = $current185;
     $bad[] = ['option_id' => 20, 'text_encoding' => 2];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan($bad, $next185, 'plugin%', null, $token185));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan($bad, $nextOneEightFive, 'plugin%', null, $token185));
 };
 
-$tests['utf16 nocase like rtrim current source next185 rejects missing encoding'] = static function (TestRunner $t) use ($current185, $next185, $token185): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFive rejects missing encoding'] = static function (TestRunner $t) use ($current185, $nextOneEightFive, $token185): void {
     $bad = $current185;
     $bad[] = ['option_id' => 20, 'option_name_bytes' => 'plugin_cache'];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan($bad, $next185, 'plugin%', null, $token185));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan($bad, $nextOneEightFive, 'plugin%', null, $token185));
 };
 
-$tests['utf16 nocase like rtrim current source next185 rejects non integer rowid'] = static function (TestRunner $t) use ($current185, $next185, $token185): void {
+$tests['utf16 nocase like rtrim current source nextOneEightFive rejects non integer rowid'] = static function (TestRunner $t) use ($current185, $nextOneEightFive, $token185): void {
     $bad = $current185;
     $bad[] = ['option_id' => '20', 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 1];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan($bad, $next185, 'plugin%', null, $token185));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDeletedTokenResumePlan($bad, $nextOneEightFive, 'plugin%', null, $token185));
 };
 
 return $tests;

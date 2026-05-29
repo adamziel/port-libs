@@ -20,7 +20,7 @@ $current256 = [
     ['option_id' => 10, 'option_name' => 'plugin_bad_text', 'option_value' => "plugin_\xff"],
 ];
 
-$next256 = [
+$nextTwoFiveSix = [
     ['option_id' => 1, 'option_name' => 'plugin_cache', 'option_value' => 'plugin_cache'],
     ['option_id' => 2, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN_CACHE'],
     ['option_id' => 3, 'option_name' => 'plugin_percent_literal', 'option_value' => 'plugin_%'],
@@ -47,7 +47,7 @@ $plan256 = static fn (
     int $nextCookie = 256,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPatternAffinityPlan(
     $current ?? $current256,
-    $next ?? $next256,
+    $next ?? $nextTwoFiveSix,
     $currentPattern,
     $nextPattern,
     $escape,
@@ -70,7 +70,7 @@ $valueAt256 = static function (array $value, string $path): mixed {
 };
 
 $cases256 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next256'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFiveSix'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_value COLLATE NOCASE LIKE dynamic_pattern /* pattern TEXT affinity current-source fence */'],
     'escape' => ['escape', null],
@@ -104,7 +104,7 @@ $cases256 = [
     'next false positive' => ['nextFalsePositiveRowids', []],
     'current malformed' => ['currentMalformedRowids', [9, 10]],
     'next malformed' => ['nextMalformedRowids', [9, 10]],
-    'current blob error' => ['currentErrors.9', 'SQLite pattern-affinity LIKE next256 option_value is BLOB, not text'],
+    'current blob error' => ['currentErrors.9', 'SQLite pattern-affinity LIKE nextTwoFiveSix option_value is BLOB, not text'],
     'changed storage' => ['changedStorageRowids', [7, 11]],
     'changed text' => ['changedLikeTextRowids', [11]],
     'changed key' => ['changedCollationKeyRowids', [11]],
@@ -119,16 +119,16 @@ $cases256 = [
     'dependency pattern' => ['dependencies.0', 'sqlite-like-pattern-text-affinity'],
     'dependency range' => ['dependencies.1', 'sqlite-like-prefix-range'],
     'dependency collation' => ['dependencies.2', 'sqlite-nocase-rtrim-collation'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next256'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoFiveSix'],
 ];
 
 foreach ($cases256 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next256 ' . $name] = static function (TestRunner $t) use ($plan256, $valueAt256, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFiveSix ' . $name] = static function (TestRunner $t) use ($plan256, $valueAt256, $path, $expected): void {
         $t->same($expected, $valueAt256($plan256(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next256 invalidation reason order'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix invalidation reason order'] = static function (TestRunner $t) use ($plan256): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -144,7 +144,7 @@ $tests['encoding collation affinity like current source next256 invalidation rea
     ], $plan256()['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next256 stable cursor is reusable'] = static function (TestRunner $t) use ($current256, $plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix stable cursor is reusable'] = static function (TestRunner $t) use ($current256, $plan256): void {
     $rows = array_values(array_filter($current256, static fn (array $row): bool => !in_array($row['option_id'] ?? null, [9, 10], true)));
     $result = $plan256(current: $rows, next: $rows, currentPattern: 'plugin%', nextPattern: 'plugin%', currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
 
@@ -154,7 +154,7 @@ $tests['encoding collation affinity like current source next256 stable cursor is
     $t->same([3, 1, 2], $result['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next256 integer pattern is exact text pattern'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix integer pattern is exact text pattern'] = static function (TestRunner $t) use ($plan256): void {
     $rows = [
         ['option_id' => 1, 'option_value' => '123'],
         ['option_id' => 2, 'option_value' => 123],
@@ -167,7 +167,7 @@ $tests['encoding collation affinity like current source next256 integer pattern 
     $t->same([1, 2], $result['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next256 real pattern keeps sqlite text form'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix real pattern keeps sqlite text form'] = static function (TestRunner $t) use ($plan256): void {
     $rows = [
         ['option_id' => 1, 'option_value' => '12.5'],
         ['option_id' => 2, 'option_value' => 12.5],
@@ -180,7 +180,7 @@ $tests['encoding collation affinity like current source next256 real pattern kee
     $t->same([1, 2], $result['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next256 boolean pattern uses integer text'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix boolean pattern uses integer text'] = static function (TestRunner $t) use ($plan256): void {
     $rows = [
         ['option_id' => 1, 'option_value' => '1'],
         ['option_id' => 2, 'option_value' => 1],
@@ -193,7 +193,7 @@ $tests['encoding collation affinity like current source next256 boolean pattern 
     $t->same([1, 2], $result['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next256 null pattern makes rows unknown'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix null pattern makes rows unknown'] = static function (TestRunner $t) use ($plan256): void {
     $rows = [
         ['option_id' => 1, 'option_value' => 'plugin_cache'],
         ['option_id' => 2, 'option_value' => '123'],
@@ -206,19 +206,19 @@ $tests['encoding collation affinity like current source next256 null pattern mak
     $t->same([], $result['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next256 blob pattern is rejected before scan match'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix blob pattern is rejected before scan match'] = static function (TestRunner $t) use ($plan256): void {
     $rows = [
         ['option_id' => 1, 'option_value' => 'plugin_cache'],
     ];
     $result = $plan256(current: $rows, next: $rows, currentPattern: new SQLiteBlobValue('plugin%'), nextPattern: 'plugin%', currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
 
     $t->same('blob', $result['currentPattern']['storage']);
-    $t->same('SQLite pattern-affinity LIKE next256 current pattern is BLOB, not text', $result['currentPattern']['error']);
+    $t->same('SQLite pattern-affinity LIKE nextTwoFiveSix current pattern is BLOB, not text', $result['currentPattern']['error']);
     $t->same([1], $result['currentUnknownRowids']);
     $t->same(true, in_array('pattern-malformed', $result['invalidationReasons'], true));
 };
 
-$tests['encoding collation affinity like current source next256 escaped numeric-looking pattern keeps literal percent'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix escaped numeric-looking pattern keeps literal percent'] = static function (TestRunner $t) use ($plan256): void {
     $rows = [
         ['option_id' => 1, 'option_value' => '123%'],
         ['option_id' => 2, 'option_value' => '1234'],
@@ -230,7 +230,7 @@ $tests['encoding collation affinity like current source next256 escaped numeric-
     $t->same([1], $result['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next256 rtrim collation disables default like range'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix rtrim collation disables default like range'] = static function (TestRunner $t) use ($plan256): void {
     $result = $plan256(currentPattern: 'plugin%', nextPattern: 'plugin%', collation: 'RTRIM');
 
     $t->same('RTRIM', $result['collation']);
@@ -239,15 +239,15 @@ $tests['encoding collation affinity like current source next256 rtrim collation 
     $t->same([], $result['currentCandidateRowids']);
 };
 
-$tests['encoding collation affinity like current source next256 rejects invalid collation'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix rejects invalid collation'] = static function (TestRunner $t) use ($plan256): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan256(collation: 'UNICODE'));
 };
 
-$tests['encoding collation affinity like current source next256 rejects invalid escape'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix rejects invalid escape'] = static function (TestRunner $t) use ($plan256): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan256(escape: '!!'));
 };
 
-$tests['encoding collation affinity like current source next256 rejects missing option value'] = static function (TestRunner $t) use ($plan256): void {
+$tests['encoding collation affinity like current source nextTwoFiveSix rejects missing option value'] = static function (TestRunner $t) use ($plan256): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan256(current: [['option_id' => 1]], next: []));
 };
 

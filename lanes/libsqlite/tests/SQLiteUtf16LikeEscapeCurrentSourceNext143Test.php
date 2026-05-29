@@ -137,12 +137,12 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$pattern, $escape, $collation, $path, $expected]) {
-    $tests['utf16 like escape current source next143 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $pattern, $escape, $collation, $path, $expected): void {
+    $tests['utf16 like escape current source nextOneFourThree ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $pattern, $escape, $collation, $path, $expected): void {
         $t->same($expected, $valueAt($plan($pattern, $escape, $collation), $path));
     };
 }
 
-$tests['utf16 like escape current source next143 identical source can reuse cursor'] = static function (TestRunner $t) use ($row, $plan): void {
+$tests['utf16 like escape current source nextOneFourThree identical source can reuse cursor'] = static function (TestRunner $t) use ($row, $plan): void {
     $rows = [$row(1, 'plugin_100%_enabled', 'UTF-16LE'), $row(2, 'plugin_100%_enabled_extra', 'UTF-16BE')];
     $result = $plan('plugin\\_100\\%\\_enabled%', '\\', 'NOCASE', $rows, $rows, 'stable', 'stable', 77, 77);
     $t->same([1, 2], $result['currentMatchedRowids']);
@@ -150,7 +150,7 @@ $tests['utf16 like escape current source next143 identical source can reuse curs
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 like escape current source next143 dangling escape produces no residual matches'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 like escape current source nextOneFourThree dangling escape produces no residual matches'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('plugin\\_100\\%\\_enabled\\', '\\', 'NOCASE');
     $t->same(true, $result['hasDanglingEscape']);
     $t->same(false, $result['indexUsable']);
@@ -158,19 +158,19 @@ $tests['utf16 like escape current source next143 dangling escape produces no res
     $t->same('dangling-escape', $result['invalidationReasons'][2]);
 };
 
-$tests['utf16 like escape current source next143 rejects unsupported collation'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 like escape current source nextOneFourThree rejects unsupported collation'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', '\\', 'UNICODE'));
 };
 
-$tests['utf16 like escape current source next143 rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 like escape current source nextOneFourThree rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::wordpressOptionNameLikeEscape([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
 };
 
-$tests['utf16 like escape current source next143 rejects non integer rowid'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 like escape current source nextOneFourThree rejects non integer rowid'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::wordpressOptionNameLikeEscape([['option_id' => '1', 'option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'plugin%'));
 };
 
-$tests['utf16 like escape current source next143 rejects invalid escape length'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 like escape current source nextOneFourThree rejects invalid escape length'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', 'xx', 'NOCASE'));
 };
 

@@ -28,7 +28,7 @@ final class SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan
         $minimum = self::coerceNumericBound($minimumNumeric, 'minimum');
         $maximum = self::coerceNumericBound($maximumNumeric, 'maximum');
         if ($minimum > $maximum) {
-            throw new \InvalidArgumentException('SQLite UTF-16 RTRIM GLOB affinity current-source next145 numeric range is reversed');
+            throw new \InvalidArgumentException('SQLite UTF-16 RTRIM GLOB affinity current-source nextOneFourFive numeric range is reversed');
         }
 
         $current = self::sourceRows($currentRows, $pattern, $range, $minimum, $maximum);
@@ -151,7 +151,7 @@ final class SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan
                 'sqlite-glob-binary-residual',
                 'sqlite-numeric-affinity',
                 'sqlite-encoding-source-cursor',
-                'sqlite-current-source-next145',
+                'sqlite-current-source-nextoneFourFive',
             ],
         ];
     }
@@ -231,12 +231,12 @@ final class SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan
     {
         foreach (['option_id', 'name_text_encoding', 'value_text_encoding'] as $key) {
             if (!isset($row[$key]) || !is_int($row[$key])) {
-                throw new \InvalidArgumentException("SQLite UTF-16 RTRIM GLOB affinity current-source next145 rows require integer {$key}");
+                throw new \InvalidArgumentException("SQLite UTF-16 RTRIM GLOB affinity current-source nextOneFourFive rows require integer {$key}");
             }
         }
         foreach (['option_name_bytes', 'option_value_bytes'] as $key) {
             if (!array_key_exists($key, $row) || !is_string($row[$key])) {
-                throw new \InvalidArgumentException("SQLite UTF-16 RTRIM GLOB affinity current-source next145 rows require {$key}");
+                throw new \InvalidArgumentException("SQLite UTF-16 RTRIM GLOB affinity current-source nextOneFourFive rows require {$key}");
             }
         }
     }
@@ -277,7 +277,7 @@ final class SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan
     {
         $coerced = is_string($value) ? self::numericAffinity($value) : $value;
         if ($coerced === null) {
-            throw new \InvalidArgumentException("SQLite UTF-16 RTRIM GLOB affinity current-source next145 {$name} bound must be numeric");
+            throw new \InvalidArgumentException("SQLite UTF-16 RTRIM GLOB affinity current-source nextOneFourFive {$name} bound must be numeric");
         }
 
         return (float) $coerced;
@@ -368,7 +368,7 @@ final class SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan
             1 => 'UTF-8',
             2 => 'UTF-16LE',
             3 => 'UTF-16BE',
-            default => throw new \InvalidArgumentException('SQLite UTF-16 RTRIM GLOB affinity current-source next145 rows require UTF-8, UTF-16LE, or UTF-16BE encoding'),
+            default => throw new \InvalidArgumentException('SQLite UTF-16 RTRIM GLOB affinity current-source nextOneFourFive rows require UTF-8, UTF-16LE, or UTF-16BE encoding'),
         };
     }
 

@@ -13147,7 +13147,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
 
         return $value;
     }
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext160Plan.php. */
+    /* Variant consolidated from generated numbered plan. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $beforeStatements
@@ -13436,7 +13436,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $changed;
     }
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext186Plan.php. */
+    /* Variant consolidated from generated numbered plan. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -13698,7 +13698,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $counts;
     }
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext197Plan.php. */
+    /* Variant consolidated from generated numbered plan. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -13962,7 +13962,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $counts;
     }
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext199Plan.php. */
+    /* Variant consolidated from generated numbered plan. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -14192,7 +14192,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $counts;
     }
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext201Plan.php. */
+    /* Variant consolidated from generated numbered plan. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -14436,7 +14436,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         }
     }
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext204Plan.php. */
+    /* Variant consolidated from generated numbered plan. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -14814,7 +14814,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $reflection->invoke(null, $assignments);
     }
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext214Plan.php. */
+    /* Variant consolidated from generated numbered plan. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -15044,7 +15044,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $counts;
     }
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext215Plan.php. */
+    /* Variant consolidated from generated numbered plan. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -15086,7 +15086,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $plan;
     }
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext216Plan.php. */
+    /* Variant consolidated from generated numbered plan. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -15146,7 +15146,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $value;
     }
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext227Plan.php. */
+    /* Variant consolidated from generated numbered plan. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements

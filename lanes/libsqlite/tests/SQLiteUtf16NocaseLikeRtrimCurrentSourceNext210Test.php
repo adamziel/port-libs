@@ -33,7 +33,7 @@ $current210 = [
     $row210(7, "theme\0cache", 'UTF-16BE'),
     $bad210(8, "\x00\xd8", 2),
 ];
-$next210 = [
+$nextTwoOneZero = [
     $row210(1, "plugin\0cache", 'UTF-16BE'),
     $row210(2, "Plugin\0Cache", 'UTF-16LE'),
     $row210(3, "plugin\0cache_extra", 'UTF-16BE'),
@@ -47,7 +47,7 @@ $next210 = [
 
 $plan210 = static fn (?array $current = null, ?array $next = null, string $pattern = "plugin\0cache%"): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
     $current ?? $current210,
-    $next ?? $next210,
+    $next ?? $nextTwoOneZero,
     $pattern,
 );
 
@@ -63,7 +63,7 @@ $valueAt210 = static function (array $value, string $path): mixed {
 };
 
 $cases210 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next210'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? /* embedded NUL */'],
     'pattern' => ['pattern', "plugin\0cache%"],
@@ -137,16 +137,16 @@ $cases210 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
     'dependency nul' => ['dependencies.3', 'sqlite-embedded-nul-text'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next210'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoOneZero'],
 ];
 
 foreach ($cases210 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next210 ' . $name] = static function (TestRunner $t) use ($plan210, $valueAt210, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoOneZero ' . $name] = static function (TestRunner $t) use ($plan210, $valueAt210, $path, $expected): void {
         $t->same($expected, $valueAt210($plan210(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next210 invalidation reasons include nul rowsets'] = static function (TestRunner $t) use ($plan210): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneZero invalidation reasons include nul rowsets'] = static function (TestRunner $t) use ($plan210): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -157,7 +157,7 @@ $tests['utf16 nocase like rtrim current source next210 invalidation reasons incl
     ], $plan210()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next210 stable embedded nul cursor can be reused'] = static function (TestRunner $t) use ($row210): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneZero stable embedded nul cursor can be reused'] = static function (TestRunner $t) use ($row210): void {
     $rows = [
         $row210(1, "Plugin\0Cache  ", 'UTF-16LE'),
         $row210(2, "plugin\0cache_more", 'UTF-16BE'),
@@ -182,15 +182,15 @@ $tests['utf16 nocase like rtrim current source next210 stable embedded nul curso
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next210 rejects pattern without nul'] = static function (TestRunner $t) use ($current210, $next210): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneZero rejects pattern without nul'] = static function (TestRunner $t) use ($current210, $nextTwoOneZero): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
         $current210,
-        $next210,
+        $nextTwoOneZero,
         'plugin%',
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next210 rejects invalid row shape'] = static function (TestRunner $t) use ($row210): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneZero rejects invalid row shape'] = static function (TestRunner $t) use ($row210): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
         [['option_id' => '1', 'option_name_bytes' => 'plugin', 'text_encoding' => 1]],
         [$row210(1, "plugin\0cache", 'UTF-8')],

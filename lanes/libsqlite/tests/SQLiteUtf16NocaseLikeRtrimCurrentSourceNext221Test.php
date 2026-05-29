@@ -86,8 +86,8 @@ $valueAt221 = static function (array $value, string $path): mixed {
 };
 
 $cases221 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next221'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next200'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoTwoOne'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 byte signature */'],
     'current pattern' => ['currentPattern', 'plugin!_cache%'],
@@ -152,16 +152,16 @@ $cases221 = [
     'dependency signature' => ['dependencies.1', 'sqlite-prepared-like-byte-signature'],
     'dependency range' => ['dependencies.2', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.3', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next221'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoTwoOne'],
 ];
 
 foreach ($cases221 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next221 ' . $name] = static function (TestRunner $t) use ($plan221, $valueAt221, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoTwoOne ' . $name] = static function (TestRunner $t) use ($plan221, $valueAt221, $path, $expected): void {
         $t->same($expected, $valueAt221($plan221(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next221 invalidation reasons include byte signature'] = static function (TestRunner $t) use ($plan221): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoOne invalidation reasons include byte signature'] = static function (TestRunner $t) use ($plan221): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -173,7 +173,7 @@ $tests['utf16 nocase like rtrim current source next221 invalidation reasons incl
     ], $plan221()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next221 stable source still rejects stale byte signature'] = static function (TestRunner $t) use ($enc221, $row221): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoOne stable source still rejects stale byte signature'] = static function (TestRunner $t) use ($enc221, $row221): void {
     $rows = [
         $row221(1, 'plugin_cache', 'UTF-16LE'),
         $row221(2, 'Plugin_Cache  ', 'UTF-16BE'),
@@ -203,7 +203,7 @@ $tests['utf16 nocase like rtrim current source next221 stable source still rejec
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next221 identical prepared bytes can reuse stable cursor'] = static function (TestRunner $t) use ($enc221, $row221): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoOne identical prepared bytes can reuse stable cursor'] = static function (TestRunner $t) use ($enc221, $row221): void {
     $rows = [
         $row221(1, 'plugin_cache', 'UTF-16LE'),
         $row221(2, 'Plugin_Cache  ', 'UTF-16BE'),
@@ -234,7 +234,7 @@ $tests['utf16 nocase like rtrim current source next221 identical prepared bytes 
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next221 escape byte signature changes independently'] = static function (TestRunner $t) use ($enc221, $row221): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoOne escape byte signature changes independently'] = static function (TestRunner $t) use ($enc221, $row221): void {
     $rows = [
         $row221(1, 'plugin_cache', 'UTF-16LE'),
         $row221(2, 'plugin-cache', 'UTF-16BE'),
@@ -264,7 +264,7 @@ $tests['utf16 nocase like rtrim current source next221 escape byte signature cha
     $t->same('UTF-16BE', $result['nextPreparedSignature']['escapeEncoding']);
 };
 
-$tests['utf16 nocase like rtrim current source next221 rejects malformed prepared bytes'] = static function (TestRunner $t) use ($currentRows221, $nextRows221, $enc221): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoOne rejects malformed prepared bytes'] = static function (TestRunner $t) use ($currentRows221, $nextRows221, $enc221): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedByteSignaturePlan(
         $currentRows221,
         $nextRows221,

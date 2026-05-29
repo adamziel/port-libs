@@ -88,7 +88,7 @@ final class SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan
             'dependencies' => [
                 'sqlite-utf16-pattern-decode',
                 'sqlite-like-glob-affinity',
-                'sqlite-collation-range-current-source-next118',
+                'sqlite-collation-range-current-source-nextoneOneEight',
             ],
         ]);
     }

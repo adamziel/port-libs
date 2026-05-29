@@ -74,8 +74,8 @@ $valueAt181 = static function (array $value, string $path): mixed {
 };
 
 $cases181 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next181'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next178'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneEightOne'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSevenEight'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -119,23 +119,23 @@ $cases181 = [
     'dependency utf16' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency rtrim' => ['dependencies.1', 'sqlite-rtrim-expression'],
     'dependency peer' => ['dependencies.2', 'sqlite-nocase-like-peer-replay'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next181'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nextoneEightOne'],
 ];
 
 foreach ($cases181 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next181 ' . $name] = static function (TestRunner $t) use ($plan181, $valueAt181, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneEightOne ' . $name] = static function (TestRunner $t) use ($plan181, $valueAt181, $path, $expected): void {
         $t->same($expected, $valueAt181($plan181(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next181 rowid tie breaker skips only yielded peer'] = static function (TestRunner $t) use ($plan181): void {
+$tests['utf16 nocase like rtrim current source nextOneEightOne rowid tie breaker skips only yielded peer'] = static function (TestRunner $t) use ($plan181): void {
     $result = $plan181();
     $t->same([1, 2], $result['peerBeforeOrAtTokenRowids']);
     $t->same([3], $result['sameKeyReplayRowids']);
     $t->same([3, 4, 5, 6], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next181 source change reparses duplicate peers'] = static function (TestRunner $t) use ($plan181): void {
+$tests['utf16 nocase like rtrim current source nextOneEightOne source change reparses duplicate peers'] = static function (TestRunner $t) use ($plan181): void {
     $result = $plan181(null, null, null, 'main.wp_options@180', 'main.wp_options@181', 180, 181);
     $t->same(['source-or-schema-changed'], $result['peerReplayUnsafeReasons']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
@@ -143,7 +143,7 @@ $tests['utf16 nocase like rtrim current source next181 source change reparses du
     $t->same([1, 2, 3, 4, 5, 6], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next181 peer insertion before token reparses'] = static function (TestRunner $t) use ($row181, $token181): void {
+$tests['utf16 nocase like rtrim current source nextOneEightOne peer insertion before token reparses'] = static function (TestRunner $t) use ($row181, $token181): void {
     $current = [
         $row181(1, 'Plugin_Cache  ', 'UTF-16LE'),
         $row181(2, 'plugin_cache', 'UTF-16BE'),
@@ -164,7 +164,7 @@ $tests['utf16 nocase like rtrim current source next181 peer insertion before tok
     $t->same([0, 1, 2, 3, 4], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next181 canonical token mismatch uses base reprepare'] = static function (TestRunner $t) use ($rows181, $enc181, $token181): void {
+$tests['utf16 nocase like rtrim current source nextOneEightOne canonical token mismatch uses base reprepare'] = static function (TestRunner $t) use ($rows181, $enc181, $token181): void {
     $badToken = $token181;
     $badToken['key'] = 'Plugin_Cache  ';
     $badToken['keyBytes'] = $enc181('plugin_cache', 'UTF-16BE');
@@ -174,7 +174,7 @@ $tests['utf16 nocase like rtrim current source next181 canonical token mismatch 
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
 };
 
-$tests['utf16 nocase like rtrim current source next181 no token cannot continue within peer group'] = static function (TestRunner $t) use ($rows181): void {
+$tests['utf16 nocase like rtrim current source nextOneEightOne no token cannot continue within peer group'] = static function (TestRunner $t) use ($rows181): void {
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($rows181, $rows181, 'plugin!_cache%', '!', null, 'stable', 'stable', 181, 181);
     $t->same(null, $result['peerKey']);
     $t->same(['yield-token-not-stable'], $result['peerReplayUnsafeReasons']);
@@ -182,7 +182,7 @@ $tests['utf16 nocase like rtrim current source next181 no token cannot continue 
     $t->same([1, 2, 3, 4, 5, 6], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next181 malformed peer source reparses'] = static function (TestRunner $t) use ($rows181, $bad181, $token181): void {
+$tests['utf16 nocase like rtrim current source nextOneEightOne malformed peer source reparses'] = static function (TestRunner $t) use ($rows181, $bad181, $token181): void {
     $next = $rows181;
     $next[] = $bad181(9, "\x00\xd8", 2);
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($rows181, $next, 'plugin!_cache%', '!', $token181, 'stable', 'stable', 181, 181);
@@ -191,7 +191,7 @@ $tests['utf16 nocase like rtrim current source next181 malformed peer source rep
     $t->same([1, 2, 3, 4, 5, 6], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next181 non ascii nocase remains sqlite ascii only'] = static function (TestRunner $t) use ($row181, $enc181): void {
+$tests['utf16 nocase like rtrim current source nextOneEightOne non ascii nocase remains sqlite ascii only'] = static function (TestRunner $t) use ($row181, $enc181): void {
     $rows = [
         $row181(1, 'plugin_cacheé', 'UTF-16LE'),
         $row181(2, 'plugin_cacheÉ', 'UTF-16BE'),
@@ -215,7 +215,7 @@ $tests['utf16 nocase like rtrim current source next181 non ascii nocase remains 
     $t->same(true, $result['nocaseFoldsAsciiOnly']);
 };
 
-$tests['utf16 nocase like rtrim current source next181 rejects row without encoding'] = static function (TestRunner $t) use ($row181, $token181): void {
+$tests['utf16 nocase like rtrim current source nextOneEightOne rejects row without encoding'] = static function (TestRunner $t) use ($row181, $token181): void {
     $rows = [
         $row181(1, 'plugin_cache', 'UTF-16LE'),
         ['option_id' => 2, 'option_name_bytes' => 'plugin_cache'],
@@ -223,7 +223,7 @@ $tests['utf16 nocase like rtrim current source next181 rejects row without encod
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };
 
-$tests['utf16 nocase like rtrim current source next181 rejects row without bytes'] = static function (TestRunner $t) use ($row181, $token181): void {
+$tests['utf16 nocase like rtrim current source nextOneEightOne rejects row without bytes'] = static function (TestRunner $t) use ($row181, $token181): void {
     $rows = [
         $row181(1, 'plugin_cache', 'UTF-16LE'),
         ['option_id' => 2, 'text_encoding' => 2],
@@ -231,7 +231,7 @@ $tests['utf16 nocase like rtrim current source next181 rejects row without bytes
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };
 
-$tests['utf16 nocase like rtrim current source next181 rejects row without integer rowid'] = static function (TestRunner $t) use ($row181, $token181): void {
+$tests['utf16 nocase like rtrim current source nextOneEightOne rejects row without integer rowid'] = static function (TestRunner $t) use ($row181, $token181): void {
     $rows = [
         $row181(1, 'plugin_cache', 'UTF-16LE'),
         ['option_id' => '2', 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 1],

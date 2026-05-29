@@ -81,7 +81,7 @@ final class SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan
             && $base['safeToResumeFromToken'] === true;
 
         return [
-            'status' => 'utf16-nocase-like-rtrim-resume-token-current-source-next170',
+            'status' => 'utf16-nocase-like-rtrim-resume-token-current-source-nextoneSevenZero',
             'operator' => 'LIKE',
             'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ?',
             'baseStatus' => $base['status'],
@@ -130,7 +130,7 @@ final class SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan
             'dependencies' => [
                 'sqlite-utf16-resume-token-decode',
                 'sqlite-nocase-like-rtrim-resume-cursor',
-                'sqlite-current-source-next170',
+                'sqlite-current-source-nextoneSevenZero',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 token decode, accepted NOCASE/RTRIM LIKE resume planning, and current-source diagnostics',
         ];
@@ -142,7 +142,7 @@ final class SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan
         try {
             $key = SQLiteEncodingCollationSourceCursor::decodeText($bytes, $encoding);
         } catch (\InvalidArgumentException $exception) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next170 ' . $label . ' resume token is malformed: ' . $exception->getMessage(), 0, $exception);
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSevenZero ' . $label . ' resume token is malformed: ' . $exception->getMessage(), 0, $exception);
         }
 
         return ['token' => ['key' => self::asciiLower(rtrim($key, ' ')), 'rowid' => $rowid]];

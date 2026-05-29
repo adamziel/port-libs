@@ -130,7 +130,7 @@ final class SQLiteUtf16CastGlobCurrentSourceNextPlan
                 'sqlite-utf16-decode',
                 'sqlite-select-cast-expression',
                 'sqlite-glob-prefix-range',
-                'sqlite-current-source-next135',
+                'sqlite-current-source-nextoneThreeFive',
             ],
         ];
     }

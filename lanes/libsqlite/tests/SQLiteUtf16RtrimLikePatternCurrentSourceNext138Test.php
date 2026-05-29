@@ -142,12 +142,12 @@ $cases = [
     'reason rowset' => ['plugin_cache', 'UTF-16LE', null, null, true, 'invalidationReasons.6', 'matched-rowset'],
     'dependency pattern decode' => ['plugin_cache', 'UTF-16LE', null, null, true, 'dependencies.0', 'sqlite-utf16-pattern-decode'],
     'dependency row decode' => ['plugin_cache', 'UTF-16LE', null, null, true, 'dependencies.1', 'sqlite-utf16-row-decode'],
-    'dependency marker' => ['plugin_cache', 'UTF-16LE', null, null, true, 'dependencies.3', 'sqlite-current-source-next138'],
+    'dependency marker' => ['plugin_cache', 'UTF-16LE', null, null, true, 'dependencies.3', 'sqlite-current-source-nextoneThreeEight'],
     'dependency closure' => ['plugin_cache', 'UTF-16LE', null, null, true, 'dependency_closure', 'no new support component needed; reuses native UTF-16 text decoding, LIKE pattern planning, RTRIM collation keys, and current-source invalidation metadata'],
 ];
 
 foreach ($cases as $name => [$pattern, $patternEncoding, $escape, $escapeEncoding, $caseSensitiveLike, $path, $expected]) {
-    $tests['utf16 rtrim like pattern current source next138 ' . $name] = static function (TestRunner $t) use ($plan, $pattern, $patternEncoding, $escape, $escapeEncoding, $caseSensitiveLike, $path, $expected): void {
+    $tests['utf16 rtrim like pattern current source nextOneThreeEight ' . $name] = static function (TestRunner $t) use ($plan, $pattern, $patternEncoding, $escape, $escapeEncoding, $caseSensitiveLike, $path, $expected): void {
         $value = $plan($pattern, $patternEncoding, $escape, $escapeEncoding, $caseSensitiveLike);
         foreach (explode('.', $path) as $part) {
             $value = $value[$part];
@@ -156,7 +156,7 @@ foreach ($cases as $name => [$pattern, $patternEncoding, $escape, $escapeEncodin
     };
 }
 
-$tests['utf16 rtrim like pattern current source next138 stable unchanged still records rtrim full scan'] = static function (TestRunner $t) use ($row, $bytes): void {
+$tests['utf16 rtrim like pattern current source nextOneThreeEight stable unchanged still records rtrim full scan'] = static function (TestRunner $t) use ($row, $bytes): void {
     $rows = [$row(1, 'plugin_cache ', 'UTF-16LE'), $row(2, 'theme_cache', 'UTF-16BE')];
     $plan = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan($rows, $rows, $bytes('plugin_cache%', 'UTF-16LE'), 'UTF-16LE', null, null, true, 'stable', 'stable');
     $t->same(['full-scan-rtrim-like'], $plan['invalidationReasons']);
@@ -164,36 +164,36 @@ $tests['utf16 rtrim like pattern current source next138 stable unchanged still r
     $t->same([1], $plan['nextRowids']);
 };
 
-$tests['utf16 rtrim like pattern current source next138 accepts utf16 alias'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 rtrim like pattern current source nextOneThreeEight accepts utf16 alias'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $plan = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $nextRows, $bytes('plugin_cache%', 'UTF-16LE'), 'UTF-16');
     $t->same('UTF-16LE', $plan['patternEncoding']);
 };
 
-$tests['utf16 rtrim like pattern current source next138 rejects invalid pattern encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 rtrim like pattern current source nextOneThreeEight rejects invalid pattern encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $nextRows, $bytes('plugin%', 'UTF-16LE'), 'UTF-32'));
 };
 
-$tests['utf16 rtrim like pattern current source next138 rejects malformed pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
+$tests['utf16 rtrim like pattern current source nextOneThreeEight rejects malformed pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $nextRows, "\x00\xd8", 'UTF-16LE'));
 };
 
-$tests['utf16 rtrim like pattern current source next138 rejects malformed escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 rtrim like pattern current source nextOneThreeEight rejects malformed escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $nextRows, $bytes('plugin!_%', 'UTF-16LE'), 'UTF-16LE', "\x00\xd8", 'UTF-16LE'));
 };
 
-$tests['utf16 rtrim like pattern current source next138 rejects multi character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
+$tests['utf16 rtrim like pattern current source nextOneThreeEight rejects multi character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $nextRows, $bytes('plugin!!_%', 'UTF-16LE'), 'UTF-16LE', $bytes('!!', 'UTF-16LE'), 'UTF-16LE'));
 };
 
-$tests['utf16 rtrim like pattern current source next138 rejects missing option id'] = static function (TestRunner $t) use ($nextRows, $bytes): void {
+$tests['utf16 rtrim like pattern current source nextOneThreeEight rejects missing option id'] = static function (TestRunner $t) use ($nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, $bytes('p%', 'UTF-8'), 'UTF-8'));
 };
 
-$tests['utf16 rtrim like pattern current source next138 rejects missing bytes'] = static function (TestRunner $t) use ($nextRows, $bytes): void {
+$tests['utf16 rtrim like pattern current source nextOneThreeEight rejects missing bytes'] = static function (TestRunner $t) use ($nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, $bytes('p%', 'UTF-8'), 'UTF-8'));
 };
 
-$tests['utf16 rtrim like pattern current source next138 rejects missing encoding'] = static function (TestRunner $t) use ($nextRows, $bytes): void {
+$tests['utf16 rtrim like pattern current source nextOneThreeEight rejects missing encoding'] = static function (TestRunner $t) use ($nextRows, $bytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, $bytes('p%', 'UTF-8'), 'UTF-8'));
 };
 

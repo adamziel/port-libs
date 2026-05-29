@@ -84,8 +84,8 @@ $valueAt217 = static function (array $value, string $path): mixed {
 };
 
 $cases217 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next217'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next200'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneSeven'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 pattern space */'],
     'current pattern' => ['currentPattern', 'plugin!_cache %'],
@@ -151,16 +151,16 @@ $cases217 = [
     'dependency prepared pattern' => ['dependencies.1', 'sqlite-prepared-like-pattern-decode'],
     'dependency range' => ['dependencies.2', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.3', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next217'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoOneSeven'],
 ];
 
 foreach ($cases217 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next217 ' . $name] = static function (TestRunner $t) use ($plan217, $valueAt217, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoOneSeven ' . $name] = static function (TestRunner $t) use ($plan217, $valueAt217, $path, $expected): void {
         $t->same($expected, $valueAt217($plan217(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next217 invalidation reasons include pattern space'] = static function (TestRunner $t) use ($plan217): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneSeven invalidation reasons include pattern space'] = static function (TestRunner $t) use ($plan217): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -175,7 +175,7 @@ $tests['utf16 nocase like rtrim current source next217 invalidation reasons incl
     ], $plan217()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next217 stable pattern space can reuse cursor'] = static function (TestRunner $t) use ($enc217, $row217): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneSeven stable pattern space can reuse cursor'] = static function (TestRunner $t) use ($enc217, $row217): void {
     $rows = [
         $row217(1, 'plugin_cache alpha', 'UTF-16LE'),
         $row217(2, 'Plugin_Cache alpha  ', 'UTF-16BE'),
@@ -203,7 +203,7 @@ $tests['utf16 nocase like rtrim current source next217 stable pattern space can 
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next217 escaped wildcard before pattern space is literal'] = static function (TestRunner $t) use ($plan217, $row217): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneSeven escaped wildcard before pattern space is literal'] = static function (TestRunner $t) use ($plan217, $row217): void {
     $rows = [
         $row217(1, 'plugin_cache alpha', 'UTF-16LE'),
         $row217(2, 'pluginXcache alpha', 'UTF-16BE'),
@@ -218,7 +218,7 @@ $tests['utf16 nocase like rtrim current source next217 escaped wildcard before p
     $t->same([3, 2], $result['currentExcludedDecodedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next217 rejects malformed prepared pattern bytes'] = static function (TestRunner $t) use ($currentRows217, $nextRows217, $enc217): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneSeven rejects malformed prepared pattern bytes'] = static function (TestRunner $t) use ($currentRows217, $nextRows217, $enc217): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternSpacePlan(
         $currentRows217,
         $nextRows217,
@@ -229,7 +229,7 @@ $tests['utf16 nocase like rtrim current source next217 rejects malformed prepare
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next217 rejects invalid encoding label'] = static function (TestRunner $t) use ($currentRows217, $nextRows217, $enc217): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneSeven rejects invalid encoding label'] = static function (TestRunner $t) use ($currentRows217, $nextRows217, $enc217): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternSpacePlan(
         $currentRows217,
         $nextRows217,

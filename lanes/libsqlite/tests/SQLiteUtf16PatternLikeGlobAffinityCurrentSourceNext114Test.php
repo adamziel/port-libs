@@ -128,11 +128,11 @@ $cases = [
     'source switch next source' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'nextSource', 'temp.wp_options', 'main.wp_options', 'temp.wp_options'],
     'dependency decode' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'dependencies.0', 'sqlite-utf16-pattern-decode'],
     'dependency affinity' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'dependencies.1', 'sqlite-like-glob-affinity'],
-    'dependency marker' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'dependencies.2', 'sqlite-current-source-next114'],
+    'dependency marker' => ['autoload:%', 'UTF-16LE', 'LIKE', null, null, false, 'dependencies.2', 'sqlite-current-source-nextoneOneFour'],
 ];
 
 foreach ($cases as $name => $case) {
-    $tests['utf16 pattern like glob affinity current source next114 ' . $name] = static function (TestRunner $t) use ($plan, $case): void {
+    $tests['utf16 pattern like glob affinity current source nextOneOneFour ' . $name] = static function (TestRunner $t) use ($plan, $case): void {
         [$pattern, $patternEncoding, $operator, $escape, $escapeEncoding, $caseSensitiveLike, $path, $expected] = $case;
         $currentSource = $case[8] ?? 'main.wp_options';
         $nextSource = $case[9] ?? 'main.wp_options';
@@ -144,37 +144,37 @@ foreach ($cases as $name => $case) {
     };
 }
 
-$tests['utf16 pattern like glob affinity current source next114 accepts utf8 pattern encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
+$tests['utf16 pattern like glob affinity current source nextOneOneFour accepts utf8 pattern encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
     $plan = SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $patternBytes('autoload:%', 'UTF-8'), 'UTF-8');
     $t->same([1, 2], $plan['currentRowids']);
 };
 
-$tests['utf16 pattern like glob affinity current source next114 accepts utf16 keyword alias'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
+$tests['utf16 pattern like glob affinity current source nextOneOneFour accepts utf16 keyword alias'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
     $plan = SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $patternBytes('autoload:%', 'UTF-16LE'), 'UTF-16');
     $t->same('UTF-16LE', $plan['patternEncoding']);
 };
 
-$tests['utf16 pattern like glob affinity current source next114 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
+$tests['utf16 pattern like glob affinity current source nextOneOneFour rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $patternBytes('autoload:%', 'UTF-16LE'), 'UTF-16LE', 'REGEXP'));
 };
 
-$tests['utf16 pattern like glob affinity current source next114 rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
+$tests['utf16 pattern like glob affinity current source nextOneOneFour rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $patternBytes('autoload:*', 'UTF-16LE'), 'UTF-16LE', 'GLOB', $patternBytes('!', 'UTF-16LE')));
 };
 
-$tests['utf16 pattern like glob affinity current source next114 rejects multi character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
+$tests['utf16 pattern like glob affinity current source nextOneOneFour rejects multi character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $patternBytes('cache:!!%%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', $patternBytes('!!', 'UTF-16LE')));
 };
 
-$tests['utf16 pattern like glob affinity current source next114 rejects invalid pattern encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
+$tests['utf16 pattern like glob affinity current source nextOneOneFour rejects invalid pattern encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $patternBytes('autoload:%', 'UTF-16LE'), 'UTF-32'));
 };
 
-$tests['utf16 pattern like glob affinity current source next114 rejects malformed utf16 pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
+$tests['utf16 pattern like glob affinity current source nextOneOneFour rejects malformed utf16 pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, "\x00\xd8", 'UTF-16LE'));
 };
 
-$tests['utf16 pattern like glob affinity current source next114 rejects malformed utf16 escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
+$tests['utf16 pattern like glob affinity current source nextOneOneFour rejects malformed utf16 escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $patternBytes): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, $patternBytes('cache:!%%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', "\x00\xd8", 'UTF-16LE'));
 };
 

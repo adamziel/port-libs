@@ -41,7 +41,7 @@ $current218 = [
     $row218(9, "plugin_cache\t", 'UTF-16BE'),
     $bad218(10, "\x00\xd8", 2),
 ];
-$next218 = [
+$nextTwoOneEight = [
     $row218(1, 'Plugin_Cache', 'UTF-16BE'),
     $row218(2, 'plugin_cache', 'UTF-16LE'),
     $row218(3, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -67,7 +67,7 @@ $plan218 = static fn (
     ?array $cursor = null,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldPagePlan(
     $current ?? $current218,
-    $next ?? $next218,
+    $next ?? $nextTwoOneEight,
     'plugin!_cache%',
     $escapeBytes218('!', 'UTF-16LE'),
     'UTF-16LE',
@@ -94,8 +94,8 @@ $valueAt218 = static function (array $value, string $path): mixed {
 };
 
 $cases218 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next218'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next208'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneEight'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroEight'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? ORDER BY rtrim(option_name) COLLATE NOCASE, rowid LIMIT ? OFFSET ?'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -162,16 +162,16 @@ $cases218 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-escape-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
     'dependency limit' => ['dependencies.3', 'sqlite-nocase-limit-yield-window'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next218'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoOneEight'],
 ];
 
 foreach ($cases218 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next218 ' . $name] = static function (TestRunner $t) use ($plan218, $valueAt218, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoOneEight ' . $name] = static function (TestRunner $t) use ($plan218, $valueAt218, $path, $expected): void {
         $t->same($expected, $valueAt218($plan218(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next218 invalidation reasons include limit window'] = static function (TestRunner $t) use ($plan218): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneEight invalidation reasons include limit window'] = static function (TestRunner $t) use ($plan218): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -182,21 +182,21 @@ $tests['utf16 nocase like rtrim current source next218 invalidation reasons incl
     ], $plan218()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next218 accepts matching current page cursor'] = static function (TestRunner $t) use ($plan218): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneEight accepts matching current page cursor'] = static function (TestRunner $t) use ($plan218): void {
     $first = $plan218();
     $second = $plan218(cursor: $first['currentPageToken']);
     $t->same([2, 9, 3], $second['currentPageToken']['pageRowids']);
     $t->same([2, 9, 11], $second['nextPageToken']['pageRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next218 rejects stale page cursor'] = static function (TestRunner $t) use ($plan218): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneEight rejects stale page cursor'] = static function (TestRunner $t) use ($plan218): void {
     $first = $plan218();
     $cursor = $first['currentPageToken'];
     $cursor['tailRowid'] = 9;
     $t->throws(InvalidArgumentException::class, static fn () => $plan218(cursor: $cursor));
 };
 
-$tests['utf16 nocase like rtrim current source next218 stable source can reuse page'] = static function (TestRunner $t) use ($row218, $plan218): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneEight stable source can reuse page'] = static function (TestRunner $t) use ($row218, $plan218): void {
     $rows = [
         $row218(1, 'Plugin_Cache', 'UTF-16LE'),
         $row218(2, 'plugin_cache  ', 'UTF-16BE'),
@@ -210,7 +210,7 @@ $tests['utf16 nocase like rtrim current source next218 stable source can reuse p
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next218 rows before window force restart'] = static function (TestRunner $t) use ($row218, $plan218): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneEight rows before window force restart'] = static function (TestRunner $t) use ($row218, $plan218): void {
     $current = [
         $row218(1, 'plugin_cache_alpha', 'UTF-16LE'),
         $row218(2, 'plugin_cache_beta', 'UTF-16BE'),
@@ -229,7 +229,7 @@ $tests['utf16 nocase like rtrim current source next218 rows before window force 
     $t->same(true, in_array('rows-before-limit-window', $result['invalidationReasons'], true));
 };
 
-$tests['utf16 nocase like rtrim current source next218 rejects invalid limit and offset'] = static function (TestRunner $t) use ($plan218): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneEight rejects invalid limit and offset'] = static function (TestRunner $t) use ($plan218): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan218(limit: 0));
     $t->throws(InvalidArgumentException::class, static fn () => $plan218(offset: -1));
 };

@@ -39,7 +39,7 @@ $current248 = [
     ['option_id' => 10, 'option_name_bytes' => null, 'text_encoding' => 1],
     ['option_id' => 11, 'option_name_bytes' => new SQLiteBlobValue('plugin_cache%blob'), 'text_encoding' => 1],
 ];
-$next248 = [
+$nextTwoFourEight = [
     $row248(1, 'plugin_cache%enabled', 'UTF-16BE'),
     $row248(2, 'Plugin_Cache%Enabled2', 'UTF-16LE'),
     $row248(3, 'plugin_cache_enabled', 'UTF-8'),
@@ -63,7 +63,7 @@ $plan248 = static fn (
     int $nextCookie = 248,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan(
     $current ?? $current248,
-    $next ?? $next248,
+    $next ?? $nextTwoFourEight,
     $pattern,
     $escape,
     $caseSensitive,
@@ -85,7 +85,7 @@ $valueAt248 = static function (array $value, string $path): mixed {
 };
 
 $cases248 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next248'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourEight'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_name COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII ESCAPE */'],
     'pattern' => ['pattern', 'pluginé_cacheé%%'],
@@ -155,16 +155,16 @@ $cases248 = [
     'dependency decode' => ['dependencies.1', 'sqlite-utf16-decode'],
     'dependency range' => ['dependencies.2', 'sqlite-like-escape-prefix-range'],
     'dependency collation' => ['dependencies.3', 'sqlite-nocase-ascii-collation'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next248'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoFourEight'],
 ];
 
 foreach ($cases248 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next248 ' . $name] = static function (TestRunner $t) use ($plan248, $valueAt248, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFourEight ' . $name] = static function (TestRunner $t) use ($plan248, $valueAt248, $path, $expected): void {
         $t->same($expected, $valueAt248($plan248(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next248 stable cursor reusable'] = static function (TestRunner $t) use ($plan248, $row248): void {
+$tests['encoding collation affinity like current source nextTwoFourEight stable cursor reusable'] = static function (TestRunner $t) use ($plan248, $row248): void {
     $rows = [
         $row248(1, 'plugin_cache%enabled', 'UTF-16LE'),
         $row248(2, 'Plugin_Cache%Enabled', 'UTF-16BE'),
@@ -176,21 +176,21 @@ $tests['encoding collation affinity like current source next248 stable cursor re
     $t->same([1, 2], $stable['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next248 case sensitive keeps uppercase outside binary range'] = static function (TestRunner $t) use ($plan248): void {
+$tests['encoding collation affinity like current source nextTwoFourEight case sensitive keeps uppercase outside binary range'] = static function (TestRunner $t) use ($plan248): void {
     $case = $plan248(caseSensitive: true);
     $t->same('BINARY', $case['collation']);
     $t->same([7, 4, 1, 8], $case['currentCandidateRowids']);
     $t->same([7, 1, 13, 8], $case['nextCandidateRowids']);
 };
 
-$tests['encoding collation affinity like current source next248 non escaped percent changes prefix'] = static function (TestRunner $t) use ($plan248): void {
+$tests['encoding collation affinity like current source nextTwoFourEight non escaped percent changes prefix'] = static function (TestRunner $t) use ($plan248): void {
     $wild = $plan248(pattern: 'pluginé_cache%', escape: 'é', currentSource: 'same', nextSource: 'same', currentCookie: 1, nextCookie: 1);
     $t->same('plugin_cache', $wild['prefix']);
     $t->same([7, 4, 1, 2, 8, 3], $wild['currentMatchedRowids']);
     $t->same([7, 4, 1, 2, 8, 3], $wild['currentCandidateRowids']);
 };
 
-$tests['encoding collation affinity like current source next248 escaped underscore and percent are literal'] = static function (TestRunner $t) use ($plan248, $row248): void {
+$tests['encoding collation affinity like current source nextTwoFourEight escaped underscore and percent are literal'] = static function (TestRunner $t) use ($plan248, $row248): void {
     $rows = [
         $row248(1, 'plugin_cache%ok', 'UTF-8'),
         $row248(2, 'pluginXcache%ok', 'UTF-8'),
@@ -201,33 +201,33 @@ $tests['encoding collation affinity like current source next248 escaped undersco
     $t->same([1], $plan['currentCandidateRowids']);
 };
 
-$tests['encoding collation affinity like current source next248 direct like accepts non ascii escape'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFourEight direct like accepts non ascii escape'] = static function (TestRunner $t): void {
     $t->same(true, SQLiteDatabase::likeMatches('plugin_cache%ok', 'pluginé_cacheé%%', 'é'));
     $t->same(false, SQLiteDatabase::likeMatches('pluginXcache%ok', 'pluginé_cacheé%%', 'é'));
     $t->same(false, SQLiteDatabase::likeMatches('plugin_cacheXok', 'pluginé_cacheé%%', 'é'));
 };
 
-$tests['encoding collation affinity like current source next248 rejects multi character escape'] = static function (TestRunner $t) use ($current248, $next248): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan($current248, $next248, 'pluginé_cacheé%%', 'éé'));
+$tests['encoding collation affinity like current source nextTwoFourEight rejects multi character escape'] = static function (TestRunner $t) use ($current248, $nextTwoFourEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan($current248, $nextTwoFourEight, 'pluginé_cacheé%%', 'éé'));
 };
 
-$tests['encoding collation affinity like current source next248 rejects missing option bytes'] = static function (TestRunner $t) use ($next248): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'text_encoding' => 1]], $next248));
+$tests['encoding collation affinity like current source nextTwoFourEight rejects missing option bytes'] = static function (TestRunner $t) use ($nextTwoFourEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'text_encoding' => 1]], $nextTwoFourEight));
 };
 
-$tests['encoding collation affinity like current source next248 rejects non string bytes'] = static function (TestRunner $t) use ($next248): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'option_name_bytes' => ['plugin'], 'text_encoding' => 1]], $next248));
+$tests['encoding collation affinity like current source nextTwoFourEight rejects non string bytes'] = static function (TestRunner $t) use ($nextTwoFourEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'option_name_bytes' => ['plugin'], 'text_encoding' => 1]], $nextTwoFourEight));
 };
 
-$tests['encoding collation affinity like current source next248 rejects invalid encoding id'] = static function (TestRunner $t) use ($next248): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'option_name_bytes' => 'plugin_cache%ok', 'text_encoding' => 9]], $next248));
+$tests['encoding collation affinity like current source nextTwoFourEight rejects invalid encoding id'] = static function (TestRunner $t) use ($nextTwoFourEight): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'option_name_bytes' => 'plugin_cache%ok', 'text_encoding' => 9]], $nextTwoFourEight));
 };
 
-$tests['encoding collation affinity like current source next248 note fields stay explicit'] = static function (TestRunner $t) use ($plan248): void {
+$tests['encoding collation affinity like current source nextTwoFourEight note fields stay explicit'] = static function (TestRunner $t) use ($plan248): void {
     $plan = $plan248();
     $t->true(str_contains($plan['dependency_closure'], 'no new support component needed'));
     $t->true(str_contains($plan['non_overlap'], 'non-ASCII single-character ESCAPE'));
-    $t->true(str_contains($plan['non_overlap'], 'next245 dangling ASCII ESCAPE'));
+    $t->true(str_contains($plan['non_overlap'], 'nextTwoFourFive dangling ASCII ESCAPE'));
 };
 
 return $tests;

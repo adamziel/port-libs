@@ -33,7 +33,7 @@ $current228 = [
     $row228(6, 'plugin-cache', 'UTF-16LE'),
     $row228(7, 'theme_cache', 'UTF-16LE'),
 ];
-$next228 = [
+$nextTwoTwoEight = [
     $row228(1, 'Plugin_Cache', 'UTF-16BE'),
     $row228(2, 'plugin_cache  ', 'UTF-16BE'),
     $row228(3, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -55,7 +55,7 @@ $plan228 = static fn (
     int $nextCookie = 228,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameHeaderEncodingFencePlan(
     $current ?? $current228,
-    $next ?? $next228,
+    $next ?? $nextTwoTwoEight,
     'plugin!_cache%',
     '!',
     $currentEncoding,
@@ -79,8 +79,8 @@ $valueAt228 = static function (array $value, string $path): mixed {
 };
 
 $cases228 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next228'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next211'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoTwoEight'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoOneOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* database text-encoding fence */'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -129,16 +129,16 @@ $cases228 = [
     'dependency header' => ['dependencies.1', 'sqlite-database-text-encoding-header'],
     'dependency statement' => ['dependencies.2', 'sqlite-prepared-statement-encoding-fence'],
     'dependency rtrim' => ['dependencies.3', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next228'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoTwoEight'],
 ];
 
 foreach ($cases228 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next228 ' . $name] = static function (TestRunner $t) use ($plan228, $valueAt228, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoTwoEight ' . $name] = static function (TestRunner $t) use ($plan228, $valueAt228, $path, $expected): void {
         $t->same($expected, $valueAt228($plan228(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next228 invalidates stable rowset on header encoding switch'] = static function (TestRunner $t) use ($plan228): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoEight invalidates stable rowset on header encoding switch'] = static function (TestRunner $t) use ($plan228): void {
     $t->same([
         'byte-order-only-refresh',
         'database-text-encoding',
@@ -147,7 +147,7 @@ $tests['utf16 nocase like rtrim current source next228 invalidates stable rowset
     ], $plan228()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next228 stable header can reuse byte order refresh'] = static function (TestRunner $t) use ($plan228): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoEight stable header can reuse byte order refresh'] = static function (TestRunner $t) use ($plan228): void {
     $result = $plan228(currentEncoding: 'UTF-16LE', nextEncoding: 'UTF-16LE', preparedEncoding: 'UTF-16LE');
     $t->same(['byte-order-only-refresh'], $result['invalidationReasons']);
     $t->same(false, $result['cursorInvalidated']);
@@ -155,7 +155,7 @@ $tests['utf16 nocase like rtrim current source next228 stable header can reuse b
     $t->same(false, $result['mustReprepareForHeaderEncoding']);
 };
 
-$tests['utf16 nocase like rtrim current source next228 prepared utf16be cursor survives utf16be header'] = static function (TestRunner $t) use ($plan228): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoEight prepared utf16be cursor survives utf16be header'] = static function (TestRunner $t) use ($plan228): void {
     $result = $plan228(currentEncoding: 'UTF-16BE', nextEncoding: 'UTF-16BE', preparedEncoding: 'UTF-16BE');
     $t->same(false, $result['headerEncodingChanged']);
     $t->same(true, $result['preparedEncodingMatchesNextHeader']);
@@ -163,7 +163,7 @@ $tests['utf16 nocase like rtrim current source next228 prepared utf16be cursor s
     $t->same(false, $result['cursorInvalidated']);
 };
 
-$tests['utf16 nocase like rtrim current source next228 rowset change still invalidates with same header'] = static function (TestRunner $t) use ($row228, $plan228): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoEight rowset change still invalidates with same header'] = static function (TestRunner $t) use ($row228, $plan228): void {
     $current = [
         $row228(1, 'plugin_cache', 'UTF-16LE'),
         $row228(2, 'plugin_cache_alpha', 'UTF-16LE'),
@@ -180,7 +180,7 @@ $tests['utf16 nocase like rtrim current source next228 rowset change still inval
     $t->same(['candidate-rowset', 'matched-rowset'], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next228 malformed text prevents logical rowset reuse'] = static function (TestRunner $t) use ($bad228, $row228, $plan228): void {
+$tests['utf16 nocase like rtrim current source nextTwoTwoEight malformed text prevents logical rowset reuse'] = static function (TestRunner $t) use ($bad228, $row228, $plan228): void {
     $current = [
         $row228(1, 'plugin_cache', 'UTF-16LE'),
         $bad228(2, "\x00\xd8", 2),

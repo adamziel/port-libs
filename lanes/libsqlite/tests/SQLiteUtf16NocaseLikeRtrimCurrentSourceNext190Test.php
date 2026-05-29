@@ -33,7 +33,7 @@ $current190 = [
     $row190(7, 'theme_plugin  ', 'UTF-16LE'),
     $bad190(8, "\x00\xd8", 2),
 ];
-$next190 = [
+$nextOneNineZero = [
     $row190(1, "plugin_cache\t", 'UTF-16BE'),
     $row190(2, 'Plugin_Cache  ', 'UTF-16LE'),
     $row190(3, 'plugin_cache  ', 'UTF-16BE'),
@@ -55,7 +55,7 @@ $plan190 = static fn (
     int $nextCookie = 190,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan(
     $current ?? $current190,
-    $next ?? $next190,
+    $next ?? $nextOneNineZero,
     $pattern,
     $escape,
     $currentSource,
@@ -76,10 +76,10 @@ $valueAt190 = static function (array $value, string $path): mixed {
 };
 
 $cases190 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next190'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneNineZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ?'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next183'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightThree'],
     'pattern' => ['pattern', 'plugin%'],
     'escape' => ['escape', null],
     'prefix' => ['prefix', 'plugin'],
@@ -136,16 +136,16 @@ $cases190 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency prefix range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim boundary' => ['dependencies.2', 'sqlite-rtrim-ascii-space-boundary'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next190'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneNineZero'],
 ];
 
 foreach ($cases190 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next190 ' . $name] = static function (TestRunner $t) use ($plan190, $valueAt190, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneNineZero ' . $name] = static function (TestRunner $t) use ($plan190, $valueAt190, $path, $expected): void {
         $t->same($expected, $valueAt190($plan190(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next190 invalidation reasons include retained prefix rtrim key'] = static function (TestRunner $t) use ($plan190): void {
+$tests['utf16 nocase like rtrim current source nextOneNineZero invalidation reasons include retained prefix rtrim key'] = static function (TestRunner $t) use ($plan190): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -160,7 +160,7 @@ $tests['utf16 nocase like rtrim current source next190 invalidation reasons incl
     ], $plan190()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next190 stable source reusable when whitespace class unchanged'] = static function (TestRunner $t) use ($row190): void {
+$tests['utf16 nocase like rtrim current source nextOneNineZero stable source reusable when whitespace class unchanged'] = static function (TestRunner $t) use ($row190): void {
     $rows = [
         $row190(1, 'plugin_cache  ', 'UTF-16LE'),
         $row190(2, "Plugin_Cache\t", 'UTF-16BE'),
@@ -183,7 +183,7 @@ $tests['utf16 nocase like rtrim current source next190 stable source reusable wh
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next190 non-breaking space remains a distinct key'] = static function (TestRunner $t) use ($row190): void {
+$tests['utf16 nocase like rtrim current source nextOneNineZero non-breaking space remains a distinct key'] = static function (TestRunner $t) use ($row190): void {
     $current = [
         $row190(1, "plugin_cache\u{00a0}", 'UTF-16LE'),
     ];
@@ -207,8 +207,8 @@ $tests['utf16 nocase like rtrim current source next190 non-breaking space remain
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next190 invalid escape length rejected by base planner'] = static function (TestRunner $t) use ($current190, $next190): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan($current190, $next190, 'plugin!!', '!!'));
+$tests['utf16 nocase like rtrim current source nextOneNineZero invalid escape length rejected by base planner'] = static function (TestRunner $t) use ($current190, $nextOneNineZero): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan($current190, $nextOneNineZero, 'plugin!!', '!!'));
 };
 
 return $tests;

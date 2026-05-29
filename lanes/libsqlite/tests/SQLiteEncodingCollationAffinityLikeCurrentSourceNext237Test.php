@@ -20,7 +20,7 @@ $current237 = [
     ['option_id' => 10, 'option_name' => 'theme_literal', 'option_value' => 'theme_%alpha', 'autoload' => 'yes'],
 ];
 
-$next237 = [
+$nextTwoThreeSeven = [
     ['option_id' => 1, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%alpha', 'autoload' => 'yes'],
     ['option_id' => 2, 'option_name' => 'plugin_upper', 'option_value' => 'Plugin_%Beta', 'autoload' => 'yes'],
     ['option_id' => 3, 'option_name' => 'plugin_false_percent', 'option_value' => 'plugin_%gamma', 'autoload' => 'yes'],
@@ -47,7 +47,7 @@ $plan237 = static fn (
     int $nextCookie = 237,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan(
     $current ?? $current237,
-    $next ?? $next237,
+    $next ?? $nextTwoThreeSeven,
     $pattern,
     $escape,
     $collation,
@@ -76,11 +76,11 @@ $rowById237 = static function (array $trace, int $rowid): array {
         }
     }
 
-    throw new RuntimeException("Missing next237 trace row {$rowid}");
+    throw new RuntimeException("Missing nextTwoThreeSeven trace row {$rowid}");
 };
 
 $cases237 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next237'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoThreeSeven'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_value LIKE ? ESCAPE ? COLLATE NOCASE /* text affinity before residual */'],
     'pattern' => ['pattern', 'plugin!_%!%%'],
@@ -109,8 +109,8 @@ $cases237 = [
     'next false positives' => ['nextFalsePositiveRowids', [4]],
     'current malformed' => ['currentMalformedRowids', [9]],
     'next malformed' => ['nextMalformedRowids', [9]],
-    'current malformed message' => ['currentErrors.9', 'SQLite encoding collation affinity LIKE next237 text value is malformed UTF-8'],
-    'next malformed message' => ['nextErrors.9', 'SQLite encoding collation affinity LIKE next237 text value is malformed UTF-8'],
+    'current malformed message' => ['currentErrors.9', 'SQLite encoding collation affinity LIKE nextTwoThreeSeven text value is malformed UTF-8'],
+    'next malformed message' => ['nextErrors.9', 'SQLite encoding collation affinity LIKE nextTwoThreeSeven text value is malformed UTF-8'],
     'changed storage' => ['changedStorageRowids', [5, 10, 11, 12]],
     'changed text' => ['changedLikeTextRowids', [3, 5, 6, 10, 11, 12]],
     'changed key' => ['changedCollationKeyRowids', [3, 5, 6, 10, 11, 12]],
@@ -125,17 +125,17 @@ $cases237 = [
     'dependency range' => ['dependencies.0', 'sqlite-like-escape-prefix-range'],
     'dependency affinity' => ['dependencies.1', 'sqlite-text-affinity-like'],
     'dependency collation' => ['dependencies.2', 'sqlite-like-nocase-collation'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next237'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoThreeSeven'],
     'dependency closure' => ['dependency_closure', 'no new support component needed; reuses LIKE ESCAPE prefix planning, scalar text-affinity conversion, ASCII NOCASE collation keys, and current-source invalidation diagnostics'],
 ];
 
 foreach ($cases237 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next237 ' . $name] = static function (TestRunner $t) use ($plan237, $valueAt237, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoThreeSeven ' . $name] = static function (TestRunner $t) use ($plan237, $valueAt237, $path, $expected): void {
         $t->same($expected, $valueAt237($plan237(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next237 invalidation reason order'] = static function (TestRunner $t) use ($plan237): void {
+$tests['encoding collation affinity like current source nextTwoThreeSeven invalidation reason order'] = static function (TestRunner $t) use ($plan237): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -165,12 +165,12 @@ $traceCases237 = [
 ];
 
 foreach ($traceCases237 as $name => [$traceKey, $rowid, $field, $expected]) {
-    $tests['encoding collation affinity like current source next237 trace ' . $name] = static function (TestRunner $t) use ($plan237, $rowById237, $traceKey, $rowid, $field, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoThreeSeven trace ' . $name] = static function (TestRunner $t) use ($plan237, $rowById237, $traceKey, $rowid, $field, $expected): void {
         $t->same($expected, $rowById237($plan237()[$traceKey], $rowid)[$field]);
     };
 }
 
-$tests['encoding collation affinity like current source next237 stable cursor is reusable'] = static function (TestRunner $t) use ($plan237): void {
+$tests['encoding collation affinity like current source nextTwoThreeSeven stable cursor is reusable'] = static function (TestRunner $t) use ($plan237): void {
     $rows = [
         ['option_id' => 1, 'option_value' => 'plugin_%alpha'],
         ['option_id' => 2, 'option_value' => 'Plugin_%Beta'],
@@ -184,7 +184,7 @@ $tests['encoding collation affinity like current source next237 stable cursor is
     $t->same([1, 2], $plan['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next237 escaped wildcard differs from unescaped wildcard'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeSeven escaped wildcard differs from unescaped wildcard'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value' => 'plugin_%literal'],
         ['option_id' => 2, 'option_value' => 'pluginX%literal'],
@@ -196,44 +196,44 @@ $tests['encoding collation affinity like current source next237 escaped wildcard
     $t->same([1, 2], $unescaped['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next237 case sensitive like rejects nocase range'] = static function (TestRunner $t) use ($current237, $next237, $plan237): void {
-    $plan = $plan237($current237, $next237, 'plugin!_%!%%', '!', 'NOCASE', true);
+$tests['encoding collation affinity like current source nextTwoThreeSeven case sensitive like rejects nocase range'] = static function (TestRunner $t) use ($current237, $nextTwoThreeSeven, $plan237): void {
+    $plan = $plan237($current237, $nextTwoThreeSeven, 'plugin!_%!%%', '!', 'NOCASE', true);
 
     $t->same(false, $plan['indexUsable']);
     $t->same('case_sensitive_like_requires_binary_index', $plan['rangeRejectedReason']);
     $t->same([], $plan['currentCandidateRowids']);
 };
 
-$tests['encoding collation affinity like current source next237 binary case sensitive range keeps uppercase residual out'] = static function (TestRunner $t) use ($current237, $next237, $plan237): void {
-    $plan = $plan237($current237, $next237, 'plugin!_%!%%', '!', 'BINARY', true);
+$tests['encoding collation affinity like current source nextTwoThreeSeven binary case sensitive range keeps uppercase residual out'] = static function (TestRunner $t) use ($current237, $nextTwoThreeSeven, $plan237): void {
+    $plan = $plan237($current237, $nextTwoThreeSeven, 'plugin!_%!%%', '!', 'BINARY', true);
 
     $t->same(true, $plan['indexUsable']);
     $t->same([6, 1], $plan['currentMatchedRowids']);
     $t->same([5, 6, 11, 1, 3], $plan['nextMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next237 rejects multi character escape'] = static function (TestRunner $t) use ($current237): void {
+$tests['encoding collation affinity like current source nextTwoThreeSeven rejects multi character escape'] = static function (TestRunner $t) use ($current237): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($current237, [], '%', '!!'));
 };
 
-$tests['encoding collation affinity like current source next237 rejects bad collation'] = static function (TestRunner $t) use ($current237): void {
+$tests['encoding collation affinity like current source nextTwoThreeSeven rejects bad collation'] = static function (TestRunner $t) use ($current237): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($current237, [], '%', '!', 'UNICODE'));
 };
 
-$tests['encoding collation affinity like current source next237 records nonscalar value as malformed'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeSeven records nonscalar value as malformed'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value' => ['plugin_%bad']]];
     $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($rows, [], '%', null, 'BINARY', true, 'same', 'same', 1, 1);
 
     $t->same([1], $plan['currentMalformedRowids']);
-    $t->same('SQLite encoding collation affinity LIKE next237 rows require scalar option_value', $plan['currentErrors'][1]);
+    $t->same('SQLite encoding collation affinity LIKE nextTwoThreeSeven rows require scalar option_value', $plan['currentErrors'][1]);
 };
 
-$tests['encoding collation affinity like current source next237 rejects missing option id'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeSeven rejects missing option id'] = static function (TestRunner $t): void {
     $rows = [['option_value' => 'plugin_%bad']];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($rows, []));
 };
 
-$tests['encoding collation affinity like current source next237 rejects missing option value'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeSeven rejects missing option value'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($rows, []));
 };

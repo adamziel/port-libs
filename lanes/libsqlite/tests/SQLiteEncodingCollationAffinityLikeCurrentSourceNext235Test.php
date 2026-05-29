@@ -22,7 +22,7 @@ $current235 = [
     ['option_id' => 13, 'option_name' => 'null_plugin', 'option_value' => null],
 ];
 
-$next235 = [
+$nextTwoThreeFive = [
     ['option_id' => 1, 'option_name' => 'legacy_plugin_payload', 'option_value' => "Plugin_\xe2legacy2"],
     ['option_id' => 3, 'option_name' => 'legacy_plugin_bad_pair', 'option_value' => "plugin_\xe2("],
     ['option_id' => 4, 'option_name' => 'legacy_plugin_valid_euro_now_truncated', 'option_value' => "plugin_\xe2\x82"],
@@ -51,7 +51,7 @@ $plan235 = static fn (
     int $nextCookie = 235,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan(
     $current ?? $current235,
-    $next ?? $next235,
+    $next ?? $nextTwoThreeFive,
     $pattern,
     $escape,
     $caseSensitive,
@@ -74,7 +74,7 @@ $valueAt235 = static function (array $value, string $path): mixed {
 };
 
 $cases235 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next235'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoThreeFive'],
     'operator' => ['operator', 'NOT LIKE'],
     'expression' => ['expression', 'CAST(option_value AS TEXT) COLLATE NOCASE NOT LIKE ? ESCAPE ? /* malformed-byte complement current-source fence */'],
     'pattern hex' => ['patternBytesHex', '706c7567696e215fe225'],
@@ -136,36 +136,36 @@ $cases235 = [
     'dependency affinity' => ['dependencies.1', 'sqlite-text-affinity'],
     'dependency collation' => ['dependencies.2', 'sqlite-nocase-ascii-collation'],
     'dependency complement' => ['dependencies.3', 'sqlite-not-like-truth-complement'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next235'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoThreeFive'],
 ];
 
 foreach ($cases235 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next235 ' . $name] = static function (TestRunner $t) use ($plan235, $valueAt235, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoThreeFive ' . $name] = static function (TestRunner $t) use ($plan235, $valueAt235, $path, $expected): void {
         $t->same($expected, $valueAt235($plan235(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next235 LIKE mode returns positive rowset'] = static function (TestRunner $t) use ($plan235): void {
+$tests['encoding collation affinity like current source nextTwoThreeFive LIKE mode returns positive rowset'] = static function (TestRunner $t) use ($plan235): void {
     $like = $plan235(negate: false);
     $t->same('LIKE', $like['operator']);
     $t->same([10, 1, 2, 3], $like['currentResultRowids']);
     $t->same([10, 1, 3, 11, 4], $like['nextResultRowids']);
 };
 
-$tests['encoding collation affinity like current source next235 case sensitive complement includes uppercase malformed prefix'] = static function (TestRunner $t) use ($plan235): void {
+$tests['encoding collation affinity like current source nextTwoThreeFive case sensitive complement includes uppercase malformed prefix'] = static function (TestRunner $t) use ($plan235): void {
     $case = $plan235(caseSensitive: true);
     $t->same([12, 7, 10, 1, 9, 5, 4, 6], $case['currentResultRowids']);
     $t->same(false, in_array(2, $case['currentResultRowids'], true));
 };
 
-$tests['encoding collation affinity like current source next235 stable cursor reusable'] = static function (TestRunner $t) use ($current235, $plan235): void {
+$tests['encoding collation affinity like current source nextTwoThreeFive stable cursor reusable'] = static function (TestRunner $t) use ($current235, $plan235): void {
     $stable = $plan235(current: $current235, next: $current235, currentSource: 'stable', nextSource: 'stable', currentCookie: 235, nextCookie: 235);
     $t->same(false, $stable['cursorInvalidated']);
     $t->same(true, $stable['cursorReusable']);
     $t->same([], $stable['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next235 unknown null and blob stay outside complement'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeFive unknown null and blob stay outside complement'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value' => new SQLiteBlobValue("plugin_\xe2blob")],
         ['option_id' => 2, 'option_value' => null],
@@ -176,7 +176,7 @@ $tests['encoding collation affinity like current source next235 unknown null and
     $t->same([1, 2], $plan['currentUnknownRowids']);
 };
 
-$tests['encoding collation affinity like current source next235 numeric and bool affinity complement'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeFive numeric and bool affinity complement'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value' => 123],
         ['option_id' => 2, 'option_value' => 12.5],
@@ -188,7 +188,7 @@ $tests['encoding collation affinity like current source next235 numeric and bool
     $t->same([2, 1], $plan['currentLikeRowids']);
 };
 
-$tests['encoding collation affinity like current source next235 underscore consumes one malformed byte before complement'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoThreeFive underscore consumes one malformed byte before complement'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value' => "legacy_\xe2_tail"],
         ['option_id' => 2, 'option_value' => "legacy_\xe2\x82_tail"],
@@ -200,16 +200,16 @@ $tests['encoding collation affinity like current source next235 underscore consu
     $t->same([1, 3], $plan['currentLikeRowids']);
 };
 
-$tests['encoding collation affinity like current source next235 rejects multi character escape'] = static function (TestRunner $t) use ($current235, $next235): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan($current235, $next235, "plugin!_\xe2%", '!!'));
+$tests['encoding collation affinity like current source nextTwoThreeFive rejects multi character escape'] = static function (TestRunner $t) use ($current235, $nextTwoThreeFive): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan($current235, $nextTwoThreeFive, "plugin!_\xe2%", '!!'));
 };
 
-$tests['encoding collation affinity like current source next235 rejects missing option value'] = static function (TestRunner $t) use ($next235): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan([['option_id' => 1]], $next235, "plugin!_\xe2%", '!'));
+$tests['encoding collation affinity like current source nextTwoThreeFive rejects missing option value'] = static function (TestRunner $t) use ($nextTwoThreeFive): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan([['option_id' => 1]], $nextTwoThreeFive, "plugin!_\xe2%", '!'));
 };
 
-$tests['encoding collation affinity like current source next235 rejects non scalar value'] = static function (TestRunner $t) use ($next235): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan([['option_id' => 1, 'option_value' => ['x']]], $next235, "plugin!_\xe2%", '!'));
+$tests['encoding collation affinity like current source nextTwoThreeFive rejects non scalar value'] = static function (TestRunner $t) use ($nextTwoThreeFive): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan([['option_id' => 1, 'option_value' => ['x']]], $nextTwoThreeFive, "plugin!_\xe2%", '!'));
 };
 
 return $tests;

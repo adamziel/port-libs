@@ -34,7 +34,7 @@ $current192 = [
     $row192(8, 'theme_cache', 'UTF-16LE'),
     $bad192(9, "\x00\xd8", 2),
 ];
-$next192 = [
+$nextOneNineTwo = [
     $row192(1, 'plugin_cache', 'UTF-16BE'),
     $row192(2, 'PLUGIN_CACHE  ', 'UTF-16LE'),
     $row192(3, "plugin_cache\t", 'UTF-16BE'),
@@ -56,7 +56,7 @@ $plan192 = static fn (
     int $nextCookie = 192,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCandidateTokenPlan(
     $current ?? $current192,
-    $next ?? $next192,
+    $next ?? $nextOneNineTwo,
     'plugin!_cache',
     '!',
     $token,
@@ -78,13 +78,13 @@ $valueAt192 = static function (array $value, string $path): mixed {
 };
 
 $cases192 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next192'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneNineTwo'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* candidate residual token */'],
     'pattern' => ['pattern', 'plugin!_cache'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next183'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneEightThree'],
     'current source' => ['currentSource', 'main.wp_options@191'],
     'next source' => ['nextSource', 'main.wp_options@192'],
     'current cookie' => ['currentSchemaCookie', 191],
@@ -131,16 +131,16 @@ $cases192 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency token' => ['dependencies.2', 'sqlite-rtrim-candidate-token'],
     'dependency residual' => ['dependencies.3', 'sqlite-like-residual-recheck'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next192'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nextoneNineTwo'],
 ];
 
 foreach ($cases192 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next192 ' . $name] = static function (TestRunner $t) use ($plan192, $valueAt192, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneNineTwo ' . $name] = static function (TestRunner $t) use ($plan192, $valueAt192, $path, $expected): void {
         $t->same($expected, $valueAt192($plan192(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next192 stable false-positive token can resume after token'] = static function (TestRunner $t) use ($row192): void {
+$tests['utf16 nocase like rtrim current source nextOneNineTwo stable false-positive token can resume after token'] = static function (TestRunner $t) use ($row192): void {
     $rows = [
         $row192(1, 'Plugin_Cache', 'UTF-16LE'),
         $row192(2, "plugin_cache\t", 'UTF-16BE'),
@@ -168,7 +168,7 @@ $tests['utf16 nocase like rtrim current source next192 stable false-positive tok
     $t->same([3, 4], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next192 matched row becoming false positive forces reprepare'] = static function (TestRunner $t) use ($row192): void {
+$tests['utf16 nocase like rtrim current source nextOneNineTwo matched row becoming false positive forces reprepare'] = static function (TestRunner $t) use ($row192): void {
     $current = [$row192(1, 'plugin_cache', 'UTF-16LE'), $row192(2, 'plugin_cache_alpha', 'UTF-16LE')];
     $next = [$row192(1, "plugin_cache\t", 'UTF-16BE'), $row192(2, 'plugin_cache_alpha', 'UTF-16LE')];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCandidateTokenPlan(
@@ -190,7 +190,7 @@ $tests['utf16 nocase like rtrim current source next192 matched row becoming fals
     $t->same(false, $result['candidateTokenResumeSafe']);
 };
 
-$tests['utf16 nocase like rtrim current source next192 canonicalizes token key'] = static function (TestRunner $t) use ($row192): void {
+$tests['utf16 nocase like rtrim current source nextOneNineTwo canonicalizes token key'] = static function (TestRunner $t) use ($row192): void {
     $rows = [$row192(1, 'Plugin_Cache', 'UTF-16LE'), $row192(2, 'plugin_cache_zip', 'UTF-16BE')];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCandidateTokenPlan(
         $rows,
@@ -209,7 +209,7 @@ $tests['utf16 nocase like rtrim current source next192 canonicalizes token key']
     $t->same(['yield-token-not-canonical'], $result['candidateTokenUnsafeReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next192 missing token blocks resume'] = static function (TestRunner $t) use ($row192): void {
+$tests['utf16 nocase like rtrim current source nextOneNineTwo missing token blocks resume'] = static function (TestRunner $t) use ($row192): void {
     $rows = [$row192(1, 'plugin_cache', 'UTF-16LE')];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCandidateTokenPlan(
         $rows,
@@ -228,7 +228,7 @@ $tests['utf16 nocase like rtrim current source next192 missing token blocks resu
     $t->same('reprepare-from-range-start', $result['replayPlanMode']);
 };
 
-$tests['utf16 nocase like rtrim current source next192 rejects malformed token key'] = static function (TestRunner $t) use ($row192): void {
+$tests['utf16 nocase like rtrim current source nextOneNineTwo rejects malformed token key'] = static function (TestRunner $t) use ($row192): void {
     $rows = [$row192(1, 'plugin_cache', 'UTF-16LE')];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCandidateTokenPlan(
         $rows,
@@ -239,7 +239,7 @@ $tests['utf16 nocase like rtrim current source next192 rejects malformed token k
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next192 rejects malformed token rowid'] = static function (TestRunner $t) use ($row192): void {
+$tests['utf16 nocase like rtrim current source nextOneNineTwo rejects malformed token rowid'] = static function (TestRunner $t) use ($row192): void {
     $rows = [$row192(1, 'plugin_cache', 'UTF-16LE')];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCandidateTokenPlan(
         $rows,

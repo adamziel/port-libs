@@ -141,28 +141,28 @@ $cases = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency rtrim' => ['dependencies.1', 'sqlite-rtrim-collation-key'],
     'dependency residual' => ['dependencies.2', 'sqlite-like-glob-residual-match'],
-    'dependency marker' => ['dependencies.3', 'sqlite-current-source-next128'],
+    'dependency marker' => ['dependencies.3', 'sqlite-current-source-nextoneTwoEight'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 rtrim like glob current source next128 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 rtrim like glob current source nextOneTwoEight ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 rtrim like glob current source next128 exact GLOB rejects space padded residual peers'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 rtrim like glob current source nextOneTwoEight exact GLOB rejects space padded residual peers'] = static function (TestRunner $t) use ($plan): void {
     $exact = $plan('plugin_cache%', 'plugin_cache', 'LIKE', 'GLOB', null);
     $t->same([2, 4, 5, 13, 10], $exact['nextResidualRejectedRowids']);
 };
 
-$tests['utf16 rtrim like glob current source next128 leading GLOB wildcard has no usable next range'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 rtrim like glob current source nextOneTwoEight leading GLOB wildcard has no usable next range'] = static function (TestRunner $t) use ($plan): void {
     $wild = $plan('plugin_cache%', '*cache', 'LIKE', 'GLOB', null);
     $t->same(null, $wild['nextRange']);
     $t->same([], $wild['nextCandidateRowids']);
     $t->same(true, in_array('unusable-range', $wild['invalidationReasons'], true));
 };
 
-$tests['utf16 rtrim like glob current source next128 stable same GLOB cursor reusable'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 rtrim like glob current source nextOneTwoEight stable same GLOB cursor reusable'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 'UTF-16LE'), $row(2, 'plugin_cache ', 'UTF-16BE')];
     $plan = SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan(
         $rows,
@@ -181,7 +181,7 @@ $tests['utf16 rtrim like glob current source next128 stable same GLOB cursor reu
     $t->same(true, $plan['cursorReusable']);
 };
 
-$tests['utf16 rtrim like glob current source next128 stable same LIKE still records full scan'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 rtrim like glob current source nextOneTwoEight stable same LIKE still records full scan'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 'UTF-16LE'), $row(2, 'plugin_cache ', 'UTF-16BE')];
     $plan = SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan(
         $rows,
@@ -200,27 +200,27 @@ $tests['utf16 rtrim like glob current source next128 stable same LIKE still reco
     $t->same(false, $plan['currentIndexUsable']);
 };
 
-$tests['utf16 rtrim like glob current source next128 rejects invalid current operator'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 rtrim like glob current source nextOneTwoEight rejects invalid current operator'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', 'plugin*', 'REGEXP', 'GLOB'));
 };
 
-$tests['utf16 rtrim like glob current source next128 rejects invalid next operator'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 rtrim like glob current source nextOneTwoEight rejects invalid next operator'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', 'plugin*', 'LIKE', 'MATCH'));
 };
 
-$tests['utf16 rtrim like glob current source next128 rejects invalid LIKE escape length'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 rtrim like glob current source nextOneTwoEight rejects invalid LIKE escape length'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin!!%', 'plugin*', 'LIKE', 'GLOB', '!!'));
 };
 
-$tests['utf16 rtrim like glob current source next128 rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 rtrim like glob current source nextOneTwoEight rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p%', 'p*'));
 };
 
-$tests['utf16 rtrim like glob current source next128 rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 rtrim like glob current source nextOneTwoEight rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p%', 'p*'));
 };
 
-$tests['utf16 rtrim like glob current source next128 rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 rtrim like glob current source nextOneTwoEight rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, 'p%', 'p*'));
 };
 

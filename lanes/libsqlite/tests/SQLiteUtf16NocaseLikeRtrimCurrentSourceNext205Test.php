@@ -34,7 +34,7 @@ $current205 = [
     $row205(8, 'plÜg_cache', 'UTF-8'),
     $bad205(9, "\x00\xd8", 2),
 ];
-$next205 = [
+$nextTwoZeroFive = [
     $row205(1, 'plüg_cache', 'UTF-16BE'),
     $row205(2, 'PLüG_Cache', 'UTF-16LE'),
     $row205(3, 'plüg-cache', 'UTF-8'),
@@ -58,7 +58,7 @@ $plan205 = static fn (
     int $nextCookie = 205,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiFullScanPlan(
     $current ?? $current205,
-    $next ?? $next205,
+    $next ?? $nextTwoZeroFive,
     $pattern,
     $escape,
     $currentSource,
@@ -79,7 +79,7 @@ $valueAt205 = static function (array $value, string $path): mixed {
 };
 
 $cases205 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next205'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroFive'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII prefix fallback */'],
     'pattern' => ['pattern', 'plüg!_%'],
@@ -126,16 +126,16 @@ $cases205 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency prefix' => ['dependencies.1', 'sqlite-like-nocase-non-ascii-prefix'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next205'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoZeroFive'],
 ];
 
 foreach ($cases205 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next205 ' . $name] = static function (TestRunner $t) use ($plan205, $valueAt205, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoZeroFive ' . $name] = static function (TestRunner $t) use ($plan205, $valueAt205, $path, $expected): void {
         $t->same($expected, $valueAt205($plan205(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next205 invalidation reasons include full scan fallback'] = static function (TestRunner $t) use ($plan205): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroFive invalidation reasons include full scan fallback'] = static function (TestRunner $t) use ($plan205): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -145,7 +145,7 @@ $tests['utf16 nocase like rtrim current source next205 invalidation reasons incl
     ], $plan205()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next205 stable non-ascii full scan can be reusable'] = static function (TestRunner $t) use ($row205): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroFive stable non-ascii full scan can be reusable'] = static function (TestRunner $t) use ($row205): void {
     $rows = [
         $row205(1, 'plüg_cache', 'UTF-16LE'),
         $row205(2, 'PLüG_Cache  ', 'UTF-16BE'),
@@ -170,7 +170,7 @@ $tests['utf16 nocase like rtrim current source next205 stable non-ascii full sca
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next205 ascii prefix still uses range'] = static function (TestRunner $t) use ($row205): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroFive ascii prefix still uses range'] = static function (TestRunner $t) use ($row205): void {
     $rows = [
         $row205(1, 'plugin_cache', 'UTF-16LE'),
         $row205(2, 'plugin!cache', 'UTF-16BE'),
@@ -195,14 +195,14 @@ $tests['utf16 nocase like rtrim current source next205 ascii prefix still uses r
     $t->same([], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next205 rejects invalid escape length'] = static function (TestRunner $t) use ($current205, $next205): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiFullScanPlan($current205, $next205, 'plüg!!_%', '!!'));
+$tests['utf16 nocase like rtrim current source nextTwoZeroFive rejects invalid escape length'] = static function (TestRunner $t) use ($current205, $nextTwoZeroFive): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiFullScanPlan($current205, $nextTwoZeroFive, 'plüg!!_%', '!!'));
 };
 
-$tests['utf16 nocase like rtrim current source next205 rejects missing encoding'] = static function (TestRunner $t) use ($next205): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroFive rejects missing encoding'] = static function (TestRunner $t) use ($nextTwoZeroFive): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiFullScanPlan([
         ['option_id' => 1, 'option_name_bytes' => 'plüg_cache'],
-    ], $next205));
+    ], $nextTwoZeroFive));
 };
 
 return $tests;

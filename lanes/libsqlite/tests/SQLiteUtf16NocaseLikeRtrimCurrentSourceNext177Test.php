@@ -29,7 +29,7 @@ $current177 = [
     $row177(7, 'theme_cache😀', 2),
     $bad177(8, "\x00\xd8", 2),
 ];
-$next177 = [
+$nextOneSevenSeven = [
     $row177(1, 'plugin_cacheA', 3),
     $row177(2, 'plugin_cache😀  ', 3),
     $row177(3, 'plugin_cacheÉ', 3),
@@ -51,7 +51,7 @@ $plan177 = static fn (
     int $nextCookie = 177,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeWildcardPlan(
     $current ?? $current177,
-    $next ?? $next177,
+    $next ?? $nextOneSevenSeven,
     $pattern,
     $escape,
     $currentSource,
@@ -69,7 +69,7 @@ $valueAt177 = static function (array $value, string $path): mixed {
 };
 
 $cases177 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next177'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenSeven'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ?'],
     'pattern' => ['pattern', 'plugin!_cache_'],
@@ -130,16 +130,16 @@ $cases177 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency wildcard' => ['dependencies.1', 'sqlite-like-unicode-character-wildcard'],
     'dependency range' => ['dependencies.2', 'sqlite-like-nocase-prefix-range'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next177'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneSevenSeven'],
 ];
 
 foreach ($cases177 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next177 ' . $name] = static function (TestRunner $t) use ($plan177, $valueAt177, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSevenSeven ' . $name] = static function (TestRunner $t) use ($plan177, $valueAt177, $path, $expected): void {
         $t->same($expected, $valueAt177($plan177(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next177 invalidation reason order'] = static function (TestRunner $t) use ($plan177): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSeven invalidation reason order'] = static function (TestRunner $t) use ($plan177): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -157,7 +157,7 @@ $tests['utf16 nocase like rtrim current source next177 invalidation reason order
     ], $plan177()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next177 stable unicode wildcard is reusable after recheck'] = static function (TestRunner $t) use ($row177): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSeven stable unicode wildcard is reusable after recheck'] = static function (TestRunner $t) use ($row177): void {
     $rows = [$row177(1, 'plugin_cache😀  ', 2), $row177(2, 'plugin_cacheAB', 3)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeWildcardPlan(
         $rows,
@@ -177,7 +177,7 @@ $tests['utf16 nocase like rtrim current source next177 stable unicode wildcard i
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next177 ascii wildcard has no byte mismatch'] = static function (TestRunner $t) use ($row177): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSeven ascii wildcard has no byte mismatch'] = static function (TestRunner $t) use ($row177): void {
     $rows = [$row177(1, 'plugin_cacheA', 2), $row177(2, 'plugin_cacheZ  ', 3)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeWildcardPlan(
         $rows,
@@ -196,7 +196,7 @@ $tests['utf16 nocase like rtrim current source next177 ascii wildcard has no byt
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next177 percent wildcard still accepts unicode suffix'] = static function (TestRunner $t) use ($row177): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSeven percent wildcard still accepts unicode suffix'] = static function (TestRunner $t) use ($row177): void {
     $rows = [$row177(1, 'plugin_cache😀extra', 2), $row177(2, 'plugin_cache', 3)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeWildcardPlan(
         $rows,
@@ -213,7 +213,7 @@ $tests['utf16 nocase like rtrim current source next177 percent wildcard still ac
     $t->same([], $result['currentByteWildcardMismatchRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next177 non ascii prefix remains unplanned'] = static function (TestRunner $t) use ($row177): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSeven non ascii prefix remains unplanned'] = static function (TestRunner $t) use ($row177): void {
     $rows = [$row177(1, 'éclair😀', 2), $row177(2, 'ÉclairA', 3)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeWildcardPlan(
         $rows,
@@ -230,7 +230,7 @@ $tests['utf16 nocase like rtrim current source next177 non ascii prefix remains 
     $t->same([], $result['currentCandidateRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next177 rejects bad row shape'] = static function (TestRunner $t) use ($enc177): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenSeven rejects bad row shape'] = static function (TestRunner $t) use ($enc177): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc177('plugin_cacheA', 2)]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeWildcardPlan($rows, $rows, 'plugin%'));
 };

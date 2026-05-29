@@ -88,7 +88,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
         }
 
         return [
-            'status' => 'utf16-nocase-like-rtrim-rhs-current-source-next163',
+            'status' => 'utf16-nocase-like-rtrim-rhs-current-source-nextoneSixThree',
             'operator' => 'LIKE',
             'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE rtrim(?)',
             'caseSensitiveLike' => false,
@@ -144,7 +144,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
                 'sqlite-rtrim-rhs-expression',
                 'sqlite-rtrim-expression-index-key',
                 'sqlite-like-nocase-prefix-range',
-                'sqlite-current-source-next163',
+                'sqlite-current-source-nextoneSixThree',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 decode, RHS RTRIM expression trimming, NOCASE LIKE range planning, and current-source cursor diagnostics',
         ];
@@ -155,7 +155,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
         try {
             return SQLiteEncodingCollationSourceCursor::decodeText($bytes, $encoding);
         } catch (\InvalidArgumentException $exception) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next163 ' . $label . ' is malformed: ' . $exception->getMessage(), 0, $exception);
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixThree ' . $label . ' is malformed: ' . $exception->getMessage(), 0, $exception);
         }
     }
 

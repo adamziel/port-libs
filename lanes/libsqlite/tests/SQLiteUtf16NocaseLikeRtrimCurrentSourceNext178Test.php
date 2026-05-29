@@ -30,7 +30,7 @@ $current178 = [
     $row178(4, "plugin_cache_tab\t", 'UTF-16LE'),
     $row178(5, 'plugin_other', 'UTF-16BE'),
 ];
-$next178 = [
+$nextOneSevenEight = [
     $row178(1, 'Plugin_Cache', 'UTF-16BE'),
     $row178(2, 'plugin_cache_alpha', 'UTF-16BE'),
     $row178(3, 'plugin_cache_beta  ', 'UTF-8'),
@@ -58,7 +58,7 @@ $plan178 = static fn (
     int $nextCookie = 178,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
     $current ?? $current178,
-    $next ?? $next178,
+    $next ?? $nextOneSevenEight,
     'plugin!_cache%',
     '!',
     $token ?? $token178,
@@ -80,8 +80,8 @@ $valueAt178 = static function (array $value, string $path): mixed {
 };
 
 $cases178 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next178'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next175'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenEight'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSevenFive'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -134,16 +134,16 @@ $cases178 = [
     'dependency utf16' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency rtrim' => ['dependencies.1', 'sqlite-rtrim-expression'],
     'dependency canonical' => ['dependencies.2', 'sqlite-nocase-like-rtrim-token-canonicalization'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next178'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneSevenEight'],
 ];
 
 foreach ($cases178 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next178 ' . $name] = static function (TestRunner $t) use ($plan178, $valueAt178, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSevenEight ' . $name] = static function (TestRunner $t) use ($plan178, $valueAt178, $path, $expected): void {
         $t->same($expected, $valueAt178($plan178(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next178 canonical token can continue on stable source'] = static function (TestRunner $t) use ($row178, $enc178): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenEight canonical token can continue on stable source'] = static function (TestRunner $t) use ($row178, $enc178): void {
     $rows = [
         $row178(1, 'Plugin_Cache  ', 'UTF-16LE'),
         $row178(2, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -176,7 +176,7 @@ $tests['utf16 nocase like rtrim current source next178 canonical token can conti
     $t->same([2, 3], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next178 canonicalizes stale raw key before replay'] = static function (TestRunner $t) use ($row178, $enc178): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenEight canonicalizes stale raw key before replay'] = static function (TestRunner $t) use ($row178, $enc178): void {
     $rows = [
         $row178(1, 'Plugin_Cache  ', 'UTF-16LE'),
         $row178(2, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -207,7 +207,7 @@ $tests['utf16 nocase like rtrim current source next178 canonicalizes stale raw k
     $t->same([1, 2, 3], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next178 raw byte mismatch is explicit'] = static function (TestRunner $t) use ($row178, $enc178): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenEight raw byte mismatch is explicit'] = static function (TestRunner $t) use ($row178, $enc178): void {
     $rows = [
         $row178(1, 'plugin_cache', 'UTF-16BE'),
         $row178(2, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -236,7 +236,7 @@ $tests['utf16 nocase like rtrim current source next178 raw byte mismatch is expl
     $t->same([1, 2], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next178 raw encoding mismatch is explicit'] = static function (TestRunner $t) use ($row178, $enc178): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenEight raw encoding mismatch is explicit'] = static function (TestRunner $t) use ($row178, $enc178): void {
     $rows = [
         $row178(1, 'plugin_cache', 'UTF-16LE'),
         $row178(2, 'plugin_cache_alpha', 'UTF-16LE'),
@@ -265,7 +265,7 @@ $tests['utf16 nocase like rtrim current source next178 raw encoding mismatch is 
     $t->same([1, 2], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next178 missing token still reparses'] = static function (TestRunner $t) use ($row178): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenEight missing token still reparses'] = static function (TestRunner $t) use ($row178): void {
     $rows = [
         $row178(1, 'plugin_cache', 'UTF-16LE'),
         $row178(2, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -287,7 +287,7 @@ $tests['utf16 nocase like rtrim current source next178 missing token still repar
     $t->same([1, 2], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next178 rejects malformed raw token bytes'] = static function (TestRunner $t) use ($row178): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenEight rejects malformed raw token bytes'] = static function (TestRunner $t) use ($row178): void {
     $rows = [
         $row178(1, 'plugin_cache', 'UTF-16LE'),
     ];
@@ -305,7 +305,7 @@ $tests['utf16 nocase like rtrim current source next178 rejects malformed raw tok
     ));
 };
 
-$tests['utf16 nocase like rtrim current source next178 rejects partial raw token metadata'] = static function (TestRunner $t) use ($row178): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenEight rejects partial raw token metadata'] = static function (TestRunner $t) use ($row178): void {
     $rows = [
         $row178(1, 'plugin_cache', 'UTF-16LE'),
     ];

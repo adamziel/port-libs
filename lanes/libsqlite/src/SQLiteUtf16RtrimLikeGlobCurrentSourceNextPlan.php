@@ -140,7 +140,7 @@ final class SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan
                 'sqlite-utf16-decode',
                 'sqlite-rtrim-collation-key',
                 'sqlite-like-glob-residual-match',
-                'sqlite-current-source-next128',
+                'sqlite-current-source-nextoneTwoEight',
             ],
         ];
     }

@@ -91,7 +91,7 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-pattern-current-source-next160'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-pattern-current-source-nextoneSixZero'],
     'operator' => ['operator', 'LIKE'],
     'index collation' => ['indexCollation', 'RTRIM'],
     'residual collation' => ['residualCollation', 'NOCASE'],
@@ -136,16 +136,16 @@ $cases = [
     'reason rtrim false positives' => ['invalidationReasons.8', 'rtrim-false-positive-rowset'],
     'reason malformed' => ['invalidationReasons.9', 'malformed-text'],
     'dependency pattern decode' => ['dependencies.0', 'sqlite-utf16-pattern-decode'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next160'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneSixZero'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim pattern current source next160 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like rtrim pattern current source nextOneSixZero ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim pattern current source next160 stable pattern bytes reusable'] = static function (TestRunner $t) use ($row, $enc): void {
+$tests['utf16 nocase like rtrim pattern current source nextOneSixZero stable pattern bytes reusable'] = static function (TestRunner $t) use ($row, $enc): void {
     $rows = [
         $row(1, 'Plugin_Cache', 'UTF-16LE'),
         $row(2, 'plugin_cache  ', 'UTF-16BE'),
@@ -172,25 +172,25 @@ $tests['utf16 nocase like rtrim pattern current source next160 stable pattern by
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim pattern current source next160 ascii nocase does not fold unicode'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim pattern current source nextOneSixZero ascii nocase does not fold unicode'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(null, null, 'plugin\\_éclair', 'UTF-16LE', 'plugin\\_éclair', 'UTF-16BE');
     $t->same([], $result['currentMatchedRowids']);
     $t->same([], $result['nextMatchedRowids']);
     $t->same('plugin_éclair', $result['currentRtrimRange']['lowerInclusive']);
 };
 
-$tests['utf16 nocase like rtrim pattern current source next160 null escape disables escape bytes'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim pattern current source nextOneSixZero null escape disables escape bytes'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(null, null, 'plugin_cache%', 'UTF-8', 'plugin_cache%', 'UTF-8', null, 'UTF-8', null, 'UTF-8');
     $t->same(null, $result['currentEscape']);
     $t->same(null, $result['currentEscapeBytesHex']);
     $t->same([1, 4, 2, 3], $result['currentMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim pattern current source next160 rejects malformed pattern bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
+$tests['utf16 nocase like rtrim pattern current source nextOneSixZero rejects malformed pattern bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::wordpressOptionNamePatternPlan($currentRows, $nextRows, "p\0x", 2, "p\0%", 2));
 };
 
-$tests['utf16 nocase like rtrim pattern current source next160 rejects multi-character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
+$tests['utf16 nocase like rtrim pattern current source nextOneSixZero rejects multi-character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::wordpressOptionNamePatternPlan(
         $currentRows,
         $nextRows,

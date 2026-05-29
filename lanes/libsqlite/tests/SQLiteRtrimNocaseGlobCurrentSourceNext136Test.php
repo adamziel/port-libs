@@ -156,16 +156,16 @@ $cases = [
     'dependency nocase collation' => ['plugin_*', 'dependencies.1', 'sqlite-nocase-collation'],
     'dependency glob residual' => ['plugin_*', 'dependencies.2', 'sqlite-glob-binary-residual'],
     'dependency encoding cursor' => ['plugin_*', 'dependencies.3', 'sqlite-encoding-source-cursor'],
-    'dependency current source next136' => ['plugin_*', 'dependencies.4', 'sqlite-current-source-next136'],
+    'dependency current source nextOneThreeSix' => ['plugin_*', 'dependencies.4', 'sqlite-current-source-nextoneThreeSix'],
 ];
 
 foreach ($cases as $name => [$pattern, $path, $expected]) {
-    $tests['rtrim nocase glob current source next136 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $pattern, $path, $expected): void {
+    $tests['rtrim nocase glob current source nextOneThreeSix ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $pattern, $path, $expected): void {
         $t->same($expected, $valueAt($plan($pattern), $path));
     };
 }
 
-$tests['rtrim nocase glob current source next136 stable identical rows are reusable'] = static function (TestRunner $t) use ($row, $plan): void {
+$tests['rtrim nocase glob current source nextOneThreeSix stable identical rows are reusable'] = static function (TestRunner $t) use ($row, $plan): void {
     $rows = [$row(1, 'plugin_cache ', 'UTF-16LE'), $row(2, 'Plugin_Cache', 'UTF-16BE')];
     $result = $plan('plugin_*', $rows, $rows, 'stable', 'stable', 7, 7, 9, 9);
     $t->same([1, 2], $result['currentCandidateRowids']);
@@ -175,7 +175,7 @@ $tests['rtrim nocase glob current source next136 stable identical rows are reusa
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['rtrim nocase glob current source next136 leading wildcard disables index candidates'] = static function (TestRunner $t) use ($plan): void {
+$tests['rtrim nocase glob current source nextOneThreeSix leading wildcard disables index candidates'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('*cache');
     $t->same(false, $result['indexUsable']);
     $t->same(null, $result['range']);
@@ -183,7 +183,7 @@ $tests['rtrim nocase glob current source next136 leading wildcard disables index
     $t->same([], $result['currentMatchedRowids']);
 };
 
-$tests['rtrim nocase glob current source next136 exact rtrim range keeps residual exact'] = static function (TestRunner $t) use ($row, $plan): void {
+$tests['rtrim nocase glob current source nextOneThreeSix exact rtrim range keeps residual exact'] = static function (TestRunner $t) use ($row, $plan): void {
     $rows = [$row(1, 'plugin_cache', 'UTF-8'), $row(2, 'plugin_cache   ', 'UTF-16LE'), $row(3, 'Plugin_Cache', 'UTF-16BE')];
     $result = $plan('plugin_cache', $rows, $rows, 'stable', 'stable', 1, 1, 1, 1);
     $t->same([1, 2, 3], $result['currentCandidateRowids']);
@@ -194,15 +194,15 @@ $tests['rtrim nocase glob current source next136 exact rtrim range keeps residua
     $t->same(false, $result['currentResidualMatches'][3]);
 };
 
-$tests['rtrim nocase glob current source next136 rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['rtrim nocase glob current source nextOneThreeSix rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNameExpressionPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin_*'));
 };
 
-$tests['rtrim nocase glob current source next136 rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['rtrim nocase glob current source nextOneThreeSix rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNameExpressionPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'plugin_*'));
 };
 
-$tests['rtrim nocase glob current source next136 rejects missing text encoding'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['rtrim nocase glob current source nextOneThreeSix rejects missing text encoding'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNameExpressionPlan([['option_id' => 1, 'option_name_bytes' => 'plugin_cache']], $nextRows, 'plugin_*'));
 };
 

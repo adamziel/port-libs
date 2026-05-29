@@ -85,10 +85,10 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-resume-token-current-source-next170'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-resume-token-current-source-nextoneSevenZero'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ?'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next165'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSixFive'],
     'case sensitive false' => ['caseSensitiveLike', false],
     'ascii nocase only' => ['asciiNocaseOnly', true],
     'rtrim trims ascii space only' => ['rtrimTrimsOnlyAsciiSpace', true],
@@ -125,16 +125,16 @@ $cases = [
     'semantic invalidation reasons' => ['semanticInvalidationReasons', ['candidate-rowset', 'matched-rowset']],
     'dependency token decode' => ['dependencies.0', 'sqlite-utf16-resume-token-decode'],
     'dependency cursor' => ['dependencies.1', 'sqlite-nocase-like-rtrim-resume-cursor'],
-    'dependency current source' => ['dependencies.2', 'sqlite-current-source-next170'],
+    'dependency current source' => ['dependencies.2', 'sqlite-current-source-nextoneSevenZero'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim resume token current source next170 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like rtrim resume token current source nextOneSevenZero ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim resume token current source next170 token text change forces range restart'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim resume token current source nextOneSevenZero token text change forces range restart'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(nextToken: 'plugin_cache_beta', nextTokenEncoding: 2, nextTokenRowid: 3);
     $t->same(['token-key-bytes', 'token-rowid'], $result['tokenByteReasons']);
     $t->same(['token-key-text', 'token-rowid'], $result['tokenSemanticReasons']);
@@ -144,7 +144,7 @@ $tests['utf16 nocase like rtrim resume token current source next170 token text c
     $t->same($result['nextMatchedRowids'], $result['resumePlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim resume token current source next170 source change still forces range restart'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim resume token current source nextOneSevenZero source change still forces range restart'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(currentSource: 'main.wp_options@169', nextSource: 'main.wp_options@170');
     $t->same(['semantic-invalidation'], $result['baseResumeReasons']);
     $t->same(['semantic-invalidation'], $result['resumeReasons']);
@@ -152,7 +152,7 @@ $tests['utf16 nocase like rtrim resume token current source next170 source chang
     $t->same(true, $result['mustReprepareBeforeResume']);
 };
 
-$tests['utf16 nocase like rtrim resume token current source next170 row entering before token forces range restart'] = static function (TestRunner $t) use ($plan, $currentRows, $nextRows, $row): void {
+$tests['utf16 nocase like rtrim resume token current source nextOneSevenZero row entering before token forces range restart'] = static function (TestRunner $t) use ($plan, $currentRows, $nextRows, $row): void {
     $next = array_merge($nextRows, [$row(9, 'plugin_cache_aaa', 2)]);
     $result = $plan($currentRows, $next);
     $t->same([1, 9, 2], $result['nextBeforeOrAtTokenRowids']);
@@ -162,7 +162,7 @@ $tests['utf16 nocase like rtrim resume token current source next170 row entering
     $t->same(true, $result['mustReprepareBeforeResume']);
 };
 
-$tests['utf16 nocase like rtrim resume token current source next170 ascii case token normalizes before compare'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim resume token current source nextOneSevenZero ascii case token normalizes before compare'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(currentToken: 'PLUGIN_CACHE_ALPHA  ', currentTokenEncoding: 2, nextToken: 'plugin_cache_alpha', nextTokenEncoding: 2);
     $t->same('plugin_cache_alpha', $result['currentTokenKey']);
     $t->same('plugin_cache_alpha', $result['nextTokenKey']);
@@ -170,7 +170,7 @@ $tests['utf16 nocase like rtrim resume token current source next170 ascii case t
     $t->same(true, $result['safeToResumeFromToken']);
 };
 
-$tests['utf16 nocase like rtrim resume token current source next170 malformed current token throws'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
+$tests['utf16 nocase like rtrim resume token current source nextOneSevenZero malformed current token throws'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::wordpressOptionNameResumeTokenPlan(
         $currentRows,
         $nextRows,
@@ -187,7 +187,7 @@ $tests['utf16 nocase like rtrim resume token current source next170 malformed cu
     ));
 };
 
-$tests['utf16 nocase like rtrim resume token current source next170 malformed next row forces reprepare'] = static function (TestRunner $t) use ($plan, $nextRows, $bad): void {
+$tests['utf16 nocase like rtrim resume token current source nextOneSevenZero malformed next row forces reprepare'] = static function (TestRunner $t) use ($plan, $nextRows, $bad): void {
     $next = array_merge($nextRows, [$bad(10, "\x00\xd8", 2)]);
     $result = $plan(next: $next);
     $t->same([10], $result['nextMalformedRowids']);

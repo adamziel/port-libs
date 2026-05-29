@@ -579,11 +579,11 @@ final class SQLiteAttachedSchemaCatalog
      * @param list<SQLiteSchemaRecord> $nextRecords
      * @return array{status: string, operation: string, pragma: string, target: string, current_schema: string, next_schema: string, current_generation: int, next_generation: int, current_rows: list<array<string, int|string|null>>, next_rows: list<array<string, int|string|null>>, current_recursive_rows: list<array<string, int|string|null>>, next_recursive_rows: list<array<string, int|string|null>>, current_cursor: SQLitePragmaRowCursor, next_cursor: SQLitePragmaRowCursor, dependencies: list<string>}
      */
-    public function foreignKeyListCurrentSourceNext106(string $sql, array $nextRecords, ?string $schemaName = null): array
+    public function foreignKeyListAfterSchemaReparse(string $sql, array $nextRecords, ?string $schemaName = null): array
     {
         $parsed = SQLitePragmaSchemaCatalog::parseTableValuedPragma($sql);
         if ($parsed['pragma'] !== 'foreign_key_list') {
-            throw new \InvalidArgumentException('SQLite current-source next106 only supports pragma_foreign_key_list');
+            throw new \InvalidArgumentException('SQLite schema reparse preview only supports pragma_foreign_key_list');
         }
 
         $current = $this->executeTableValuedPragma($sql);
@@ -598,7 +598,7 @@ final class SQLiteAttachedSchemaCatalog
 
         return [
             'status' => 'ok',
-            'operation' => 'pragma-foreign-key-list-recursive-current-source-next106',
+            'operation' => 'pragma-foreign-key-list-after-schema-reparse',
             'pragma' => 'foreign_key_list',
             'target' => $parsed['target'],
             'current_schema' => $current['schema'],
@@ -612,7 +612,7 @@ final class SQLiteAttachedSchemaCatalog
             'current_cursor' => $currentCursor,
             'next_cursor' => $nextCursor,
             'dependencies' => [
-                'sqlite-pragma-foreign-key-list-recursive-current-source-next106',
+                'sqlite-pragma-foreign-key-list-after-schema-reparse',
                 'sqlite-schema-catalog-current-source-cursor',
                 'sqlite-foreign-key-recursive-self-reference',
             ],

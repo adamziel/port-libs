@@ -66,7 +66,7 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next161'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSixOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -79,7 +79,7 @@ $cases = [
     'next collation generation' => ['nextCollationGeneration', 'NOCASE/RTRIM@161'],
     'current like generation' => ['currentLikeGeneration', 'like@160'],
     'next like generation' => ['nextLikeGeneration', 'like@161'],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next158'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneFiveEight'],
     'index usable' => ['indexUsable', true],
     'prefix' => ['prefix', 'plugin_cache'],
     'range lower' => ['range.lowerInclusive', 'plugin_cache'],
@@ -130,16 +130,16 @@ $cases = [
     'dependency rtrim' => ['dependencies.1', 'sqlite-rtrim-expression'],
     'dependency like range' => ['dependencies.2', 'sqlite-like-nocase-prefix-range'],
     'dependency generation' => ['dependencies.3', 'sqlite-collation-generation'],
-    'dependency source next161' => ['dependencies.4', 'sqlite-current-source-next161'],
+    'dependency source nextOneSixOne' => ['dependencies.4', 'sqlite-current-source-nextoneSixOne'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next161 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSixOne ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next161 stable same generation reusable'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixOne stable same generation reusable'] = static function (TestRunner $t) use ($row): void {
     $rows = [
         $row(1, 'plugin_cache  ', 2),
         $row(2, 'plugin_cache_shadow', 3),
@@ -165,7 +165,7 @@ $tests['utf16 nocase like rtrim current source next161 stable same generation re
     $t->same(false, $result['reprepareRequired']);
 };
 
-$tests['utf16 nocase like rtrim current source next161 same rows collation generation invalidates'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixOne same rows collation generation invalidates'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache  ', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameGenerationPlan(
         $rows,
@@ -186,7 +186,7 @@ $tests['utf16 nocase like rtrim current source next161 same rows collation gener
     $t->same(true, $result['reprepareRequired']);
 };
 
-$tests['utf16 nocase like rtrim current source next161 same rows like generation invalidates'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixOne same rows like generation invalidates'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache  ', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameGenerationPlan(
         $rows,

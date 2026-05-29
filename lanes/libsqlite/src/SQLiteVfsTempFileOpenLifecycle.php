@@ -11,7 +11,7 @@ final class SQLiteVfsTempFileOpenLifecycle
      * @param array{temp_dir?:string,connection_id?:string,temp_store?:string,directory_writable?:bool,current?:array<string,mixed>} $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentNext73(array $operations, array $options = []): array
+    public static function tempFileOpenLifecycleSequence(array $operations, array $options = []): array
     {
         $tempDir = self::normalizeTempDir((string) ($options['temp_dir'] ?? sys_get_temp_dir()));
         $connectionId = self::normalizeSegment((string) ($options['connection_id'] ?? 'conn'));

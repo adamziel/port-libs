@@ -75,7 +75,7 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next168'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSixEight'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -137,16 +137,16 @@ $cases = [
     'dependency rtrim' => ['dependencies.1', 'sqlite-rtrim-expression'],
     'dependency range' => ['dependencies.2', 'sqlite-like-nocase-prefix-range'],
     'dependency pragma' => ['dependencies.3', 'sqlite-case-sensitive-like'],
-    'dependency next168' => ['dependencies.4', 'sqlite-current-source-next168'],
+    'dependency nextOneSixEight' => ['dependencies.4', 'sqlite-current-source-nextoneSixEight'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next168 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSixEight ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next168 invalidation reason order'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixEight invalidation reason order'] = static function (TestRunner $t) use ($plan): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -163,7 +163,7 @@ $tests['utf16 nocase like rtrim current source next168 invalidation reason order
     ], $plan()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next168 stable default like remains reusable'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixEight stable default like remains reusable'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'Plugin_Cache  ', 2), $row(2, 'plugin_cache_shadow', 3)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
@@ -183,7 +183,7 @@ $tests['utf16 nocase like rtrim current source next168 stable default like remai
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next168 stable case-sensitive like over lowercase rows keeps output but reparses index'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixEight stable case-sensitive like over lowercase rows keeps output but reparses index'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache  ', 2), $row(2, 'plugin_cache_shadow', 3)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
@@ -202,7 +202,7 @@ $tests['utf16 nocase like rtrim current source next168 stable case-sensitive lik
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next168 case-sensitive current and next still require a binary scan'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixEight case-sensitive current and next still require a binary scan'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 2), $row(2, 'Plugin_Cache', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
@@ -222,7 +222,7 @@ $tests['utf16 nocase like rtrim current source next168 case-sensitive current an
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next168 tab is retained before residual matching'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixEight tab is retained before residual matching'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache' . "\t", 2), $row(2, 'plugin_cache  ', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
@@ -240,7 +240,7 @@ $tests['utf16 nocase like rtrim current source next168 tab is retained before re
     $t->same("plugin_cache\t", $result['currentRtrimTexts'][1]);
 };
 
-$tests['utf16 nocase like rtrim current source next168 escaped percent literal keeps prefix range'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixEight escaped percent literal keeps prefix range'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache%', 2), $row(2, 'plugin_cache_extra', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
@@ -258,7 +258,7 @@ $tests['utf16 nocase like rtrim current source next168 escaped percent literal k
     $t->same([1], $result['currentMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next168 non ascii prefix rejects nocase range'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixEight non ascii prefix rejects nocase range'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'Æther_cache', 2), $row(2, 'æther_cache', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
@@ -277,11 +277,11 @@ $tests['utf16 nocase like rtrim current source next168 non ascii prefix rejects 
     $t->same([], $result['currentMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next168 rejects invalid escape'] = static function (TestRunner $t): void {
+$tests['utf16 nocase like rtrim current source nextOneSixEight rejects invalid escape'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan([], [], 'plugin%', '!!'));
 };
 
-$tests['utf16 nocase like rtrim current source next168 rejects bad row shape'] = static function (TestRunner $t) use ($enc): void {
+$tests['utf16 nocase like rtrim current source nextOneSixEight rejects bad row shape'] = static function (TestRunner $t) use ($enc): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc('plugin_cache', 2)]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan($rows, $rows, 'plugin%'));
 };

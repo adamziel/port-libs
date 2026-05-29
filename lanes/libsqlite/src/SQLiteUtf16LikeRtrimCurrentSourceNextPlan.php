@@ -106,7 +106,7 @@ final class SQLiteUtf16LikeRtrimCurrentSourceNextPlan
                 'sqlite-utf16-decode',
                 'sqlite-like-rtrim-full-scan-current-next',
                 'sqlite-like-residual-byte-preserving',
-                'sqlite-current-source-next137',
+                'sqlite-current-source-nextoneThreeSeven',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-8/UTF-16 decoding, LIKE residual matching, RTRIM comparison-key metadata, and current-source invalidation state',
         ];

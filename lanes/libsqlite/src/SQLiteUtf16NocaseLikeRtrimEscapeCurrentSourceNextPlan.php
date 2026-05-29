@@ -105,7 +105,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
             && $currentTrimmedEscape === $nextTrimmedEscape;
 
         return [
-            'status' => 'utf16-nocase-like-rtrim-escape-current-source-next166',
+            'status' => 'utf16-nocase-like-rtrim-escape-current-source-nextoneSixSix',
             'operator' => 'LIKE',
             'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE rtrim(?) ESCAPE rtrim(?)',
             'caseSensitiveLike' => false,
@@ -169,7 +169,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
                 'sqlite-rtrim-rhs-expression',
                 'sqlite-rtrim-escape-expression',
                 'sqlite-like-nocase-prefix-range',
-                'sqlite-current-source-next166',
+                'sqlite-current-source-nextoneSixSix',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 decode, RHS RTRIM pattern handling, ESCAPE RTRIM normalization, NOCASE LIKE range planning, and current-source diagnostics',
         ];
@@ -180,7 +180,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
         try {
             return SQLiteEncodingCollationSourceCursor::decodeText($bytes, $encoding);
         } catch (\InvalidArgumentException $exception) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next166 ' . $label . ' is malformed: ' . $exception->getMessage(), 0, $exception);
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixSix ' . $label . ' is malformed: ' . $exception->getMessage(), 0, $exception);
         }
     }
 
@@ -188,7 +188,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
     {
         $characters = preg_split('//u', $escape, -1, PREG_SPLIT_NO_EMPTY);
         if ($characters === false || count($characters) !== 1) {
-            throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM next166 {$label} ESCAPE rtrim() must yield exactly one character");
+            throw new \InvalidArgumentException("SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixSix {$label} ESCAPE rtrim() must yield exactly one character");
         }
     }
 
@@ -289,7 +289,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl
         $mustRestart = $replayReasons !== [];
 
         return [
-            'status' => 'utf16-nocase-like-rtrim-escape-current-source-next182',
+            'status' => 'utf16-nocase-like-rtrim-escape-current-source-nextoneEightTwo',
             'operator' => 'LIKE',
             'expression' => 'rtrim(option_name) COLLATE NOCASE',
             'baseStatus' => $base['status'] ?? null,
@@ -325,7 +325,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextReplayImpl
                 'sqlite-utf16-decode',
                 'sqlite-like-escape-single-character',
                 'sqlite-nocase-like-rtrim-replay',
-                'sqlite-current-source-next182',
+                'sqlite-current-source-nextoneEightTwo',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 operand decode, LIKE ESCAPE validation, and NOCASE/RTRIM byte-token replay diagnostics',
             'non_overlap' => 'adds UTF-16 LIKE ESCAPE operand validation and escape-byte current/next replay invalidation; avoids accepted UTF-16 malformed insert guards, Unicode GLOB ranges, RHS RTRIM planning, token byte fingerprint-only replay, and storage/planner clusters',

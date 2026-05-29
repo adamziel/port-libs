@@ -39,7 +39,7 @@ $current233 = [
     $row233(8, 'theme_caf' . $pre233, 'UTF-16LE'),
     $bad233(9, "\x00\xd8", 2),
 ];
-$next233 = [
+$nextTwoThreeThree = [
     $row233(1, 'plugin_cafe', 'UTF-16BE'),
     $row233(2, 'plugin_caf' . $comb233, 'UTF-16LE'),
     $row233(3, 'plugin_caf' . $pre233, 'UTF-16BE'),
@@ -62,7 +62,7 @@ $plan233 = static fn (
     int $nextCookie = 233,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalUnicodePlan(
     $current ?? $current233,
-    $next ?? $next233,
+    $next ?? $nextTwoThreeThree,
     $pattern,
     $escape,
     $currentSource,
@@ -83,7 +83,7 @@ $valueAt233 = static function (array $value, string $path): mixed {
 };
 
 $cases233 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next233'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoThreeThree'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* no Unicode normalization */'],
     'pattern' => ['pattern', 'plugin!_caf_'],
@@ -152,16 +152,16 @@ $cases233 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
     'dependency codepoint' => ['dependencies.3', 'sqlite-unicode-codepoint-like'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next233'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoThreeThree'],
 ];
 
 foreach ($cases233 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next233 ' . $name] = static function (TestRunner $t) use ($plan233, $valueAt233, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoThreeThree ' . $name] = static function (TestRunner $t) use ($plan233, $valueAt233, $path, $expected): void {
         $t->same($expected, $valueAt233($plan233(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next233 invalidation reason order'] = static function (TestRunner $t) use ($plan233): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeThree invalidation reason order'] = static function (TestRunner $t) use ($plan233): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -181,12 +181,12 @@ $tests['utf16 nocase like rtrim current source next233 invalidation reason order
     ], $plan233()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next233 canonical peers remain visible'] = static function (TestRunner $t) use ($plan233): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeThree canonical peers remain visible'] = static function (TestRunner $t) use ($plan233): void {
     $peers = $plan233()['currentCanonicalPeerRowids'];
     $t->same([1, 2, 3, 4, 5, 6], $peers['plugin_cafe']);
 };
 
-$tests['utf16 nocase like rtrim current source next233 upper accented precomposed is not NOCASE folded'] = static function (TestRunner $t) use ($row233, $upperPre233): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeThree upper accented precomposed is not NOCASE folded'] = static function (TestRunner $t) use ($row233, $upperPre233): void {
     $rows = [
         $row233(1, 'plugin_caf' . $upperPre233, 'UTF-16LE'),
         $row233(2, 'plugin_cafe', 'UTF-16BE'),
@@ -198,7 +198,7 @@ $tests['utf16 nocase like rtrim current source next233 upper accented precompose
     $t->same([1], $result['currentPrecomposedAccentRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next233 decomposed accent needs two underscores'] = static function (TestRunner $t) use ($row233, $comb233): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeThree decomposed accent needs two underscores'] = static function (TestRunner $t) use ($row233, $comb233): void {
     $rows = [
         $row233(1, 'plugin_caf' . $comb233, 'UTF-16LE'),
         $row233(2, 'plugin_cafe', 'UTF-16BE'),
@@ -211,7 +211,7 @@ $tests['utf16 nocase like rtrim current source next233 decomposed accent needs t
     $t->same([1], $two['currentMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next233 ascii rtrim does not remove combining mark'] = static function (TestRunner $t) use ($row233, $comb233): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeThree ascii rtrim does not remove combining mark'] = static function (TestRunner $t) use ($row233, $comb233): void {
     $rows = [
         $row233(1, 'plugin_caf' . $comb233 . '  ', 'UTF-16LE'),
         $row233(2, 'plugin_cafe  ', 'UTF-16BE'),
@@ -223,7 +223,7 @@ $tests['utf16 nocase like rtrim current source next233 ascii rtrim does not remo
     $t->same([2], $result['currentMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next233 stable precomposed cursor is reusable'] = static function (TestRunner $t) use ($row233, $pre233): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeThree stable precomposed cursor is reusable'] = static function (TestRunner $t) use ($row233, $pre233): void {
     $rows = [
         $row233(1, 'plugin_caf' . $pre233, 'UTF-16LE'),
         $row233(2, 'plugin_cafe', 'UTF-16BE'),
@@ -235,7 +235,7 @@ $tests['utf16 nocase like rtrim current source next233 stable precomposed cursor
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next233 rejects malformed row shape'] = static function (TestRunner $t) use ($enc233): void {
+$tests['utf16 nocase like rtrim current source nextTwoThreeThree rejects malformed row shape'] = static function (TestRunner $t) use ($enc233): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc233('plugin_cafe', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows));
 };

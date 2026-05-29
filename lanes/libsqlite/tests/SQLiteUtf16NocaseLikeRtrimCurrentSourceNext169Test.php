@@ -94,13 +94,13 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next169'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSixNine'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'case insensitive like' => ['caseSensitiveLike', false],
     'ascii nocase only' => ['asciiNocaseOnly', true],
     'rtrim trims only space' => ['rtrimTrimsOnlyAsciiSpace', true],
-    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-next165'],
+    'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSixFive'],
     'current source' => ['currentSource', 'stable'],
     'next source' => ['nextSource', 'stable'],
     'current cookie' => ['currentSchemaCookie', 169],
@@ -149,16 +149,16 @@ $cases = [
     'dependency normalization' => ['dependencies.0', 'sqlite-utf16-pattern-normalization'],
     'dependency resume cursor' => ['dependencies.1', 'sqlite-nocase-like-rtrim-resume-cursor'],
     'dependency high water' => ['dependencies.2', 'sqlite-yield-high-water-token'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next169'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneSixNine'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next169 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSixNine ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next169 source change restarts from range start'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixNine source change restarts from range start'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(currentSource: 'main.wp_options@168', nextSource: 'main.wp_options@169');
     $t->same('restart-then-yield-page', $result['yieldMode']);
     $t->same(['semantic-invalidation'], $result['resumeReasons']);
@@ -170,7 +170,7 @@ $tests['utf16 nocase like rtrim current source next169 source change restarts fr
     $t->same(['key' => 'plugin_cache_alpha', 'rowid' => 2], $result['highWaterToken']);
 };
 
-$tests['utf16 nocase like rtrim current source next169 page size one yields one high water token'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixNine page size one yields one high water token'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(pageSize: 1);
     $t->same([3], $result['yieldedRowids']);
     $t->same([8, 7, 4], $result['deferredRowids']);
@@ -178,7 +178,7 @@ $tests['utf16 nocase like rtrim current source next169 page size one yields one 
     $t->same(true, $result['hasMore']);
 };
 
-$tests['utf16 nocase like rtrim current source next169 large page drains cursor'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixNine large page drains cursor'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(pageSize: 10);
     $t->same([3, 8, 7, 4], $result['yieldedRowids']);
     $t->same([], $result['deferredRowids']);
@@ -186,7 +186,7 @@ $tests['utf16 nocase like rtrim current source next169 large page drains cursor'
     $t->same(false, $result['hasMore']);
 };
 
-$tests['utf16 nocase like rtrim current source next169 null token restarts from range start'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixNine null token restarts from range start'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(token: null);
     $t->same(null, $result['lastYielded']);
     $t->same(['no-yield-token'], $result['restartReasons']);
@@ -194,7 +194,7 @@ $tests['utf16 nocase like rtrim current source next169 null token restarts from 
     $t->same([7, 1, 2], $result['yieldedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next169 entered before token restarts before yielding'] = static function (TestRunner $t) use ($plan, $currentRows, $nextRows, $row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixNine entered before token restarts before yielding'] = static function (TestRunner $t) use ($plan, $currentRows, $nextRows, $row): void {
     $next = array_merge($nextRows, [$row(10, 'plugin_cache_aaa', 'UTF-16LE')]);
     $result = $plan($currentRows, $next);
     $t->same([10], $result['newBeforeTokenRowids']);
@@ -204,7 +204,7 @@ $tests['utf16 nocase like rtrim current source next169 entered before token rest
     $t->same([7, 1, 10], $result['yieldedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next169 retained moved across token restarts'] = static function (TestRunner $t) use ($plan, $currentRows, $row): void {
+$tests['utf16 nocase like rtrim current source nextOneSixNine retained moved across token restarts'] = static function (TestRunner $t) use ($plan, $currentRows, $row): void {
     $next = [
         $row(1, 'Plugin_Cache', 'UTF-16BE'),
         $row(2, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -218,7 +218,7 @@ $tests['utf16 nocase like rtrim current source next169 retained moved across tok
     $t->same([1, 3, 2], $result['yieldedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next169 malformed next text preserves errors'] = static function (TestRunner $t) use ($plan, $nextRows, $bad): void {
+$tests['utf16 nocase like rtrim current source nextOneSixNine malformed next text preserves errors'] = static function (TestRunner $t) use ($plan, $nextRows, $bad): void {
     $next = array_merge($nextRows, [$bad(11, "\x00\xd8", 2)]);
     $result = $plan(next: $next);
     $t->same([11], $result['nextMalformedRowids']);
@@ -227,7 +227,7 @@ $tests['utf16 nocase like rtrim current source next169 malformed next text prese
     $t->same(true, $result['mustRestartBeforeYield']);
 };
 
-$tests['utf16 nocase like rtrim current source next169 unicode pattern keeps range but ascii nocase only'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixNine unicode pattern keeps range but ascii nocase only'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(currentPattern: 'plugin\\_éclair%', nextPattern: 'plugin\\_éclair%');
     $t->same(true, $result['currentIndexUsable']);
     $t->same(true, $result['nextIndexUsable']);
@@ -236,11 +236,11 @@ $tests['utf16 nocase like rtrim current source next169 unicode pattern keeps ran
     $t->same(['key' => 'plugin_éclair', 'rowid' => 9], $result['highWaterToken']);
 };
 
-$tests['utf16 nocase like rtrim current source next169 rejects zero page size'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixNine rejects zero page size'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan(pageSize: 0));
 };
 
-$tests['utf16 nocase like rtrim current source next169 rejects bad token shape'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSixNine rejects bad token shape'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan(token: ['key' => 'plugin_cache']));
 };
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentNext77Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentNextPlan;
 
 $schemas = [
     'main' => [
@@ -67,7 +67,7 @@ $statements = [
     ['name' => 'bracket-analytics-reader', 'sql' => 'SELECT event_name FROM [analytics].[wp_events] WHERE event_name GLOB ?'],
 ];
 
-$plan = static fn (?array $ops = null, ?array $stmts = null, string $outcome = 'commit'): array => SQLiteAttachWalTempSchemaCacheCurrentNext77Plan::plan(
+$plan = static fn (?array $ops = null, ?array $stmts = null, string $outcome = 'commit'): array => SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan(
     $schemas,
     $ops ?? $operations,
     $stmts ?? $statements,

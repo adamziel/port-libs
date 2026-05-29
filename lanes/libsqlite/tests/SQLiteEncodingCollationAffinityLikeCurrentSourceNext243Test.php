@@ -22,7 +22,7 @@ $current243 = [
     ['option_id' => 12, 'option_name' => 'cache_unicode_upper', 'option_value' => 'CACHE_É'],
 ];
 
-$next243 = [
+$nextTwoFourThree = [
     ['option_id' => 1, 'option_name' => 'cache_plain', 'option_value' => 'cache_hit'],
     ['option_id' => 2, 'option_name' => 'cache_space_trimmed', 'option_value' => 'cache_hit'],
     ['option_id' => 3, 'option_name' => 'cache_tab', 'option_value' => "cache_hit\t"],
@@ -51,7 +51,7 @@ $plan243 = static fn (
     int $nextCookie = 243,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan(
     $current ?? $current243,
-    $next ?? $next243,
+    $next ?? $nextTwoFourThree,
     $pattern,
     $escape,
     $collation,
@@ -74,7 +74,7 @@ $valueAt243 = static function (array $value, string $path): mixed {
 };
 
 $cases243 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next243'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourThree'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_value COLLATE RTRIM LIKE ? /* RTRIM collation does not trim LIKE residual */'],
     'pattern' => ['pattern', 'cache_%'],
@@ -130,30 +130,30 @@ $cases243 = [
     'dependency range' => ['dependencies.0', 'sqlite-like-collation-prefix-range'],
     'dependency rtrim' => ['dependencies.1', 'sqlite-rtrim-collation-key'],
     'dependency affinity' => ['dependencies.2', 'sqlite-text-affinity-like'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next243'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoFourThree'],
 ];
 
 foreach ($cases243 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next243 ' . $name] = static function (TestRunner $t) use ($plan243, $valueAt243, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFourThree ' . $name] = static function (TestRunner $t) use ($plan243, $valueAt243, $path, $expected): void {
         $t->same($expected, $valueAt243($plan243(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next243 stable cursor is reusable'] = static function (TestRunner $t) use ($current243, $plan243): void {
+$tests['encoding collation affinity like current source nextTwoFourThree stable cursor is reusable'] = static function (TestRunner $t) use ($current243, $plan243): void {
     $stable = $plan243(current: $current243, next: $current243, currentSource: 'same', nextSource: 'same', currentCookie: 243, nextCookie: 243);
     $t->same(false, $stable['cursorInvalidated']);
     $t->same(true, $stable['cursorReusable']);
     $t->same([], $stable['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next243 binary case sensitive excludes uppercase'] = static function (TestRunner $t) use ($plan243): void {
+$tests['encoding collation affinity like current source nextTwoFourThree binary case sensitive excludes uppercase'] = static function (TestRunner $t) use ($plan243): void {
     $binary = $plan243(collation: 'BINARY', caseSensitive: true);
     $t->same('BINARY', $binary['collation']);
     $t->same(true, $binary['indexUsable']);
     $t->same([5, 1, 3, 2, 11], $binary['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next243 nocase index is usable for default like'] = static function (TestRunner $t) use ($plan243): void {
+$tests['encoding collation affinity like current source nextTwoFourThree nocase index is usable for default like'] = static function (TestRunner $t) use ($plan243): void {
     $nocase = $plan243(collation: 'NOCASE');
     $t->same('NOCASE', $nocase['collation']);
     $t->same(true, $nocase['indexUsable']);
@@ -161,7 +161,7 @@ $tests['encoding collation affinity like current source next243 nocase index is 
     $t->same('cachf', $nocase['rangeUpperBound']);
 };
 
-$tests['encoding collation affinity like current source next243 trailing spaces are visible to residual exact match'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFourThree trailing spaces are visible to residual exact match'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value' => 'cache_hit'],
         ['option_id' => 2, 'option_value' => 'cache_hit   '],
@@ -171,7 +171,7 @@ $tests['encoding collation affinity like current source next243 trailing spaces 
     $t->same([1, 2], $plan['currentRtrimPrefixCandidateRowids']);
 };
 
-$tests['encoding collation affinity like current source next243 tab is not trimmed by rtrim key'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFourThree tab is not trimmed by rtrim key'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value' => 'cache_hit '],
         ['option_id' => 2, 'option_value' => "cache_hit\t"],
@@ -181,7 +181,7 @@ $tests['encoding collation affinity like current source next243 tab is not trimm
     $t->same([], $plan['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next243 numeric text affinity can be matched'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFourThree numeric text affinity can be matched'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value' => 404],
         ['option_id' => 2, 'option_value' => 404.0],
@@ -191,7 +191,7 @@ $tests['encoding collation affinity like current source next243 numeric text aff
     $t->same([1, 2], $plan['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next243 blob and null stay unknown'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFourThree blob and null stay unknown'] = static function (TestRunner $t): void {
     $rows = [
         ['option_id' => 1, 'option_value' => new SQLiteBlobValue('cache_hit')],
         ['option_id' => 2, 'option_value' => null],
@@ -202,16 +202,16 @@ $tests['encoding collation affinity like current source next243 blob and null st
     $t->same([1, 2], $plan['currentUnknownRowids']);
 };
 
-$tests['encoding collation affinity like current source next243 rejects missing option value'] = static function (TestRunner $t) use ($next243): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan([['option_id' => 1]], $next243));
+$tests['encoding collation affinity like current source nextTwoFourThree rejects missing option value'] = static function (TestRunner $t) use ($nextTwoFourThree): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan([['option_id' => 1]], $nextTwoFourThree));
 };
 
-$tests['encoding collation affinity like current source next243 rejects array option value'] = static function (TestRunner $t) use ($next243): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan([['option_id' => 1, 'option_value' => ['cache']]], $next243));
+$tests['encoding collation affinity like current source nextTwoFourThree rejects array option value'] = static function (TestRunner $t) use ($nextTwoFourThree): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan([['option_id' => 1, 'option_value' => ['cache']]], $nextTwoFourThree));
 };
 
-$tests['encoding collation affinity like current source next243 rejects unsupported collation'] = static function (TestRunner $t) use ($current243, $next243): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan($current243, $next243, 'cache_%', null, 'UNICODE'));
+$tests['encoding collation affinity like current source nextTwoFourThree rejects unsupported collation'] = static function (TestRunner $t) use ($current243, $nextTwoFourThree): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan($current243, $nextTwoFourThree, 'cache_%', null, 'UNICODE'));
 };
 
 return $tests;

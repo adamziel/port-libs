@@ -23,7 +23,7 @@ $current241 = [
     ['option_id' => 12, 'option_name' => null],
 ];
 
-$next241 = [
+$nextTwoFourOne = [
     ['option_id' => 1, 'option_name' => "wp_cache\0timeout_v2"],
     ['option_id' => 2, 'option_name' => "WP_CACHE\0TIMEOUT"],
     ['option_id' => 3, 'option_name' => "wp_cache\0timeout_old"],
@@ -49,7 +49,7 @@ $plan241 = static fn (
     int $nextCookie = 241,
 ): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan(
     $current ?? $current241,
-    $next ?? $next241,
+    $next ?? $nextTwoFourOne,
     $pattern,
     $escape,
     $caseSensitive,
@@ -71,7 +71,7 @@ $valueAt241 = static function (array $value, string $path): mixed {
 };
 
 $cases241 = [
-    'status' => ['status', 'encoding-collation-affinity-like-current-source-next241'],
+    'status' => ['status', 'encoding-collation-affinity-like-current-source-nexttwoFourOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'option_name COLLATE NOCASE LIKE ? ESCAPE ? /* byte-aware residual cursor */'],
     'pattern hex preserves nul' => ['patternHex', '7770215f63616368650074696d656f757425'],
@@ -126,16 +126,16 @@ $cases241 = [
     'dependency tokenizer' => ['dependencies.0', 'sqlite-like-byte-tokenizer'],
     'dependency affinity' => ['dependencies.1', 'sqlite-text-affinity'],
     'dependency collation' => ['dependencies.2', 'sqlite-nocase-ascii-collation'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next241'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoFourOne'],
 ];
 
 foreach ($cases241 as $name => [$path, $expected]) {
-    $tests['encoding collation affinity like current source next241 ' . $name] = static function (TestRunner $t) use ($plan241, $valueAt241, $path, $expected): void {
+    $tests['encoding collation affinity like current source nextTwoFourOne ' . $name] = static function (TestRunner $t) use ($plan241, $valueAt241, $path, $expected): void {
         $t->same($expected, $valueAt241($plan241(), $path));
     };
 }
 
-$tests['encoding collation affinity like current source next241 stable cursor reusable despite nul'] = static function (TestRunner $t) use ($plan241): void {
+$tests['encoding collation affinity like current source nextTwoFourOne stable cursor reusable despite nul'] = static function (TestRunner $t) use ($plan241): void {
     $rows = [
         ['option_id' => 1, 'option_name' => "wp_cache\0timeout"],
         ['option_id' => 2, 'option_name' => "wp_cache\0timeout_old"],
@@ -146,13 +146,13 @@ $tests['encoding collation affinity like current source next241 stable cursor re
     $t->same([], $stable['invalidationReasons']);
 };
 
-$tests['encoding collation affinity like current source next241 case sensitive excludes uppercase nul rows'] = static function (TestRunner $t) use ($plan241): void {
+$tests['encoding collation affinity like current source nextTwoFourOne case sensitive excludes uppercase nul rows'] = static function (TestRunner $t) use ($plan241): void {
     $case = $plan241(caseSensitive: true);
     $t->same([1, 3], $case['currentMatchedRowids']);
     $t->same([13, 3, 1], $case['nextMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next241 escaped underscore rejects unescaped underscore candidates'] = static function (TestRunner $t) use ($plan241): void {
+$tests['encoding collation affinity like current source nextTwoFourOne escaped underscore rejects unescaped underscore candidates'] = static function (TestRunner $t) use ($plan241): void {
     $rows = [
         ['option_id' => 1, 'option_name' => "wp_cache\0timeout"],
         ['option_id' => 2, 'option_name' => "wpxcache\0timeout"],
@@ -164,13 +164,13 @@ $tests['encoding collation affinity like current source next241 escaped undersco
     $t->same([1, 2], $wild['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next241 malformed byte participates when pattern is byte-identical'] = static function (TestRunner $t) use ($plan241): void {
+$tests['encoding collation affinity like current source nextTwoFourOne malformed byte participates when pattern is byte-identical'] = static function (TestRunner $t) use ($plan241): void {
     $plan = $plan241(pattern: "wp!_cache\xc3timeout%", escape: '!');
     $t->same([6, 7], $plan['currentMatchedRowids']);
     $t->same('77705f6361636865c374696d656f7574', $plan['currentNameHex'][6]);
 };
 
-$tests['encoding collation affinity like current source next241 numeric and bool text affinity can match byte prefix'] = static function (TestRunner $t) use ($plan241): void {
+$tests['encoding collation affinity like current source nextTwoFourOne numeric and bool text affinity can match byte prefix'] = static function (TestRunner $t) use ($plan241): void {
     $rows = [
         ['option_id' => 1, 'option_name' => 404],
         ['option_id' => 2, 'option_name' => 405],
@@ -184,7 +184,7 @@ $tests['encoding collation affinity like current source next241 numeric and bool
     $t->same('integer', $numeric['currentStorage'][1]);
 };
 
-$tests['encoding collation affinity like current source next241 blob and null stay outside text affinity scan'] = static function (TestRunner $t) use ($plan241): void {
+$tests['encoding collation affinity like current source nextTwoFourOne blob and null stay outside text affinity scan'] = static function (TestRunner $t) use ($plan241): void {
     $rows = [
         ['option_id' => 1, 'option_name' => new SQLiteBlobValue("wp_cache\0timeout")],
         ['option_id' => 2, 'option_name' => null],
@@ -193,21 +193,21 @@ $tests['encoding collation affinity like current source next241 blob and null st
     $t->same([], $plan['currentMatchedRowids']);
 };
 
-$tests['encoding collation affinity like current source next241 direct like keeps nul as character'] = static function (TestRunner $t): void {
+$tests['encoding collation affinity like current source nextTwoFourOne direct like keeps nul as character'] = static function (TestRunner $t): void {
     $t->same(true, SQLiteDatabase::likeMatches("wp_cache\0timeout", "wp!_cache\0timeout%", '!'));
     $t->same(false, SQLiteDatabase::likeMatches("wp_cache", "wp!_cache\0timeout%", '!'));
 };
 
-$tests['encoding collation affinity like current source next241 rejects missing option name'] = static function (TestRunner $t) use ($next241): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan([['option_id' => 1]], $next241, 'wp%'));
+$tests['encoding collation affinity like current source nextTwoFourOne rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFourOne): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan([['option_id' => 1]], $nextTwoFourOne, 'wp%'));
 };
 
-$tests['encoding collation affinity like current source next241 rejects non scalar option name'] = static function (TestRunner $t) use ($next241): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $next241, 'wp%'));
+$tests['encoding collation affinity like current source nextTwoFourOne rejects non scalar option name'] = static function (TestRunner $t) use ($nextTwoFourOne): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $nextTwoFourOne, 'wp%'));
 };
 
-$tests['encoding collation affinity like current source next241 rejects multi character escape'] = static function (TestRunner $t) use ($current241, $next241): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan($current241, $next241, 'wp!!_%', '!!'));
+$tests['encoding collation affinity like current source nextTwoFourOne rejects multi character escape'] = static function (TestRunner $t) use ($current241, $nextTwoFourOne): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan($current241, $nextTwoFourOne, 'wp!!_%', '!!'));
 };
 
 return $tests;

@@ -90,7 +90,7 @@ $planCases = [
 ];
 
 foreach ($planCases as $name => [$pattern, $advance, $path, $expected]) {
-    $tests['utf16 rtrim like glob current source next90 plan ' . $name] = static function (TestRunner $t) use ($cursor, $valueAt, $pattern, $advance, $path, $expected): void {
+    $tests['utf16 rtrim like glob current source nextNineZero plan ' . $name] = static function (TestRunner $t) use ($cursor, $valueAt, $pattern, $advance, $path, $expected): void {
         $scan = $cursor($pattern);
         for ($i = 0; $i < $advance; $i++) {
             $scan->next();
@@ -113,55 +113,55 @@ $matchCases = [
 ];
 
 foreach ($matchCases as $name => [$pattern, $expectedRowids]) {
-    $tests['utf16 rtrim like glob current source next90 matched rows ' . $name] = static function (TestRunner $t) use ($cursor, $pattern, $expectedRowids): void {
+    $tests['utf16 rtrim like glob current source nextNineZero matched rows ' . $name] = static function (TestRunner $t) use ($cursor, $pattern, $expectedRowids): void {
         $t->same($expectedRowids, array_column($cursor($pattern)->matchedRows(), 'rowid'));
     };
 }
 
-$tests['utf16 rtrim like glob current source next90 matched rows preserve source bytes'] = static function (TestRunner $t) use ($cursor): void {
+$tests['utf16 rtrim like glob current source nextNineZero matched rows preserve source bytes'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor('plugin-cache')->matchedRows();
     $t->same('70006c007500670069006e002d0063006100630068006500', $rows[0]['keyBytesHex']);
 };
 
-$tests['utf16 rtrim like glob current source next90 matched rows preserve padded payload'] = static function (TestRunner $t) use ($cursor): void {
+$tests['utf16 rtrim like glob current source nextNineZero matched rows preserve padded payload'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor('plugin-cache*')->matchedRows();
     $t->same('UTF-16LE', $rows[1]['payload']['encoding']);
     $t->same('plugin-cache ', $rows[1]['payload']['option_name']);
 };
 
-$tests['utf16 rtrim like glob current source next90 matched rows keep autoload payload'] = static function (TestRunner $t) use ($cursor): void {
+$tests['utf16 rtrim like glob current source nextNineZero matched rows keep autoload payload'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor('Plugin-cache*')->matchedRows();
     $t->same('no', $rows[0]['payload']['autoload']);
 };
 
-$tests['utf16 rtrim like glob current source next90 wordpress scan exact padded option returns only unpadded'] = static function (TestRunner $t) use ($rows): void {
+$tests['utf16 rtrim like glob current source nextNineZero wordpress scan exact padded option returns only unpadded'] = static function (TestRunner $t) use ($rows): void {
     $matched = SQLiteUtf16LikeGlobCurrentNextCursor::wordpressOptionNameScan($rows, 'plugin-cache', 'GLOB', 'UTF-16LE', 'RTRIM');
     $t->same([1], array_column($matched, 'rowid'));
 };
 
-$tests['utf16 rtrim like glob current source next90 wordpress scan wildcard returns padded peers'] = static function (TestRunner $t) use ($rows): void {
+$tests['utf16 rtrim like glob current source nextNineZero wordpress scan wildcard returns padded peers'] = static function (TestRunner $t) use ($rows): void {
     $matched = SQLiteUtf16LikeGlobCurrentNextCursor::wordpressOptionNameScan($rows, 'plugin-cache*', 'GLOB', 'UTF-16LE', 'RTRIM');
     $t->same([1, 2, 3, 4, 5, 7, 8, 6], array_column($matched, 'rowid'));
 };
 
-$tests['utf16 rtrim like glob current source next90 wordpress scan rejects missing utf16 bytes'] = static function (TestRunner $t): void {
+$tests['utf16 rtrim like glob current source nextNineZero wordpress scan rejects missing utf16 bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobCurrentNextCursor::wordpressOptionNameScan([['option_id' => 1, 'option_name' => 'plugin-cache']], 'plugin-cache*', 'GLOB', 'UTF-16LE', 'RTRIM'));
 };
 
-$tests['utf16 rtrim like glob current source next90 rejects odd utf16 bytes'] = static function (TestRunner $t): void {
+$tests['utf16 rtrim like glob current source nextNineZero rejects odd utf16 bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobCurrentNextCursor([['keyBytes' => "\x70", 'rowid' => 1, 'payload' => []]], 'p*', 'GLOB', 'UTF-16LE', 'RTRIM'));
 };
 
-$tests['utf16 rtrim like glob current source next90 rejects high surrogate bytes'] = static function (TestRunner $t): void {
+$tests['utf16 rtrim like glob current source nextNineZero rejects high surrogate bytes'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobCurrentNextCursor([['keyBytes' => "\x3d\xd8", 'rowid' => 1, 'payload' => []]], 'p*', 'GLOB', 'UTF-16LE', 'RTRIM'));
 };
 
-$tests['utf16 rtrim like glob current source next90 rejects unsupported collation'] = static function (TestRunner $t) use ($rows): void {
+$tests['utf16 rtrim like glob current source nextNineZero rejects unsupported collation'] = static function (TestRunner $t) use ($rows): void {
     $entries = [['keyBytes' => $rows[0]['option_name_utf16'], 'rowid' => 1, 'payload' => []]];
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobCurrentNextCursor($entries, 'p*', 'GLOB', 'UTF-16LE', 'UNICODE'));
 };
 
-$tests['utf16 rtrim like glob current source next90 rejects unsupported operator'] = static function (TestRunner $t) use ($rows): void {
+$tests['utf16 rtrim like glob current source nextNineZero rejects unsupported operator'] = static function (TestRunner $t) use ($rows): void {
     $entries = [['keyBytes' => $rows[0]['option_name_utf16'], 'rowid' => 1, 'payload' => []]];
     $t->throws(InvalidArgumentException::class, static fn () => new SQLiteUtf16LikeGlobCurrentNextCursor($entries, 'p*', 'REGEXP', 'UTF-16LE', 'RTRIM'));
 };

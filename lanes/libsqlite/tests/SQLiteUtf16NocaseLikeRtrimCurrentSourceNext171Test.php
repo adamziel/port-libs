@@ -78,7 +78,7 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next171'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSevenOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -129,16 +129,16 @@ $cases = [
     'dependency utf16' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency rtrim' => ['dependencies.1', 'sqlite-rtrim-expression'],
     'dependency replay' => ['dependencies.2', 'sqlite-nocase-like-duplicate-key-replay'],
-    'dependency current source' => ['dependencies.3', 'sqlite-current-source-next171'],
+    'dependency current source' => ['dependencies.3', 'sqlite-current-source-nextoneSevenOne'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next171 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextOneSevenOne ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next171 stable duplicate keys can continue after key rowid token'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenOne stable duplicate keys can continue after key rowid token'] = static function (TestRunner $t) use ($row): void {
     $rows = [
         $row(1, 'Plugin_Cache', 'UTF-16LE'),
         $row(2, 'plugin_cache  ', 'UTF-16BE'),
@@ -163,7 +163,7 @@ $tests['utf16 nocase like rtrim current source next171 stable duplicate keys can
     $t->same([1, 2, 3, 4], $result['replayPlanRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next171 unique keys can safely replay after token'] = static function (TestRunner $t) use ($row): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenOne unique keys can safely replay after token'] = static function (TestRunner $t) use ($row): void {
     $rows = [
         $row(1, 'plugin_cache_alpha', 'UTF-16LE'),
         $row(2, 'plugin_cache_beta', 'UTF-16BE'),
@@ -187,7 +187,7 @@ $tests['utf16 nocase like rtrim current source next171 unique keys can safely re
     $t->same('continue-after-key-rowid-token', $result['replayPlanMode']);
 };
 
-$tests['utf16 nocase like rtrim current source next171 leading wildcard falls back to full residual replay'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenOne leading wildcard falls back to full residual replay'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(pattern: '%cache', escape: null);
     $t->same(false, $result['indexUsable']);
     $t->same(null, $result['range']);
@@ -195,7 +195,7 @@ $tests['utf16 nocase like rtrim current source next171 leading wildcard falls ba
     $t->same([1, 2, 3, 8], $result['nextMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next171 entered before token is unsafe'] = static function (TestRunner $t) use ($plan, $nextRows, $row): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenOne entered before token is unsafe'] = static function (TestRunner $t) use ($plan, $nextRows, $row): void {
     $next = array_merge($nextRows, [$row(0, 'plugin_cache', 'UTF-16LE')]);
     $result = $plan(next: $next);
     $t->same([0, 1, 2], $result['nextBeforeOrAtTokenRowids']);
@@ -203,13 +203,13 @@ $tests['utf16 nocase like rtrim current source next171 entered before token is u
     $t->same(true, $result['mustReprepareBeforeReplay']);
 };
 
-$tests['utf16 nocase like rtrim current source next171 malformed error text is exposed'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenOne malformed error text is exposed'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan();
     $t->same('SQLite encoding source UTF-16 text payload ends with a high surrogate', $result['currentErrors'][7]);
     $t->same('SQLite encoding source UTF-16 text payload ends with a high surrogate', $result['nextErrors'][10]);
 };
 
-$tests['utf16 nocase like rtrim current source next171 rejects invalid token'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
+$tests['utf16 nocase like rtrim current source nextOneSevenOne rejects invalid token'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
         $currentRows,
         $nextRows,

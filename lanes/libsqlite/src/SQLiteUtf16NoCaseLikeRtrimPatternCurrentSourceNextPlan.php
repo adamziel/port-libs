@@ -89,7 +89,7 @@ final class SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan
         }
 
         return [
-            'status' => 'utf16-nocase-like-rtrim-pattern-current-source-next160',
+            'status' => 'utf16-nocase-like-rtrim-pattern-current-source-nextoneSixZero',
             'operator' => 'LIKE',
             'indexCollation' => 'RTRIM',
             'residualCollation' => 'NOCASE',
@@ -134,7 +134,7 @@ final class SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan
                 'sqlite-utf16-pattern-decode',
                 'sqlite-rtrim-collation-range',
                 'sqlite-like-nocase-residual',
-                'sqlite-current-source-next160',
+                'sqlite-current-source-nextoneSixZero',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 decode, RTRIM range keys, ASCII NOCASE LIKE residual matching, and current-source cursor diagnostics',
         ];
@@ -145,7 +145,7 @@ final class SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan
         try {
             return SQLiteEncodingCollationSourceCursor::decodeText($bytes, $encoding);
         } catch (\InvalidArgumentException $exception) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next160 ' . $label . ' is malformed: ' . $exception->getMessage(), 0, $exception);
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixZero ' . $label . ' is malformed: ' . $exception->getMessage(), 0, $exception);
         }
     }
 
@@ -157,7 +157,7 @@ final class SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan
         $escape = self::decodeSqlText($bytes, $encoding, $label);
         $characters = preg_split('//u', $escape, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         if (count($characters) !== 1) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next160 ' . $label . ' must decode to exactly one character');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextOneSixZero ' . $label . ' must decode to exactly one character');
         }
 
         return $escape;

@@ -33,7 +33,7 @@ $current215 = [
     $row215(7, "plugin_cache\0", 'UTF-16LE'),
     $bad215(8, "\x00\xd8", 2),
 ];
-$next215 = [
+$nextTwoOneFive = [
     $row215(1, 'Plugin_Cache', 'UTF-16BE'),
     $row215(2, "plugin_cache\0shadow", 'UTF-16LE'),
     $row215(3, 'plugin_cache', 'UTF-16BE'),
@@ -55,7 +55,7 @@ $plan215 = static fn (
     int $nextCookie = 215,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulTokenPlan(
     $current ?? $current215,
-    $next ?? $next215,
+    $next ?? $nextTwoOneFive,
     'plugin!_cache%',
     '!',
     $token,
@@ -77,7 +77,7 @@ $valueAt215 = static function (array $value, string $path): mixed {
 };
 
 $cases215 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next215'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneFive'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* embedded NUL token fence */'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -138,16 +138,16 @@ $cases215 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
     'dependency nul' => ['dependencies.3', 'sqlite-embedded-nul-text-token'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next215'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoOneFive'],
 ];
 
 foreach ($cases215 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next215 ' . $name] = static function (TestRunner $t) use ($plan215, $valueAt215, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoOneFive ' . $name] = static function (TestRunner $t) use ($plan215, $valueAt215, $path, $expected): void {
         $t->same($expected, $valueAt215($plan215(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next215 stable embedded nul token can resume by full key'] = static function (TestRunner $t) use ($row215): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneFive stable embedded nul token can resume by full key'] = static function (TestRunner $t) use ($row215): void {
     $rows = [
         $row215(1, 'plugin_cache', 'UTF-16LE'),
         $row215(2, "plugin_cache\0shadow", 'UTF-16BE'),
@@ -172,7 +172,7 @@ $tests['utf16 nocase like rtrim current source next215 stable embedded nul token
     $t->same('continue-after-embedded-nul-safe-token', $result['replayPlanMode']);
 };
 
-$tests['utf16 nocase like rtrim current source next215 canonicalizes resume token before comparing'] = static function (TestRunner $t) use ($row215): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneFive canonicalizes resume token before comparing'] = static function (TestRunner $t) use ($row215): void {
     $rows = [
         $row215(1, "Plugin_Cache\0Shadow", 'UTF-16LE'),
         $row215(2, 'plugin_cache_zip', 'UTF-16BE'),
@@ -195,7 +195,7 @@ $tests['utf16 nocase like rtrim current source next215 canonicalizes resume toke
     $t->same(false, $result['candidateTokenResumeSafe']);
 };
 
-$tests['utf16 nocase like rtrim current source next215 null token replays full next range'] = static function (TestRunner $t) use ($row215): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneFive null token replays full next range'] = static function (TestRunner $t) use ($row215): void {
     $rows = [
         $row215(1, 'plugin_cache', 'UTF-16LE'),
         $row215(2, "plugin_cache\0later", 'UTF-16BE'),
@@ -219,10 +219,10 @@ $tests['utf16 nocase like rtrim current source next215 null token replays full n
     $t->same(true, $result['candidateTokenResumeSafe']);
 };
 
-$tests['utf16 nocase like rtrim current source next215 rejects missing option bytes'] = static function (TestRunner $t) use ($next215): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneFive rejects missing option bytes'] = static function (TestRunner $t) use ($nextTwoOneFive): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulTokenPlan([
         ['option_id' => 1, 'text_encoding' => 1],
-    ], $next215));
+    ], $nextTwoOneFive));
 };
 
 return $tests;

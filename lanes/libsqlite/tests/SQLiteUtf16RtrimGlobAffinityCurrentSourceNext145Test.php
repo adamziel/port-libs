@@ -176,16 +176,16 @@ $cases = [
     'reason value encoding' => ['invalidationReasons.10', 'value-encoding'],
     'reason value bytes' => ['invalidationReasons.11', 'value-bytes'],
     'dependency numeric affinity' => ['dependencies.3', 'sqlite-numeric-affinity'],
-    'dependency current source next145' => ['dependencies.5', 'sqlite-current-source-next145'],
+    'dependency current source nextOneFourFive' => ['dependencies.5', 'sqlite-current-source-nextoneFourFive'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 rtrim glob affinity current source next145 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 rtrim glob affinity current source nextOneFourFive ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 rtrim glob affinity current source next145 stable identical rows are reusable'] = static function (TestRunner $t) use ($row, $plan): void {
+$tests['utf16 rtrim glob affinity current source nextOneFourFive stable identical rows are reusable'] = static function (TestRunner $t) use ($row, $plan): void {
     $rows = [$row(1, 'plugin_cache ', '10', 'UTF-16LE', 'UTF-8'), $row(2, 'Plugin_Cache', '11', 'UTF-16BE', 'UTF-16BE')];
     $result = $plan('plugin_*', $rows, $rows, 9, 12, 'stable', 'stable', 4, 4, 5, 5);
     $t->same([1, 2], $result['currentCandidateRowids']);
@@ -195,7 +195,7 @@ $tests['utf16 rtrim glob affinity current source next145 stable identical rows a
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 rtrim glob affinity current source next145 leading wildcard disables range candidates'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 rtrim glob affinity current source nextOneFourFive leading wildcard disables range candidates'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('*cache');
     $t->same(false, $result['indexUsable']);
     $t->same(null, $result['range']);
@@ -203,7 +203,7 @@ $tests['utf16 rtrim glob affinity current source next145 leading wildcard disabl
     $t->same([], $result['currentAffinityMatchedRowids']);
 };
 
-$tests['utf16 rtrim glob affinity current source next145 exact rtrim range keeps binary residual and affinity'] = static function (TestRunner $t) use ($row, $plan): void {
+$tests['utf16 rtrim glob affinity current source nextOneFourFive exact rtrim range keeps binary residual and affinity'] = static function (TestRunner $t) use ($row, $plan): void {
     $rows = [$row(1, 'plugin_cache', '10', 'UTF-8', 'UTF-8'), $row(2, 'plugin_cache   ', '10', 'UTF-16LE', 'UTF-16LE'), $row(3, 'Plugin_Cache', '10', 'UTF-16BE', 'UTF-16BE')];
     $result = $plan('plugin_cache', $rows, $rows, 9, 11, 'stable', 'stable', 1, 1, 1, 1);
     $t->same([1, 2, 3], $result['currentCandidateRowids']);
@@ -212,30 +212,30 @@ $tests['utf16 rtrim glob affinity current source next145 exact rtrim range keeps
     $t->same([2, 3], $result['currentFalsePositiveRowids']);
 };
 
-$tests['utf16 rtrim glob affinity current source next145 numeric bounds accept sqlite numeric prefixes'] = static function (TestRunner $t) use ($row, $plan): void {
+$tests['utf16 rtrim glob affinity current source nextOneFourFive numeric bounds accept sqlite numeric prefixes'] = static function (TestRunner $t) use ($row, $plan): void {
     $rows = [$row(1, 'plugin_cache', '10', 'UTF-8', 'UTF-8'), $row(2, 'plugin_cache_extra', '12.5ms', 'UTF-16LE', 'UTF-16BE')];
     $result = $plan('plugin_*', $rows, $rows, '10x', '12.5ms', 'stable', 'stable', 1, 1, 1, 1);
     $t->same([1, 2], $result['currentAffinityMatchedRowids']);
     $t->same(12.5, $result['currentNumericValues'][2]);
 };
 
-$tests['utf16 rtrim glob affinity current source next145 rejects reversed numeric range'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 rtrim glob affinity current source nextOneFourFive rejects reversed numeric range'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', null, null, 20, 10));
 };
 
-$tests['utf16 rtrim glob affinity current source next145 rejects non numeric bound'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 rtrim glob affinity current source nextOneFourFive rejects non numeric bound'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', null, null, 'fast', 10));
 };
 
-$tests['utf16 rtrim glob affinity current source next145 rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 rtrim glob affinity current source nextOneFourFive rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
-$tests['utf16 rtrim glob affinity current source next145 rejects missing value bytes'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 rtrim glob affinity current source nextOneFourFive rejects missing value bytes'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
-$tests['utf16 rtrim glob affinity current source next145 rejects missing value encoding'] = static function (TestRunner $t) use ($nextRows): void {
+$tests['utf16 rtrim glob affinity current source nextOneFourFive rejects missing value encoding'] = static function (TestRunner $t) use ($nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 

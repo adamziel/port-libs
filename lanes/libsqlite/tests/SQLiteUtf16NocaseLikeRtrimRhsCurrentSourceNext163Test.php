@@ -77,7 +77,7 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-rhs-current-source-next163'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-rhs-current-source-nextoneSixThree'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE rtrim(?)'],
     'collation' => ['collation', 'NOCASE'],
@@ -143,16 +143,16 @@ $cases = [
     'reason malformed' => ['invalidationReasons.8', 'malformed-text'],
     'dependency pattern decode' => ['dependencies.0', 'sqlite-utf16-pattern-decode'],
     'dependency rtrim rhs' => ['dependencies.1', 'sqlite-rtrim-rhs-expression'],
-    'dependency current source' => ['dependencies.4', 'sqlite-current-source-next163'],
+    'dependency current source' => ['dependencies.4', 'sqlite-current-source-nextoneSixThree'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim rhs current source next163 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like rtrim rhs current source nextOneSixThree ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim rhs current source next163 stable trailing pattern spaces reusable'] = static function (TestRunner $t) use ($row, $enc): void {
+$tests['utf16 nocase like rtrim rhs current source nextOneSixThree stable trailing pattern spaces reusable'] = static function (TestRunner $t) use ($row, $enc): void {
     $rows = [$row(1, 'Plugin_Cache  ', 2), $row(2, 'plugin_cache', 3)];
     $result = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
         $rows,
@@ -173,7 +173,7 @@ $tests['utf16 nocase like rtrim rhs current source next163 stable trailing patte
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim rhs current source next163 trimmed pattern text change invalidates range'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim rhs current source nextOneSixThree trimmed pattern text change invalidates range'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('plugin!_cache%   ', 2, 'plugin!_config% ', 2);
     $t->same('plugin!_cache%', $result['currentTrimmedPattern']);
     $t->same('plugin!_config%', $result['nextTrimmedPattern']);
@@ -181,7 +181,7 @@ $tests['utf16 nocase like rtrim rhs current source next163 trimmed pattern text 
     $t->same('rtrim-pattern-text', $result['invalidationReasons'][3]);
 };
 
-$tests['utf16 nocase like rtrim rhs current source next163 non ascii prefix remains unplanned'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim rhs current source nextOneSixThree non ascii prefix remains unplanned'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('Æther%   ', 2, 'Æther% ', 2);
     $t->same('Æther%', $result['currentTrimmedPattern']);
     $t->same(false, $result['currentIndexUsable']);
@@ -189,14 +189,14 @@ $tests['utf16 nocase like rtrim rhs current source next163 non ascii prefix rema
     $t->same([], $result['currentCandidateRowids']);
 };
 
-$tests['utf16 nocase like rtrim rhs current source next163 tabs are not trimmed from rhs'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like rtrim rhs current source nextOneSixThree tabs are not trimmed from rhs'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan("plugin!_cache\t", 2, "plugin!_cache\t", 2, null, null, '!');
     $t->same("plugin!_cache\t", $result['currentTrimmedPattern']);
     $t->same("plugin_cache\t", $result['currentPrefix']);
     $t->same([3], $result['currentMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim rhs current source next163 rejects malformed rhs pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
+$tests['utf16 nocase like rtrim rhs current source nextOneSixThree rejects malformed rhs pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
         $currentRows,
         $nextRows,
@@ -207,7 +207,7 @@ $tests['utf16 nocase like rtrim rhs current source next163 rejects malformed rhs
     ));
 };
 
-$tests['utf16 nocase like rtrim rhs current source next163 rejects bad row shape'] = static function (TestRunner $t) use ($enc): void {
+$tests['utf16 nocase like rtrim rhs current source nextOneSixThree rejects bad row shape'] = static function (TestRunner $t) use ($enc): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc('plugin_cache', 2)]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
         $rows,

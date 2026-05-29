@@ -34,7 +34,7 @@ $current211 = [
     $row211(8, 'theme_cache', 'UTF-8'),
     $bad211(9, "\x00\xd8", 2),
 ];
-$next211 = [
+$nextTwoOneOne = [
     $row211(1, 'plugin_cache', 'UTF-16BE'),
     $row211(2, 'Plugin_Cache', 'UTF-16LE'),
     $row211(3, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -58,7 +58,7 @@ $plan211 = static fn (
     int $nextCookie = 211,
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceRefreshPlan(
     $current ?? $current211,
-    $next ?? $next211,
+    $next ?? $nextTwoOneOne,
     $pattern,
     $escape,
     $currentSource,
@@ -79,7 +79,7 @@ $valueAt211 = static function (array $value, string $path): mixed {
 };
 
 $cases211 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next211'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneOne'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* current-source refresh */'],
     'pattern' => ['pattern', 'plugin!_cache%'],
@@ -133,16 +133,16 @@ $cases211 = [
     'dependency decode' => ['dependencies.0', 'sqlite-utf16-decode'],
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.3', 'sqlite-current-source-next211'],
+    'dependency source' => ['dependencies.3', 'sqlite-current-source-nexttwoOneOne'],
 ];
 
 foreach ($cases211 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next211 ' . $name] = static function (TestRunner $t) use ($plan211, $valueAt211, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoOneOne ' . $name] = static function (TestRunner $t) use ($plan211, $valueAt211, $path, $expected): void {
         $t->same($expected, $valueAt211($plan211(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next211 invalidation reasons name rowset malformed'] = static function (TestRunner $t) use ($plan211): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneOne invalidation reasons name rowset malformed'] = static function (TestRunner $t) use ($plan211): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -152,7 +152,7 @@ $tests['utf16 nocase like rtrim current source next211 invalidation reasons name
     ], $plan211()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next211 byte order only refresh stays reusable'] = static function (TestRunner $t) use ($row211): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneOne byte order only refresh stays reusable'] = static function (TestRunner $t) use ($row211): void {
     $current = [
         $row211(1, 'plugin_cache', 'UTF-16LE'),
         $row211(2, 'Plugin_Cache  ', 'UTF-16BE'),
@@ -179,7 +179,7 @@ $tests['utf16 nocase like rtrim current source next211 byte order only refresh s
     $t->same(true, $result['byteOrderOnlyRefreshReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next211 decoded text change invalidates even stable source'] = static function (TestRunner $t) use ($row211): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneOne decoded text change invalidates even stable source'] = static function (TestRunner $t) use ($row211): void {
     $current = [
         $row211(1, 'plugin_cache', 'UTF-16LE'),
         $row211(2, 'plugin_cache_old', 'UTF-16BE'),
@@ -205,7 +205,7 @@ $tests['utf16 nocase like rtrim current source next211 decoded text change inval
     $t->same(['candidate-rowset', 'matched-rowset', 'decoded-rtrim-text'], $result['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next211 range false positives retain residual fence'] = static function (TestRunner $t) use ($row211): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneOne range false positives retain residual fence'] = static function (TestRunner $t) use ($row211): void {
     $rows = [
         $row211(1, 'plugin_cache', 'UTF-16LE'),
         $row211(2, 'plugin_cache' . "\t", 'UTF-16BE'),
@@ -227,7 +227,7 @@ $tests['utf16 nocase like rtrim current source next211 range false positives ret
     $t->same([1 => 'plugin_cache'], $result['currentMatchedTexts']);
 };
 
-$tests['utf16 nocase like rtrim current source next211 rejects malformed row shape'] = static function (TestRunner $t): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneOne rejects malformed row shape'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceRefreshPlan([
         ['option_id' => 1, 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 'UTF-8'],
     ], []));

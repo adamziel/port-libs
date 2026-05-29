@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentNext77Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentNextPlan;
 
 $schemas = [
     'main' => [
@@ -51,7 +51,7 @@ $statements = [
     ['name' => 'unqualified-options-reader', 'sql' => 'SELECT option_value FROM [wp_options] WHERE option_name = ?', 'active' => true],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentNext77Plan::plan($schemas, $operations, $statements);
+$plan = SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan($schemas, $operations, $statements);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'schema_cache_expired');

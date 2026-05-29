@@ -31,7 +31,7 @@ $current206 = [
     $row206(5, 'theme_cache', 'UTF-16BE'),
     $bad206(6, "\x00\xd8", 2),
 ];
-$next206 = [
+$nextTwoZeroSix = [
     $row206(1, 'Plugin_Cache', 'UTF-16BE'),
     $row206(2, 'plugin_cache', 'UTF-16LE'),
     $row206(3, 'plugin_cache_alpha', 'UTF-16BE'),
@@ -57,7 +57,7 @@ $plan206 = static fn (
     ?string $escape = '!',
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedBomPatternPlan(
     $current ?? $current206,
-    $next ?? $next206,
+    $next ?? $nextTwoZeroSix,
     $currentPatternBytes ?? $pattern206('plugin!_cache%', 'UTF-16LE', false),
     $currentEncoding,
     $nextPatternBytes ?? $pattern206('plugin!_cache%', 'UTF-16BE', true),
@@ -77,7 +77,7 @@ $valueAt206 = static function (array $value, string $path): mixed {
 };
 
 $cases206 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next206'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroSix'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 BOM pattern */'],
     'current pattern' => ['currentPattern', 'plugin!_cache%'],
@@ -139,16 +139,16 @@ $cases206 = [
     'dependency bom' => ['dependencies.1', 'sqlite-prepared-like-pattern-bom-normalization'],
     'dependency range' => ['dependencies.2', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.3', 'sqlite-rtrim-expression-key'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next206'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoZeroSix'],
 ];
 
 foreach ($cases206 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next206 ' . $name] = static function (TestRunner $t) use ($plan206, $valueAt206, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoZeroSix ' . $name] = static function (TestRunner $t) use ($plan206, $valueAt206, $path, $expected): void {
         $t->same($expected, $valueAt206($plan206(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next206 invalidation reasons include prepared bom'] = static function (TestRunner $t) use ($plan206): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroSix invalidation reasons include prepared bom'] = static function (TestRunner $t) use ($plan206): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -160,7 +160,7 @@ $tests['utf16 nocase like rtrim current source next206 invalidation reasons incl
     ], $plan206()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next206 stable no bom can reuse cursor'] = static function (TestRunner $t) use ($row206, $pattern206): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroSix stable no bom can reuse cursor'] = static function (TestRunner $t) use ($row206, $pattern206): void {
     $rows = [
         $row206(1, 'plugin_cache', 'UTF-16LE'),
         $row206(2, 'Plugin_Cache  ', 'UTF-16BE'),
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source next206 stable no bom can reuse c
     $t->same(true, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next206 utf8 bom pattern is stripped too'] = static function (TestRunner $t) use ($row206, $pattern206): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroSix utf8 bom pattern is stripped too'] = static function (TestRunner $t) use ($row206, $pattern206): void {
     $rows = [
         $row206(1, 'plugin_cache', 'UTF-8'),
         $row206(2, 'plugin_cache_new', 'UTF-16LE'),
@@ -216,7 +216,7 @@ $tests['utf16 nocase like rtrim current source next206 utf8 bom pattern is strip
     $t->same([3], $result['nextExcludedDecodedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next206 pattern change after bom still invalidates'] = static function (TestRunner $t) use ($row206, $pattern206): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroSix pattern change after bom still invalidates'] = static function (TestRunner $t) use ($row206, $pattern206): void {
     $rows = [
         $row206(1, 'plugin_cache', 'UTF-16LE'),
         $row206(2, 'plugin_option', 'UTF-16BE'),
@@ -242,10 +242,10 @@ $tests['utf16 nocase like rtrim current source next206 pattern change after bom 
     $t->same([2], $result['nextMatchedRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next206 rejects malformed prepared pattern'] = static function (TestRunner $t) use ($current206, $next206, $pattern206): void {
+$tests['utf16 nocase like rtrim current source nextTwoZeroSix rejects malformed prepared pattern'] = static function (TestRunner $t) use ($current206, $nextTwoZeroSix, $pattern206): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedBomPatternPlan(
         $current206,
-        $next206,
+        $nextTwoZeroSix,
         $pattern206('plugin%', 'UTF-16LE'),
         'UTF-16LE',
         "\xfe\xff\xd8\x00",

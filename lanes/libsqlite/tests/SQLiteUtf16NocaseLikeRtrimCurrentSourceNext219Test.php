@@ -80,7 +80,7 @@ $valueAt219 = static function (array $value, string $path): mixed {
 };
 
 $cases219 = [
-    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-next219'],
+    'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneNine'],
     'operator' => ['operator', 'LIKE'],
     'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* supplementary wildcard */'],
     'pattern' => ['pattern', 'plugin!_cache_'],
@@ -140,16 +140,16 @@ $cases219 = [
     'dependency range' => ['dependencies.1', 'sqlite-like-nocase-prefix-range'],
     'dependency rtrim' => ['dependencies.2', 'sqlite-rtrim-expression-key'],
     'dependency supplementary' => ['dependencies.3', 'sqlite-supplementary-plane-like-character'],
-    'dependency source' => ['dependencies.4', 'sqlite-current-source-next219'],
+    'dependency source' => ['dependencies.4', 'sqlite-current-source-nexttwoOneNine'],
 ];
 
 foreach ($cases219 as $name => [$path, $expected]) {
-    $tests['utf16 nocase like rtrim current source next219 ' . $name] = static function (TestRunner $t) use ($plan219, $valueAt219, $path, $expected): void {
+    $tests['utf16 nocase like rtrim current source nextTwoOneNine ' . $name] = static function (TestRunner $t) use ($plan219, $valueAt219, $path, $expected): void {
         $t->same($expected, $valueAt219($plan219(), $path));
     };
 }
 
-$tests['utf16 nocase like rtrim current source next219 invalidation reason order'] = static function (TestRunner $t) use ($plan219): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneNine invalidation reason order'] = static function (TestRunner $t) use ($plan219): void {
     $t->same([
         'source-name',
         'schema-cookie',
@@ -165,7 +165,7 @@ $tests['utf16 nocase like rtrim current source next219 invalidation reason order
     ], $plan219()['invalidationReasons']);
 };
 
-$tests['utf16 nocase like rtrim current source next219 stable supplementary wildcard still requires character split'] = static function (TestRunner $t) use ($row219, $emoji219): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneNine stable supplementary wildcard still requires character split'] = static function (TestRunner $t) use ($row219, $emoji219): void {
     $rows = [
         $row219(1, 'plugin_cache' . $emoji219, 'UTF-16LE'),
         $row219(2, 'plugin_cacheA', 'UTF-16BE'),
@@ -187,7 +187,7 @@ $tests['utf16 nocase like rtrim current source next219 stable supplementary wild
     $t->same(false, $result['cursorReusable']);
 };
 
-$tests['utf16 nocase like rtrim current source next219 two underscores do not match one emoji'] = static function (TestRunner $t) use ($row219, $emoji219): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneNine two underscores do not match one emoji'] = static function (TestRunner $t) use ($row219, $emoji219): void {
     $rows = [
         $row219(1, 'plugin_cache' . $emoji219, 'UTF-16LE'),
         $row219(2, 'plugin_cacheAB', 'UTF-16BE'),
@@ -209,7 +209,7 @@ $tests['utf16 nocase like rtrim current source next219 two underscores do not ma
     $t->same(14, $result['currentUtf16CodeUnitCounts'][1]);
 };
 
-$tests['utf16 nocase like rtrim current source next219 ascii-space rtrim can expose a single trailing character'] = static function (TestRunner $t) use ($row219): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneNine ascii-space rtrim can expose a single trailing character'] = static function (TestRunner $t) use ($row219): void {
     $rows = [
         $row219(1, 'plugin_cacheA  ', 'UTF-16LE'),
         $row219(2, 'plugin_cache  ', 'UTF-16BE'),
@@ -231,7 +231,7 @@ $tests['utf16 nocase like rtrim current source next219 ascii-space rtrim can exp
     $t->same([2], $result['currentFalsePositiveRowids']);
 };
 
-$tests['utf16 nocase like rtrim current source next219 rejects malformed row shape'] = static function (TestRunner $t) use ($enc219): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneNine rejects malformed row shape'] = static function (TestRunner $t) use ($enc219): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc219('plugin_cacheA', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSupplementaryWildcardPlan($rows, $rows));
 };

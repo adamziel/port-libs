@@ -107,7 +107,7 @@ final class SQLiteUtf16RtrimLikeCurrentSourceNextPlan
             'dependencies' => [
                 'sqlite-utf16-decode',
                 'sqlite-like-rtrim-residual-scan',
-                'sqlite-current-source-next121',
+                'sqlite-current-source-nextoneTwoOne',
             ],
         ];
     }

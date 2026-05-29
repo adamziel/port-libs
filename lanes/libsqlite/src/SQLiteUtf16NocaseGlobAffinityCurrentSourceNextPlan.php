@@ -121,7 +121,7 @@ final class SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan
                 'sqlite-glob-prefix-range',
                 'sqlite-nocase-collation-source-cursor',
                 'sqlite-glob-case-sensitive-residual',
-                'sqlite-current-source-next148',
+                'sqlite-current-source-nextoneFourEight',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 decoding, TEXT affinity casting, NOCASE source cursor keys, and case-sensitive GLOB residual matching',
         ];
@@ -216,13 +216,13 @@ final class SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan
     private static function assertRow(array $row): void
     {
         if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source next148 rows require integer option_id');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source nextOneFourEight rows require integer option_id');
         }
         if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source next148 rows require option_name_bytes');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source nextOneFourEight rows require option_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !in_array($row['text_encoding'], [2, 3], true)) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source next148 rows require UTF-16 text_encoding');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source nextOneFourEight rows require UTF-16 text_encoding');
         }
     }
 
@@ -231,7 +231,7 @@ final class SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan
     {
         $storage = $row['storage_class'] ?? 'text';
         if (!is_string($storage) || !in_array($storage, ['text', 'blob'], true)) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source next148 storage_class must be text or blob');
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source nextOneFourEight storage_class must be text or blob');
         }
 
         return $storage;
@@ -381,7 +381,7 @@ final class SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan
         return match (strtoupper(str_replace('_', '-', $encoding))) {
             'UTF-16LE', 'UTF16LE' => 'UTF-16LE',
             'UTF-16BE', 'UTF16BE' => 'UTF-16BE',
-            default => throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source next148 requires UTF-16LE or UTF-16BE database encoding'),
+            default => throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source nextOneFourEight requires UTF-16LE or UTF-16BE database encoding'),
         };
     }
 
