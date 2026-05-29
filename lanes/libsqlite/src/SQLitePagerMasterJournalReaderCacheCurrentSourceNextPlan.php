@@ -117,7 +117,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
             return self::variantNext494(...$args);
         }
 
-        return self::variantNext510(...$args);
+        if (count($args) < 257) {
+            return self::variantNext510(...$args);
+        }
+
+        return self::variantNext526(...$args);
     }
 
     /** @return array<string,mixed> */
@@ -29465,6 +29469,198 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         $base = self::variantNext509(...$args);
 
         return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_token', $currentToken, 510, 'reader_cache_stmt_vdbe_if_not_open', 'reader_cache_stmt_vdbe_if_not_open_must_match_current_stmt_vdbe_if_not_open_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext511(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next511 requires stmt-vdbe-not-open token');
+        }
+        $base = self::variantNext510(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_token', $currentToken, 511, 'reader_cache_stmt_vdbe_not_open', 'reader_cache_stmt_vdbe_not_open_must_match_current_stmt_vdbe_not_open_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext512(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next512 requires stmt-vdbe-if-open token');
+        }
+        $base = self::variantNext511(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_token', $currentToken, 512, 'reader_cache_stmt_vdbe_if_open', 'reader_cache_stmt_vdbe_if_open_must_match_current_stmt_vdbe_if_open_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext513(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next513 requires stmt-vdbe-transaction token');
+        }
+        $base = self::variantNext512(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_token', $currentToken, 513, 'reader_cache_stmt_vdbe_transaction', 'reader_cache_stmt_vdbe_transaction_must_match_current_stmt_vdbe_transaction_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext514(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next514 requires stmt-vdbe-auto-commit token');
+        }
+        $base = self::variantNext513(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_token', $currentToken, 514, 'reader_cache_stmt_vdbe_auto_commit', 'reader_cache_stmt_vdbe_auto_commit_must_match_current_stmt_vdbe_auto_commit_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext515(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next515 requires stmt-vdbe-savepoint token');
+        }
+        $base = self::variantNext514(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_token', $currentToken, 515, 'reader_cache_stmt_vdbe_savepoint', 'reader_cache_stmt_vdbe_savepoint_must_match_current_stmt_vdbe_savepoint_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext516(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next516 requires stmt-vdbe-checkpoint token');
+        }
+        $base = self::variantNext515(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_token', $currentToken, 516, 'reader_cache_stmt_vdbe_checkpoint', 'reader_cache_stmt_vdbe_checkpoint_must_match_current_stmt_vdbe_checkpoint_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext517(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next517 requires stmt-vdbe-journal-mode token');
+        }
+        $base = self::variantNext516(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_token', $currentToken, 517, 'reader_cache_stmt_vdbe_journal_mode', 'reader_cache_stmt_vdbe_journal_mode_must_match_current_stmt_vdbe_journal_mode_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext518(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next518 requires stmt-vdbe-vacuum token');
+        }
+        $base = self::variantNext517(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_token', $currentToken, 518, 'reader_cache_stmt_vdbe_vacuum', 'reader_cache_stmt_vdbe_vacuum_must_match_current_stmt_vdbe_vacuum_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext519(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next519 requires stmt-vdbe-incr-vacuum token');
+        }
+        $base = self::variantNext518(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_token', $currentToken, 519, 'reader_cache_stmt_vdbe_incr_vacuum', 'reader_cache_stmt_vdbe_incr_vacuum_must_match_current_stmt_vdbe_incr_vacuum_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext520(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next520 requires stmt-vdbe-expire token');
+        }
+        $base = self::variantNext519(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_token', $currentToken, 520, 'reader_cache_stmt_vdbe_expire', 'reader_cache_stmt_vdbe_expire_must_match_current_stmt_vdbe_expire_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext521(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next521 requires stmt-vdbe-table-lock token');
+        }
+        $base = self::variantNext520(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_token', $currentToken, 521, 'reader_cache_stmt_vdbe_table_lock', 'reader_cache_stmt_vdbe_table_lock_must_match_current_stmt_vdbe_table_lock_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext522(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next522 requires stmt-vdbe-vbegin token');
+        }
+        $base = self::variantNext521(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_token', $currentToken, 522, 'reader_cache_stmt_vdbe_vbegin', 'reader_cache_stmt_vdbe_vbegin_must_match_current_stmt_vdbe_vbegin_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext523(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next523 requires stmt-vdbe-vcreate token');
+        }
+        $base = self::variantNext522(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_token', $currentToken, 523, 'reader_cache_stmt_vdbe_vcreate', 'reader_cache_stmt_vdbe_vcreate_must_match_current_stmt_vdbe_vcreate_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext524(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next524 requires stmt-vdbe-vdestroy token');
+        }
+        $base = self::variantNext523(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_token', $currentToken, 524, 'reader_cache_stmt_vdbe_vdestroy', 'reader_cache_stmt_vdbe_vdestroy_must_match_current_stmt_vdbe_vdestroy_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext525(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next525 requires stmt-vdbe-vopen token');
+        }
+        $base = self::variantNext524(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_token', $currentToken, 525, 'reader_cache_stmt_vdbe_vopen', 'reader_cache_stmt_vdbe_vopen_must_match_current_stmt_vdbe_vopen_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext526(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next526 requires stmt-vdbe-vfilter token');
+        }
+        $base = self::variantNext525(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_token', $currentToken, 526, 'reader_cache_stmt_vdbe_vfilter', 'reader_cache_stmt_vdbe_vfilter_must_match_current_stmt_vdbe_vfilter_state');
     }
 
     /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
