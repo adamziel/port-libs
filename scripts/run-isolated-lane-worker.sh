@@ -88,6 +88,24 @@ if [[ "$status" -ne 0 ]]; then
   exit "$status"
 fi
 
+if [[ "$LANE" == "libsqlite" ]]; then
+  (
+    cd "$WORKTREE" || exit 1
+    if rg -n 'CurrentSourceNext150Plan|CurrentSourceNext150' lanes/libsqlite/src lanes/libsqlite/tests lanes/libsqlite/examples; then
+      printf 'libsqlite handoff guard failed: user-named CurrentSourceNext150 suffix remains. No ready marker written.\n' >&2
+      exit 4
+    fi
+    if find lanes/libsqlite/src \( -name '*CurrentSourceNext[0-9]*.php' -o -name '*CurrentNext[0-9]*.php' \) -print -quit | rg .; then
+      printf 'libsqlite handoff guard failed: numbered production source filename remains. No ready marker written.\n' >&2
+      exit 4
+    fi
+    if rg -n '^final class .*Current(Source)?Next[0-9]+|^class .*Current(Source)?Next[0-9]+' lanes/libsqlite/src; then
+      printf 'libsqlite handoff guard failed: numbered production source class remains. No ready marker written.\n' >&2
+      exit 4
+    fi
+  ) || exit $?
+fi
+
 (
   cd "$WORKTREE" || exit 1
   git add -N "lanes/$LANE" >/dev/null 2>&1 || true
