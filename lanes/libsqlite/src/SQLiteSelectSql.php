@@ -1510,7 +1510,9 @@ final class SQLiteSelectSql
         }
 
         $source = [
-            'from' => $joins === [] ? self::unqualifiedSourceRows($base) : self::qualifiedSourceRows($base),
+            'from' => $joins === []
+                ? ((($base['qualifyRows'] ?? false) === true) ? self::qualifiedSourceRows($base) : self::unqualifiedSourceRows($base))
+                : self::qualifiedSourceRows($base),
             'joins' => $joins,
         ];
         if ($outerRow !== null || ($base['name'] ?? null) === 'subquery') {
@@ -1850,7 +1852,7 @@ final class SQLiteSelectSql
             return null;
         }
 
-        [$alias, $columns] = self::valuesTableAlias(trim(substr($sql, $offset)));
+        [$alias, $columns, $explicitAlias] = self::valuesTableAlias(trim(substr($sql, $offset)));
         $rows = self::executeValuesClause(trim($body));
         if ($columns !== []) {
             $rows = self::renameValuesTableColumns($rows, $columns, $alias);
@@ -1860,16 +1862,17 @@ final class SQLiteSelectSql
             'name' => 'values',
             'alias' => $alias,
             'rows' => $rows,
+            'qualifyRows' => $explicitAlias,
         ];
     }
 
     /**
-     * @return array{0:string,1:list<string>}
+     * @return array{0:string,1:list<string>,2:bool}
      */
     private static function valuesTableAlias(string $sql): array
     {
         if ($sql === '') {
-            return ['values', []];
+            return ['values', [], false];
         }
 
         if (preg_match('/^(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)(.*)$/i', $sql, $match) !== 1) {
@@ -1880,7 +1883,7 @@ final class SQLiteSelectSql
         self::assertBareIdentifier($alias, 'SQLite SELECT SQL VALUES source alias');
         $tail = trim($match[2]);
         if ($tail === '') {
-            return [$alias, []];
+            return [$alias, [], true];
         }
         if (!str_starts_with($tail, '(')) {
             throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
@@ -1901,7 +1904,7 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source column list cannot be empty');
         }
 
-        return [$alias, $columns];
+        return [$alias, $columns, true];
     }
 
     /**

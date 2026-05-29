@@ -17,14 +17,9 @@ final class SQLiteGroupedAggregate
         foreach ($rows as $row) {
             $groupValues = [];
             foreach ($groupColumns as $column) {
-                if (!array_key_exists($column, $row)) {
-                    throw new \InvalidArgumentException("SQLite GROUP BY row is missing column {$column}");
-                }
-                $groupValues[$column] = $row[$column];
+                $groupValues[$column] = self::rowValue($row, $column, 'GROUP BY');
             }
-            if ($valueColumn !== null && !array_key_exists($valueColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite aggregate row is missing column {$valueColumn}");
-            }
+            $value = $valueColumn === null ? null : self::rowValue($row, $valueColumn, 'aggregate');
 
             $key = self::compositeGroupKey($groupValues);
             $groups[$key] ??= [
@@ -35,7 +30,7 @@ final class SQLiteGroupedAggregate
             ];
             $groups[$key]['rows'][] = $row;
             if ($valueColumn !== null) {
-                $groups[$key]['values'][] = $row[$valueColumn];
+                $groups[$key]['values'][] = $value;
             }
         }
 
@@ -79,11 +74,9 @@ final class SQLiteGroupedAggregate
     {
         if ($valueColumn !== null) {
             foreach ($rows as $row) {
-                if (!array_key_exists($valueColumn, $row)) {
-                    throw new \InvalidArgumentException("SQLite aggregate row is missing column {$valueColumn}");
-                }
+                self::rowValue($row, $valueColumn, 'aggregate');
             }
-            $values = array_map(static fn (array $row): mixed => $row[$valueColumn], $rows);
+            $values = array_map(static fn (array $row): mixed => self::rowValue($row, $valueColumn, 'aggregate'), $rows);
         } else {
             $values = [];
         }
@@ -127,13 +120,11 @@ final class SQLiteGroupedAggregate
 
         $filtered = [];
         foreach ($rows as $position => $row) {
-            if (!array_key_exists($column, $row)) {
-                throw new \InvalidArgumentException("SQLite JSON aggregate row is missing column {$column}");
-            }
+            $value = self::rowValue($row, $column, 'JSON aggregate');
             if (isset($aggregate['filter']) && is_array($aggregate['filter']) && SQLiteSelectPredicate::filter([$row], $aggregate['filter']) === []) {
                 continue;
             }
-            $filtered[] = ['row' => $row, 'position' => $position];
+            $filtered[] = ['row' => $row, 'position' => $position, 'value' => $value];
         }
 
         $orderTerms = self::jsonAggregateOrderTerms($aggregate);
@@ -161,7 +152,7 @@ final class SQLiteGroupedAggregate
         $seen = [];
         $distinct = ($aggregate['distinct'] ?? false) === true;
         foreach ($filtered as $entry) {
-            $value = $entry['row'][$column];
+            $value = $entry['value'];
             if ($distinct) {
                 $key = self::distinctJsonAggregateKey($value);
                 if (isset($seen[$key])) {
@@ -236,11 +227,39 @@ final class SQLiteGroupedAggregate
         }
 
         $orderColumn = $orderTerm['column'] ?? null;
-        if (!is_string($orderColumn) || !array_key_exists($orderColumn, $row)) {
+        if (!is_string($orderColumn) || $orderColumn === '') {
             throw new \InvalidArgumentException("SQLite JSON aggregate ORDER BY row is missing column {$orderColumn}");
         }
 
-        return $row[$orderColumn];
+        return self::rowValue($row, $orderColumn, 'JSON aggregate ORDER BY');
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowValue(array $row, string $column, string $context): mixed
+    {
+        if (array_key_exists($column, $row)) {
+            return $row[$column];
+        }
+
+        if (!str_contains($column, '.')) {
+            $matches = [];
+            $suffix = '.' . $column;
+            foreach ($row as $candidate => $value) {
+                if (is_string($candidate) && str_ends_with($candidate, $suffix)) {
+                    $matches[] = $value;
+                }
+            }
+            if (count($matches) === 1) {
+                return $matches[0];
+            }
+            if (count($matches) > 1) {
+                throw new \InvalidArgumentException("SQLite {$context} row column {$column} is ambiguous");
+            }
+        }
+
+        throw new \InvalidArgumentException("SQLite {$context} row is missing column {$column}");
     }
 
     private static function distinctJsonAggregateKey(mixed $value): string
