@@ -71,6 +71,26 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
+    public static function currentSourceNext139(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-temp-uri-filecontrol-regression-current-source-next139', true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function currentSourceNext141(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-uri-shm-filecontrol-regression-current-source-next141', true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
     private static function run(array $operations, array $options, bool $trackFileControls, string $dependency, bool $trackUriFileControls = false, bool $requireFreshWriteHandle = false, bool $releaseShmLocksOnClose = false): array
     {
         if ($operations === []) {
@@ -100,6 +120,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                     'sidecar_open_first' => $handle['source'] !== 'main' && !$handle['owner_had_main_open'],
                     'readonly' => $handle['readonly'],
                     'nolock' => $handle['nolock'],
+                    'temporary' => $handle['temporary'],
                 ]);
                 continue;
             }
@@ -155,6 +176,13 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                 $handle = $state['handles'][$handleId];
                 $releasedShmLocks = $releaseShmLocksOnClose ? self::releaseSourceShmLocks($state, (string) $handle['owner'], $source) : [];
                 unset($state['handles'][$handleId], $state['source_handles'][$source]);
+                $releasedConnection = null;
+                if ($source === 'shm' && isset($op['connection']) && $op['connection'] !== null) {
+                    $releasedConnection = self::connection((string) $op['connection']);
+                    foreach (array_keys(self::emptyShmLocks()) as $lock) {
+                        unset($state['shm_locks'][$handle['owner']][$lock][$releasedConnection]);
+                    }
+                }
                 $state['owners'][$handle['owner']] = self::owner($state, $handle['owner']);
                 if ($state['current_source'] === $source) {
                     $state['current_source'] = self::firstOpenSource($state);
@@ -163,7 +191,8 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                     'source' => $source,
                     'handle' => $handleId,
                     'owner' => $handle['owner'],
-                    'released_shm_locks' => $releasedShmLocks,
+                    'released_connection' => $releasedConnection,
+                    'released_shm_locks' => $releaseShmLocksOnClose ? $releasedShmLocks : $releasedConnection !== null,
                 ]);
                 continue;
             }
@@ -282,6 +311,37 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                 'refreshed_current_source' => true,
                 'stale_current_source' => false,
                 'stale_handles' => self::staleHandles($state, $owner),
+            ]];
+        }
+
+        if (($handle['temporary'] ?? false) === true) {
+            $localControls = is_array($handle['controls'] ?? null) ? $handle['controls'] : [];
+            $previous = $localControls[$control] ?? null;
+            $localGeneration = max(1, (int) ($handle['local_generation'] ?? $openedGeneration));
+            if ($previous !== $value) {
+                $localGeneration++;
+            }
+            $localControls[$control] = $value;
+            $localControls['data_version'] = $localGeneration;
+            if (isset($state['handles'][(string) $handle['id']])) {
+                $state['handles'][(string) $handle['id']]['controls'] = self::persistentControls($localControls);
+                $state['handles'][(string) $handle['id']]['local_generation'] = $localGeneration;
+                $state['handles'][(string) $handle['id']]['source_generation'] = $localGeneration;
+            }
+
+            return ['ok', $before, self::snapshot($state), [
+                'source' => $source,
+                'handle' => $handle['id'],
+                'owner' => $owner,
+                'file_control' => $control,
+                'value' => $value,
+                'previous' => $previous,
+                'changed' => $previous !== $value,
+                'reason' => null,
+                'routed_to' => 'temporary-handle',
+                'source_generation' => $localGeneration,
+                'opened_generation' => $openedGeneration,
+                'stale_handles' => [],
             ]];
         }
 
@@ -487,7 +547,10 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
         $path = self::openPath($filename, $uri);
         $memory = $path === ':memory:' || $uri['mode'] === 'memory';
         $source = isset($op['source']) && $op['source'] !== null ? self::sourceName((string) $op['source']) : self::sourceFromPath($path);
-        $owner = $memory ? 'memory:vfs97-' . $state['sequence'] : self::ownerPath($path);
+        $temporary = $source === 'temp' || (bool) ($op['temporary'] ?? false);
+        $owner = $memory
+            ? 'memory:vfs97-' . $state['sequence']
+            : ($temporary ? 'temp:vfs97-' . $state['sequence'] . ':' . self::ownerPath($path) : self::ownerPath($path));
         $sourcePath = $memory ? $owner : self::sourcePath($owner, $source);
         $ownerHadMainOpen = isset($state['source_handles']['main'])
             && isset($state['handles'][(string) $state['source_handles']['main']])
@@ -506,6 +569,8 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
             'owner' => $owner,
             'readonly' => $readonly,
             'nolock' => $nolock,
+            'temporary' => $temporary,
+            'local_generation' => $generation,
             'controls' => $controls,
             'source_generation' => $generation,
             'owner_had_main_open' => $ownerHadMainOpen,
@@ -552,7 +617,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
     private static function owner(array $state, string $owner): array
     {
         $open = [];
-        foreach (['main', 'wal', 'shm'] as $source) {
+        foreach (['main', 'wal', 'shm', 'temp'] as $source) {
             $handleId = $state['source_handles'][$source] ?? null;
             $open[$source] = is_string($handleId) && isset($state['handles'][$handleId]) && ($state['handles'][$handleId]['owner'] ?? null) === $owner;
         }
@@ -677,13 +742,13 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
         $trimmed = trim($operation);
         if (preg_match('/^open\s*(?:\((?<arg>[^)]*)\))?$/i', $trimmed, $matches) === 1) {
             $arg = trim($matches['arg'] ?? '');
-            if (in_array(strtolower($arg), ['main', 'wal', 'shm'], true)) {
+            if (in_array(strtolower($arg), ['main', 'wal', 'shm', 'temp'], true)) {
                 return ['kind' => 'open', 'source' => strtolower($arg), 'filename' => null];
             }
 
             return ['kind' => 'open', 'source' => null, 'filename' => $arg !== '' ? $arg : null];
         }
-        if (preg_match('/^source\s*\(\s*(?<source>main|wal|shm)\s*\)$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^source\s*\(\s*(?<source>main|wal|shm|temp)\s*\)$/i', $trimmed, $matches) === 1) {
             return ['kind' => 'source', 'source' => strtolower($matches['source'])];
         }
         if (preg_match('/^file_control\s*\(\s*(?<control>[A-Za-z_][A-Za-z0-9_-]*)\s*(?:,\s*(?<value>.*?))?\)(?:\s+on\s+(?<source>main|wal|shm))?$/i', $trimmed, $matches) === 1) {
@@ -694,10 +759,10 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                 'value' => self::parseValue($matches['value'] ?? null),
             ];
         }
-        if (preg_match('/^close\s*(?:\((?<source>main|wal|shm)\))?$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^close\s*(?:\((?<source>main|wal|shm|temp)\))?$/i', $trimmed, $matches) === 1) {
             return ['kind' => 'close', 'source' => strtolower($matches['source'] ?? '') ?: null];
         }
-        if (preg_match('/^lock\s+(?<level>none|shared|reserved|pending|exclusive)\s+(?<connection>[A-Za-z0-9_.:-]+)(?:\s+(?<slot>\d+))?(?:\s+on\s+(?<source>main|wal|shm))?$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^lock\s+(?<level>none|shared|reserved|pending|exclusive)\s+(?<connection>[A-Za-z0-9_.:-]+)(?:\s+(?<slot>\d+))?(?:\s+on\s+(?<source>main|wal|shm|temp))?$/i', $trimmed, $matches) === 1) {
             return [
                 'kind' => 'lock',
                 'level' => strtolower($matches['level']),
@@ -715,7 +780,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                 'source' => isset($matches['source']) && $matches['source'] !== '' ? strtolower($matches['source']) : null,
             ];
         }
-        if (preg_match('/^yield\s+(?<connection>[A-Za-z0-9_.:-]+)(?:\s+on\s+(?<source>main|wal|shm))?$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^yield\s+(?<connection>[A-Za-z0-9_.:-]+)(?:\s+on\s+(?<source>main|wal|shm|temp))?$/i', $trimmed, $matches) === 1) {
             return [
                 'kind' => 'yield',
                 'connection' => $matches['connection'],
@@ -766,6 +831,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
         return match ($source) {
             'wal' => $owner . '-wal',
             'shm' => $owner . '-shm',
+            'temp' => $owner,
             default => $owner,
         };
     }
@@ -814,7 +880,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
      */
     private static function firstOpenSource(array $state): ?string
     {
-        foreach (['main', 'wal', 'shm'] as $source) {
+        foreach (['main', 'wal', 'shm', 'temp'] as $source) {
             if (isset($state['source_handles'][$source])) {
                 return $source;
             }
@@ -826,8 +892,8 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
     private static function sourceName(string $source): string
     {
         $source = strtolower(trim($source));
-        if (!in_array($source, ['main', 'wal', 'shm'], true)) {
-            throw new \InvalidArgumentException('SQLite VFS current source must be main, wal, or shm');
+        if (!in_array($source, ['main', 'wal', 'shm', 'temp'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS current source must be main, wal, shm, or temp');
         }
 
         return $source;
