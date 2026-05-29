@@ -69,7 +69,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
             return self::variantNext338(...$args);
         }
 
-        return self::variantNext342(...$args);
+        if (count($args) < 97) {
+            return self::variantNext342(...$args);
+        }
+
+        return self::variantNext350(...$args);
     }
 
     /** @return array<string,mixed> */
@@ -27400,6 +27404,102 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         $base = self::variantNext341(...$args);
 
         return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_locking_proxy_file_token', $currentToken, 342, 'reader_cache_locking_proxy_file', 'reader_cache_locking_proxy_file_must_match_current_locking_proxy_file_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext343(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next343 requires page-cache-overflow token');
+        }
+        $base = self::variantNext342(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_page_cache_overflow_token', $currentToken, 343, 'reader_cache_page_cache_overflow', 'reader_cache_page_cache_overflow_must_match_current_page_cache_overflow_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext344(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next344 requires scratch allocator token');
+        }
+        $base = self::variantNext343(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_scratch_allocator_token', $currentToken, 344, 'reader_cache_scratch_allocator', 'reader_cache_scratch_allocator_must_match_current_scratch_allocator_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext345(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next345 requires lookaside token');
+        }
+        $base = self::variantNext344(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_lookaside_token', $currentToken, 345, 'reader_cache_lookaside', 'reader_cache_lookaside_must_match_current_lookaside_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext346(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next346 requires pcache dirty-limit token');
+        }
+        $base = self::variantNext345(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_pcache_dirty_limit_token', $currentToken, 346, 'reader_cache_pcache_dirty_limit', 'reader_cache_pcache_dirty_limit_must_match_current_pcache_dirty_limit_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext347(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next347 requires mmap read-limit token');
+        }
+        $base = self::variantNext346(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_mmap_read_limit_token', $currentToken, 347, 'reader_cache_mmap_read_limit', 'reader_cache_mmap_read_limit_must_match_current_mmap_read_limit_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext348(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next348 requires sorter reference token');
+        }
+        $base = self::variantNext347(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_sorter_reference_token', $currentToken, 348, 'reader_cache_sorter_reference', 'reader_cache_sorter_reference_must_match_current_sorter_reference_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext349(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next349 requires worker-thread token');
+        }
+        $base = self::variantNext348(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_worker_thread_token', $currentToken, 349, 'reader_cache_worker_thread', 'reader_cache_worker_thread_must_match_current_worker_thread_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext350(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next350 requires memory alarm token');
+        }
+        $base = self::variantNext349(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_memory_alarm_token', $currentToken, 350, 'reader_cache_memory_alarm', 'reader_cache_memory_alarm_must_match_current_memory_alarm_state');
     }
 
     /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
