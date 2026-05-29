@@ -69,8 +69,8 @@ foreach (range(793, 808) as $next) {
     };
 }
 
-$tests['json table generated path rowid cost current source next808 has no next809 alias yet'] = static function (TestRunner $t) use ($plan793808): void {
-    $t->throws(Error::class, static fn () => $plan793808(809));
+$tests['json table generated path rowid cost current source next808 hands off to next809'] = static function (TestRunner $t) use ($plan793808): void {
+    $t->true(method_exists(SQLiteJsonTablePlan::class, 'currentSourceGeneratedPathRowidCostCurrentSourceNext809'));
 };
 
 return $tests;
