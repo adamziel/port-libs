@@ -47,7 +47,7 @@ $plan = SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameLikePlan(
 );
 
 $summary = [
-    'scenario' => 'wordpress-utf16-nocase-like-current-source-next126',
+    'scenario' => 'wordpress-utf16-nocase-like-range-bytes',
     'currentRowids' => $plan['currentRowids'],
     'nextRowids' => $plan['nextRowids'],
     'enteredRowids' => $plan['enteredRowids'],
@@ -65,11 +65,11 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
         || $summary['changedEncodingRowids'] !== [1]
         || $summary['rangeBytesChanged'] !== true
     ) {
-        fwrite(STDERR, "wordpress-utf16-nocase-like-current-source-next126 self-test failed\n");
+        fwrite(STDERR, "wordpress-utf16-nocase-like-range-bytes self-test failed\n");
         exit(1);
     }
 
-    echo "wordpress-utf16-nocase-like-current-source-next126 self-test passed\n";
+    echo "wordpress-utf16-nocase-like-range-bytes self-test passed\n";
 }
 
 return $summary;

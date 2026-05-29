@@ -135,7 +135,7 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like current source nextOneTwoSix ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['utf16 nocase like range bytes ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
@@ -157,46 +157,46 @@ $stableCases = [
 ];
 
 foreach ($stableCases as $name => [$path, $expected]) {
-    $tests['utf16 nocase like current source nextOneTwoSix ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $stableRows, $path, $expected): void {
+    $tests['utf16 nocase like range bytes ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $stableRows, $path, $expected): void {
         $stable = $plan('plugin%', null, false, 'stable', 'stable', 7, 7, 2, 2, 'UTF-16LE', 'UTF-16LE', $stableRows, $stableRows);
         $t->same($expected, $valueAt($stable, $path));
     };
 }
 
-$tests['utf16 nocase like current source nextOneTwoSix rejects non utf16 text encoding'] = static function (TestRunner $t) use ($plan, $nextRows): void {
+$tests['utf16 nocase like range bytes rejects non utf16 text encoding'] = static function (TestRunner $t) use ($plan, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', [['option_id' => 1, 'option_name_bytes' => 'plugin_alpha', 'text_encoding' => 1]], $nextRows));
 };
 
-$tests['utf16 nocase like current source nextOneTwoSix rejects missing option bytes'] = static function (TestRunner $t) use ($plan, $nextRows): void {
+$tests['utf16 nocase like range bytes rejects missing option bytes'] = static function (TestRunner $t) use ($plan, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', [['option_id' => 1, 'text_encoding' => 2]], $nextRows));
 };
 
-$tests['utf16 nocase like current source nextOneTwoSix rejects non integer rowid'] = static function (TestRunner $t) use ($plan, $nextRows): void {
+$tests['utf16 nocase like range bytes rejects non integer rowid'] = static function (TestRunner $t) use ($plan, $nextRows): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', [['option_id' => '1', 'option_name_bytes' => 'p', 'text_encoding' => 2]], $nextRows));
 };
 
-$tests['utf16 nocase like current source nextOneTwoSix rejects malformed utf16 bytes'] = static function (TestRunner $t) use ($plan, $nextRows): void {
+$tests['utf16 nocase like range bytes rejects malformed utf16 bytes'] = static function (TestRunner $t) use ($plan, $nextRows): void {
     $bad = [['option_id' => 1, 'option_name_bytes' => "\x3d\xd8", 'text_encoding' => 2]];
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-16LE', 'UTF-16LE', $bad, $nextRows));
 };
 
-$tests['utf16 nocase like current source nextOneTwoSix rejects non ascii nocase prefix range'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like range bytes rejects non ascii nocase prefix range'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('éclair%', null, false);
     $t->same(false, $result['indexUsable']);
     $t->same('nocase_like_prefix_must_be_ascii_for_range', $result['rejectedReason']);
 };
 
-$tests['utf16 nocase like current source nextOneTwoSix rejects case sensitive like on nocase index'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like range bytes rejects case sensitive like on nocase index'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan('plugin%', null, true);
     $t->same(false, $result['indexUsable']);
     $t->same('case_sensitive_like_requires_binary_index', $result['rejectedReason']);
 };
 
-$tests['utf16 nocase like current source nextOneTwoSix rejects bad escape length'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like range bytes rejects bad escape length'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', 'xx'));
 };
 
-$tests['utf16 nocase like current source nextOneTwoSix rejects utf8 database encoding'] = static function (TestRunner $t) use ($plan): void {
+$tests['utf16 nocase like range bytes rejects utf8 database encoding'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', null, false, 'stable', 'stable', 1, 1, 1, 1, 'UTF-8', 'UTF-16LE'));
 };
 
