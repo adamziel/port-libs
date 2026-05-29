@@ -8,12 +8,22 @@ Worktree: `{{WORKTREE}}`
 Main repo for handoff artifacts only: `{{MAIN_REPO}}`
 Supervisor log: `{{LOG_FILE}}`
 
+Current supervisor override, 2026-05-29 11:43 UTC:
+
+- The class/file suffix named by the user as `CurrentSource` + `Next150` +
+  `Plan.php` must not exist in consolidated production classes. When
+  consolidating, rename those implementations into stable descriptive
+  unsuffixed canonical classes/helpers and update direct callers/tests/examples.
+- Continue consolidating any remaining numbered duplicate production methods,
+  helpers, files, or classes. Do not stop at the exact suffix; every duplicate
+  family that only differs by a worker number is in scope for the current
+  consolidation lanes.
+
 Current supervisor override, 2026-05-29 11:20 UTC:
 
-- Exact `CurrentSourceNext150` production-source names are gone and pushed.
-  Do not reintroduce `CurrentSourceNext150`, `CurrentSourceNext150Plan.php`,
-  or any numbered production class/file/helper name that differs only by a
-  worker number.
+- The exact source-next150 production names are gone and pushed. Do not
+  reintroduce them or any numbered production class/file/helper name that
+  differs only by a worker number.
 - The latest accepted consolidation commit removed all generated numbered
   production class declarations, standalone `CurrentNextNNPlan.php` files, and
   numbered `CurrentSourceNextNN` production filenames. Remaining consolidation
