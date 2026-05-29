@@ -23,8 +23,7 @@ $retryStatements = [
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
 $plans = [];
 for ($next = 526; $next <= 541; $next++) {
-    $method = 'executeNext' . $next;
-    $plans[$next] = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::{$method}(...$args);
+    $plans[$next] = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePublicationSealStep($next, ...$args);
 }
 
 $statuses = array_map(static fn (array $plan): string => $plan['status'], $plans);
@@ -59,7 +58,7 @@ $summary = [
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
-    echo "wordpress-rowvalue-returning-window-current-source-next526-541 self-test passed\n";
+    echo "wordpress-rowvalue-returning-window-publication-seal-continuation self-test passed\n";
     return;
 }
 
