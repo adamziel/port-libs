@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLitePagerDirtyPageCacheSpillPlan.php';
 require_once __DIR__ . '/../src/SQLiteSavepointStack.php';
-require_once __DIR__ . '/../src/SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerCacheSpillSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLitePagerCacheSpillSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 
 $pageSize = 512;
@@ -25,7 +25,7 @@ $savepoints->savepoint('plugin-batch');
 $savepoints->recordPageImageWrite(2, $beforeOptions);
 $savepoints->recordPageImageWrite(3, $beforeTheme);
 
-$plan = SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan::currentSourceNext(
+$plan = SQLitePagerCacheSpillSavepointCurrentSourceNextPlan::currentSourceNext(
     $databaseBytes,
     $pageSize,
     'plugin-batch',

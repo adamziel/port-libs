@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan
+final class SQLitePagerCacheSpillSavepointCurrentSourceNextPlan
 {
     /**
      * @param list<array{page:int,image:string,current_image?:string,bytes?:int,journaled?:bool,dirty?:bool,pinned?:bool,walFrame?:int}> $cachePages

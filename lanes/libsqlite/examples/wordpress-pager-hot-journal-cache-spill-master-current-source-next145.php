@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLitePagerDirtyPageCacheSpillPlan.php';
-require_once __DIR__ . '/../src/SQLitePagerHotJournalCacheSpillMasterCurrentSourceNext145Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerHotJournalCacheSpillMasterCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerHotJournalCacheSpillMasterCurrentSourceNext145Plan;
+use PortLibs\LibSqlite\SQLitePagerHotJournalCacheSpillMasterCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next145.sqlite';
@@ -22,7 +22,7 @@ $hotOptions = $page('wp next145 recovered active_plugins master source');
 $hotAutoload = $page('wp next145 recovered autoload index master source');
 $hotTransient = $page('wp next145 recovered transient cache master source');
 
-$plan = SQLitePagerHotJournalCacheSpillMasterCurrentSourceNext145Plan::plan(
+$plan = SQLitePagerHotJournalCacheSpillMasterCurrentSourceNextPlan::plan(
     $databasePath,
     $journalPath,
     $masterPath,

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `pager-cache-spill-hot-journal-reader-current-source-next147`.
 
-This slice adds `SQLitePagerCacheSpillHotJournalReaderCurrentSourceNext147Plan`. It composes hot rollback-journal recovery, current WAL reader snapshots, restarted next-generation WAL parsing, and WAL-mode dirty cache-spill routing. Cache pages are admitted only when their current image matches the pinned hot-journal reader source; reader-pinned pages, stale hot-source pages, and next-generation WAL cache images are deferred before the spill appends new WAL frames.
+This slice adds `SQLitePagerCacheSpillHotJournalReaderCurrentSourceNextPlan`. It composes hot rollback-journal recovery, current WAL reader snapshots, restarted next-generation WAL parsing, and WAL-mode dirty cache-spill routing. Cache pages are admitted only when their current image matches the pinned hot-journal reader source; reader-pinned pages, stale hot-source pages, and next-generation WAL cache images are deferred before the spill appends new WAL frames.
 
 WordPress smoke: `wordpress-pager-cache-spill-hot-journal-reader-current-source-next147.php` models a copied `wp_options` import retry where a hot rollback journal restores database pages, a current reader remains pinned to the recovered WAL source, and retry cache pages spill only after stale or reader-pinned pages are excluded.
 

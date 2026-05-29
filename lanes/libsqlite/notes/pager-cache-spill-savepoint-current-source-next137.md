@@ -2,11 +2,11 @@
 
 Status: focused PHP behavior growth for pager cache-spill admission while a savepoint is open.
 
-This slice adds `SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan`. It filters dirty cache pages before delegating to the existing journal-mode cache-spill planner. A page is admitted only when it is dirty, unpinned, matches the current database source image, and has a savepoint before-image available for `ROLLBACK TO`. Stale current-source pages and pages without savepoint images are deferred so a cache spill cannot make an active WordPress import savepoint unrecoverable.
+This slice adds `SQLitePagerCacheSpillSavepointCurrentSourceNextPlan`. It filters dirty cache pages before delegating to the existing journal-mode cache-spill planner. A page is admitted only when it is dirty, unpinned, matches the current database source image, and has a savepoint before-image available for `ROLLBACK TO`. Stale current-source pages and pages without savepoint images are deferred so a cache spill cannot make an active WordPress import savepoint unrecoverable.
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerCacheSpillSavepointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerCacheSpillSavepointCurrentSourceNext137Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-cache-spill-savepoint-current-source-next137.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerCacheSpillSavepointCurrentSourceNext137Test.php`

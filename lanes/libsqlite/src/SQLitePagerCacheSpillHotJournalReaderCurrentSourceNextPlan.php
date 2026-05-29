@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLitePagerCacheSpillHotJournalReaderCurrentSourceNext147Plan
+final class SQLitePagerCacheSpillHotJournalReaderCurrentSourceNextPlan
 {
     /**
      * @param list<array{page:int,image:string,current_image?:string,bytes?:int,dirty?:bool,pinned?:bool,journaled?:bool,walFrame?:int,readerPinned?:bool,nextGeneration?:bool}> $cachePages

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNext151Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 
 $tests = [];
@@ -70,7 +70,7 @@ $plan = static fn (
     ?string $bytes = null,
     ?int $size = null,
     ?string $path = null,
-): array => SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNext151Plan::plan(
+): array => SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNextPlan::plan(
     $path ?? $databasePath,
     $bytes ?? $databaseBytes,
     $size ?? $pageSize,
@@ -169,7 +169,7 @@ $cases = [
     'all rejected no eligible' => [static fn (): mixed => $deferredPlan()['spill']['blocked_reasons'], ['no_journaled_unpinned_dirty_pages']],
     'transaction savepoint admits page one' => [static fn (): mixed => $plan(null, [['page' => 1, 'image' => $dirty[1], 'current_image' => $hot[1], 'journaled' => true]], 'delete', true, 'reserved', true, null, 'wp-import-next151')['admitted_page_numbers'], [1]],
     'transaction savepoint spills page one' => [static fn (): mixed => $plan(null, [['page' => 1, 'image' => $dirty[1], 'current_image' => $hot[1], 'journaled' => true]], 'delete', true, 'reserved', true, null, 'wp-import-next151')['spilled_page_numbers'], [1]],
-    'no delete operation when preserve hot journal' => [static fn (): mixed => in_array('delete_hot_journal_after_savepoint_spill_recovery', array_column(SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNext151Plan::plan($databasePath, $databaseBytes, $pageSize, $hot, 'plugin-batch-next151', $makeStack(), $cachePages, 8, 4, 'delete', true, 'reserved', true, null, false)['operations'], 'op'), true), false],
+    'no delete operation when preserve hot journal' => [static fn (): mixed => in_array('delete_hot_journal_after_savepoint_spill_recovery', array_column(SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, $hot, 'plugin-batch-next151', $makeStack(), $cachePages, 8, 4, 'delete', true, 'reserved', true, null, false)['operations'], 'op'), true), false],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNext151Plan
+final class SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNextPlan
 {
     /**
      * @param array<int,string> $hotJournalBeforeImages

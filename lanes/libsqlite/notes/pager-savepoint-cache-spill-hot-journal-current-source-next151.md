@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `pager-savepoint-cache-spill-hot-journal-current-source-next151`.
 
-This slice adds `SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNext151Plan`. It models the current-source boundary after hot rollback-journal recovery where dirty cache pages under a savepoint may spill only when the savepoint before-image was captured from the recovered current database image. Pages with stale pre-recovery savepoint images, stale current images, pinned cache entries, clean cache entries, or missing savepoint images are deferred until they are re-journaled.
+This slice adds `SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNextPlan`. It models the current-source boundary after hot rollback-journal recovery where dirty cache pages under a savepoint may spill only when the savepoint before-image was captured from the recovered current database image. Pages with stale pre-recovery savepoint images, stale current images, pinned cache entries, clean cache entries, or missing savepoint images are deferred until they are re-journaled.
 
 WordPress smoke: `wordpress-pager-savepoint-cache-spill-hot-journal-current-source-next151.php` covers copied `wp_options` import repair where hot-journal recovery updates the current source, `active_plugins` can spill, an autoload index page with a stale savepoint before-image is blocked, and a pinned plugin-settings page remains in cache.
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNext151Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNext151Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-savepoint-cache-spill-hot-journal-current-source-next151.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNext151Test.php`

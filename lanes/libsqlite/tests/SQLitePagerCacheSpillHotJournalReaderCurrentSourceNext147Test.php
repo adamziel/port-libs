@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerCacheSpillHotJournalReaderCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLitePagerCacheSpillHotJournalReaderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
@@ -95,7 +95,7 @@ $plan = static fn (
     ?string $path = null,
     ?string $databaseBytes = null,
     ?string $journal = null
-): array => SQLitePagerCacheSpillHotJournalReaderCurrentSourceNext147Plan::plan(
+): array => SQLitePagerCacheSpillHotJournalReaderCurrentSourceNextPlan::plan(
     $path ?? $databasePath,
     $databaseBytes ?? $dirtyDatabase,
     $journal ?? $journalBytes,
@@ -220,8 +220,8 @@ $throws = [
     'short current image rejected' => static fn () => $plan([['page' => 2, 'image' => $page('ok'), 'current_image' => 'short']]),
     'negative bytes rejected' => static fn () => $plan([['page' => 2, 'image' => $page('ok'), 'bytes' => -1]]),
     'bad wal frame rejected' => static fn () => $plan([['page' => 2, 'image' => $page('ok'), 'walFrame' => 0]]),
-    'bad threshold rejected' => static fn () => SQLitePagerCacheSpillHotJournalReaderCurrentSourceNext147Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, $cachePages, [1], 1, 8, 0),
-    'bad max spill rejected' => static fn () => SQLitePagerCacheSpillHotJournalReaderCurrentSourceNext147Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, $cachePages, [1], 1, 8, 3, false, true, true, 0),
+    'bad threshold rejected' => static fn () => SQLitePagerCacheSpillHotJournalReaderCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, $cachePages, [1], 1, 8, 0),
+    'bad max spill rejected' => static fn () => SQLitePagerCacheSpillHotJournalReaderCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, $cachePages, [1], 1, 8, 3, false, true, true, 0),
 ];
 
 foreach ($throws as $name => $callback) {

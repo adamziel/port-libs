@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePagerCacheSpillHotJournalReaderCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLitePagerCacheSpillHotJournalReaderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
@@ -65,7 +65,7 @@ $restartedWalBytes = $makeWalBytes([
 ], 148, 0x14714811, 0x14714812);
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 
-$plan = SQLitePagerCacheSpillHotJournalReaderCurrentSourceNext147Plan::plan(
+$plan = SQLitePagerCacheSpillHotJournalReaderCurrentSourceNextPlan::plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

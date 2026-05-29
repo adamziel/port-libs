@@ -115,7 +115,7 @@ final class SQLitePagerCacheSpillSavepointMasterCurrentSourceNext141Plan
         ksort($sourceRows, SORT_NUMERIC);
         ksort($rejected, SORT_NUMERIC);
 
-        $spill = SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan::currentSourceNext(
+        $spill = SQLitePagerCacheSpillSavepointCurrentSourceNextPlan::currentSourceNext(
             $currentBytes,
             $pageSize,
             $savepointName,

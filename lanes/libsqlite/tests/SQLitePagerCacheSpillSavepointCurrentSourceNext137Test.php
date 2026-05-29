@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLitePagerCacheSpillSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 
 $tests = [];
@@ -49,7 +49,7 @@ $plan = static fn (
     bool $cacheSpillEnabled = true,
     ?int $maxSpillPages = null,
     string $savepoint = 'plugin-batch',
-): array => SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan::currentSourceNext(
+): array => SQLitePagerCacheSpillSavepointCurrentSourceNextPlan::currentSourceNext(
     $databaseBytes,
     $pageSize,
     $savepoint,
@@ -135,11 +135,11 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'rejects empty database' => static fn () => SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan::currentSourceNext('', $pageSize, 'plugin-batch', $makeStack(), $cachePages, 7, 3),
-    'rejects unaligned database' => static fn () => SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan::currentSourceNext($databaseBytes . 'x', $pageSize, 'plugin-batch', $makeStack(), $cachePages, 7, 3),
-    'rejects bad page size' => static fn () => SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan::currentSourceNext($databaseBytes, 0, 'plugin-batch', $makeStack(), $cachePages, 7, 3),
-    'rejects empty savepoint' => static fn () => SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan::currentSourceNext($databaseBytes, $pageSize, '', $makeStack(), $cachePages, 7, 3),
-    'rejects empty cache pages' => static fn () => SQLitePagerCacheSpillSavepointCurrentSourceNext137Plan::currentSourceNext($databaseBytes, $pageSize, 'plugin-batch', $makeStack(), [], 7, 3),
+    'rejects empty database' => static fn () => SQLitePagerCacheSpillSavepointCurrentSourceNextPlan::currentSourceNext('', $pageSize, 'plugin-batch', $makeStack(), $cachePages, 7, 3),
+    'rejects unaligned database' => static fn () => SQLitePagerCacheSpillSavepointCurrentSourceNextPlan::currentSourceNext($databaseBytes . 'x', $pageSize, 'plugin-batch', $makeStack(), $cachePages, 7, 3),
+    'rejects bad page size' => static fn () => SQLitePagerCacheSpillSavepointCurrentSourceNextPlan::currentSourceNext($databaseBytes, 0, 'plugin-batch', $makeStack(), $cachePages, 7, 3),
+    'rejects empty savepoint' => static fn () => SQLitePagerCacheSpillSavepointCurrentSourceNextPlan::currentSourceNext($databaseBytes, $pageSize, '', $makeStack(), $cachePages, 7, 3),
+    'rejects empty cache pages' => static fn () => SQLitePagerCacheSpillSavepointCurrentSourceNextPlan::currentSourceNext($databaseBytes, $pageSize, 'plugin-batch', $makeStack(), [], 7, 3),
     'rejects bad page' => static fn () => $plan([['page' => 0, 'image' => $dirty2]]),
     'rejects duplicate page' => static fn () => $plan([['page' => 2, 'image' => $dirty2], ['page' => 2, 'image' => $dirty3]]),
     'rejects page outside database' => static fn () => $plan([['page' => 6, 'image' => $dirty2]]),

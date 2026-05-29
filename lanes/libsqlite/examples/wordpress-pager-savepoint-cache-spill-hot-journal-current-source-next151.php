@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNext151Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 
 $pageSize = 512;
@@ -31,7 +31,7 @@ $savepoints->recordPageImageWrite(2, $hot[2]);
 $savepoints->recordPageImageWrite(3, $before[3]);
 $savepoints->recordPageImageWrite(4, $hot[4]);
 
-$summary = SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNext151Plan::plan(
+$summary = SQLitePagerSavepointCacheSpillHotJournalCurrentSourceNextPlan::plan(
     $databasePath,
     implode('', $before),
     $pageSize,
