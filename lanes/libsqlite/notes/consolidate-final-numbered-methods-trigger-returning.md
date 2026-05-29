@@ -9,6 +9,11 @@
   following-current seal entry method into `executeFollowingCurrentSeal()`,
   renamed its direct private helper methods to descriptive non-numbered names,
   and migrated the direct next226 test/example plus internal next230 caller.
+- Forty-second pass follow-up: consolidated the direct numbered
+  current-generation/depth fence entry method into
+  `executeCurrentGenerationDepthFence()`, renamed its direct private helpers to
+  descriptive non-numbered names, and migrated the direct test, WordPress
+  example, and yield note to descriptive unsuffixed paths.
 
 ## Verification
 
@@ -32,6 +37,13 @@
   - Result: `1 test files, 94 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next226.php --self-test`
   - Result: `wordpress-trigger-recursive-view-returning-current-source-next226 self-test passed`
+- `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentGenerationDepthFenceTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-generation-depth-fence.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentGenerationDepthFenceTest.php`
+  - Result: `1 test files, 77 assertions, 0 failures`
+- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-generation-depth-fence.php --self-test`
+  - Result: `wordpress-trigger-recursive-view-returning-current-source-generation-depth-fence self-test passed`
 - `git diff --check -- lanes/libsqlite`
 - `rg -n "function\s+\w*(?:CurrentSource|Current)?Next[0-9]+|function\s+\w*Next[0-9]+" lanes/libsqlite/src | wc -l`
   - Result: `5728` remaining numbered production method lines.

@@ -7308,14 +7308,14 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext191(string $sql, array $currentTables, array $nextTables): array
+        public static function compareOrderedValueOffsetCompoundBoundary(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext191($sql, $currentPlan, $nextPlan);
+            self::assertSupportedOrderedValueOffsetCompoundBoundary($sql, $currentPlan, $nextPlan);
 
-            $preLimitSql = self::withoutFinalLimitNext191($sql);
-            $traceSql = self::recursiveTraceSqlNext191($sql);
+            $preLimitSql = self::withoutFinalLimitOrderedValueOffsetCompoundBoundary($sql);
+            $traceSql = self::recursiveTraceSqlOrderedValueOffsetCompoundBoundary($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $currentTables);
@@ -7324,27 +7324,27 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $nextRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
 
             return [
-                'status' => 'compound-select-window-recursive-limit-current-source-next191-ready',
+                'status' => 'compound-select-window-recursive-limit-current-source-ordered-value-offset-boundary-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
                 'currentPreLimitRows' => $currentPreLimitRows,
                 'nextPreLimitRows' => $nextPreLimitRows,
                 'compound' => [
-                    'operators' => self::operatorsNext191($currentPlan),
+                    'operators' => self::operatorsOrderedValueOffsetCompoundBoundary($currentPlan),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext191($currentPlan),
+                    'orderColumns' => self::orderColumnsOrderedValueOffsetCompoundBoundary($currentPlan),
                     'limit' => $currentPlan['compound']['limit'] ?? null,
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
-                    'hasUnionAllHead' => (self::operatorsNext191($currentPlan)[0] ?? null) === 'UNION ALL',
-                    'hasDistinctTail' => in_array('UNION', self::operatorsNext191($currentPlan), true),
+                    'hasUnionAllHead' => (self::operatorsOrderedValueOffsetCompoundBoundary($currentPlan)[0] ?? null) === 'UNION ALL',
+                    'hasDistinctTail' => in_array('UNION', self::operatorsOrderedValueOffsetCompoundBoundary($currentPlan), true),
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext191($currentPlan),
-                    'next' => self::windowTermsNext191($nextPlan),
-                    'functions' => array_values(array_unique(array_column(self::windowTermsNext191($currentPlan), 'function'))),
-                    'valueOffsetFunctions' => self::valueOffsetFunctionsNext191($currentPlan),
-                    'ntileBuckets' => self::ntileBucketsNext191($currentPreLimitRows),
+                    'current' => self::windowTermsOrderedValueOffsetCompoundBoundary($currentPlan),
+                    'next' => self::windowTermsOrderedValueOffsetCompoundBoundary($nextPlan),
+                    'functions' => array_values(array_unique(array_column(self::windowTermsOrderedValueOffsetCompoundBoundary($currentPlan), 'function'))),
+                    'valueOffsetFunctions' => self::valueOffsetFunctionsOrderedValueOffsetCompoundBoundary($currentPlan),
+                    'ntileBuckets' => self::ntileBucketsOrderedValueOffsetCompoundBoundary($currentPreLimitRows),
                 ],
                 'recursive' => [
                     'name' => $currentRecursive['name'],
@@ -7354,35 +7354,35 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'nextRows' => $nextRecursive['rows'],
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
-                    'currentSkippedLabels' => self::traceLabelsNext191($currentRecursive['trace'], false),
-                    'nextSkippedLabels' => self::traceLabelsNext191($nextRecursive['trace'], false),
-                    'currentEmittedLabels' => self::traceLabelsNext191($currentRecursive['trace'], true),
-                    'nextEmittedLabels' => self::traceLabelsNext191($nextRecursive['trace'], true),
-                    'currentFinalLimitRemaining' => self::lastTraceValueNext191($currentRecursive['trace'], 'limit_remaining'),
-                    'nextFinalLimitRemaining' => self::lastTraceValueNext191($nextRecursive['trace'], 'limit_remaining'),
-                    'currentFinalOffsetRemaining' => self::lastTraceValueNext191($currentRecursive['trace'], 'offset_remaining'),
-                    'nextFinalOffsetRemaining' => self::lastTraceValueNext191($nextRecursive['trace'], 'offset_remaining'),
+                    'currentSkippedLabels' => self::traceLabelsOrderedValueOffsetCompoundBoundary($currentRecursive['trace'], false),
+                    'nextSkippedLabels' => self::traceLabelsOrderedValueOffsetCompoundBoundary($nextRecursive['trace'], false),
+                    'currentEmittedLabels' => self::traceLabelsOrderedValueOffsetCompoundBoundary($currentRecursive['trace'], true),
+                    'nextEmittedLabels' => self::traceLabelsOrderedValueOffsetCompoundBoundary($nextRecursive['trace'], true),
+                    'currentFinalLimitRemaining' => self::lastTraceValueOrderedValueOffsetCompoundBoundary($currentRecursive['trace'], 'limit_remaining'),
+                    'nextFinalLimitRemaining' => self::lastTraceValueOrderedValueOffsetCompoundBoundary($nextRecursive['trace'], 'limit_remaining'),
+                    'currentFinalOffsetRemaining' => self::lastTraceValueOrderedValueOffsetCompoundBoundary($currentRecursive['trace'], 'offset_remaining'),
+                    'nextFinalOffsetRemaining' => self::lastTraceValueOrderedValueOffsetCompoundBoundary($nextRecursive['trace'], 'offset_remaining'),
                     'orderedQueue' => stripos($sql, 'ORDER BY 3 DESC') !== false,
                 ],
                 'valueOffsetTape' => [
-                    'current' => self::valueOffsetTapeNext191($currentPreLimitRows, $currentRows),
-                    'next' => self::valueOffsetTapeNext191($nextPreLimitRows, $nextRows),
-                    'changedPeerLabels' => self::changedPeerLabelsNext191($currentRows, $nextRows),
-                    'peerBoundary' => self::peerBoundaryNext191($currentRows, $nextRows),
+                    'current' => self::valueOffsetTapeOrderedValueOffsetCompoundBoundary($currentPreLimitRows, $currentRows),
+                    'next' => self::valueOffsetTapeOrderedValueOffsetCompoundBoundary($nextPreLimitRows, $nextRows),
+                    'changedPeerLabels' => self::changedPeerLabelsOrderedValueOffsetCompoundBoundary($currentRows, $nextRows),
+                    'peerBoundary' => self::peerBoundaryOrderedValueOffsetCompoundBoundary($currentRows, $nextRows),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext191($currentPreLimitRows, $currentRows, $currentPlan),
-                    'next' => self::limitTraceNext191($nextPreLimitRows, $nextRows, $nextPlan),
+                    'current' => self::limitTraceOrderedValueOffsetCompoundBoundary($currentPreLimitRows, $currentRows, $currentPlan),
+                    'next' => self::limitTraceOrderedValueOffsetCompoundBoundary($nextPreLimitRows, $nextRows, $nextPlan),
                 ],
-                'boundary' => self::boundaryDeltaNext191($currentRows, $nextRows),
-                'replanReasons' => self::replanReasonsNext191($currentRows, $nextRows, $currentPreLimitRows, $nextPreLimitRows, $currentRecursive, $currentPlan),
+                'boundary' => self::boundaryDeltaOrderedValueOffsetCompoundBoundary($currentRows, $nextRows),
+                'replanReasons' => self::replanReasonsOrderedValueOffsetCompoundBoundary($currentRows, $nextRows, $currentPreLimitRows, $nextPreLimitRows, $currentRecursive, $currentPlan),
                 'dependencies' => [
-                    'sqlite-select-sql-recursive-ordered-limit-offset-next191',
-                    'sqlite-select-sql-compound-nth-value-ntile-lead-next191',
-                    'sqlite-select-sql-union-distinct-value-offset-boundary-next191',
-                    'sqlite-current-source-next191',
+                    'sqlite-select-sql-recursive-ordered-limit-offset-ordered-value-offset-boundary',
+                    'sqlite-select-sql-compound-nth-value-ntile-lead-ordered-value-offset-boundary',
+                    'sqlite-select-sql-union-distinct-value-offset-boundary-ordered-value-offset-boundary',
+                    'sqlite-current-source-ordered-value-offset-boundary',
                 ],
-                'dependency_closure' => 'no new support component needed; next191 reuses lane-local SELECT SQL recursive queue ORDER BY/LIMIT/OFFSET, compound UNION ALL/UNION distinct execution, nth_value/ntile/lead window evaluation, ORDER BY, and LIMIT/OFFSET helpers',
+                'dependency_closure' => 'no new support component needed; ordered-value-offset-boundary reuses lane-local SELECT SQL recursive queue ORDER BY/LIMIT/OFFSET, compound UNION ALL/UNION distinct execution, nth_value/ntile/lead window evaluation, ORDER BY, and LIMIT/OFFSET helpers',
             ];
         }
 
@@ -7390,48 +7390,48 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @param array<string,mixed> $nextPlan
          */
-        private static function assertSupportedNext191(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertSupportedOrderedValueOffsetCompoundBoundary(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next191 needs WITH RECURSIVE SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT ordered-value-offset-boundary needs WITH RECURSIVE SQL');
             }
             if (!is_array($currentPlan['compound'] ?? null) || !is_array($nextPlan['compound'] ?? null)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next191 needs compound SELECT SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT ordered-value-offset-boundary needs compound SELECT SQL');
             }
-            $operators = self::operatorsNext191($currentPlan);
+            $operators = self::operatorsOrderedValueOffsetCompoundBoundary($currentPlan);
             if (!in_array('UNION ALL', $operators, true) || !in_array('UNION', $operators, true)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next191 needs UNION ALL and UNION distinct');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT ordered-value-offset-boundary needs UNION ALL and UNION distinct');
             }
             if (($currentPlan['compound']['limit'] ?? null) === null || (($currentPlan['compound']['offset'] ?? 0) < 1)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next191 needs final LIMIT/OFFSET');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT ordered-value-offset-boundary needs final LIMIT/OFFSET');
             }
             if (preg_match('/WITH\s+RECURSIVE.*?\bORDER\s+BY\s+3\s+DESC\s+LIMIT\s+\d+\s+OFFSET\s+\d+/is', $sql) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next191 needs ordered recursive LIMIT/OFFSET');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT ordered-value-offset-boundary needs ordered recursive LIMIT/OFFSET');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext191($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTermsOrderedValueOffsetCompoundBoundary($currentPlan), 'function'));
             foreach (['nth_value', 'ntile', 'lead'] as $function) {
                 if (!in_array($function, $functions, true)) {
-                    throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT next191 needs {$function} window output");
+                    throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT ordered-value-offset-boundary needs {$function} window output");
                 }
             }
         }
 
-        private static function recursiveTraceSqlNext191(string $sql): string
+        private static function recursiveTraceSqlOrderedValueOffsetCompoundBoundary(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^(WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s+AS\s*\(.*\))\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next191 cannot isolate recursive CTE');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT ordered-value-offset-boundary cannot isolate recursive CTE');
             }
 
             return $match[1] . ' SELECT * FROM ' . $match[2];
         }
 
-        private static function withoutFinalLimitNext191(string $sql): string
+        private static function withoutFinalLimitOrderedValueOffsetCompoundBoundary(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
             if (!is_string($without) || $without === $trimmed) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next191 cannot isolate final LIMIT');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT ordered-value-offset-boundary cannot isolate final LIMIT');
             }
 
             return $without;
@@ -7441,7 +7441,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function operatorsNext191(array $plan): array
+        private static function operatorsOrderedValueOffsetCompoundBoundary(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -7452,7 +7452,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext191(array $plan): array
+        private static function orderColumnsOrderedValueOffsetCompoundBoundary(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             if (!is_array($compound['orderBy'] ?? null)) {
@@ -7466,7 +7466,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext191(array $plan): array
+        private static function windowTermsOrderedValueOffsetCompoundBoundary(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $windows = [];
@@ -7495,10 +7495,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function valueOffsetFunctionsNext191(array $plan): array
+        private static function valueOffsetFunctionsOrderedValueOffsetCompoundBoundary(array $plan): array
         {
             return array_values(array_filter(
-                array_map(static fn (array $term): string => strtolower((string) ($term['function'] ?? '')), self::windowTermsNext191($plan)),
+                array_map(static fn (array $term): string => strtolower((string) ($term['function'] ?? '')), self::windowTermsOrderedValueOffsetCompoundBoundary($plan)),
                 static fn (string $function): bool => in_array($function, ['nth_value', 'ntile', 'lead'], true),
             ));
         }
@@ -7507,7 +7507,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<int>
          */
-        private static function ntileBucketsNext191(array $rows): array
+        private static function ntileBucketsOrderedValueOffsetCompoundBoundary(array $rows): array
         {
             $buckets = [];
             foreach ($rows as $row) {
@@ -7524,7 +7524,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @return list<string>
          */
-        private static function traceLabelsNext191(array $trace, bool $emitted): array
+        private static function traceLabelsOrderedValueOffsetCompoundBoundary(array $trace, bool $emitted): array
         {
             $labels = [];
             foreach ($trace as $step) {
@@ -7543,7 +7543,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $trace
          */
-        private static function lastTraceValueNext191(array $trace, string $key): ?int
+        private static function lastTraceValueOrderedValueOffsetCompoundBoundary(array $trace, string $key): ?int
         {
             $last = $trace === [] ? null : $trace[count($trace) - 1];
             $value = is_array($last) ? ($last[$key] ?? null) : null;
@@ -7556,9 +7556,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $limitedRows
          * @return list<array<string,mixed>>
          */
-        private static function valueOffsetTapeNext191(array $preLimitRows, array $limitedRows): array
+        private static function valueOffsetTapeOrderedValueOffsetCompoundBoundary(array $preLimitRows, array $limitedRows): array
         {
-            $limited = array_flip(self::rowSignaturesNext191($limitedRows));
+            $limited = array_flip(self::rowSignaturesOrderedValueOffsetCompoundBoundary($limitedRows));
             $tape = [];
             foreach ($preLimitRows as $index => $row) {
                 $label = (string) ($row['label'] ?? '');
@@ -7582,7 +7582,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function limitTraceNext191(array $preLimitRows, array $limitedRows, array $plan): array
+        private static function limitTraceOrderedValueOffsetCompoundBoundary(array $preLimitRows, array $limitedRows, array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $offset = isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0;
@@ -7604,7 +7604,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<mixed>
          */
-        private static function changedPeerLabelsNext191(array $currentRows, array $nextRows): array
+        private static function changedPeerLabelsOrderedValueOffsetCompoundBoundary(array $currentRows, array $nextRows): array
         {
             $current = array_values(array_unique(array_column($currentRows, 'peer'), SORT_REGULAR));
             $next = array_values(array_unique(array_column($nextRows, 'peer'), SORT_REGULAR));
@@ -7617,7 +7617,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return array<string,mixed>
          */
-        private static function peerBoundaryNext191(array $currentRows, array $nextRows): array
+        private static function peerBoundaryOrderedValueOffsetCompoundBoundary(array $currentRows, array $nextRows): array
         {
             return [
                 'currentPeers' => array_values(array_column($currentRows, 'peer')),
@@ -7634,10 +7634,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return array<string,mixed>
          */
-        private static function boundaryDeltaNext191(array $currentRows, array $nextRows): array
+        private static function boundaryDeltaOrderedValueOffsetCompoundBoundary(array $currentRows, array $nextRows): array
         {
-            $currentSignatures = self::rowSignaturesNext191($currentRows);
-            $nextSignatures = self::rowSignaturesNext191($nextRows);
+            $currentSignatures = self::rowSignaturesOrderedValueOffsetCompoundBoundary($currentRows);
+            $nextSignatures = self::rowSignaturesOrderedValueOffsetCompoundBoundary($nextRows);
 
             return [
                 'currentFirst' => $currentRows[0] ?? null,
@@ -7653,7 +7653,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext191(array $rows): array
+        private static function rowSignaturesOrderedValueOffsetCompoundBoundary(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -7667,22 +7667,22 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @return list<string>
          */
-        private static function replanReasonsNext191(array $currentRows, array $nextRows, array $currentPreLimitRows, array $nextPreLimitRows, array $currentRecursive, array $currentPlan): array
+        private static function replanReasonsOrderedValueOffsetCompoundBoundary(array $currentRows, array $nextRows, array $currentPreLimitRows, array $nextPreLimitRows, array $currentRecursive, array $currentPlan): array
         {
             $reasons = ['compound-nth-value-ntile-lead-window-offsets'];
-            if (self::rowSignaturesNext191($currentRows) !== self::rowSignaturesNext191($nextRows)) {
+            if (self::rowSignaturesOrderedValueOffsetCompoundBoundary($currentRows) !== self::rowSignaturesOrderedValueOffsetCompoundBoundary($nextRows)) {
                 $reasons[] = 'limited-value-offset-rowset-changed';
             }
-            if (self::rowSignaturesNext191($currentPreLimitRows) !== self::rowSignaturesNext191($nextPreLimitRows)) {
+            if (self::rowSignaturesOrderedValueOffsetCompoundBoundary($currentPreLimitRows) !== self::rowSignaturesOrderedValueOffsetCompoundBoundary($nextPreLimitRows)) {
                 $reasons[] = 'prelimit-value-offset-rowset-changed';
             }
-            if (self::changedPeerLabelsNext191($currentRows, $nextRows) !== []) {
+            if (self::changedPeerLabelsOrderedValueOffsetCompoundBoundary($currentRows, $nextRows) !== []) {
                 $reasons[] = 'value-offset-peer-boundary-changed';
             }
             if (($currentRecursive['rows'] ?? []) !== []) {
                 $reasons[] = 'ordered-recursive-limit-offset-feeds-compound-arm';
             }
-            if (self::valueOffsetFunctionsNext191($currentPlan) === ['nth_value', 'ntile', 'lead']) {
+            if (self::valueOffsetFunctionsOrderedValueOffsetCompoundBoundary($currentPlan) === ['nth_value', 'ntile', 'lead']) {
                 $reasons[] = 'nth-value-ntile-lead-before-union-distinct';
             }
             if (($currentPlan['compound']['limit'] ?? null) !== null && (($currentPlan['compound']['offset'] ?? 0) > 0)) {
@@ -8834,7 +8834,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-current-source-token-fence-ntileFirstValueUnionDistinct',
                 ],
                 'dependency_closure' => 'no new support component needed; ntileFirstValueUnionDistinct reuses native SELECT SQL compound, recursive queue ORDER BY/LIMIT/OFFSET, ntile/first_value window frames, UNION distinct, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted recursiveCurrentGap percent_rank/cume_dist distribution windows, next191 nth_value/ntile/lead value-offset tape, next190 expression LIMIT windows, and JSON/WAL/B-tree/VFS clusters; this slice fences ntile plus first_value frame output before a final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted recursiveCurrentGap percent_rank/cume_dist distribution windows, ordered-value-offset-boundary nth_value/ntile/lead value-offset tape, next190 expression LIMIT windows, and JSON/WAL/B-tree/VFS clusters; this slice fences ntile plus first_value frame output before a final compound LIMIT over current and next wp_options sources',
             ];
         }
 
@@ -9214,7 +9214,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-union-distinct-except-final-limit-rankLastValueUnionExcept',
                 ],
                 'dependency_closure' => 'no new support component needed; rankLastValueUnionExcept reuses native SELECT SQL recursive CTE ORDER/LIMIT/OFFSET, rank/last_value window evaluation, compound UNION distinct/EXCEPT membership, and final LIMIT/OFFSET machinery',
-                'non_overlap' => 'avoids accepted recursiveCursorGate INTERSECT/EXCEPT membership, recursiveCurrentGap distribution windows, next191 ntile/lead/nth_value, next190 expression LIMIT, and accepted grouped/JOIN/subquery/ORDER SQL text work; rankLastValueUnionExcept covers recursive ORDER queue feeding rank/last_value windows before UNION distinct plus EXCEPT membership',
+                'non_overlap' => 'avoids accepted recursiveCursorGate INTERSECT/EXCEPT membership, recursiveCurrentGap distribution windows, ordered-value-offset-boundary ntile/lead/nth_value, next190 expression LIMIT, and accepted grouped/JOIN/subquery/ORDER SQL text work; rankLastValueUnionExcept covers recursive ORDER queue feeding rank/last_value windows before UNION distinct plus EXCEPT membership',
             ];
         }
 
@@ -9532,7 +9532,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-current-source-token-fence-ntileFirstValueCursorReplay',
                 ],
                 'dependency_closure' => 'no new support component needed; ntileFirstValueCursorReplay reuses native SELECT SQL compound, recursive queue ORDER BY/LIMIT/OFFSET, ntile/first_value window frames, UNION distinct, final LIMIT, and current-source cursor validation helpers',
-                'non_overlap' => 'avoids accepted ntileFirstValueUnionDistinct ntile/first_value frame coverage by adding a fresh current-source cursor replay fence over the same parser-level compound SQL boundary; also avoids recursiveCurrentGap percent_rank/cume_dist distribution windows, next191 nth_value/ntile/lead value-offset tape, next190 expression LIMIT windows, and JSON/WAL/B-tree/VFS clusters',
+                'non_overlap' => 'avoids accepted ntileFirstValueUnionDistinct ntile/first_value frame coverage by adding a fresh current-source cursor replay fence over the same parser-level compound SQL boundary; also avoids recursiveCurrentGap percent_rank/cume_dist distribution windows, ordered-value-offset-boundary nth_value/ntile/lead value-offset tape, next190 expression LIMIT windows, and JSON/WAL/B-tree/VFS clusters',
             ];
         }
 
@@ -9928,7 +9928,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-current-source-token-fence-lagLastValueExcept',
                 ],
                 'dependency_closure' => 'no new support component needed; lagLastValueExcept reuses native SELECT SQL compound, recursive queue ORDER BY/LIMIT/OFFSET, lag/last_value window output, EXCEPT membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, next191 nth_value/ntile/lead value-offset tape, and JSON/WAL/B-tree/VFS clusters; this slice fences lag defaults plus last_value frame output through an EXCEPT tail before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, ordered-value-offset-boundary nth_value/ntile/lead value-offset tape, and JSON/WAL/B-tree/VFS clusters; this slice fences lag defaults plus last_value frame output through an EXCEPT tail before the final compound LIMIT over current and next wp_options sources',
             ];
         }
 
@@ -10697,7 +10697,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-intersect-current-source-token-fence-next206',
                 ],
                 'dependency_closure' => 'no new support component needed; next206 reuses native SELECT SQL compound, recursive queue ORDER BY/LIMIT/OFFSET, lead default handling, nth_value frame output, INTERSECT membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next203 lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, next191 nth_value/ntile/lead value-offset tape, and JSON/WAL/B-tree/VFS clusters; this slice fences lead defaults plus nth_value frame output through an INTERSECT tail before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next203 lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, ordered-value-offset-boundary nth_value/ntile/lead value-offset tape, and JSON/WAL/B-tree/VFS clusters; this slice fences lead defaults plus nth_value frame output through an INTERSECT tail before the final compound LIMIT over current and next wp_options sources',
             ];
         }
 
@@ -11500,7 +11500,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-except-current-source-token-fence-next208',
                 ],
                 'dependency_closure' => 'no new support component needed; next208 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, rank and dense_rank window dispatch, EXCEPT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next206 lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueCursorReplay ntile/first_value UNION distinct, ntileFirstValueUnionDistinct/195/192/191 compound window variants, and unrelated JSON/WAL/B-tree/VFS clusters; this slice fences rank plus dense_rank output through an EXCEPT tail before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next206 lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueCursorReplay ntile/first_value UNION distinct, ntileFirstValueUnionDistinct and adjacent compound window variants, and unrelated JSON/WAL/B-tree/VFS clusters; this slice fences rank plus dense_rank output through an EXCEPT tail before the final compound LIMIT over current and next wp_options sources',
             ];
         }
 

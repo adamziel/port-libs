@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'next263 peer checkpoint candidate' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next263.php';
+        $result = require $examplesDir . '/wordpress-rowvalue-peer-checkpoint-admission.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-next263', $result['status']);
         $t->same(4, $result['checkpointCount']);
@@ -14,7 +14,7 @@ $cases = [
         $t->true(str_contains($result['dependencyClosure'], 'no new support component needed'));
     },
     'next264 final receipt candidate' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next264.php';
+        $result = require $examplesDir . '/wordpress-rowvalue-final-receipt-admission.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-next264', $result['status']);
         $t->same(8, $result['finalReceiptCount']);

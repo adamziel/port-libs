@@ -16,9 +16,9 @@ require __DIR__ . '/wordpress-rowvalue-returning-window-current-source-next262.p
 $next262Output = trim((string) ob_get_clean());
 
 $argv = [];
-$next263 = require __DIR__ . '/wordpress-rowvalue-returning-window-current-source-next263.php';
+$next263 = require __DIR__ . '/wordpress-rowvalue-peer-checkpoint-admission.php';
 $argv = [];
-$next264 = require __DIR__ . '/wordpress-rowvalue-returning-window-current-source-next264.php';
+$next264 = require __DIR__ . '/wordpress-rowvalue-final-receipt-admission.php';
 $argv = $outerArgv;
 
 $statuses = [

@@ -35,7 +35,7 @@ PASS current next31 blocks empty head inputs and invalid job counts
 
 ## Non-overlap
 
-Avoids accepted batch23/batch26 release-runner countability and upstream-map surfaces, guarded runner preflight, focused artifact admission, artifact-directory hydration, current-next26 upstream mapping, VFS/WAL/B-tree/JSON/SQL behavior clusters, and newer accepted VFS sync/apply, SELECT subquery, B-tree root collapse, and related storage/executor slices.
+Avoids accepted batch23/batch26 release-runner countability and upstream-map surfaces, guarded runner preflight, focused artifact admission, artifact-directory hydration, accepted-head upstream mapping, VFS/WAL/B-tree/JSON/SQL behavior clusters, and newer accepted VFS sync/apply, SELECT subquery, B-tree root collapse, and related storage/executor slices.
 
 ## Dependency closure
 

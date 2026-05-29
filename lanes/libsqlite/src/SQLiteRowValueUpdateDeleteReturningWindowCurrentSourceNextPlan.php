@@ -7543,7 +7543,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<string> $peerColumns
      * @return array<string,mixed>
      */
-    public static function executeNext263(
+    public static function executePeerCheckpointAdmission(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -7583,7 +7583,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             ];
         }
 
-        $resume = self::resumePeerCheckpointsNext263($checkpoints, $resumeAfterPeerToken);
+        $resume = self::resumePeerCheckpoints($checkpoints, $resumeAfterPeerToken);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next263',
@@ -7615,7 +7615,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<string>|null $acknowledgedFinalReceipts
      * @return array<string,mixed>
      */
-    public static function executeNext264(
+    public static function executeFinalReceiptAdmission(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -7625,7 +7625,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedFinalReceipts = null,
     ): array {
-        $base = self::executeNext263(
+        $base = self::executePeerCheckpointAdmission(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -7687,7 +7687,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext265(
+    public static function executeReceiptLedgerHandoff(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -7696,7 +7696,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next265',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext264($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeFinalReceiptAdmission($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $ledger = [];
         foreach ($base['final_receipts_next264'] as $receipt) {
             $ledger[] = [
@@ -7736,7 +7736,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext266(
+    public static function executeSourceEpochWatermark(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -7745,7 +7745,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next266',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext265($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeReceiptLedgerHandoff($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $sourceCounts = [];
         foreach ($base['receipt_ledger_next265'] as $row) {
             $epoch = (string) ($row['source_epoch_next265'] ?? 'unknown');
@@ -7780,7 +7780,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext267(
+    public static function executeHandoffBatchAdmission(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -7794,7 +7794,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value returning window next267 batch size must be positive');
         }
 
-        $base = self::executeNext266($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeSourceEpochWatermark($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $batches = [];
         foreach (array_chunk($base['receipt_ledger_next265'], $batchSize) as $chunk) {
             $rowids = array_column($chunk, 'rowid_next265');
@@ -7834,7 +7834,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext268(
+    public static function executeHandoffManifest(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -7844,7 +7844,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $rowIdColumn = 'option_id',
         int $batchSize = 3,
     ): array {
-        $base = self::executeNext267($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn, $batchSize);
+        $base = self::executeHandoffBatchAdmission($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn, $batchSize);
         $manifest = [
             'savepoint' => $savepoint,
             'final_receipt_count_next264' => $base['final_receipt_admission_next264']['final_receipt_count'],
@@ -7887,7 +7887,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next269',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext268($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn, 2);
+        $base = self::executeHandoffManifest($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn, 2);
         $closure = [
             'savepoint' => $savepoint,
             'manifest_receipt_next268' => $base['handoff_manifest_next268']['manifest_receipt_next268'],
@@ -12894,7 +12894,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $checkpoints
      * @return array<string,mixed>
      */
-    private static function resumePeerCheckpointsNext263(array $checkpoints, ?string $afterToken): array
+    private static function resumePeerCheckpoints(array $checkpoints, ?string $afterToken): array
     {
         if ($afterToken === null) {
             return ['after_peer_token' => null, 'remaining_count' => count($checkpoints), 'rows' => $checkpoints, 'exhausted' => $checkpoints === []];

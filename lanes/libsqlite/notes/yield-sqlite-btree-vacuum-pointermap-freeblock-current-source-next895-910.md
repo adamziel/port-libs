@@ -9,8 +9,5 @@ no numbered source class was added.
 Validation:
 
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext895910Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next895-910.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext879894Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext895910Test.php`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next895-910.php`
+- Superseded by `consolidate-final-numbered-methods-btree-vacuum-thirtieth-pass.md`, which migrates this direct test/example coverage to the stable `tableLeafCurrentSourceHandoffFromDeleteResult()` entry point.
 - `git diff --check`

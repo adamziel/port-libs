@@ -11,7 +11,6 @@ Validation:
 - `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext911926Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next911-926.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext895910Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext911926Test.php`
-- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next895-910.php`
+- Prior numbered direct dependency was superseded by `consolidate-final-numbered-methods-btree-vacuum-thirtieth-pass.md`, which verifies the stable current-source handoff test/example path.
 - `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-next911-926.php`
 - `git diff --check`

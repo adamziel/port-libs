@@ -13100,7 +13100,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_compound_subquery_next231',
+        string $savepoint = 'wp_options_rowvalue_compound_subquery',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
@@ -13113,16 +13113,16 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         );
 
         $plan = self::replaceCompoundSubqueryRollbackMarker($plan);
-        $plan['status'] = 'rowvalue-update-delete-returning-compound-subquery-savepoint-current-source-next231';
+        $plan['status'] = 'rowvalue-update-delete-returning-compound-subquery-savepoint-current-source';
         $plan['savepoint'] = $savepoint;
-        $plan['compound_subquery_source_next231'] = true;
-        $plan['compound_operators_next231'] = ['UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT'];
-        $plan['dependency_closure_next231'] = 'no new support component needed; next231 reuses native row-value UPDATE/DELETE RETURNING execution and adds bounded compound SELECT tuple-source handling';
-        $plan['non_overlap_next231'] = 'adds UNION/UNION ALL/INTERSECT/EXCEPT tuple sources feeding row-value UPDATE/DELETE RETURNING under savepoint rollback and retry; avoids accepted next226 DISTINCT subqueries, next219 negative LIMIT/OFFSET, next213 positive ORDER/LIMIT, next217 OR ROLLBACK, WAL/VFS, JSON, planner, trigger, and B-tree clusters';
+        $plan['compound_subquery_source'] = true;
+        $plan['compound_operators'] = ['UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT'];
+        $plan['dependency_closure'] = 'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING execution and adds bounded compound SELECT tuple-source handling';
+        $plan['non_overlap'] = 'adds UNION/UNION ALL/INTERSECT/EXCEPT tuple sources feeding row-value UPDATE/DELETE RETURNING under savepoint rollback and retry; avoids accepted DISTINCT subqueries, negative LIMIT/OFFSET, positive ORDER/LIMIT, OR ROLLBACK, WAL/VFS, JSON, planner, trigger, and B-tree clusters';
         $plan['dependencies'] = [
-            'sqlite-rowvalue-update-returning-compound-select-subquery-next231',
-            'sqlite-rowvalue-delete-returning-compound-select-subquery-next231',
-            'sqlite-rowvalue-compound-subquery-savepoint-current-source-next231',
+            'sqlite-rowvalue-update-returning-compound-select-subquery',
+            'sqlite-rowvalue-delete-returning-compound-select-subquery',
+            'sqlite-rowvalue-compound-subquery-savepoint-current-source',
         ];
 
         return $plan;
@@ -13135,7 +13135,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function replaceCompoundSubqueryRollbackMarker(mixed $value): mixed
     {
         if (is_string($value)) {
-            return str_replace(['next212', 'subquery'], ['next231', 'compound-subquery'], $value);
+            return str_replace(['next212', 'subquery'], ['subquery-savepoint-rollback', 'compound-subquery'], $value);
         }
         if (!is_array($value)) {
             return $value;

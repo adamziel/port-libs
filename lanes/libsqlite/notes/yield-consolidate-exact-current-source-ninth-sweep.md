@@ -1,4 +1,4 @@
-# consolidate-exact-current-source-next150-ninth-sweep
+# Consolidate Exact Current-source Ninth Sweep
 
 Consolidated the pager hot-journal savepoint cache numbered callable family in
 `SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan` by replacing the

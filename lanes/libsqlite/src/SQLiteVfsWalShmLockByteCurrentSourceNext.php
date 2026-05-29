@@ -14,7 +14,7 @@ final class SQLiteVfsWalShmLockByteCurrentSourceNext
     public static function plan(array $current, array $operations): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source next89 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source requires operations');
         }
 
         $state = self::normalizeCurrent($current);
@@ -55,7 +55,7 @@ final class SQLiteVfsWalShmLockByteCurrentSourceNext
                 continue;
             }
 
-            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source next89 operation is unsupported');
+            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source operation is unsupported');
         }
 
         return [
@@ -66,7 +66,7 @@ final class SQLiteVfsWalShmLockByteCurrentSourceNext
             'dependencies' => [
                 'sqlite-lock-byte-range-current-next',
                 'sqlite-wal-shm-locks',
-                'vfs-wal-shm-lock-byte-current-source-next89',
+                'vfs-wal-shm-lock-byte-current-source',
             ],
         ];
     }
@@ -386,14 +386,14 @@ final class SQLiteVfsWalShmLockByteCurrentSourceNext
             return ['kind' => 'yield', 'connection' => $matches['connection']];
         }
 
-        throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source next89 operation string is unsupported');
+        throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source operation string is unsupported');
     }
 
     private static function path(string $path): string
     {
         $path = trim($path);
         if ($path === '') {
-            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source next89 path is required');
+            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source path is required');
         }
 
         return $path;
@@ -403,7 +403,7 @@ final class SQLiteVfsWalShmLockByteCurrentSourceNext
     {
         $connection = trim($connection);
         if ($connection === '') {
-            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source next89 connection is required');
+            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source connection is required');
         }
 
         return $connection;
@@ -413,7 +413,7 @@ final class SQLiteVfsWalShmLockByteCurrentSourceNext
     {
         $level = strtolower(trim($level));
         if (!in_array($level, ['none', 'shared', 'reserved', 'pending', 'exclusive'], true)) {
-            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source next89 lock level is unsupported');
+            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source lock level is unsupported');
         }
 
         return $level;
@@ -423,7 +423,7 @@ final class SQLiteVfsWalShmLockByteCurrentSourceNext
     {
         $lock = strtolower(trim($lock));
         if (!in_array($lock, ['read0', 'read1', 'read2', 'read3', 'read4', 'write', 'checkpoint', 'recover'], true)) {
-            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source next89 SHM lock is unsupported');
+            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source SHM lock is unsupported');
         }
 
         return $lock;
@@ -433,7 +433,7 @@ final class SQLiteVfsWalShmLockByteCurrentSourceNext
     {
         $mode = strtolower(trim($mode));
         if (!in_array($mode, ['shared', 'exclusive', 'unlock'], true)) {
-            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source next89 SHM mode is unsupported');
+            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source SHM mode is unsupported');
         }
 
         return $mode;
@@ -442,7 +442,7 @@ final class SQLiteVfsWalShmLockByteCurrentSourceNext
     private static function slot(mixed $slot): int
     {
         if (!is_int($slot) || $slot < 0 || $slot >= SQLiteLockByteRangePlan::SHARED_SIZE) {
-            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source next89 shared slot is out of range');
+            throw new \InvalidArgumentException('SQLite VFS WAL SHM lock-byte current-source shared slot is out of range');
         }
 
         return $slot;

@@ -21,7 +21,7 @@ Focused test run: 1 selected test files (root lock skipped)
 
 ## Non-Overlap
 
-This avoids accepted guarded countability preflight, focused runner artifact admission, artifact hydration, current-next26 launch mapping, next29 parity ledger, and next30 `.audit` extension scanning. The new behavior is the canonical in-memory map that dedupes mixed current/next/stale artifacts and blocks duplicate next-source launches before any broad runner is started.
+This avoids accepted guarded countability preflight, focused runner artifact admission, artifact hydration, accepted-head launch mapping, next29 parity ledger, and next30 `.audit` extension scanning. The new behavior is the canonical in-memory map that dedupes mixed current/next/stale artifacts and blocks duplicate next-source launches before any broad runner is started.
 
 ## Dependency Closure
 

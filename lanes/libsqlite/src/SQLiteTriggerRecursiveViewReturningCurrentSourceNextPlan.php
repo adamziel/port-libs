@@ -9538,7 +9538,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext202(
+    public static function executeCurrentGenerationDepthFence(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -9557,82 +9557,82 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentGeneration = self::tokenNext202((string) ($options['current_view_generation_next202'] ?? 'wp.current.recursive.view.202'), 'current view generation');
-        $expectedGeneration = self::tokenNext202((string) ($options['expected_current_view_generation_next202'] ?? $currentGeneration), 'expected current view generation');
-        $nextGeneration = self::tokenNext202((string) ($options['next_view_generation_next202'] ?? 'wp.next.recursive.view.202'), 'next view generation');
-        $resumeBarrier = self::tokenNext202((string) ($options['returning_resume_barrier_next202'] ?? 'wp.returning.resume.barrier.202'), 'returning resume barrier');
-        $requiredDepths = self::depthsNext202($options['required_current_depths_next202'] ?? self::requiredDepthsNext202($base), 'required current depths');
-        $acknowledgedDepths = self::depthsNext202($options['acknowledged_current_depths_next202'] ?? [], 'acknowledged current depths');
+        $currentGeneration = self::currentGenerationDepthFenceToken((string) ($options['current_view_generation_generationDepthFence'] ?? 'wp.current.recursive.view.202'), 'current view generation');
+        $expectedGeneration = self::currentGenerationDepthFenceToken((string) ($options['expected_current_view_generation_generationDepthFence'] ?? $currentGeneration), 'expected current view generation');
+        $nextGeneration = self::currentGenerationDepthFenceToken((string) ($options['next_view_generation_generationDepthFence'] ?? 'wp.next.recursive.view.202'), 'next view generation');
+        $resumeBarrier = self::currentGenerationDepthFenceToken((string) ($options['returning_resume_barrier_generationDepthFence'] ?? 'wp.returning.resume.barrier.202'), 'returning resume barrier');
+        $requiredDepths = self::normalizedCurrentGenerationDepths($options['required_current_depths_generationDepthFence'] ?? self::requiredCurrentGenerationDepths($base), 'required current depths');
+        $acknowledgedDepths = self::normalizedCurrentGenerationDepths($options['acknowledged_current_depths_generationDepthFence'] ?? [], 'acknowledged current depths');
         $generationMatches = hash_equals($currentGeneration, $expectedGeneration);
         $baseAllowsNext = (bool) ($base['next_source_publish_allowed_next196'] ?? false);
-        $depthsAcknowledged = self::sameSetNext202($requiredDepths, $acknowledgedDepths);
+        $depthsAcknowledged = self::sameIntegerSet($requiredDepths, $acknowledgedDepths);
         $publishNext = $baseAllowsNext && $generationMatches && $depthsAcknowledged;
-        $blocked = self::blockedReasonsNext202($base, $baseAllowsNext, $generationMatches, $depthsAcknowledged);
-        $currentRows = self::currentRowsNext202($base, $currentGeneration, $resumeBarrier, $requiredDepths);
-        $nextRows = self::nextRowsNext202($base, $nextGeneration, $resumeBarrier, $publishNext, $blocked);
+        $blocked = self::currentGenerationDepthFenceBlockedReasons($base, $baseAllowsNext, $generationMatches, $depthsAcknowledged);
+        $currentRows = self::currentGenerationRows($base, $currentGeneration, $resumeBarrier, $requiredDepths);
+        $nextRows = self::nextGenerationRows($base, $nextGeneration, $resumeBarrier, $publishNext, $blocked);
         $visibleRows = array_values(array_filter(
             array_merge($currentRows, $nextRows),
-            static fn (array $row): bool => $row['visible_after_current_generation_next202']
+            static fn (array $row): bool => $row['visible_after_current_generation_generationDepthFence']
         ));
         $heldRows = array_values(array_filter(
             $nextRows,
-            static fn (array $row): bool => !$row['visible_after_current_generation_next202']
+            static fn (array $row): bool => !$row['visible_after_current_generation_generationDepthFence']
         ));
 
         return [
-            'status_next202' => self::statusNext202($publishNext, $baseAllowsNext, $generationMatches, $depthsAcknowledged),
-            'base_next202' => $base,
-            'savepoint_next202' => (string) ($base['savepoint'] ?? ''),
-            'current_view_generation_next202' => $currentGeneration,
-            'expected_current_view_generation_next202' => $expectedGeneration,
-            'current_view_generation_matches_next202' => $generationMatches,
-            'next_view_generation_next202' => $nextGeneration,
-            'returning_resume_barrier_next202' => $resumeBarrier,
-            'required_current_depths_next202' => $requiredDepths,
-            'acknowledged_current_depths_next202' => $acknowledgedDepths,
-            'current_depths_acknowledged_next202' => $depthsAcknowledged,
-            'base_next_source_publish_allowed_next202' => $baseAllowsNext,
-            'next_source_publish_allowed_next202' => $publishNext,
-            'blocked_reasons_next202' => $blocked,
-            'current_generation_rows_next202' => $currentRows,
-            'attempted_next_generation_rows_next202' => $nextRows,
-            'visible_returning_rows_next202' => $visibleRows,
-            'held_next_returning_rows_next202' => $heldRows,
-            'visible_returning_payloads_next202' => array_column($visibleRows, 'returning'),
-            'held_next_returning_payloads_next202' => array_column($heldRows, 'returning'),
-            'current_generation_row_count_next202' => count($currentRows),
-            'attempted_next_generation_row_count_next202' => count($nextRows),
-            'visible_row_count_next202' => count($visibleRows),
-            'held_next_row_count_next202' => count($heldRows),
-            'current_source_next_plan_next202' => [
+            'status_generationDepthFence' => self::currentGenerationDepthFenceStatus($publishNext, $baseAllowsNext, $generationMatches, $depthsAcknowledged),
+            'base_generationDepthFence' => $base,
+            'savepoint_generationDepthFence' => (string) ($base['savepoint'] ?? ''),
+            'current_view_generation_generationDepthFence' => $currentGeneration,
+            'expected_current_view_generation_generationDepthFence' => $expectedGeneration,
+            'current_view_generation_matches_generationDepthFence' => $generationMatches,
+            'next_view_generation_generationDepthFence' => $nextGeneration,
+            'returning_resume_barrier_generationDepthFence' => $resumeBarrier,
+            'required_current_depths_generationDepthFence' => $requiredDepths,
+            'acknowledged_current_depths_generationDepthFence' => $acknowledgedDepths,
+            'current_depths_acknowledged_generationDepthFence' => $depthsAcknowledged,
+            'base_next_source_publish_allowed_generationDepthFence' => $baseAllowsNext,
+            'next_source_publish_allowed_generationDepthFence' => $publishNext,
+            'blocked_reasons_generationDepthFence' => $blocked,
+            'current_generation_rows_generationDepthFence' => $currentRows,
+            'attempted_next_generation_rows_generationDepthFence' => $nextRows,
+            'visible_returning_rows_generationDepthFence' => $visibleRows,
+            'held_next_returning_rows_generationDepthFence' => $heldRows,
+            'visible_returning_payloads_generationDepthFence' => array_column($visibleRows, 'returning'),
+            'held_next_returning_payloads_generationDepthFence' => array_column($heldRows, 'returning'),
+            'current_generation_row_count_generationDepthFence' => count($currentRows),
+            'attempted_next_generation_row_count_generationDepthFence' => count($nextRows),
+            'visible_row_count_generationDepthFence' => count($visibleRows),
+            'held_next_row_count_generationDepthFence' => count($heldRows),
+            'current_source_next_plan_generationDepthFence' => [
                 'base_next_source_publish_allowed' => $baseAllowsNext,
                 'current_view_generation_matches' => $generationMatches,
                 'required_current_depths' => $requiredDepths,
                 'acknowledged_current_depths' => $acknowledgedDepths,
                 'current_depths_acknowledged' => $depthsAcknowledged,
                 'next_source_publish_allowed' => $publishNext,
-                'decision' => self::decisionNext202($publishNext, $baseAllowsNext, $generationMatches, $depthsAcknowledged),
+                'decision' => self::currentGenerationDepthFenceDecision($publishNext, $baseAllowsNext, $generationMatches, $depthsAcknowledged),
             ],
-            'yield_boundary_next202' => $publishNext
-                ? 'recursive-view-returning-next202-current-generation-depths-then-next'
-                : 'recursive-view-returning-next202-current-generation-depths-fence-next',
-            'dependencies_next202' => array_values(array_unique(array_merge($base['dependencies_next196'] ?? [], [
-                'sqlite-trigger-recursive-view-returning-current-source-next202',
+            'yield_boundary_generationDepthFence' => $publishNext
+                ? 'recursive-view-returning-generation-depth-fence-current-generation-depths-then-next'
+                : 'recursive-view-returning-generation-depth-fence-current-generation-depths-fence-next',
+            'dependencies_generationDepthFence' => array_values(array_unique(array_merge($base['dependencies_next196'] ?? [], [
+                'sqlite-trigger-recursive-view-returning-current-source-generation-depth-fence',
                 'sqlite-returning-current-view-generation-depth-fence',
-                'wordpress-recursive-view-returning-current-source-next202',
+                'wordpress-recursive-view-returning-current-source-generation-depth-fence',
             ]))),
-            'dependency_closure_next202' => 'no new support component needed; reuses next196 recursive child drain and adds current view generation/depth acknowledgement fencing',
-            'non_overlap_next202' => 'adds current view generation and recursive depth acknowledgement fencing after accepted next196 child-ordinal drains; avoids next195 receipt fences, next196 child drain, row-value RETURNING, schema reparse, FK, WAL, VFS, JSON, planner, and B-tree slices',
+            'dependency_closure_generationDepthFence' => 'no new support component needed; reuses next196 recursive child drain and adds current view generation/depth acknowledgement fencing',
+            'non_overlap_generationDepthFence' => 'adds current view generation and recursive depth acknowledgement fencing after accepted next196 child-ordinal drains; avoids next195 receipt fences, next196 child drain, row-value RETURNING, schema reparse, FK, WAL, VFS, JSON, planner, and B-tree slices',
         ];
     }
 
     /**
      * @return list<int>
      */
-    private static function requiredDepthsNext202(array $base): array
+    private static function requiredCurrentGenerationDepths(array $base): array
     {
         $depths = [];
-        foreach (self::baseCurrentRowsNext202($base) as $row) {
+        foreach (self::baseCurrentGenerationRows($base) as $row) {
             if (isset($row['recursive_depth_next196']) && is_int($row['recursive_depth_next196'])) {
                 $depths[] = $row['recursive_depth_next196'];
                 continue;
@@ -9652,7 +9652,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function baseCurrentRowsNext202(array $base): array
+    private static function baseCurrentGenerationRows(array $base): array
     {
         $rows = [];
         foreach (['base', 'recursive_child_rows_next196'] as $key) {
@@ -9673,15 +9673,15 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<int>
      */
-    private static function depthsNext202(mixed $values, string $label): array
+    private static function normalizedCurrentGenerationDepths(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next202 {$label} must be a list");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING generation-depth-fence {$label} must be a list");
         }
         $out = [];
         foreach ($values as $value) {
             if (!is_int($value) || $value < 0) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next202 {$label} must contain non-negative integers");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING generation-depth-fence {$label} must contain non-negative integers");
             }
             $out[] = $value;
         }
@@ -9695,7 +9695,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<int> $required
      * @param list<int> $acknowledged
      */
-    private static function sameSetNext202(array $required, array $acknowledged): bool
+    private static function sameIntegerSet(array $required, array $acknowledged): bool
     {
         sort($required);
         sort($acknowledged);
@@ -9707,18 +9707,18 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<int> $depths
      * @return list<array<string,mixed>>
      */
-    private static function currentRowsNext202(array $base, string $generation, string $barrier, array $depths): array
+    private static function currentGenerationRows(array $base, string $generation, string $barrier, array $depths): array
     {
         $rows = [];
-        foreach (self::baseCurrentRowsNext202($base) as $ordinal => $row) {
+        foreach (self::baseCurrentGenerationRows($base) as $ordinal => $row) {
             $rows[] = $row + [
-                'generation_phase_next202' => 'current',
-                'current_view_generation_next202' => $generation,
-                'returning_resume_barrier_next202' => $barrier,
-                'required_current_depths_next202' => $depths,
-                'visible_after_current_generation_next202' => true,
-                'held_by_current_generation_reasons_next202' => [],
-                'generation_row_ordinal_next202' => $ordinal,
+                'generation_phase_generationDepthFence' => 'current',
+                'current_view_generation_generationDepthFence' => $generation,
+                'returning_resume_barrier_generationDepthFence' => $barrier,
+                'required_current_depths_generationDepthFence' => $depths,
+                'visible_after_current_generation_generationDepthFence' => true,
+                'held_by_current_generation_reasons_generationDepthFence' => [],
+                'generation_row_ordinal_generationDepthFence' => $ordinal,
             ];
         }
 
@@ -9729,7 +9729,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $blocked
      * @return list<array<string,mixed>>
      */
-    private static function nextRowsNext202(array $base, string $generation, string $barrier, bool $visible, array $blocked): array
+    private static function nextGenerationRows(array $base, string $generation, string $barrier, bool $visible, array $blocked): array
     {
         $rows = [];
         $source = $base['base']['base']['next_source_rows_next189']
@@ -9744,12 +9744,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 continue;
             }
             $rows[] = $row + [
-                'generation_phase_next202' => 'next',
-                'next_view_generation_next202' => $generation,
-                'returning_resume_barrier_next202' => $barrier,
-                'visible_after_current_generation_next202' => $visible,
-                'held_by_current_generation_reasons_next202' => $visible ? [] : $blocked,
-                'generation_row_ordinal_next202' => $ordinal,
+                'generation_phase_generationDepthFence' => 'next',
+                'next_view_generation_generationDepthFence' => $generation,
+                'returning_resume_barrier_generationDepthFence' => $barrier,
+                'visible_after_current_generation_generationDepthFence' => $visible,
+                'held_by_current_generation_reasons_generationDepthFence' => $visible ? [] : $blocked,
+                'generation_row_ordinal_generationDepthFence' => $ordinal,
             ];
         }
 
@@ -9759,7 +9759,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function blockedReasonsNext202(array $base, bool $baseAllowsNext, bool $generationMatches, bool $depthsAcknowledged): array
+    private static function currentGenerationDepthFenceBlockedReasons(array $base, bool $baseAllowsNext, bool $generationMatches, bool $depthsAcknowledged): array
     {
         $reasons = [];
         if (!$baseAllowsNext) {
@@ -9776,25 +9776,25 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext202(bool $publishNext, bool $baseAllowsNext, bool $generationMatches, bool $depthsAcknowledged): string
+    private static function currentGenerationDepthFenceStatus(bool $publishNext, bool $baseAllowsNext, bool $generationMatches, bool $depthsAcknowledged): string
     {
         if ($publishNext) {
-            return 'trigger-recursive-view-returning-current-source-next202-next-source-visible';
+            return 'trigger-recursive-view-returning-current-source-generation-depth-fence-next-source-visible';
         }
         if (!$baseAllowsNext) {
-            return 'trigger-recursive-view-returning-current-source-next202-base-held';
+            return 'trigger-recursive-view-returning-current-source-generation-depth-fence-base-held';
         }
         if (!$generationMatches) {
-            return 'trigger-recursive-view-returning-current-source-next202-generation-held';
+            return 'trigger-recursive-view-returning-current-source-generation-depth-fence-generation-held';
         }
         if (!$depthsAcknowledged) {
-            return 'trigger-recursive-view-returning-current-source-next202-depth-held';
+            return 'trigger-recursive-view-returning-current-source-generation-depth-fence-depth-held';
         }
 
-        return 'trigger-recursive-view-returning-current-source-next202-held';
+        return 'trigger-recursive-view-returning-current-source-generation-depth-fence-held';
     }
 
-    private static function decisionNext202(bool $publishNext, bool $baseAllowsNext, bool $generationMatches, bool $depthsAcknowledged): string
+    private static function currentGenerationDepthFenceDecision(bool $publishNext, bool $baseAllowsNext, bool $generationMatches, bool $depthsAcknowledged): string
     {
         if ($publishNext) {
             return 'publish-next-after-current-generation-depth-acks';
@@ -9812,10 +9812,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'hold-next-source';
     }
 
-    private static function tokenNext202(string $token, string $label): string
+    private static function currentGenerationDepthFenceToken(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next202 {$label} is malformed");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING generation-depth-fence {$label} is malformed");
         }
 
         return $token;

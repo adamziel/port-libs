@@ -3953,7 +3953,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext208(
+    public static function currentSourceGeneratedPathRowidFinalCost(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -3982,32 +3982,32 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidFinalCostProfile208(
+        $currentProfile = self::jsonTableGeneratedPathRowidFinalCostProfile(
             $plan['currentGeneratedPathRowidAliasOrder206'],
             $limit,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidFinalCostProfile208(
+        $nextProfile = self::jsonTableGeneratedPathRowidFinalCostProfile(
             $plan['nextGeneratedPathRowidAliasOrder206'],
             $limit,
         );
-        $transitions = self::jsonTableGeneratedPathRowidFinalCostTransitions208($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidFinalCostReasons208($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidFinalCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidFinalCostReasons($transitions);
 
-        $plan['currentGeneratedPathRowidFinalCost208'] = $currentProfile;
-        $plan['nextGeneratedPathRowidFinalCost208'] = $nextProfile;
-        $plan['generatedPathRowidFinalCost208Transitions'] = $transitions;
-        $plan['next208ReplanReasons'] = array_values(array_unique(array_merge(
+        $plan['currentGeneratedPathRowidFinalCost'] = $currentProfile;
+        $plan['nextGeneratedPathRowidFinalCost'] = $nextProfile;
+        $plan['generatedPathRowidFinalCostTransitions'] = $transitions;
+        $plan['generatedPathRowidFinalCostReplanReasons'] = array_values(array_unique(array_merge(
             $plan['next206ReplanReasons'] ?? [],
             $reasons,
         )));
-        $plan['replanRequired'] = $plan['next208ReplanReasons'] !== [];
-        $plan['currentReaderPolicy'] = 'final-cost-current-json-table-generated-path-rowid-next208';
+        $plan['replanRequired'] = $plan['generatedPathRowidFinalCostReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'final-cost-current-json-table-generated-path-rowid';
         $plan['nextReaderPolicy'] = $nextProfile['finalCostReusable']
-            ? 'reuse-final-cost-current-json-table-generated-path-rowid-next208'
-            : 'reprepare-final-cost-next-json-table-generated-path-rowid-next208';
+            ? 'reuse-final-cost-current-json-table-generated-path-rowid'
+            : 'reprepare-final-cost-next-json-table-generated-path-rowid';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-generated-path-rowid-cost-current-source-next208'],
+            ['sqlite-json-table-generated-path-rowid-final-cost'],
         )));
 
         return $plan;
@@ -17587,7 +17587,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $aliasOrder206
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidFinalCostProfile208(array $aliasOrder206, ?int $limit): array
+    private static function jsonTableGeneratedPathRowidFinalCostProfile(array $aliasOrder206, ?int $limit): array
     {
         $orderedRowids = array_values(array_map('intval', $aliasOrder206['orderedRowids'] ?? []));
         $limitApplied = $limit !== null && $limit >= 0;
@@ -17602,7 +17602,7 @@ final class SQLiteJsonTablePlan
         $estimatedCost = $finalCostReusable
             ? max(1, min($baseCost, max(1, $estimatedRows)))
             : 1000000;
-        $opcode = self::jsonTableGeneratedPathRowidFinalCostOpcode208(
+        $opcode = self::jsonTableGeneratedPathRowidFinalCostOpcode(
             $finalCostReusable,
             $orderConsumed,
             $orderReusable,
@@ -17631,7 +17631,7 @@ final class SQLiteJsonTablePlan
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
             'finalCostOpcode' => $opcode,
-            'costClass' => self::jsonTableGeneratedPathRowidFinalCostClass208($opcode, count($finalRowids), $limitApplied),
+            'costClass' => self::jsonTableGeneratedPathRowidFinalCostClass($opcode, count($finalRowids), $limitApplied),
             'finalCostFingerprint' => hash('sha256', json_encode([
                 $aliasOrder206['aliasOrderFingerprint'] ?? null,
                 $orderedRowids,
@@ -17650,7 +17650,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $unsupported
      * @param list<int> $finalRowids
      */
-    private static function jsonTableGeneratedPathRowidFinalCostOpcode208(
+    private static function jsonTableGeneratedPathRowidFinalCostOpcode(
         bool $finalCostReusable,
         bool $orderConsumed,
         bool $orderReusable,
@@ -17659,40 +17659,40 @@ final class SQLiteJsonTablePlan
         string $aliasOrderOpcode,
     ): string {
         if ($finalCostReusable && $finalRowids === []) {
-            return 'OP_JsonTableGeneratedPathRowidFinalCostEofNext208';
+            return 'OP_JsonTableGeneratedPathRowidFinalCostEof';
         }
         if ($finalCostReusable) {
-            return 'OP_JsonTableGeneratedPathRowidFinalCostReuseNext208';
+            return 'OP_JsonTableGeneratedPathRowidFinalCostReuse';
         }
         if ($aliasOrderOpcode === 'OP_JsonTableRowidAliasOrderReprepareNext206') {
-            return 'OP_JsonTableGeneratedPathRowidFinalCostReprepareNext208';
+            return 'OP_JsonTableGeneratedPathRowidFinalCostReprepare';
         }
         if ($unsupported !== []) {
-            return 'OP_JsonTableGeneratedPathRowidFinalCostExternalSortNext208';
+            return 'OP_JsonTableGeneratedPathRowidFinalCostExternalSort';
         }
         if (!$orderConsumed) {
-            return 'OP_JsonTableGeneratedPathRowidFinalCostBypassNext208';
+            return 'OP_JsonTableGeneratedPathRowidFinalCostBypass';
         }
         if (!$orderReusable) {
-            return 'OP_JsonTableGeneratedPathRowidFinalCostResortNext208';
+            return 'OP_JsonTableGeneratedPathRowidFinalCostResort';
         }
 
-        return 'OP_JsonTableGeneratedPathRowidFinalCostReprepareNext208';
+        return 'OP_JsonTableGeneratedPathRowidFinalCostReprepare';
     }
 
-    private static function jsonTableGeneratedPathRowidFinalCostClass208(string $opcode, int $rowCount, bool $limitApplied): string
+    private static function jsonTableGeneratedPathRowidFinalCostClass(string $opcode, int $rowCount, bool $limitApplied): string
     {
         return match ($opcode) {
-            'OP_JsonTableGeneratedPathRowidFinalCostReuseNext208' => $limitApplied
-                ? 'json-table-generated-path-rowid-final-cost-limited-next208'
+            'OP_JsonTableGeneratedPathRowidFinalCostReuse' => $limitApplied
+                ? 'json-table-generated-path-rowid-final-cost-limited'
                 : ($rowCount <= 1
-                    ? 'json-table-generated-path-rowid-final-cost-point-next208'
-                    : 'json-table-generated-path-rowid-final-cost-range-next208'),
-            'OP_JsonTableGeneratedPathRowidFinalCostEofNext208' => 'json-table-generated-path-rowid-final-cost-eof-next208',
-            'OP_JsonTableGeneratedPathRowidFinalCostExternalSortNext208' => 'json-table-generated-path-rowid-final-cost-external-sort-next208',
-            'OP_JsonTableGeneratedPathRowidFinalCostBypassNext208' => 'json-table-generated-path-rowid-final-cost-bypass-next208',
-            'OP_JsonTableGeneratedPathRowidFinalCostResortNext208' => 'json-table-generated-path-rowid-final-cost-resort-next208',
-            default => 'json-table-generated-path-rowid-final-cost-reprepare-next208',
+                    ? 'json-table-generated-path-rowid-final-cost-point'
+                    : 'json-table-generated-path-rowid-final-cost-range'),
+            'OP_JsonTableGeneratedPathRowidFinalCostEof' => 'json-table-generated-path-rowid-final-cost-eof',
+            'OP_JsonTableGeneratedPathRowidFinalCostExternalSort' => 'json-table-generated-path-rowid-final-cost-external-sort',
+            'OP_JsonTableGeneratedPathRowidFinalCostBypass' => 'json-table-generated-path-rowid-final-cost-bypass',
+            'OP_JsonTableGeneratedPathRowidFinalCostResort' => 'json-table-generated-path-rowid-final-cost-resort',
+            default => 'json-table-generated-path-rowid-final-cost-reprepare',
         };
     }
 
@@ -17701,7 +17701,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidFinalCostTransitions208(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidFinalCostTransitions(array $current, array $next): array
     {
         $fields = [
             'root',
@@ -17741,7 +17741,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidFinalCostReasons208(array $transitions): array
+    private static function jsonTableGeneratedPathRowidFinalCostReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -17750,13 +17750,13 @@ final class SQLiteJsonTablePlan
             }
 
             $reasons[] = match ($transition['field']) {
-                'root', 'generatedPath', 'sourceGeneration', 'finalCostFingerprint' => 'json-table-generated-path-rowid-final-cost-source-changed-next208',
-                'orderTerms', 'unsupportedOrderColumns' => 'json-table-generated-path-rowid-final-cost-order-changed-next208',
-                'orderedRowids', 'finalRowids', 'firstFinalRowid', 'lastFinalRowid' => 'json-table-generated-path-rowid-final-cost-rowset-changed-next208',
-                'limit', 'limitApplied' => 'json-table-generated-path-rowid-final-cost-limit-changed-next208',
-                'aliasOrderReusable', 'orderByConsumed', 'aliasOrderOpcode', 'finalCostReusable', 'finalCostOpcode' => 'json-table-generated-path-rowid-final-cost-admission-changed-next208',
-                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-final-cost-estimate-changed-next208',
-                default => 'json-table-generated-path-rowid-final-cost-state-changed-next208',
+                'root', 'generatedPath', 'sourceGeneration', 'finalCostFingerprint' => 'json-table-generated-path-rowid-final-cost-source-changed',
+                'orderTerms', 'unsupportedOrderColumns' => 'json-table-generated-path-rowid-final-cost-order-changed',
+                'orderedRowids', 'finalRowids', 'firstFinalRowid', 'lastFinalRowid' => 'json-table-generated-path-rowid-final-cost-rowset-changed',
+                'limit', 'limitApplied' => 'json-table-generated-path-rowid-final-cost-limit-changed',
+                'aliasOrderReusable', 'orderByConsumed', 'aliasOrderOpcode', 'finalCostReusable', 'finalCostOpcode' => 'json-table-generated-path-rowid-final-cost-admission-changed',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-final-cost-estimate-changed',
+                default => 'json-table-generated-path-rowid-final-cost-state-changed',
             };
         }
 
