@@ -8280,10 +8280,90 @@ final class SQLiteJsonTablePlan
         return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 472);
     }
 
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext473(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 473);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext474(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 474);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext475(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 475);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext476(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 476);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext477(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 477);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext478(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 478);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext479(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 479);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext480(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 480);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext481(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 481);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext482(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 482);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext483(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 483);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext484(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 484);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext485(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 485);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext486(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 486);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext487(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 487);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext488(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedXCurrentFingerprint = null, ?int $observedActiveRowid = null): array
+    {
+        return self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(self::currentSourceGeneratedPathRowidCostCurrentSourceNext236($function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $projection, $observedXCurrentFingerprint, $observedActiveRowid), 488);
+    }
+
     private static function jsonTableGeneratedPathRowidCurrentSourceCostSelectionAliasNext237252(array $plan, int $next): array
     {
-        if ($next < 237 || $next > 472) {
-            throw new \InvalidArgumentException('SQLite JSON table generated path rowid cost alias requires next237 through next472');
+        if ($next < 237 || $next > 488) {
+            throw new \InvalidArgumentException('SQLite JSON table generated path rowid cost alias requires next237 through next488');
         }
 
         $currentKey = "currentGeneratedPathRowidCurrentSourceCostSelection{$next}";
