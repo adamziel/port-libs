@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 20:35 UTC):
+  Eighty-first safe consolidation follow-up is integrated and pushed as
+  `d91ea1012`. The batch accepts 6 clean handoffs while excluding stale or
+  unsafe candidates: STAT4 duplicate-peer fence helper cleanup, STAT4
+  LIKE-prefix partial helper cleanup, JSON table path-constraint helper
+  cleanup, trigger RETURNING consolidation guard hardening, rowvalue nested
+  savepoint proof rename, and B-tree vacuum final-numbered proof rename.
+  Validation passed PHP lint for changed PHP files, `git diff --check`, direct
+  combined tests `6 files / 665 assertions / 0 failures`, changed WordPress
+  examples/self-tests `39 passed`, STAT4 family `133 files / 7537 assertions /
+  0 failures`, JSON table family `305 files / 20187 assertions / 0 failures`,
+  trigger RETURNING family `61 files / 4571 assertions / 0 failures`,
+  rowvalue savepoint family `86 files / 5518 assertions / 0 failures`, and
+  B-tree vacuum family `166 files / 114082 assertions / 0 failures`. Exact
+  user-named 150 suffix scan is clean in `src`/`tests`/`examples`/`notes`,
+  production numbered file/class audits remain `0`, numbered production
+  helper-method audit is down to `1618`, and unique numbered production symbol
+  audit is down to `1850`. Public pass/mapped counters remain `154019 pass / 0
+  fail` and `830 / 1589` because this is consolidation-only. The visible pool
+  was refilled to 10 active libsqlite workers with 0 long sleepers; the refill
+  queue was extended after the configured slice list was exhausted.
+
 - 2026-05-29 supervisor continuation (shell samples 20:24 UTC):
   Eightieth safe consolidation follow-up is integrated and pushed as
   `9837198e0`. The batch accepts 3 clean `cw` handoffs while excluding stale
