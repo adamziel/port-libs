@@ -5150,7 +5150,7 @@ final class SQLiteUpstreamSuiteEvidence
         string $processSnapshot = ''
     ): array {
         if ($rows === []) {
-            throw new \InvalidArgumentException('SQLite current-source full-suite-countability full-suite countability requires at least one row');
+            throw new \InvalidArgumentException('SQLite current-source next116 full-suite countability requires at least one row');
         }
         foreach ([
             'launcher base' => $launcherBaseHead,
@@ -5338,6 +5338,9 @@ final class SQLiteUpstreamSuiteEvidence
             'active_runner_status' => $active['status'] ?? 'unknown',
             'active_runner_count' => (int) ($active['active_count'] ?? 0),
             'counts_upstream_runner_full_suite_countability' => $status !== 'blocked' && $admitted !== [],
+            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_exact_shard_runner_current_source_next148' => false,
+            'counts_upstream_runner_rebase_gap_current_source_next122' => false,
             'counts_release_parity' => false,
             'counts_upstream_runner_suite_evidence_rebase_current_source_next108' => false,
             'non_overlap_note' => trim($nonOverlapNote),
@@ -5870,6 +5873,10 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
+        if ($rows === []) {
+            throw new \InvalidArgumentException('SQLite current-source next116 full-suite countability requires at least one row');
+        }
+
         $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
@@ -5886,18 +5893,21 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-exact shard baseline-exact-shard-runner', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next148-exact-shard-runner', (string) $record['status']);
+        $record['counts_upstream_exact_shard_runner_current_source_next148'] = $record['status'] !== 'blocked'
+            && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_exact_shard_runner_current_source_exact shard baseline'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
         $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
-            'current-source-exact shard baseline-exact-shard-runner-advanced' => 'publish only the current-source exact shard baseline exact-shard runner blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
-            'current-source-exact shard baseline-exact-shard-runner-preserved' => 'preserve already-counted current-source exact-shard runner rows without mapped inflation',
-            default => 'repair current-source exact shard baseline provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the exact-shard row',
+            'current-source-next148-exact-shard-runner-advanced' => 'publish only the current-source next148 exact-shard runner blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
+            'current-source-next148-exact-shard-runner-preserved' => 'preserve already-counted current-source exact-shard runner rows without mapped inflation',
+            default => 'repair current-source next148 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the exact-shard row',
         };
-        $record['dependency_closure'] = 'no new support component needed; current-source exact shard baseline exact-shard runner admission composes lane-local artifact rows, authoritative launcher/source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
+        $record['dependency_closure'] = 'no new support component needed; current-source next148 exact-shard runner admission composes lane-local artifact rows, authoritative launcher/source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
 
         return $record;
     }
@@ -5954,6 +5964,7 @@ final class SQLiteUpstreamSuiteEvidence
                 $record['counts_upstream_veryquick_shard_current_source'];
         }
         $record['counts_upstream_exact_shard_runner_current_source_exact shard baseline'] = false;
+        $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
         $record['counts_upstream_runner_full_suite_countability'] = false;
         $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
         $record['counts_upstream_runner_rebase_gap'] = false;
@@ -6363,7 +6374,7 @@ final class SQLiteUpstreamSuiteEvidence
         string $processSnapshot = ''
     ): array {
         if ($rows === []) {
-            throw new \InvalidArgumentException('SQLite current-source earlier prepared window suite evidence requires at least one row');
+            throw new \InvalidArgumentException('SQLite current-source next213-228 suite evidence requires at least one row');
         }
 
         $expectedSlices = range(213, 228);
@@ -6383,7 +6394,7 @@ final class SQLiteUpstreamSuiteEvidence
             if (preg_match('/next(21[3-9]|22[0-8])\b/', $unit, $matches) === 1) {
                 $presentSlices[(int) $matches[1]] = true;
             } else {
-                $blockers[] = ['id' => 'slice-outside-earlier prepared window', 'evidence' => $unit === '' ? 'missing unit' : $unit];
+                $blockers[] = ['id' => 'slice-outside-next213-228', 'evidence' => $unit === '' ? 'missing unit' : $unit];
             }
 
             $artifactPath = is_string($row['artifact_path'] ?? null) ? $row['artifact_path'] : '';
@@ -6467,7 +6478,7 @@ final class SQLiteUpstreamSuiteEvidence
         sort($coveredSlices);
 
         return [
-            'status' => $blockers === [] ? 'current-source-earlier prepared window-suite-evidence-prepared' : 'blocked',
+            'status' => $blockers === [] ? 'current-source-next213-228-suite-evidence-prepared' : 'blocked',
             'current_mapped' => $currentMapped,
             'next_mapped' => $currentMapped,
             'mapped_delta' => 0,
@@ -6497,9 +6508,9 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_exact_shard_runner_current_source_exact shard baseline' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
-                ? 'publish earlier prepared window as prepared upstream-suite evidence only; do not increase mapped upstream count until individual zero-error shard rows are accepted by the integrator'
-                : 'repair missing earlier prepared window rows, provenance, guarded veryquick commands, duplicate-runner state, or focused PHP admission before publishing this prepared evidence',
-            'dependency_closure' => 'no new support component needed; current-source earlier prepared window evidence prep composes lane-local notes, guarded veryquick runner metadata, provenance checks, duplicate-runner gates, and focused TestRunner PASS-line output only',
+                ? 'publish current-source next213-228 as prepared upstream-suite evidence only; do not increase mapped upstream count until individual zero-error shard rows are accepted by the integrator'
+                : 'repair missing current-source next213-228 rows, provenance, guarded veryquick commands, duplicate-runner state, or focused PHP admission before publishing this prepared evidence',
+            'dependency_closure' => 'no new support component needed; current-source next213-228 evidence prep composes lane-local notes, guarded veryquick runner metadata, provenance checks, duplicate-runner gates, and focused TestRunner PASS-line output only',
         ];
     }
 
