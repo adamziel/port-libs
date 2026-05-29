@@ -3084,3 +3084,15 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   instead of the old `next142` dependency id.
 - Updated only that expectation. Focused validation now passes with 1 file /
   202 assertions / 0 failures.
+
+## Supervisor Rolling Integration 2026-05-29T21:39Z Rowvalue Base Memory Repair
+
+- The next root dashboard gate cleared the compacted next366-957 rowvalue
+  examples, then hit the final continuation handoff at the ready-publication
+  rolling base.
+- Repaired the source helper so each ready-publication continuation step keeps
+  only core phase windows, current block metadata, and the ready flag needed by
+  the next block instead of accumulating every prior step's metadata.
+- Validation passed PHP lint, `git diff --check`, 83 rowvalue current-source /
+  publication tests with 2,492 assertions / 0 failures, and the final handoff /
+  final publication example self-tests.
