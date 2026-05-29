@@ -4,8 +4,19 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
+require_once __DIR__ . '/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextPlan.php';
+
 final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
 {
+    public static function wordpressOptionNameNoCasePlan(mixed ...$args): array
+    {
+        return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl::wordpressOptionNamePlan(...$args);
+    }
+
+    public static function wordpressOptionNameNormalizedPatternPlan(mixed ...$args): array
+    {
+        return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl::wordpressOptionNameNormalizedPatternPlan(...$args);
+    }
 
     /* Consolidated from SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php. */
 
@@ -789,7 +800,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     ): array {
         self::v165_assertLastYielded($lastYielded);
 
-        $base = SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Plan::wordpressOptionNameNormalizedPatternPlan(
+        $base = self::wordpressOptionNameNormalizedPatternPlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,

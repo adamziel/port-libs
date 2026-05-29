@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext182Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -49,7 +49,7 @@ $plan182 = static fn (
     string $nextSource = 'stable',
     int $currentCookie = 182,
     int $nextCookie = 182,
-): array => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext182Plan::wordpressOptionNameEscapeReplayPlan(
+): array => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
     $current ?? $current182,
     $next ?? $next182,
     $enc182($currentPattern, $currentPatternEncoding),
@@ -124,7 +124,7 @@ $tests['utf16 nocase like rtrim escape current source next182 clean same bytes c
         'bytesHex' => bin2hex($enc182('plugin_%_cache', 2)),
         'encoding' => 'UTF-16LE',
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext182Plan::wordpressOptionNameEscapeReplayPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
         $rows,
         $rows,
         $enc182('plugin!_!%!_cache%', 2),
@@ -175,7 +175,7 @@ $tests['utf16 nocase like rtrim escape current source next182 nul escape remains
 };
 
 $tests['utf16 nocase like rtrim escape current source next182 malformed escape bytes are isolated'] = static function (TestRunner $t) use ($current182, $next182, $enc182, $token182): void {
-    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext182Plan::wordpressOptionNameEscapeReplayPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
         $current182,
         $next182,
         $enc182('plugin!_!%!_cache%', 2),
@@ -199,7 +199,7 @@ $tests['utf16 nocase like rtrim escape current source next182 malformed escape b
 };
 
 $tests['utf16 nocase like rtrim escape current source next182 rejects unsupported encoding'] = static function (TestRunner $t) use ($current182, $next182, $enc182, $token182): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext182Plan::wordpressOptionNameEscapeReplayPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
         $current182,
         $next182,
         $enc182('plugin!_!%!_cache%', 2),

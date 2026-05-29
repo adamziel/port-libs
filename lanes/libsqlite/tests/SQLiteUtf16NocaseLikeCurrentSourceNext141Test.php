@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeCurrentSourceNext141Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -52,7 +52,7 @@ $plan141 = static fn (
     string $nextSource = 'main.wp_options@141',
     string $currentEncoding = 'UTF-16LE',
     string $nextEncoding = 'UTF-16BE',
-): array => SQLiteUtf16NocaseLikeCurrentSourceNext141Plan::wordpressOptionNameLikePlan(
+): array => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan(
     $current ?? $current141,
     $next ?? $next141,
     $pattern,
@@ -198,15 +198,15 @@ $tests['utf16 nocase like current source next141 rejects non utf16 database enco
 };
 
 $tests['utf16 nocase like current source next141 rejects non integer option id'] = static function (TestRunner $t) use ($next141): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNext141Plan::wordpressOptionNameLikePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 2]], $next141, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 2]], $next141, 'plugin%'));
 };
 
 $tests['utf16 nocase like current source next141 rejects missing option bytes'] = static function (TestRunner $t) use ($next141): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNext141Plan::wordpressOptionNameLikePlan([['option_id' => 1, 'text_encoding' => 2]], $next141, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => 1, 'text_encoding' => 2]], $next141, 'plugin%'));
 };
 
 $tests['utf16 nocase like current source next141 rejects non utf16 row encoding'] = static function (TestRunner $t) use ($next141): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNext141Plan::wordpressOptionNameLikePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 1]], $next141, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 1]], $next141, 'plugin%'));
 };
 
 return $tests;

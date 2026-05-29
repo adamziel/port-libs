@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext156Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $code = static fn (string $encoding): int => match ($encoding) {
@@ -32,7 +32,7 @@ $rows = [
     $row(4, 'plugin-cache', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Plan::wordpressOptionNameNormalizedPatternPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNormalizedPatternPlan(
     $rows,
     $rows,
     $enc('plugin\\_cache%', 'UTF-16LE'),

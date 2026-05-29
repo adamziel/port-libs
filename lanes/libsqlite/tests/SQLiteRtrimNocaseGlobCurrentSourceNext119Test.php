@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRtrimNocaseGlobCurrentSourceNext119Plan;
+use PortLibs\LibSqlite\SQLiteRtrimNocaseGlobCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -38,7 +38,7 @@ $plan = static fn (
     string $collation = 'NOCASE',
     string $currentSource = 'main.wp_options@cookie118',
     string $nextSource = 'main.wp_options@cookie119',
-): array => SQLiteRtrimNocaseGlobCurrentSourceNext119Plan::wordpressOptionNamePlan(
+): array => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNamePlan(
     $currentRows,
     $nextRows,
     $pattern,
@@ -115,28 +115,28 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['rtrim nocase glob current source next119 stable unchanged binary cursor is not invalidated'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteRtrimNocaseGlobCurrentSourceNext119Plan::wordpressOptionNamePlan($currentRows, $currentRows, 'plugin_*', 'BINARY', 'stable', 'stable');
+    $plan = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $currentRows, 'plugin_*', 'BINARY', 'stable', 'stable');
     $t->same(false, $plan['cursorInvalidated']);
     $t->same([], $plan['invalidationReasons']);
 };
 
 $tests['rtrim nocase glob current source next119 leading wildcard has no range candidates'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $plan = SQLiteRtrimNocaseGlobCurrentSourceNext119Plan::wordpressOptionNamePlan($currentRows, $nextRows, '*cache', 'NOCASE');
+    $plan = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $nextRows, '*cache', 'NOCASE');
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentCandidateRowids']);
     $t->same([], $plan['currentMatchedRowids']);
 };
 
 $tests['rtrim nocase glob current source next119 rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNext119Plan::wordpressOptionNamePlan($currentRows, $nextRows, 'plugin_*', 'UNICODE_NOCASE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $nextRows, 'plugin_*', 'UNICODE_NOCASE'));
 };
 
 $tests['rtrim nocase glob current source next119 rejects missing rowid'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNext119Plan::wordpressOptionNamePlan([['option_name' => 'plugin_cache']], $nextRows, 'plugin_*', 'NOCASE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNamePlan([['option_name' => 'plugin_cache']], $nextRows, 'plugin_*', 'NOCASE'));
 };
 
 $tests['rtrim nocase glob current source next119 rejects non text option name'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNext119Plan::wordpressOptionNamePlan([['option_id' => 1, 'option_name' => 42]], $nextRows, 'plugin_*', 'NOCASE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'option_name' => 42]], $nextRows, 'plugin_*', 'NOCASE'));
 };
 
 return $tests;

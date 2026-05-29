@@ -5,10 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeCurrentSourceNext126Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeCurrentSourceNext126Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
@@ -30,7 +30,7 @@ $nextRows = [
     $row(4, 'PLUGIN_added', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeCurrentSourceNext126Plan::wordpressOptionNameLikePlan(
+$plan = SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameLikePlan(
     $currentRows,
     $nextRows,
     'plugin%',

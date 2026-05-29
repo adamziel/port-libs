@@ -7,10 +7,10 @@ require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
 require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext182Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext182Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
@@ -36,7 +36,7 @@ $token = [
     'encoding' => 'UTF-16BE',
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext182Plan::wordpressOptionNameEscapeReplayPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapeReplayPlan(
     $current,
     $next,
     $enc('plugin!_!%!_cache%', 2),

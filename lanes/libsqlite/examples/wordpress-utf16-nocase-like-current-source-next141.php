@@ -5,10 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeCurrentSourceNext141Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeCurrentSourceNext141Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
@@ -31,7 +31,7 @@ $nextRows = [
     ['option_id' => 5, 'option_name_bytes' => "\x3d\xd8", 'text_encoding' => 2],
 ];
 
-$plan = SQLiteUtf16NocaseLikeCurrentSourceNext141Plan::wordpressOptionNameLikePlan(
+$plan = SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameResidualPlan(
     $currentRows,
     $nextRows,
     'plugin!_cache%',

@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
-require_once __DIR__ . '/../src/SQLiteRtrimNocaseGlobCurrentSourceNext119Plan.php';
+require_once __DIR__ . '/../src/SQLiteRtrimNocaseGlobCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRtrimNocaseGlobCurrentSourceNext119Plan;
+use PortLibs\LibSqlite\SQLiteRtrimNocaseGlobCurrentSourceNextPlan;
 
 $currentRows = [
     ['option_id' => 1, 'option_name' => 'plugin_cache', 'autoload' => 'yes'],
@@ -26,8 +26,8 @@ $nextRows = [
     ['option_id' => 7, 'option_name' => 'plugin_cache_new', 'autoload' => 'yes'],
 ];
 
-$nocase = SQLiteRtrimNocaseGlobCurrentSourceNext119Plan::wordpressOptionNamePlan($currentRows, $nextRows, 'plugin_*', 'NOCASE');
-$rtrim = SQLiteRtrimNocaseGlobCurrentSourceNext119Plan::wordpressOptionNamePlan($currentRows, $nextRows, 'plugin_cache', 'RTRIM');
+$nocase = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $nextRows, 'plugin_*', 'NOCASE');
+$rtrim = SQLiteRtrimNocaseGlobCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, $nextRows, 'plugin_cache', 'RTRIM');
 
 if (($argv[1] ?? null) === '--self-test') {
     foreach ([

@@ -32,7 +32,7 @@ final class SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan
         $currentEscape = self::decodeEscape($currentEscapeBytes, $currentEscapeEncoding, 'current escape');
         $nextEscape = self::decodeEscape($nextEscapeBytes, $nextEscapeEncoding, 'next escape');
 
-        $currentPlan = SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext156Plan::wordpressOptionNamePlan(
+        $currentPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNoCasePlan(
             $currentRows,
             $currentRows,
             $currentPattern,
@@ -42,7 +42,7 @@ final class SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $nextPlan = SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext156Plan::wordpressOptionNamePlan(
+        $nextPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNoCasePlan(
             $nextRows,
             $nextRows,
             $nextPattern,

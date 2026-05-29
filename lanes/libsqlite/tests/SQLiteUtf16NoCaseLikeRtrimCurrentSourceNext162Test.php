@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -56,7 +56,7 @@ $plan = static function (
     int $currentSchemaCookie = 7,
     int $nextSchemaCookie = 7,
 ) use ($stableRows, $enc, $code): array {
-    return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Plan::wordpressOptionNameNormalizedPatternPlan(
+    return SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNormalizedPatternPlan(
         $currentRows ?? $stableRows,
         $nextRows ?? $stableRows,
         $enc($currentPattern, $currentPatternEncoding),
@@ -200,7 +200,7 @@ $tests['utf16 nocase like rtrim current source next162 no escape keeps wildcard 
 };
 
 $tests['utf16 nocase like rtrim current source next162 malformed pattern bytes throw before planning'] = static function (TestRunner $t) use ($stableRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Plan::wordpressOptionNameNormalizedPatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNormalizedPatternPlan(
         $stableRows,
         $stableRows,
         "p\0x",
@@ -211,7 +211,7 @@ $tests['utf16 nocase like rtrim current source next162 malformed pattern bytes t
 };
 
 $tests['utf16 nocase like rtrim current source next162 multi-character escape bytes throw before planning'] = static function (TestRunner $t) use ($stableRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Plan::wordpressOptionNameNormalizedPatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNormalizedPatternPlan(
         $stableRows,
         $stableRows,
         $enc('plugin%', 'UTF-8'),

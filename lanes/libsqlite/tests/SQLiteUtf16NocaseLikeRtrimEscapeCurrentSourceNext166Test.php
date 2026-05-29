@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext166Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -57,7 +57,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@166',
     int $currentCookie = 165,
     int $nextCookie = 166,
-): array => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext166Plan::wordpressOptionNameEscapePlan(
+): array => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $enc($currentPattern, $currentPatternEncoding),
@@ -161,7 +161,7 @@ foreach ($cases as $name => [$path, $expected]) {
 
 $tests['utf16 nocase like rtrim escape current source next166 byte only escape reprepare is reusable'] = static function (TestRunner $t) use ($row, $enc): void {
     $rows = [$row(1, 'Plugin_Cache  ', 2), $row(2, 'plugin_cache', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext166Plan::wordpressOptionNameEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapePlan(
         $rows,
         $rows,
         $enc('plugin!_cache% ', 2),
@@ -195,7 +195,7 @@ $tests['utf16 nocase like rtrim escape current source next166 semantic escape ch
 };
 
 $tests['utf16 nocase like rtrim escape current source next166 escape tabs are not trimmed'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext166Plan::wordpressOptionNameEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapePlan(
         $currentRows,
         $nextRows,
         $enc('plugin!_cache%', 2),
@@ -210,7 +210,7 @@ $tests['utf16 nocase like rtrim escape current source next166 escape tabs are no
 };
 
 $tests['utf16 nocase like rtrim escape current source next166 rejects malformed escape bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext166Plan::wordpressOptionNameEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapePlan(
         $currentRows,
         $nextRows,
         $enc('plugin!_cache%', 2),
@@ -225,7 +225,7 @@ $tests['utf16 nocase like rtrim escape current source next166 rejects malformed 
 };
 
 $tests['utf16 nocase like rtrim escape current source next166 rejects empty escape after rtrim'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext166Plan::wordpressOptionNameEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan::wordpressOptionNameEscapePlan(
         $currentRows,
         $nextRows,
         $enc('plugin!_cache%', 2),

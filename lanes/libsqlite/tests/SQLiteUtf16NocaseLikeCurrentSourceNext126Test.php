@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeCurrentSourceNext126Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -53,7 +53,7 @@ $plan = static fn (
     string $nextDatabaseEncoding = 'UTF-16BE',
     ?array $current = null,
     ?array $next = null,
-): array => SQLiteUtf16NocaseLikeCurrentSourceNext126Plan::wordpressOptionNameLikePlan(
+): array => SQLiteUtf16NocaseLikeCurrentSourceNextPlan::wordpressOptionNameLikePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
