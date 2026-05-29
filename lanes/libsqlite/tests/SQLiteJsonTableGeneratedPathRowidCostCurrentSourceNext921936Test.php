@@ -69,8 +69,12 @@ foreach (range(921, 936) as $next) {
     };
 }
 
-$tests['json table generated path rowid cost current source next936 rejects next937 alias'] = static function (TestRunner $t) use ($plan921936): void {
-    $t->throws(Error::class, static fn () => $plan921936(937));
+$tests['json table generated path rowid cost current source next936 leaves next937 alias to follow-on'] = static function (TestRunner $t) use ($plan921936): void {
+    $t->same('cost-select-current-json-table-generated-path-rowid-next937', $plan921936(937)['currentReaderPolicy']);
+};
+
+$tests['json table generated path rowid cost current source next936 rejects next953 alias'] = static function (TestRunner $t) use ($plan921936): void {
+    $t->throws(Error::class, static fn () => $plan921936(953));
 };
 
 return $tests;
