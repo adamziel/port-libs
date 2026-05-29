@@ -27946,4 +27946,311 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
         return $impl::fenceReaderCache($currentSourcePlan, $cacheEntries, $retryReads);
     }
+
+    public static function next263SealRetryReadReceipts(array $readerCachePlan, array $retryCloseReceipts): array
+    {
+        $impl = new class {
+                /** @param array<string,mixed> $readerCachePlan @param list<array<string,mixed>> $retryCloseReceipts @return array<string,mixed> */
+                public static function sealRetryReads(array $readerCachePlan, array $retryCloseReceipts): array
+                {
+                    if (($readerCachePlan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next262'
+                        || ($readerCachePlan['reader_cache_admitted'] ?? null) !== true
+                    ) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next263 requires an admitted next262 reader cache fence');
+                    }
+                    if ($retryCloseReceipts === []) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next263 requires retry close receipts');
+                    }
+
+                    $sourceToken = self::token($readerCachePlan['source_token'] ?? null, 'source token');
+                    $databaseDigest = self::digest($readerCachePlan['database_digest'] ?? null, 'database digest');
+                    $pageCacheDigest = self::digest($readerCachePlan['page_cache_digest'] ?? null, 'page cache digest');
+                    $commitGeneration = self::positiveInt($readerCachePlan, 'commit_generation');
+                    $schemaCookie = self::positiveInt($readerCachePlan, 'schema_cookie');
+                    $checkpointFrame = self::positiveInt($readerCachePlan, 'checkpoint_frame');
+                    $retryNames = self::tokenSet($readerCachePlan['admitted_retry_names'] ?? null, 'admitted retry names');
+                    $retryPages = self::intSet($readerCachePlan['retry_pages'] ?? null, 'retry pages');
+                    $readerNames = self::tokenSet($readerCachePlan['accepted_reader_names'] ?? null, 'accepted reader names');
+
+                    $receiptRows = [];
+                    foreach ($retryCloseReceipts as $receipt) {
+                        $receiptRows[] = self::receiptRow($receipt, $sourceToken, $databaseDigest, $pageCacheDigest, $commitGeneration, $schemaCookie, $checkpointFrame, $retryNames, $retryPages, $readerNames);
+                    }
+
+                    $coveredRetryNames = self::coveredStrings($receiptRows, 'retry_name');
+                    $coveredPages = self::coveredInts($receiptRows, 'page_number');
+                    $missingRetryNames = array_values(array_diff(array_keys($retryNames), $coveredRetryNames));
+                    $missingRetryPages = array_values(array_diff(array_keys($retryPages), $coveredPages));
+                    $duplicateReceiptNames = self::duplicates(array_column($receiptRows, 'name'));
+                    $blockedReasons = self::blockedReasons($receiptRows);
+                    foreach ($duplicateReceiptNames as $name) {
+                        $blockedReasons[] = 'retry_close_receipt_name_duplicate:' . $name;
+                    }
+                    foreach ($missingRetryNames as $name) {
+                        $blockedReasons[] = 'retry_close_missing_retry_name:' . $name;
+                    }
+                    foreach ($missingRetryPages as $page) {
+                        $blockedReasons[] = 'retry_close_missing_page:' . $page;
+                    }
+                    $blockedReasons = array_values(array_unique($blockedReasons));
+
+                    $guardRows = [
+                        ['name' => 'next262_reader_cache_admitted', 'matched' => true],
+                        ['name' => 'retry_close_receipt_names_unique', 'matched' => $duplicateReceiptNames === []],
+                        ['name' => 'all_retry_names_closed', 'matched' => $missingRetryNames === []],
+                        ['name' => 'all_retry_pages_closed', 'matched' => $missingRetryPages === []],
+                        ['name' => 'all_retry_close_receipts_current', 'matched' => $blockedReasons === []],
+                    ];
+                    $blockedGuards = array_values(array_column(array_filter($guardRows, static fn (array $row): bool => !$row['matched']), 'name'));
+                    $sealed = $blockedGuards === [];
+
+                    return [
+                        'status' => $sealed
+                            ? 'wal-hot-journal-savepoint-checkpoint-current-source-next263'
+                            : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next263',
+                        'reason' => $sealed
+                            ? 'retry_read_receipts_sealed_on_checkpoint_current_source'
+                            : 'retry_read_receipts_wait_for_checkpoint_current_source',
+                        'base_status' => $readerCachePlan['status'],
+                        'database_path' => $readerCachePlan['database_path'] ?? null,
+                        'journal_path' => $readerCachePlan['journal_path'] ?? null,
+                        'wal_path' => $readerCachePlan['wal_path'] ?? null,
+                        'source_token' => $sourceToken,
+                        'commit_generation' => $commitGeneration,
+                        'schema_cookie' => $schemaCookie,
+                        'checkpoint_frame' => $checkpointFrame,
+                        'database_digest' => $databaseDigest,
+                        'page_cache_digest' => $pageCacheDigest,
+                        'retry_receipt_rows' => $receiptRows,
+                        'retry_close_receipt_names' => array_column($receiptRows, 'name'),
+                        'accepted_retry_close_receipt_names' => self::names($receiptRows, true),
+                        'blocked_retry_close_receipt_names' => self::names($receiptRows, false),
+                        'duplicate_retry_close_receipt_names' => $duplicateReceiptNames,
+                        'covered_retry_names' => $coveredRetryNames,
+                        'missing_retry_names' => $missingRetryNames,
+                        'covered_retry_pages' => $coveredPages,
+                        'missing_retry_pages' => $missingRetryPages,
+                        'blocked_reasons' => $blockedReasons,
+                        'guard_names' => array_column($guardRows, 'name'),
+                        'guard_matches' => array_column($guardRows, 'matched'),
+                        'blocked_guard_names' => $blockedGuards,
+                        'retry_read_receipts_sealed' => $sealed,
+                        'retry_action' => $sealed ? 'close_retry_read_receipts_on_generation_' . $commitGeneration : 'hold_retry_read_receipts_for_reopen',
+                        'cache_action' => $sealed ? 'keep_next262_current_source_cache_reusable' : 'preserve_next262_cache_fence_until_receipts_close',
+                        'journal_action' => $sealed ? 'hot_journal_retirement_confirmed_for_retry_receipts' : 'retain_hot_journal_retirement_receipts',
+                        'seal_digest' => hash('sha256', json_encode([$sourceToken, $commitGeneration, $checkpointFrame, $receiptRows, $blockedGuards], JSON_THROW_ON_ERROR)),
+                        'operation_names' => array_values(array_unique(array_merge(
+                            is_array($readerCachePlan['operation_names'] ?? null) ? $readerCachePlan['operation_names'] : [],
+                            ['seal_retry_read_receipts_after_reader_cache_fence_next263']
+                        ))),
+                        'dependencies' => array_values(array_unique(array_merge(
+                            is_array($readerCachePlan['dependencies'] ?? null) ? $readerCachePlan['dependencies'] : [],
+                            [
+                                'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next263',
+                                'sqlite-retry-reader-close-receipts-after-hot-journal-checkpoint',
+                                'wordpress-import-retry-reader-receipts-current-source',
+                            ]
+                        ))),
+                        'dependency_closure' => 'no new support component needed; next263 reuses admitted next262 reader-cache fences and adds lane-local retry read close receipts',
+                        'non_overlap' => 'next263 seals retry-read receipts after next262 cache reuse; it does not repeat next260 checkpoint admission, next261 publish sealing, next262 cache fencing, WAL byte truncation, rollback-journal apply/commit, VFS sync/apply, SQL, JSON, encoding, B-tree, suite, or status surfaces',
+                    ];
+                }
+
+                /** @param array<string,mixed> $receipt @param array<string,true> $retryNames @param array<int,true> $retryPages @param array<string,true> $readerNames @return array<string,mixed> */
+                private static function receiptRow(array $receipt, string $sourceToken, string $databaseDigest, string $pageCacheDigest, int $commitGeneration, int $schemaCookie, int $checkpointFrame, array $retryNames, array $retryPages, array $readerNames): array
+                {
+                    $name = self::token($receipt['name'] ?? null, 'retry close receipt name');
+                    $retryName = self::token($receipt['retry_name'] ?? null, "{$name} retry name");
+                    $readerName = self::token($receipt['reader_name'] ?? null, "{$name} reader name");
+                    $page = self::positiveInt($receipt, 'page_number');
+                    $reasons = [];
+                    if (!hash_equals($sourceToken, self::token($receipt['source_token'] ?? null, "{$name} source token"))) {
+                        $reasons[] = 'retry_close_source_token_mismatch';
+                    }
+                    if (!hash_equals($databaseDigest, self::digest($receipt['database_digest'] ?? null, "{$name} database digest"))) {
+                        $reasons[] = 'retry_close_database_digest_mismatch';
+                    }
+                    if (!hash_equals($pageCacheDigest, self::digest($receipt['page_cache_digest'] ?? null, "{$name} page cache digest"))) {
+                        $reasons[] = 'retry_close_page_cache_digest_mismatch';
+                    }
+                    if (($receipt['commit_generation'] ?? null) !== $commitGeneration) {
+                        $reasons[] = 'retry_close_generation_mismatch';
+                    }
+                    if (($receipt['schema_cookie'] ?? null) !== $schemaCookie) {
+                        $reasons[] = 'retry_close_schema_cookie_mismatch';
+                    }
+                    if (($receipt['checkpoint_frame'] ?? null) !== $checkpointFrame) {
+                        $reasons[] = 'retry_close_checkpoint_frame_mismatch';
+                    }
+                    if (!isset($retryNames[$retryName])) {
+                        $reasons[] = 'retry_close_unknown_retry_name';
+                    }
+                    if (!isset($readerNames[$readerName])) {
+                        $reasons[] = 'retry_close_unknown_reader_name';
+                    }
+                    if (!isset($retryPages[$page])) {
+                        $reasons[] = 'retry_close_unknown_page';
+                    }
+                    if (($receipt['cursor_closed'] ?? false) !== true) {
+                        $reasons[] = 'retry_close_cursor_not_closed';
+                    }
+                    if (($receipt['snapshot_released'] ?? false) !== true) {
+                        $reasons[] = 'retry_close_snapshot_not_released';
+                    }
+                    if (($receipt['hot_journal_visible'] ?? false) === true) {
+                        $reasons[] = 'retry_close_hot_journal_visible';
+                    }
+                    if (($receipt['stale_wal_visible'] ?? false) === true) {
+                        $reasons[] = 'retry_close_stale_wal_visible';
+                    }
+
+                    return self::row($name, $reasons, [
+                        'retry_name' => $retryName,
+                        'reader_name' => $readerName,
+                        'page_number' => $page,
+                        'cursor_closed' => ($receipt['cursor_closed'] ?? false) === true,
+                        'snapshot_released' => ($receipt['snapshot_released'] ?? false) === true,
+                    ]);
+                }
+
+                /** @param list<array<string,mixed>> $rows @return list<string> */
+                private static function coveredStrings(array $rows, string $key): array
+                {
+                    $values = [];
+                    foreach ($rows as $row) {
+                        if (($row['admitted'] ?? false) === true) {
+                            $values[(string) $row[$key]] = true;
+                        }
+                    }
+
+                    return array_keys($values);
+                }
+
+                /** @param list<array<string,mixed>> $rows @return list<int> */
+                private static function coveredInts(array $rows, string $key): array
+                {
+                    $values = [];
+                    foreach ($rows as $row) {
+                        if (($row['admitted'] ?? false) === true) {
+                            $values[(int) $row[$key]] = true;
+                        }
+                    }
+                    ksort($values);
+
+                    return array_keys($values);
+                }
+
+                /** @param list<string> $values @return list<string> */
+                private static function duplicates(array $values): array
+                {
+                    $seen = [];
+                    $duplicates = [];
+                    foreach ($values as $value) {
+                        if (isset($seen[$value])) {
+                            $duplicates[$value] = true;
+                        }
+                        $seen[$value] = true;
+                    }
+
+                    return array_keys($duplicates);
+                }
+
+                /** @param list<array<string,mixed>> $rows @return list<string> */
+                private static function blockedReasons(array $rows): array
+                {
+                    $reasons = [];
+                    foreach ($rows as $row) {
+                        foreach ($row['blocked_reasons'] as $reason) {
+                            $reasons[] = $reason;
+                        }
+                    }
+
+                    return array_values(array_unique($reasons));
+                }
+
+                /** @param list<array<string,mixed>> $rows @return list<string> */
+                private static function names(array $rows, bool $admitted): array
+                {
+                    return array_values(array_map(
+                        static fn (array $row): string => $row['name'],
+                        array_filter($rows, static fn (array $row): bool => ($row['admitted'] ?? false) === $admitted)
+                    ));
+                }
+
+                /** @param list<string> $reasons @param array<string,mixed> $extra @return array<string,mixed> */
+                private static function row(string $name, array $reasons, array $extra): array
+                {
+                    $reasons = array_values(array_unique($reasons));
+
+                    return [
+                        'name' => $name,
+                        'admitted' => $reasons === [],
+                        'blocked_reasons' => $reasons,
+                        'receipt_reason' => $reasons === [] ? 'retry_close_receipt_matches_checkpoint_current_source' : implode('|', $reasons),
+                    ] + $extra;
+                }
+
+                /** @param array<string,mixed> $row */
+                private static function positiveInt(array $row, string $key): int
+                {
+                    if (!isset($row[$key]) || !is_int($row[$key]) || $row[$key] < 1) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next263 requires positive {$key}");
+                    }
+
+                    return $row[$key];
+                }
+
+                private static function token(mixed $value, string $label): string
+                {
+                    if (!is_string($value) || !preg_match('/^[A-Za-z0-9._:-]+$/', $value)) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next263 requires {$label}");
+                    }
+
+                    return $value;
+                }
+
+                private static function digest(mixed $value, string $label): string
+                {
+                    if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next263 requires {$label}");
+                    }
+
+                    return $value;
+                }
+
+                /** @return array<int,true> */
+                private static function intSet(mixed $values, string $label): array
+                {
+                    if (!is_array($values) || $values === []) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next263 requires {$label}");
+                    }
+                    $set = [];
+                    foreach ($values as $value) {
+                        if (!is_int($value) || $value < 1) {
+                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next263 {$label} must contain positive integers");
+                        }
+                        $set[$value] = true;
+                    }
+                    ksort($set);
+
+                    return $set;
+                }
+
+                /** @return array<string,true> */
+                private static function tokenSet(mixed $values, string $label): array
+                {
+                    if (!is_array($values) || $values === []) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next263 requires {$label}");
+                    }
+                    $set = [];
+                    foreach ($values as $value) {
+                        $set[self::token($value, $label)] = true;
+                    }
+
+                    return $set;
+                }
+        };
+
+        return $impl::sealRetryReads($readerCachePlan, $retryCloseReceipts);
+    }
 }
