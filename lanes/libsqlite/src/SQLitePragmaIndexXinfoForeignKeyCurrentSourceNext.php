@@ -27290,6 +27290,78 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     }
 
     /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page323(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 323, 'update_restrict_partial_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page324(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 324, 'delete_restrict_partial_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page325(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 325, 'update_no_action_partial_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page326(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 326, 'delete_no_action_partial_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
      * @param list<SQLiteSchemaRecord> $records
      * @return list<array<string,mixed>>
      */
@@ -27559,12 +27631,16 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                     $lookupStatus = self::childLookupDiagnosticStatus287($catalog, $table, $childColumns);
                     if ($lookupStatus === 'child_lookup_missing_index') {
                         $status = "{$actionPrefix}_restrict_without_child_lookup_index";
+                    } elseif ($lookupStatus === 'child_lookup_partial_index') {
+                        $status = "{$actionPrefix}_restrict_partial_child_lookup_index";
                     }
                 }
                 if ($action === 'NO ACTION') {
                     $lookupStatus = self::childLookupDiagnosticStatus287($catalog, $table, $childColumns);
                     if ($lookupStatus === 'child_lookup_missing_index') {
                         $status = "{$actionPrefix}_no_action_without_child_lookup_index";
+                    } elseif ($lookupStatus === 'child_lookup_partial_index') {
+                        $status = "{$actionPrefix}_no_action_partial_child_lookup_index";
                     }
                 }
                 if ($status === null || ($statusFilter !== null && $status !== $statusFilter)) {
@@ -28444,6 +28520,10 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             'delete_restrict_without_child_lookup_index' => 0,
             'update_no_action_without_child_lookup_index' => 0,
             'delete_no_action_without_child_lookup_index' => 0,
+            'update_restrict_partial_child_lookup_index' => 0,
+            'delete_restrict_partial_child_lookup_index' => 0,
+            'update_no_action_partial_child_lookup_index' => 0,
+            'delete_no_action_partial_child_lookup_index' => 0,
         ];
         foreach ($rows as $row) {
             if (($row['blocked'] ?? false) === true) {
