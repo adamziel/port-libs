@@ -3951,6 +3951,73 @@ MD);
         $t->contains('focused PASS-line movement', $record['next_gate']);
         $t->contains('no new support component needed', $record['dependency_closure']);
     },
+    'prepares current-source next437-452 upstream suite evidence without mapped inflation' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $launcherBase = 'fca16e3d00000000000000000000000000000000';
+        $integrationSource = '8a447f4400000000000000000000000000000000';
+        $rows = [];
+        foreach (range(437, 452) as $slice) {
+            $rows[] = [
+                'unit' => 'suite-upstream-veryquick-shard-current-source-next' . $slice,
+                'tier' => 'veryquick',
+                'current_countable' => false,
+                'next_countable' => true,
+                'launcher_base_head' => $launcherBase,
+                'dashboard_source_head' => $integrationSource,
+                'status_source_head' => $integrationSource,
+                'implementation_source_head' => $integrationSource,
+                'artifact_path' => 'lanes/libsqlite/notes/yield-suite-upstream-veryquick-shard-current-source-next' . $slice . '.md',
+                'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick suite' . $slice . '.test',
+                'scripts' => ['suite' . $slice . '.test'],
+                'exit' => 0,
+                'errors' => 0,
+                'tests' => 96,
+                'current_tests' => 0,
+                'next_tests' => 96,
+                'release_scope' => 'focused-current-source',
+                'counts_release_parity' => false,
+            ];
+        }
+        $focusedOutput = implode("\n", array_merge(
+            ['Focused test run: 1 selected test files (root lock skipped)'],
+            array_map(
+                static fn (int $i): string => sprintf('PASS next437-452 prepared suite evidence case %02d', $i),
+                range(1, 44)
+            ),
+            ['1 test files, 44 assertions, 0 failures']
+        ));
+
+        $record = $evidence->upstreamVeryquickShardCurrentSourceNext437452(
+            $rows,
+            683,
+            137964,
+            $launcherBase,
+            $integrationSource,
+            'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
+            $focusedOutput,
+            'next437-452 upstream suite evidence follows merged next421-436 and excludes release/all parity claims',
+            44,
+            ''
+        );
+
+        $t->same('current-source-next437-452-suite-evidence-prepared', $record['status']);
+        $t->same(683, $record['next_mapped']);
+        $t->same(0, $record['mapped_delta']);
+        $t->same(44, $record['php_pass_delta']);
+        $t->same(16, $record['row_count']);
+        $t->same(16, $record['zero_error_row_count']);
+        $t->same(16, $record['lane_local_note_row_count']);
+        $t->same(16, $record['slice_count']);
+        $t->same([], $record['missing_slices']);
+        $t->same('next437', $record['covered_slices'][0]);
+        $t->same('next452', $record['covered_slices'][15]);
+        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next437_452']);
+        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next421_436']);
+        $t->same(false, $record['counts_release_parity']);
+        $t->same('clear', $record['active_runner_status']);
+        $t->contains('publish next437-452 as prepared upstream-suite evidence only', $record['next_gate']);
+        $t->contains('current-source next437-452 evidence prep', $record['dependency_closure']);
+    },
     'blocks current-source next296 veryquick shard for stale provenance or active broad runner' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $launcherBase = '483323e72c0dc81d1e479309afb9cdc0cf8f649e';
