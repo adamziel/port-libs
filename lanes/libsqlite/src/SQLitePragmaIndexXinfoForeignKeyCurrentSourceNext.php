@@ -25785,4 +25785,359 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
 
         return $summary;
     }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page259(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::childLookupPage259($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 259, 'missing_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page260(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::childLookupPage259($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 260, 'partial_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page261(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::childLookupPage259($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 261, 'expression_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page262(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::childLookupPage259($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 262, 'misordered_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function childLookupIndexRows259(array $records, string $phase = 'current', ?string $statusFilter = null): array
+    {
+        self::validateRecords259($records);
+
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        $rows = [];
+        foreach (self::groupForeignKeyRows259(self::foreignKeyListRows175($records, $phase)) as $group) {
+            $table = (string) $group[0]['table'];
+            $childColumns = array_map(static fn (array $row): string => (string) $row['from'], $group);
+            if ($childColumns === [] || in_array('', $childColumns, true)) {
+                continue;
+            }
+
+            $candidate = self::bestChildLookupIndex259($catalog, $table, $childColumns);
+            $status = $candidate['status'];
+            if ($statusFilter !== null && $status !== $statusFilter) {
+                continue;
+            }
+
+            $rows[] = [
+                'phase' => $phase,
+                'kind' => 'foreign_key_child_lookup_index',
+                'table' => $table,
+                'foreign_key_id' => (int) $group[0]['id'],
+                'parent' => (string) $group[0]['parent'],
+                'child_columns' => $childColumns,
+                'candidate_index' => $candidate['index'],
+                'candidate_columns' => $candidate['columns'],
+                'candidate_key_count' => count($candidate['columns']),
+                'candidate_partial' => $candidate['partial'],
+                'candidate_expression_columns' => $candidate['expression_columns'],
+                'status' => $status,
+                'blocked' => $status !== 'ok',
+                'message' => self::childLookupMessage259($table, (int) $group[0]['id'], $childColumns, $candidate),
+            ];
+        }
+
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => [$left['phase'], $left['table'], $left['foreign_key_id'], $left['status']]
+                <=> [$right['phase'], $right['table'], $right['foreign_key_id'], $right['status']],
+        );
+
+        return $rows;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    private static function childLookupPage259(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $slice,
+        string $status,
+        int $offset,
+        int $limit,
+        ?array $resume,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} offset must be non-negative");
+        }
+        if ($limit < 1) {
+            throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} limit must be positive");
+        }
+
+        $base = self::page254($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 0, PHP_INT_MAX);
+        $currentRows = self::childLookupIndexRows259($currentRecords, 'current', $status);
+        $nextRows = self::childLookupIndexRows259($nextRecords, 'next', $status);
+        $sourceId = hash('sha256', json_encode([
+            'mode' => "pragma-index-xinfo-foreignkey-current-source-next{$slice}",
+            'base' => $base['source_id'],
+            'status' => $status,
+            'current_child_lookup_indexes' => self::rowSummary259($currentRows),
+            'next_child_lookup_indexes' => self::rowSummary259($nextRows),
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+
+        if ($resume !== null) {
+            if (($resume['source_id'] ?? null) !== $sourceId) {
+                throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} resume cursor does not match current source");
+            }
+            if (($resume['offset'] ?? null) !== $offset) {
+                throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} resume cursor offset mismatch");
+            }
+        }
+
+        $allRows = array_values(array_merge($base['rows'], $currentRows, $nextRows));
+        $pageRows = array_slice($allRows, $offset, $limit);
+        $nextOffset = $offset + count($pageRows);
+        $currentCounts = self::childLookupCounts259($currentRows);
+        $nextCounts = self::childLookupCounts259($nextRows);
+
+        return [
+            ...$base,
+            'operation' => "pragma-index-xinfo-foreignkey-current-source-next{$slice}",
+            'source_id' => $sourceId,
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($pageRows),
+            'total' => count($allRows),
+            'next' => $nextOffset < count($allRows) ? ['source_id' => $sourceId, 'offset' => $nextOffset] : null,
+            'next_row' => $allRows[$nextOffset] ?? null,
+            'current_source' => [
+                ...$base['current_source'],
+                "foreign_key_child_lookup_index_source_next{$slice}" => 'pragma_foreign_key_list_child_columns_plus_pragma_index_list_and_pragma_index_xinfo',
+                "foreign_key_child_lookup_indexes_next{$slice}" => self::rowSummary259($currentRows),
+            ],
+            'next_source' => [
+                ...($base['next_source'] ?? []),
+                "foreign_key_child_lookup_index_source_next{$slice}" => 'pragma_foreign_key_list_child_columns_plus_pragma_index_list_and_pragma_index_xinfo',
+                "foreign_key_child_lookup_indexes_next{$slice}" => self::rowSummary259($nextRows),
+            ],
+            'current' => [
+                ...$base['current'],
+                "foreign_key_child_lookup_indexes_next{$slice}" => $currentCounts,
+            ],
+            'next_counts' => [
+                ...$base['next_counts'],
+                "foreign_key_child_lookup_indexes_next{$slice}" => $nextCounts,
+            ],
+            'delta' => [
+                ...$base['delta'],
+                "foreign_key_child_lookup_index_rows_next{$slice}" => $nextCounts['rows'] - $currentCounts['rows'],
+                "foreign_key_child_lookup_index_blockers_next{$slice}" => $nextCounts['blocked'] - $currentCounts['blocked'],
+                "foreign_key_child_lookup_index_repaired_next{$slice}" => $currentCounts['blocked'] > 0 && $nextCounts['blocked'] === 0,
+                "foreign_key_child_lookup_index_changed_next{$slice}" => self::rowSummary259($currentRows, false) !== self::rowSummary259($nextRows, false),
+            ],
+            'dependencies' => array_values(array_unique([
+                ...$base['dependencies'],
+                'sqlite-pragma-foreign-key-child-lookup-index-xinfo',
+            ])),
+            'rows' => $pageRows,
+        ];
+    }
+
+    /**
+     * @param list<string> $childColumns
+     * @return array{index:string|null,columns:list<string>,partial:bool,expression_columns:int,status:string}
+     */
+    private static function bestChildLookupIndex259(SQLitePragmaSchemaCatalog $catalog, string $table, array $childColumns): array
+    {
+        $wanted = array_map('strtolower', $childColumns);
+        $fallback = ['index' => null, 'columns' => [], 'partial' => false, 'expression_columns' => 0, 'status' => 'missing_child_lookup_index'];
+
+        foreach ($catalog->indexList($table) as $index) {
+            $keyRows = array_values(array_filter(
+                $catalog->indexXInfo((string) $index['name']),
+                static fn (array $row): bool => (int) ($row['key'] ?? 0) === 1,
+            ));
+            $columns = array_map(static fn (array $row): string => (string) ($row['name'] ?? ''), $keyRows);
+            $prefix = array_slice(array_map('strtolower', $columns), 0, count($wanted));
+            $expressionColumns = count(array_filter($keyRows, static fn (array $row): bool => (int) ($row['cid'] ?? 0) === -2 || ($row['name'] ?? null) === null || ($row['name'] ?? '') === ''));
+            $candidate = [
+                'index' => (string) $index['name'],
+                'columns' => $columns,
+                'partial' => (int) ($index['partial'] ?? 0) === 1,
+                'expression_columns' => $expressionColumns,
+                'status' => 'ok',
+            ];
+
+            if ($prefix === $wanted && !$candidate['partial'] && $expressionColumns === 0) {
+                return $candidate;
+            }
+            if ($prefix === $wanted && $candidate['partial']) {
+                $candidate['status'] = 'partial_child_lookup_index';
+                return $candidate;
+            }
+            if ($expressionColumns > 0 && count($prefix) >= count($wanted)) {
+                $candidate['status'] = 'expression_child_lookup_index';
+                $fallback = $fallback['status'] === 'missing_child_lookup_index' ? $candidate : $fallback;
+                continue;
+            }
+            if (count(array_intersect($wanted, array_map('strtolower', $columns))) === count($wanted)) {
+                $candidate['status'] = 'misordered_child_lookup_index';
+                $fallback = $fallback['status'] === 'missing_child_lookup_index' ? $candidate : $fallback;
+            }
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{rows:int,blocked:int,missing_child_lookup_index:int,partial_child_lookup_index:int,expression_child_lookup_index:int,misordered_child_lookup_index:int}
+     */
+    private static function childLookupCounts259(array $rows): array
+    {
+        $counts = [
+            'rows' => count($rows),
+            'blocked' => 0,
+            'missing_child_lookup_index' => 0,
+            'partial_child_lookup_index' => 0,
+            'expression_child_lookup_index' => 0,
+            'misordered_child_lookup_index' => 0,
+        ];
+        foreach ($rows as $row) {
+            if (($row['blocked'] ?? false) === true) {
+                $counts['blocked']++;
+            }
+            $status = (string) ($row['status'] ?? '');
+            if (array_key_exists($status, $counts)) {
+                $counts[$status]++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function rowSummary259(array $rows, bool $includePhase = true): array
+    {
+        $summary = array_map(
+            static fn (array $row): string => implode(':', array_filter([
+                $includePhase ? (string) $row['phase'] : null,
+                (string) $row['table'] . '#' . (int) $row['foreign_key_id'],
+                'child=' . implode(',', (array) $row['child_columns']),
+                'index=' . (string) ($row['candidate_index'] ?? 'none'),
+                'columns=' . implode(',', (array) ($row['candidate_columns'] ?? [])),
+                (string) $row['status'],
+            ], static fn (?string $part): bool => $part !== null)),
+            $rows,
+        );
+        sort($summary);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<list<array<string,mixed>>>
+     */
+    private static function groupForeignKeyRows259(array $rows): array
+    {
+        $groups = [];
+        foreach ($rows as $row) {
+            $groups[strtolower((string) $row['table']) . '#' . (int) $row['id']][] = $row;
+        }
+        foreach ($groups as &$group) {
+            usort($group, static fn (array $left, array $right): int => (int) $left['seq'] <=> (int) $right['seq']);
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * @param array{index:string|null,columns:list<string>,partial:bool,expression_columns:int,status:string} $candidate
+     * @param list<string> $childColumns
+     */
+    private static function childLookupMessage259(string $table, int $foreignKeyId, array $childColumns, array $candidate): string
+    {
+        $child = implode(', ', $childColumns);
+
+        return match ($candidate['status']) {
+            'partial_child_lookup_index' => "foreign key {$table}#{$foreignKeyId} child lookup index {$candidate['index']} is partial and cannot cover every child row for {$child}",
+            'expression_child_lookup_index' => "foreign key {$table}#{$foreignKeyId} child lookup index {$candidate['index']} uses expression key rows from PRAGMA index_xinfo instead of plain child columns {$child}",
+            'misordered_child_lookup_index' => "foreign key {$table}#{$foreignKeyId} child lookup index {$candidate['index']} contains {$child} but not as the leftmost key prefix",
+            default => "foreign key {$table}#{$foreignKeyId} has no child lookup index whose PRAGMA index_xinfo key prefix is {$child}",
+        };
+    }
+
+    /**
+     * @param list<mixed> $records
+     */
+    private static function validateRecords259(array $records): void
+    {
+        foreach ($records as $record) {
+            if (!$record instanceof SQLiteSchemaRecord) {
+                throw new InvalidArgumentException('SQLite PRAGMA current-source next259 records must be SQLiteSchemaRecord instances');
+            }
+        }
+    }
 }
