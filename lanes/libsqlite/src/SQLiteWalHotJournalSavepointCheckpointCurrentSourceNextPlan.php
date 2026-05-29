@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 {
-    public static function next156Plan(
+    public static function planCurrentWalSourceSwitch(
         string $databasePath,
         string $databaseBytes,
         int $pageSize,
@@ -203,7 +203,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $pageSize, $savepoint, $hotJournalPages, $currentSourcePages, $currentSavepointWrites, $nextSavepointWrites, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $readerPageNumbers, $readerEndFrame, $currentSourceEpoch, $reservedLock, $superJournalRequired, $superJournalExists);
     }
 
-    public static function next159Plan(
+    public static function planCheckpointModeWalSourceSwitch(
         string $databasePath,
         string $databaseBytes,
         int $pageSize,

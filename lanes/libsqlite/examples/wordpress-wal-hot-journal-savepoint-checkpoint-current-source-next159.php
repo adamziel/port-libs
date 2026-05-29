@@ -53,7 +53,7 @@ $nextWalBytes = $makeWalBytes([
     [6, 6, 'next159 next wal cron retry commit'],
 ], 160, 0x16000101, 0x16000102);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next159Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planCheckpointModeWalSourceSwitch(
     $databasePath,
     $databaseBytes,
     $pageSize,

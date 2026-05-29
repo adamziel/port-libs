@@ -78,7 +78,7 @@ $plan = static fn (
     bool $reservedLock = false,
     ?SQLiteWal $overrideNextWal = null,
     ?string $overrideNextWalBytes = null
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next156Plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planCurrentWalSourceSwitch(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -245,7 +245,7 @@ $throws = [
             $removeTree($root);
         }
     },
-    'missing current wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next156Plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, '', $nextWal, $nextWalBytes, [1], 1),
+    'missing current wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planCurrentWalSourceSwitch($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, '', $nextWal, $nextWalBytes, [1], 1),
     'empty pages rejected' => static fn () => $plan(1, []),
     'bad reader frame rejected' => static fn () => $plan(9, [1]),
     'same checkpoint rejected' => static function () use ($makeWalBytes, $pageSize, $plan): array {

@@ -14334,6 +14334,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
+        $options = self::withCurrentReturningSourceSealOptionAliases($options);
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceEpochFence(
             $baseRows,
             $currentInput,
@@ -14388,7 +14389,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             static fn (array $row): bool => !(bool) $row['visible_after_current_returning_source_source_seal'],
         ));
 
-        return [
+        $result = [
             'status_source_seal' => self::statusForSourceSeal($nextVisible, $baseVisible, $sourceMatches, $viewMatches, $triggerMatches, $missingSeals, $unexpectedSeals),
             'savepoint' => $base['savepoint'],
             'base' => $base,
@@ -14442,8 +14443,79 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-returning-current-source-source_seal',
                 'sqlite-returning-current-source-seal',
                 'wordpress-recursive-view-returning-current-source-source_seal',
+                'sqlite-trigger-recursive-view-returning-current-source-next224',
             ]))),
             'non_overlap_source_seal' => 'adds current returning source/view/trigger source seals after next218 epoch receipts; avoids accepted next208 cursor close, next212 yield receipts, next218 epoch receipts, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
+        ];
+
+        return $result + self::currentReturningSourceSealLegacyNextAliases($result);
+    }
+
+    /**
+     * @param array<string,mixed> $options
+     * @return array<string,mixed>
+     */
+    private static function withCurrentReturningSourceSealOptionAliases(array $options): array
+    {
+        $aliases = [
+            'current_returning_source_token_source_seal' => 'current_returning_source_token_next224',
+            'expected_current_returning_source_token_source_seal' => 'expected_current_returning_source_token_next224',
+            'current_returning_view_source_source_seal' => 'current_returning_view_source_next224',
+            'expected_current_returning_view_source_source_seal' => 'expected_current_returning_view_source_next224',
+            'current_returning_trigger_source_source_seal' => 'current_returning_trigger_source_next224',
+            'expected_current_returning_trigger_source_source_seal' => 'expected_current_returning_trigger_source_next224',
+            'auto_ack_current_returning_source_seals_source_seal' => 'auto_ack_current_returning_source_seals_next224',
+            'acknowledged_current_returning_source_seals_source_seal' => 'acknowledged_current_returning_source_seals_next224',
+        ];
+        foreach ($aliases as $canonical => $legacy) {
+            if (array_key_exists($legacy, $options) && !array_key_exists($canonical, $options)) {
+                $options[$canonical] = $options[$legacy];
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param array<string,mixed> $result
+     * @return array<string,mixed>
+     */
+    private static function currentReturningSourceSealLegacyNextAliases(array $result): array
+    {
+        return [
+            'status_next224' => $result['status_source_seal'],
+            'base_next_source_visible_next224' => $result['base_next_source_visible_source_seal'],
+            'current_returning_source_token_next224' => $result['current_returning_source_token_source_seal'],
+            'expected_current_returning_source_token_next224' => $result['expected_current_returning_source_token_source_seal'],
+            'current_returning_source_matches_next224' => $result['current_returning_source_matches_source_seal'],
+            'current_returning_view_source_next224' => $result['current_returning_view_source_source_seal'],
+            'expected_current_returning_view_source_next224' => $result['expected_current_returning_view_source_source_seal'],
+            'current_returning_view_source_matches_next224' => $result['current_returning_view_source_matches_source_seal'],
+            'current_returning_trigger_source_next224' => $result['current_returning_trigger_source_source_seal'],
+            'expected_current_returning_trigger_source_next224' => $result['expected_current_returning_trigger_source_source_seal'],
+            'current_returning_trigger_source_matches_next224' => $result['current_returning_trigger_source_matches_source_seal'],
+            'required_current_returning_source_seals_next224' => $result['required_current_returning_source_seals_source_seal'],
+            'acknowledged_current_returning_source_seals_next224' => $result['acknowledged_current_returning_source_seals_source_seal'],
+            'missing_current_returning_source_seals_next224' => $result['missing_current_returning_source_seals_source_seal'],
+            'unexpected_current_returning_source_seals_next224' => $result['unexpected_current_returning_source_seals_source_seal'],
+            'current_returning_source_complete_next224' => $result['current_returning_source_complete_source_seal'],
+            'next_source_visible_after_current_returning_source_next224' => $result['next_source_visible_after_current_returning_source_source_seal'],
+            'current_source_rows_next224' => $result['current_source_rows_source_seal'],
+            'attempted_next_source_rows_next224' => $result['attempted_next_source_rows_source_seal'],
+            'visible_returning_rows_next224' => $result['visible_returning_rows_source_seal'],
+            'held_next_source_rows_next224' => $result['held_next_source_rows_source_seal'],
+            'visible_returning_payloads_next224' => $result['visible_returning_payloads_source_seal'],
+            'held_next_returning_payloads_next224' => $result['held_next_returning_payloads_source_seal'],
+            'current_source_row_count_next224' => $result['current_source_row_count_source_seal'],
+            'attempted_next_source_row_count_next224' => $result['attempted_next_source_row_count_source_seal'],
+            'visible_row_count_next224' => $result['visible_row_count_source_seal'],
+            'held_next_row_count_next224' => $result['held_next_row_count_source_seal'],
+            'blocked_reasons_next224' => $result['blocked_reasons_source_seal'],
+            'current_returning_source_plan_next224' => $result['current_returning_source_plan_source_seal'],
+            'yield_boundary_next224' => $result['yield_boundary_source_seal'],
+            'dependency_closure_next224' => $result['dependency_closure_source_seal'],
+            'dependencies_next224' => $result['dependencies_source_seal'],
+            'non_overlap_next224' => $result['non_overlap_source_seal'],
         ];
     }
 
@@ -14532,12 +14604,19 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         foreach ($rows as $index => $row) {
             $out[] = $row + [
                 'returning_source_phase_source_seal' => $phase,
+                'returning_source_phase_next224' => $phase,
                 'current_returning_source_token_source_seal' => $sourceToken,
+                'current_returning_source_token_next224' => $sourceToken,
                 'current_returning_view_source_source_seal' => $viewSource,
+                'current_returning_view_source_next224' => $viewSource,
                 'current_returning_trigger_source_source_seal' => $triggerSource,
+                'current_returning_trigger_source_next224' => $triggerSource,
                 'current_returning_source_seal_source_seal' => $seals[$index] ?? null,
+                'current_returning_source_seal_next224' => $seals[$index] ?? null,
                 'visible_after_current_returning_source_source_seal' => $visible,
+                'visible_after_current_returning_source_next224' => $visible,
                 'held_by_current_returning_source_reasons_source_seal' => $visible ? [] : $reasons,
+                'held_by_current_returning_source_reasons_next224' => $visible ? [] : $reasons,
             ];
         }
 
@@ -15347,6 +15426,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
+        $options = self::withCurrentReturningGenerationOptionAliases($options);
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentReturningSourceSeal(
             $baseRows,
             $currentInput,
@@ -15406,7 +15486,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             static fn (array $row): bool => !(bool) $row['visible_after_current_returning_generation'],
         ));
 
-        return [
+        $result = [
             'status_generation_seal' => self::currentReturningGenerationStatus($nextVisible, $baseVisible, $sourceMatches, $viewMatches, $triggerMatches, $missingSeals, $unexpectedSeals, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
@@ -15464,9 +15544,92 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-trigger-recursive-view-returning-current-generation-seal',
                 'sqlite-returning-current-source-generation-seal',
                 'wordpress-recursive-view-returning-current-generation-seal',
+                'sqlite-trigger-recursive-view-returning-current-source-next229',
             ]))),
             'non_overlap_generation_seal' => 'adds ordered current returning source/view/trigger generation seals after source_seal source seals; avoids accepted next208 cursor close, next212 yield receipts, next218 epoch receipts, source_seal source seals, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
+
+        return $result + self::currentReturningGenerationLegacyNextAliases($result);
+    }
+
+    /**
+     * @param array<string,mixed> $options
+     * @return array<string,mixed>
+     */
+    private static function withCurrentReturningGenerationOptionAliases(array $options): array
+    {
+        $aliases = [
+            'current_returning_source_generation' => 'current_returning_source_generation_next229',
+            'expected_current_returning_source_generation' => 'expected_current_returning_source_generation_next229',
+            'current_returning_view_generation' => 'current_returning_view_generation_next229',
+            'expected_current_returning_view_generation' => 'expected_current_returning_view_generation_next229',
+            'current_returning_trigger_generation' => 'current_returning_trigger_generation_next229',
+            'expected_current_returning_trigger_generation' => 'expected_current_returning_trigger_generation_next229',
+            'auto_ack_current_returning_generation_seals' => 'auto_ack_current_returning_generation_seals_next229',
+            'acknowledged_current_returning_generation_seals' => 'acknowledged_current_returning_generation_seals_next229',
+            'require_current_returning_generation_order' => 'require_current_returning_generation_order_next229',
+        ];
+        foreach ($aliases as $canonical => $legacy) {
+            if (array_key_exists($legacy, $options) && !array_key_exists($canonical, $options)) {
+                $options[$canonical] = $options[$legacy];
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param array<string,mixed> $result
+     * @return array<string,mixed>
+     */
+    private static function currentReturningGenerationLegacyNextAliases(array $result): array
+    {
+        return [
+            'status_next229' => self::currentReturningGenerationLegacyStatus((string) $result['status_generation_seal']),
+            'base_next_source_visible_next229' => $result['base_next_source_visible_generation_seal'],
+            'current_returning_source_generation_next229' => $result['current_returning_source_generation'],
+            'expected_current_returning_source_generation_next229' => $result['expected_current_returning_source_generation'],
+            'current_returning_source_generation_matches_next229' => $result['current_returning_source_generation_matches'],
+            'current_returning_view_generation_next229' => $result['current_returning_view_generation'],
+            'expected_current_returning_view_generation_next229' => $result['expected_current_returning_view_generation'],
+            'current_returning_view_generation_matches_next229' => $result['current_returning_view_generation_matches'],
+            'current_returning_trigger_generation_next229' => $result['current_returning_trigger_generation'],
+            'expected_current_returning_trigger_generation_next229' => $result['expected_current_returning_trigger_generation'],
+            'current_returning_trigger_generation_matches_next229' => $result['current_returning_trigger_generation_matches'],
+            'required_current_returning_generation_seals_next229' => $result['required_current_returning_generation_seals'],
+            'acknowledged_current_returning_generation_seals_next229' => $result['acknowledged_current_returning_generation_seals'],
+            'missing_current_returning_generation_seals_next229' => $result['missing_current_returning_generation_seals'],
+            'unexpected_current_returning_generation_seals_next229' => $result['unexpected_current_returning_generation_seals'],
+            'require_current_returning_generation_order_next229' => $result['require_current_returning_generation_order'],
+            'current_returning_generation_order_matches_next229' => $result['current_returning_generation_order_matches'],
+            'current_returning_generation_complete_next229' => $result['current_returning_generation_complete'],
+            'next_source_visible_after_current_returning_generation_next229' => $result['next_source_visible_after_current_returning_generation'],
+            'current_source_rows_next229' => $result['current_source_rows_generation_seal'],
+            'attempted_next_source_rows_next229' => $result['attempted_next_source_rows_generation_seal'],
+            'visible_returning_rows_next229' => $result['visible_returning_rows_generation_seal'],
+            'held_next_source_rows_next229' => $result['held_next_source_rows_generation_seal'],
+            'visible_returning_payloads_next229' => $result['visible_returning_payloads_generation_seal'],
+            'held_next_returning_payloads_next229' => $result['held_next_returning_payloads_generation_seal'],
+            'current_source_row_count_next229' => $result['current_source_row_count_generation_seal'],
+            'attempted_next_source_row_count_next229' => $result['attempted_next_source_row_count_generation_seal'],
+            'visible_row_count_next229' => $result['visible_row_count_generation_seal'],
+            'held_next_row_count_next229' => $result['held_next_row_count_generation_seal'],
+            'blocked_reasons_next229' => $result['blocked_reasons_generation_seal'],
+            'current_returning_source_plan_next229' => $result['current_returning_source_plan_generation_seal'],
+            'yield_boundary_next229' => $result['yield_boundary_generation_seal'],
+            'dependency_closure_next229' => $result['dependency_closure_generation_seal'],
+            'dependencies_next229' => $result['dependencies_generation_seal'],
+            'non_overlap_next229' => $result['non_overlap_generation_seal'],
+        ];
+    }
+
+    private static function currentReturningGenerationLegacyStatus(string $status): string
+    {
+        return str_replace(
+            'trigger-recursive-view-returning-current-source-generation-',
+            'trigger-recursive-view-returning-current-source-next229-generation-',
+            $status,
+        );
     }
 
     /**
@@ -15555,11 +15718,17 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $out[] = $row + [
                 'returning_generation_phase' => $phase,
                 'current_returning_source_generation' => $sourceGeneration,
+                'current_returning_source_generation_next229' => $sourceGeneration,
                 'current_returning_view_generation' => $viewGeneration,
+                'current_returning_view_generation_next229' => $viewGeneration,
                 'current_returning_trigger_generation' => $triggerGeneration,
+                'current_returning_trigger_generation_next229' => $triggerGeneration,
                 'current_returning_generation_seal' => $seals[$index] ?? null,
+                'current_returning_generation_seal_next229' => $seals[$index] ?? null,
                 'visible_after_current_returning_generation' => $visible,
+                'visible_after_current_returning_generation_next229' => $visible,
                 'held_by_current_returning_generation_reasons' => $visible ? [] : $reasons,
+                'held_by_current_returning_generation_reasons_next229' => $visible ? [] : $reasons,
             ];
         }
 

@@ -6537,7 +6537,10 @@ final class SQLiteJsonTablePlan
             : 'prepare-next-json-table-generated-hidden-rowid-cost-plan';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-generated-hidden-rowid-cost'],
+            [
+                'sqlite-json-table-generated-hidden-rowid-cost',
+                'sqlite-json-table-generated-hidden-rowid-cost-current-source-next142',
+            ],
         )));
 
         return $plan;
@@ -7369,7 +7372,10 @@ final class SQLiteJsonTablePlan
         $plan['hiddenConstraintReplanReasons'] = array_values(array_unique(array_merge($plan['replanReasons'], $hiddenReasons)));
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-hidden-constraint-planner'],
+            [
+                'sqlite-json-table-hidden-constraint-planner',
+                'sqlite-json-table-hidden-constraint-planner-current-source-next88',
+            ],
         )));
 
         return $plan;
@@ -7401,20 +7407,20 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $sourceRowidResiduals = self::sourceRowidResidualConstraints94($constraints);
+        $sourceRowidResiduals = self::sourceRowidResidualConstraints($constraints);
         $currentRowidResiduals = $sourceRowidResiduals !== []
             ? $sourceRowidResiduals
-            : self::hiddenRowidResidualConstraints94($plan['current']['constraintUsage']);
+            : self::hiddenRowidResidualConstraints($plan['current']['constraintUsage']);
         $nextRowidResiduals = $sourceRowidResiduals !== []
             ? $sourceRowidResiduals
-            : self::hiddenRowidResidualConstraints94($plan['next']['constraintUsage']);
+            : self::hiddenRowidResidualConstraints($plan['next']['constraintUsage']);
         $rowidTransition = [
-            'current' => self::rowidsFromRows94($plan['currentRows']),
-            'next' => self::rowidsFromRows94($plan['nextRows']),
+            'current' => self::rowidsFromRows($plan['currentRows']),
+            'next' => self::rowidsFromRows($plan['nextRows']),
         ];
         $rowidTransition['changed'] = $rowidTransition['current'] !== $rowidTransition['next'];
 
-        $rowTransitions = self::sourceRowTransitions94($plan['currentRows'], $plan['nextRows']);
+        $rowTransitions = self::sourceRowTransitions($plan['currentRows'], $plan['nextRows']);
         $rowidReasons = [];
         if ($currentRowidResiduals !== [] || $nextRowidResiduals !== []) {
             $rowidReasons[] = 'hidden-rowid-residual-constraint-present';
@@ -7435,8 +7441,8 @@ final class SQLiteJsonTablePlan
         $plan['nextRowidResiduals'] = $nextRowidResiduals;
         $plan['rowidTransition'] = $rowidTransition;
         $plan['rowTransitions'] = $rowTransitions;
-        $plan['currentRowidSummary'] = self::sourceRowidSummary94($plan['current']);
-        $plan['nextRowidSummary'] = self::sourceRowidSummary94($plan['next']);
+        $plan['currentRowidSummary'] = self::sourceRowidSummary($plan['current']);
+        $plan['nextRowidSummary'] = self::sourceRowidSummary($plan['next']);
         $plan['hiddenRowidReplanReasons'] = array_values(array_unique(array_merge($plan['hiddenConstraintReplanReasons'], $rowidReasons)));
         $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-rowid-source-until-cursor-reset';
         $plan['nextReaderPolicy'] = $plan['hiddenRowidReplanReasons'] === ['hidden-rowid-residual-constraint-present']
@@ -7444,7 +7450,10 @@ final class SQLiteJsonTablePlan
             : 'prepare-next-json-table-hidden-rowid-source';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-hidden-rowid-planner'],
+            [
+                'sqlite-json-table-hidden-rowid-planner',
+                'sqlite-json-table-hidden-rowid-source-current-next94',
+            ],
         )));
 
         return $plan;
@@ -7493,7 +7502,10 @@ final class SQLiteJsonTablePlan
         )));
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-rowid-hidden-constraint-planner'],
+            [
+                'sqlite-json-table-rowid-hidden-constraint-planner',
+                'sqlite-json-table-rowid-hidden-constraint-current-source-next99',
+            ],
         )));
 
         return $plan;
@@ -7686,6 +7698,7 @@ final class SQLiteJsonTablePlan
             'leftJoin' => $joinType === 'left',
             'dependencies' => [
                 'sqlite-json-table-hidden-constraint-planner',
+                'sqlite-json-table-hidden-constraint-planner-current-source-next88',
                 'sqlite-json-table-lateral-hidden-planner',
             ],
         ];
@@ -7974,6 +7987,7 @@ final class SQLiteJsonTablePlan
             'leftJoin' => $joinType === 'left',
             'dependencies' => [
                 'sqlite-json-table-hidden-constraint-planner',
+                'sqlite-json-table-hidden-constraint-planner-current-source-next88',
                 'sqlite-json-table-lateral-hidden-planner',
                 'sqlite-json-table-lateral-hidden-constraint-current-source-next103',
             ],
@@ -8063,6 +8077,7 @@ final class SQLiteJsonTablePlan
             [
                 'sqlite-json-table-lateral-rowid-comparison',
                 'sqlite-json-table-rowid-hidden-constraint-planner',
+                'sqlite-json-table-rowid-hidden-constraint-current-source-next99',
                 'sqlite-json-table-lateral-rowid-hidden-current-source-next105',
             ],
         )));
@@ -19393,7 +19408,7 @@ final class SQLiteJsonTablePlan
     private static function lateralHiddenRowidHostSummary105(array $hostPlan): array
     {
         $rows = $hostPlan['rows'] ?? [];
-        $rowids = self::rowidsFromRows94($rows);
+        $rowids = self::rowidsFromRows($rows);
 
         return [
             'hostKey' => $hostPlan['hostKey'] ?? null,
@@ -19402,7 +19417,7 @@ final class SQLiteJsonTablePlan
             'firstRowid' => $rowids[0] ?? null,
             'lastRowid' => $rowids === [] ? null : $rowids[count($rowids) - 1],
             'rowCount' => count($rowids),
-            'rowidResidualColumns' => array_column(self::hiddenRowidResidualConstraints94($hostPlan['constraintUsage'] ?? []), 'column'),
+            'rowidResidualColumns' => array_column(self::hiddenRowidResidualConstraints($hostPlan['constraintUsage'] ?? []), 'column'),
             'nullExtended' => (bool) ($hostPlan['nullExtended'] ?? false),
             'sourceKind' => (string) ($hostPlan['jsonInputKind'] ?? 'missing'),
             'root' => $hostPlan['rootValue'] ?? null,
@@ -19425,7 +19440,7 @@ final class SQLiteJsonTablePlan
         $nextRowids = $nextSummary['rowids'] ?? [];
         $currentResiduals = $currentSummary['rowidResidualColumns'] ?? [];
         $nextResiduals = $nextSummary['rowidResidualColumns'] ?? [];
-        $rowTransitions = self::sourceRowTransitions94($currentSummary['rows'] ?? [], $nextSummary['rows'] ?? []);
+        $rowTransitions = self::sourceRowTransitions($currentSummary['rows'] ?? [], $nextSummary['rows'] ?? []);
 
         return [
             'ordinal' => $transition['ordinal'],
@@ -19920,7 +19935,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $usage
      * @return list<array{constraintIndex:int,column:string,operator:string,usable:bool}>
      */
-    private static function hiddenRowidResidualConstraints94(array $usage): array
+    private static function hiddenRowidResidualConstraints(array $usage): array
     {
         $hidden = [];
         foreach ($usage as $entry) {
@@ -19943,7 +19958,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return list<array{constraintIndex:int,column:string,operator:string,usable:bool}>
      */
-    private static function sourceRowidResidualConstraints94(array $constraints): array
+    private static function sourceRowidResidualConstraints(array $constraints): array
     {
         $rowid = [];
         foreach ($constraints as $index => $constraint) {
@@ -20456,7 +20471,7 @@ final class SQLiteJsonTablePlan
         $path = $pathCost['selectedPath'];
         $pathSignature = $pathCost['selectedPathSignature'];
         $rowidSignature = $rowid === null ? null : self::jsonTableIndexedConstraintSignature119($rowid);
-        $rowids = self::rowidsFromRows94($plan['rows']);
+        $rowids = self::rowidsFromRows($plan['rows']);
         $pathRowidTape = self::jsonTablePathRowidTape126($plan['rows']);
 
         if (!$plan['runnable']) {
@@ -27208,7 +27223,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $rows
      * @return list<int>
      */
-    private static function rowidsFromRows94(array $rows): array
+    private static function rowidsFromRows(array $rows): array
     {
         return array_map(static fn (array $row): int => (int) $row['id'], $rows);
     }
@@ -27217,16 +27232,16 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $plan
      * @return array{rowids:list<int>,firstRowid:int|null,lastRowid:int|null,rowCount:int,rowidResidualColumns:list<string>,sourceKind:string,root:mixed}
      */
-    private static function sourceRowidSummary94(array $plan): array
+    private static function sourceRowidSummary(array $plan): array
     {
-        $rowids = self::rowidsFromRows94($plan['rows']);
+        $rowids = self::rowidsFromRows($plan['rows']);
 
         return [
             'rowids' => $rowids,
             'firstRowid' => $rowids[0] ?? null,
             'lastRowid' => $rowids === [] ? null : $rowids[count($rowids) - 1],
             'rowCount' => count($rowids),
-            'rowidResidualColumns' => array_column(self::hiddenRowidResidualConstraints94($plan['constraintUsage']), 'column'),
+            'rowidResidualColumns' => array_column(self::hiddenRowidResidualConstraints($plan['constraintUsage']), 'column'),
             'sourceKind' => (string) $plan['jsonInputKind'],
             'root' => $plan['rootValue'],
         ];
@@ -27237,7 +27252,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $nextRows
      * @return list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,currentRowid:int|null,nextRowid:int|null,changed:bool,reason:string}>
      */
-    private static function sourceRowTransitions94(array $currentRows, array $nextRows): array
+    private static function sourceRowTransitions(array $currentRows, array $nextRows): array
     {
         $count = max(count($currentRows), count($nextRows));
         $transitions = [];
@@ -27246,7 +27261,7 @@ final class SQLiteJsonTablePlan
             $next = $nextRows[$index] ?? null;
             $currentRowid = $current === null ? null : (int) $current['id'];
             $nextRowid = $next === null ? null : (int) $next['id'];
-            $reason = self::sourceRowTransitionReason94($current, $next);
+            $reason = self::sourceRowTransitionReason($current, $next);
             $transitions[] = [
                 'index' => $index,
                 'current' => $current,
@@ -27265,7 +27280,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed>|null $current
      * @param array<string,mixed>|null $next
      */
-    private static function sourceRowTransitionReason94(?array $current, ?array $next): string
+    private static function sourceRowTransitionReason(?array $current, ?array $next): string
     {
         if ($current === null) {
             return 'next-hidden-rowid-source-row-added';

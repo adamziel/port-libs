@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 
-function libsqlite_suite_next94_evidence(): SQLiteUpstreamSuiteEvidence
+function libsqlite_suite_admission_burnup_evidence(): SQLiteUpstreamSuiteEvidence
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 }
 
-function libsqlite_suite_next94_output(int $passLines = 94, int $assertions = 94, int $failures = 0): string
+function libsqlite_suite_admission_burnup_output(int $passLines = 94, int $assertions = 94, int $failures = 0): string
 {
     $lines = ['Focused test run: 1 selected test files (root lock skipped)'];
     for ($i = 1; $i <= $passLines; $i++) {
@@ -23,7 +23,7 @@ function libsqlite_suite_next94_output(int $passLines = 94, int $assertions = 94
 /**
  * @return list<array<string, mixed>>
  */
-function libsqlite_suite_next94_rows(
+function libsqlite_suite_admission_burnup_rows(
     int $case = 1,
     string $launcherBase = 'a66f690e8c736460293eefd5dc9b119fb2f09d6f',
     string $dashboardSource = '103fc00c42f1ff0580cae8a7768e4a3da0979c2d',
@@ -76,7 +76,7 @@ function libsqlite_suite_next94_rows(
  * @param list<array<string, mixed>> $rows
  * @return array<string, mixed>
  */
-function libsqlite_suite_next94_record(
+function libsqlite_suite_admission_burnup_record(
     array $rows,
     string $launcherBase = 'a66f690e8c736460293eefd5dc9b119fb2f09d6f',
     string $dashboardSource = '103fc00c42f1ff0580cae8a7768e4a3da0979c2d',
@@ -87,7 +87,7 @@ function libsqlite_suite_next94_record(
     ?int $expected = 94,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next94_evidence()->suiteUpstreamRunnerAdmissionBurnupCurrentSourceNext94(
+    return libsqlite_suite_admission_burnup_evidence()->suiteUpstreamRunnerAdmissionBurnupCurrentSource(
         $rows,
         534,
         36393,
@@ -96,8 +96,8 @@ function libsqlite_suite_next94_record(
         $statusSource,
         $implementationSource,
         $nextHead,
-        'lanes/libsqlite/tests/SQLiteSuiteUpstreamRunnerAdmissionBurnupCurrentSourceNext94Test.php',
-        $output ?? libsqlite_suite_next94_output(),
+        'lanes/libsqlite/tests/SQLiteSuiteUpstreamRunnerAdmissionBurnupCurrentSourceTest.php',
+        $output ?? libsqlite_suite_admission_burnup_output(),
         'current-source next94 upstream-runner admission burnup avoids accepted next75 release/all countability, next82 current-source rebase, batch90 suite/status admission, and ATTACH/JSON/pager/VFS/WAL/B-tree behavior clusters',
         $expected,
         $snapshot
@@ -108,7 +108,7 @@ $tests = [];
 
 foreach (range(1, 94) as $case) {
     $tests[sprintf('current source next94 admits upstream runner burnup artifact case %02d', $case)] = static function (TestRunner $t) use ($case): void {
-        $record = libsqlite_suite_next94_record(libsqlite_suite_next94_rows($case));
+        $record = libsqlite_suite_admission_burnup_record(libsqlite_suite_admission_burnup_rows($case));
 
         $t->same('current-source-next94-upstream-runner-admission-burnup-countable', $record['status']);
         $t->same(true, $record['countable']);
@@ -129,7 +129,7 @@ foreach (range(1, 94) as $case) {
 }
 
 $tests['current source next94 records category script and test deltas'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_next94_record(libsqlite_suite_next94_rows(7));
+    $record = libsqlite_suite_admission_burnup_record(libsqlite_suite_admission_burnup_rows(7));
 
     $t->same(2, $record['category_count']);
     $t->same(['accepted-current-source-anchor' => 1, 'upstream-runner-admission-burnup-current-source' => 1], $record['categories']);
@@ -139,11 +139,11 @@ $tests['current source next94 records category script and test deltas'] = static
 };
 
 $tests['current source next94 preserves already admitted artifact without mapping inflation'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next94_rows();
+    $rows = libsqlite_suite_admission_burnup_rows();
     $rows[0]['current_status'] = 'countable';
     $rows[0]['current_tests'] = 4201;
 
-    $record = libsqlite_suite_next94_record($rows);
+    $record = libsqlite_suite_admission_burnup_record($rows);
 
     $t->same('current-source-next94-upstream-runner-admission-burnup-preserved', $record['status']);
     $t->same(0, $record['mapped_delta']);
@@ -152,8 +152,8 @@ $tests['current source next94 preserves already admitted artifact without mappin
 };
 
 $tests['current source next94 blocks stale provenance heads'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_next94_record(
-        libsqlite_suite_next94_rows(
+    $record = libsqlite_suite_admission_burnup_record(
+        libsqlite_suite_admission_burnup_rows(
             launcherBase: '0000000000000000000000000000000000000000',
             dashboardSource: '1111111111111111111111111111111111111111',
             statusSource: '2222222222222222222222222222222222222222',
@@ -171,12 +171,12 @@ $tests['current source next94 blocks stale provenance heads'] = static function 
 };
 
 $tests['current source next94 blocks non lane local artifact and unguarded command'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next94_rows();
+    $rows = libsqlite_suite_admission_burnup_rows();
     $rows[0]['artifact_path'] = '/tmp/current-source-next94.log';
     $rows[0]['runner_command'] = './testfixture ../libsqlite/test/testrunner.tcl veryquick';
     $rows[0]['scripts'] = ['README.md'];
 
-    $record = libsqlite_suite_next94_record($rows);
+    $record = libsqlite_suite_admission_burnup_record($rows);
 
     $t->same('blocked', $record['status']);
     $evidence = implode('; ', array_column($record['blockers'], 'evidence'));
@@ -186,13 +186,13 @@ $tests['current source next94 blocks non lane local artifact and unguarded comma
 };
 
 $tests['current source next94 blocks runner errors duplicate units and regressions'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next94_rows();
+    $rows = libsqlite_suite_admission_burnup_rows();
     $rows[0]['errors'] = 1;
     $rows[1]['next_status'] = 'missing';
     $rows[1]['next_tests'] = 10;
     $rows[] = $rows[0];
 
-    $record = libsqlite_suite_next94_record($rows);
+    $record = libsqlite_suite_admission_burnup_record($rows);
 
     $t->same('blocked', $record['status']);
     $evidence = implode('; ', array_column($record['blockers'], 'evidence'));
@@ -203,12 +203,12 @@ $tests['current source next94 blocks runner errors duplicate units and regressio
 };
 
 $tests['current source next94 blocks release parity active runners and pass inflation'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next94_rows();
+    $rows = libsqlite_suite_admission_burnup_rows();
     $rows[0]['counts_release_parity'] = true;
 
-    $record = libsqlite_suite_next94_record(
+    $record = libsqlite_suite_admission_burnup_record(
         $rows,
-        output: libsqlite_suite_next94_output(9, 94),
+        output: libsqlite_suite_admission_burnup_output(9, 94),
         expected: 94,
         snapshot: '8888 1 S 00:04 93.0 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 4 all'
     );
@@ -224,7 +224,7 @@ $tests['current source next94 blocks release parity active runners and pass infl
 };
 
 $tests['current source next94 rejects empty artifact rows'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => libsqlite_suite_next94_record([]));
+    $t->throws(InvalidArgumentException::class, static fn () => libsqlite_suite_admission_burnup_record([]));
 };
 
 return $tests;

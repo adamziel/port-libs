@@ -17,7 +17,7 @@ This slice adds a distinct current-source upstream-runner admission burnup gate.
 Focused verification:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteSuiteUpstreamRunnerAdmissionBurnupCurrentSourceNext94Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteSuiteUpstreamRunnerAdmissionBurnupCurrentSourceTest.php
 Focused test run: 1 selected test files (root lock skipped)
 101 PASS lines
 1 test files, 1441 assertions, 0 failures
@@ -29,8 +29,8 @@ Syntax checks:
 php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
 
-php -l lanes/libsqlite/tests/SQLiteSuiteUpstreamRunnerAdmissionBurnupCurrentSourceNext94Test.php
-No syntax errors detected in lanes/libsqlite/tests/SQLiteSuiteUpstreamRunnerAdmissionBurnupCurrentSourceNext94Test.php
+php -l lanes/libsqlite/tests/SQLiteSuiteUpstreamRunnerAdmissionBurnupCurrentSourceTest.php
+No syntax errors detected in lanes/libsqlite/tests/SQLiteSuiteUpstreamRunnerAdmissionBurnupCurrentSourceTest.php
 ```
 
 ## Dashboard Delta

@@ -3529,11 +3529,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $whereTerms,
                 $neededColumns,
             );
-            $selected = self::arrayValueNext167($base, 'selectedPlan');
-            $range = self::arrayValueNext167($selected, 'rangeConstraint');
-            $preparedWindow = self::sourceWindowNext167($preparedSource, $whereTerms, (string) ($selected['expression'] ?? ''), $range, (string) ($selected['collation'] ?? 'BINARY'));
-            $currentWindow = self::sourceWindowNext167($currentSource, $whereTerms, (string) ($selected['expression'] ?? ''), $range, (string) ($selected['collation'] ?? 'BINARY'));
-            $sampleFence = self::sampleFenceNext167($preparedSource, $currentSource, (string) ($selected['name'] ?? ''), $range, (string) ($selected['collation'] ?? 'BINARY'));
+            $selected = self::arrayValueForStat4ExpressionPartialCurrentSource($base, 'selectedPlan');
+            $range = self::arrayValueForStat4ExpressionPartialCurrentSource($selected, 'rangeConstraint');
+            $preparedWindow = self::sourceWindowForStat4ExpressionPartialCurrentSource($preparedSource, $whereTerms, (string) ($selected['expression'] ?? ''), $range, (string) ($selected['collation'] ?? 'BINARY'));
+            $currentWindow = self::sourceWindowForStat4ExpressionPartialCurrentSource($currentSource, $whereTerms, (string) ($selected['expression'] ?? ''), $range, (string) ($selected['collation'] ?? 'BINARY'));
+            $sampleFence = self::sampleFenceForStat4ExpressionPartialCurrentSource($preparedSource, $currentSource, (string) ($selected['name'] ?? ''), $range, (string) ($selected['collation'] ?? 'BINARY'));
             $staleBlocked = array_values(array_diff($preparedWindow['rowids'], $currentWindow['rowids']));
             $currentOnly = array_values(array_diff($currentWindow['rowids'], $preparedWindow['rowids']));
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4-current-range-ready'
@@ -3551,12 +3551,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'stalePreparedRowidsBlockedBySampleFence' => $staleBlocked,
                 'currentSourceRowidsAdmittedBySampleFence' => $currentOnly,
                 'currentSourceRowidsRefreshedBySampleFence' => array_values(array_intersect($preparedWindow['rowids'], $currentWindow['rowids'])),
-                'sampleWindowSignature' => self::signatureNext167([
+                'sampleWindowSignature' => self::signatureForStat4ExpressionPartialCurrentSource([
                     'prepared' => $preparedWindow['signature'],
                     'current' => $currentWindow['signature'],
                     'fence' => $sampleFence['signature'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext167($base, $sampleFence, $staleBlocked, $currentOnly, $ready),
+                'cursorProgram' => self::cursorProgramForStat4ExpressionPartialCurrentSource($base, $sampleFence, $staleBlocked, $currentOnly, $ready),
                 'selectedPlan' => array_replace($selected, [
                     'next167Ready' => $ready,
                     'next167PreparedWindowRowids' => $preparedWindow['rowids'],
@@ -3567,7 +3567,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next167CurrentSampleKeys' => $sampleFence['currentKeys'],
                 ]),
                 'stat4Fence' => array_replace(
-                    self::arrayValueNext167($base, 'stat4Fence'),
+                    self::arrayValueForStat4ExpressionPartialCurrentSource($base, 'stat4Fence'),
                     [
                         'next167PreparedWindowSignature' => $preparedWindow['signature'],
                         'next167CurrentWindowSignature' => $currentWindow['signature'],
@@ -3595,10 +3595,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $range
          * @return array{rowids:list<int>,keys:list<mixed>,rows:list<array<string,mixed>>,signature:string}
          */
-        private static function sourceWindowNext167(array $source, array $terms, string $expression, array $range, string $collation): array
+        private static function sourceWindowForStat4ExpressionPartialCurrentSource(array $source, array $terms, string $expression, array $range, string $collation): array
         {
             $rows = [];
-            foreach (self::listValueNext167($source['rows'] ?? []) as $row) {
+            foreach (self::listValueForStat4ExpressionPartialCurrentSource($source['rows'] ?? []) as $row) {
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite next167 rows must be arrays');
                 }
@@ -3606,8 +3606,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_int($rowid) || $rowid < 0) {
                     throw new \InvalidArgumentException('SQLite next167 rowid must be a non-negative integer');
                 }
-                $key = self::expressionValueNext167($row, $expression);
-                if (!self::inRangeNext167($key, $range, $collation) || !self::rowSatisfiesTermsNext167($row, $terms, $expression, $collation)) {
+                $key = self::expressionValueForStat4ExpressionPartialCurrentSource($row, $expression);
+                if (!self::inRangeForStat4ExpressionPartialCurrentSource($key, $range, $collation) || !self::rowSatisfiesTermsForStat4ExpressionPartialCurrentSource($row, $terms, $expression, $collation)) {
                     continue;
                 }
                 $rows[] = ['rowid' => $rowid, 'key' => $key, 'payload' => $row];
@@ -3618,7 +3618,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'rowids' => array_column($rows, 'rowid'),
                 'keys' => array_column($rows, 'key'),
                 'rows' => $rows,
-                'signature' => self::signatureNext167(array_map(static fn (array $row): array => ['rowid' => $row['rowid'], 'key' => $row['key']], $rows)),
+                'signature' => self::signatureForStat4ExpressionPartialCurrentSource(array_map(static fn (array $row): array => ['rowid' => $row['rowid'], 'key' => $row['key']], $rows)),
             ];
         }
 
@@ -3626,12 +3626,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $range
          * @return array<string,mixed>
          */
-        private static function sampleFenceNext167(array $preparedSource, array $currentSource, string $indexName, array $range, string $collation): array
+        private static function sampleFenceForStat4ExpressionPartialCurrentSource(array $preparedSource, array $currentSource, string $indexName, array $range, string $collation): array
         {
-            $prepared = self::samplesInRangeNext167(self::indexSamplesNext167($preparedSource, $indexName), $range, $collation);
-            $current = self::samplesInRangeNext167(self::indexSamplesNext167($currentSource, $indexName), $range, $collation);
+            $prepared = self::samplesInRangeForStat4ExpressionPartialCurrentSource(self::indexSamplesForStat4ExpressionPartialCurrentSource($preparedSource, $indexName), $range, $collation);
+            $current = self::samplesInRangeForStat4ExpressionPartialCurrentSource(self::indexSamplesForStat4ExpressionPartialCurrentSource($currentSource, $indexName), $range, $collation);
             $fence = [
-                'changed' => self::signatureNext167($prepared) !== self::signatureNext167($current),
+                'changed' => self::signatureForStat4ExpressionPartialCurrentSource($prepared) !== self::signatureForStat4ExpressionPartialCurrentSource($current),
                 'preparedKeys' => array_column($prepared, 'key'),
                 'currentKeys' => array_column($current, 'key'),
                 'preparedRowids' => array_column($prepared, 'rowid'),
@@ -3640,7 +3640,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'upperKey' => $current === [] ? null : $current[count($current) - 1]['key'],
                 'estimatedRows' => array_sum(array_column($current, 'neq')),
             ];
-            $fence['signature'] = self::signatureNext167($fence);
+            $fence['signature'] = self::signatureForStat4ExpressionPartialCurrentSource($fence);
 
             return $fence;
         }
@@ -3648,21 +3648,21 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @return list<array{key:mixed,rowid:int,neq:int}>
          */
-        private static function indexSamplesNext167(array $source, string $indexName): array
+        private static function indexSamplesForStat4ExpressionPartialCurrentSource(array $source, string $indexName): array
         {
-            foreach (self::listValueNext167($source['indexes'] ?? []) as $index) {
+            foreach (self::listValueForStat4ExpressionPartialCurrentSource($source['indexes'] ?? []) as $index) {
                 if (!is_array($index) || ($index['name'] ?? null) !== $indexName) {
                     continue;
                 }
                 $samples = [];
-                foreach (self::listValueNext167($index['stat4Samples'] ?? []) as $sample) {
+                foreach (self::listValueForStat4ExpressionPartialCurrentSource($index['stat4Samples'] ?? []) as $sample) {
                     if (!is_array($sample) || !is_array($sample['sample'] ?? null) || count($sample['sample']) < 2) {
                         throw new \InvalidArgumentException('SQLite next167 STAT4 samples need key and rowid');
                     }
                     $samples[] = [
                         'key' => $sample['sample'][0],
-                        'rowid' => self::intValueNext167($sample['sample'][1]),
-                        'neq' => self::firstStatIntNext167($sample['neq'] ?? 1),
+                        'rowid' => self::intValueForStat4ExpressionPartialCurrentSource($sample['sample'][1]),
+                        'neq' => self::firstStatIntForStat4ExpressionPartialCurrentSource($sample['neq'] ?? 1),
                     ];
                 }
 
@@ -3677,9 +3677,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $range
          * @return list<array{key:mixed,rowid:int,neq:int}>
          */
-        private static function samplesInRangeNext167(array $samples, array $range, string $collation): array
+        private static function samplesInRangeForStat4ExpressionPartialCurrentSource(array $samples, array $range, string $collation): array
         {
-            return array_values(array_filter($samples, static fn (array $sample): bool => self::inRangeNext167($sample['key'], $range, $collation)));
+            return array_values(array_filter($samples, static fn (array $sample): bool => self::inRangeForStat4ExpressionPartialCurrentSource($sample['key'], $range, $collation)));
         }
 
         /**
@@ -3689,12 +3689,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<int> $currentOnly
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext167(array $base, array $fence, array $staleBlocked, array $currentOnly, bool $ready): array
+        private static function cursorProgramForStat4ExpressionPartialCurrentSource(array $base, array $fence, array $staleBlocked, array $currentOnly, bool $ready): array
         {
             if (!$ready) {
                 return [['opcode' => 'FallbackFullScan', 'reason' => 'post-ANALYZE STAT4 sample window not usable']];
             }
-            $selected = self::arrayValueNext167($base, 'selectedPlan');
+            $selected = self::arrayValueForStat4ExpressionPartialCurrentSource($base, 'selectedPlan');
 
             return [
                 ['opcode' => 'OpenRead', 'rootPage' => $selected['rootPage'] ?? null, 'index' => $selected['name'] ?? null],
@@ -3712,10 +3712,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $range
          */
-        private static function inRangeNext167(mixed $key, array $range, string $collation): bool
+        private static function inRangeForStat4ExpressionPartialCurrentSource(mixed $key, array $range, string $collation): bool
         {
-            $lower = self::compareNext167($key, $range['lower'] ?? null, $collation);
-            $upper = self::compareNext167($key, $range['upper'] ?? null, $collation);
+            $lower = self::compareForStat4ExpressionPartialCurrentSource($key, $range['lower'] ?? null, $collation);
+            $upper = self::compareForStat4ExpressionPartialCurrentSource($key, $range['upper'] ?? null, $collation);
 
             return (($range['lowerInclusive'] ?? false) ? $lower >= 0 : $lower > 0)
                 && (($range['upperInclusive'] ?? false) ? $upper <= 0 : $upper < 0);
@@ -3724,13 +3724,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $terms
          */
-        private static function rowSatisfiesTermsNext167(array $row, array $terms, string $expression, string $collation): bool
+        private static function rowSatisfiesTermsForStat4ExpressionPartialCurrentSource(array $row, array $terms, string $expression, string $collation): bool
         {
             foreach ($terms as $term) {
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
                 $left = $term['left'] ?? [];
                 $leftValue = is_array($left) && array_key_exists('expression', $left)
-                    ? self::expressionValueNext167($row, $expression)
+                    ? self::expressionValueForStat4ExpressionPartialCurrentSource($row, $expression)
                     : ($row[(string) ($left['column'] ?? '')] ?? null);
                 $right = $term['right'] ?? null;
                 if ($operator === '=' && $leftValue === $right) {
@@ -3740,7 +3740,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     continue;
                 }
                 if (in_array($operator, ['>', '>=', '<', '<='], true)) {
-                    $cmp = self::compareNext167($leftValue, $right, $collation);
+                    $cmp = self::compareForStat4ExpressionPartialCurrentSource($leftValue, $right, $collation);
                     if (($operator === '>' && $cmp > 0) || ($operator === '>=' && $cmp >= 0) || ($operator === '<' && $cmp < 0) || ($operator === '<=' && $cmp <= 0)) {
                         continue;
                     }
@@ -3752,7 +3752,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function expressionValueNext167(array $row, string $expression): mixed
+        private static function expressionValueForStat4ExpressionPartialCurrentSource(array $row, string $expression): mixed
         {
             if (strtolower(str_replace(' ', '', $expression)) === 'lower(option_name)') {
                 $value = $row['option_name'] ?? null;
@@ -3763,7 +3763,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite next167 unsupported expression ' . $expression);
         }
 
-        private static function compareNext167(mixed $left, mixed $right, string $collation): int
+        private static function compareForStat4ExpressionPartialCurrentSource(mixed $left, mixed $right, string $collation): int
         {
             $a = (string) $left;
             $b = (string) $right;
@@ -3776,7 +3776,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @return array<string,mixed> */
-        private static function arrayValueNext167(array $array, string $key): array
+        private static function arrayValueForStat4ExpressionPartialCurrentSource(array $array, string $key): array
         {
             $value = $array[$key] ?? null;
             if (!is_array($value)) {
@@ -3787,12 +3787,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @return list<mixed> */
-        private static function listValueNext167(mixed $value): array
+        private static function listValueForStat4ExpressionPartialCurrentSource(mixed $value): array
         {
             return is_array($value) ? array_values($value) : [];
         }
 
-        private static function intValueNext167(mixed $value): int
+        private static function intValueForStat4ExpressionPartialCurrentSource(mixed $value): int
         {
             if (!is_int($value) && !ctype_digit((string) $value)) {
                 throw new \InvalidArgumentException('SQLite next167 integer value expected');
@@ -3801,16 +3801,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return (int) $value;
         }
 
-        private static function firstStatIntNext167(mixed $value): int
+        private static function firstStatIntForStat4ExpressionPartialCurrentSource(mixed $value): int
         {
             if (is_string($value)) {
                 $value = preg_split('/\s+/', trim($value))[0] ?? '0';
             }
 
-            return self::intValueNext167($value);
+            return self::intValueForStat4ExpressionPartialCurrentSource($value);
         }
 
-        private static function signatureNext167(mixed $value): string
+        private static function signatureForStat4ExpressionPartialCurrentSource(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }

@@ -21596,7 +21596,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function suiteUpstreamRunnerAdmissionBurnupCurrentSourceNext94(
+    public function suiteUpstreamRunnerAdmissionBurnupCurrentSource(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -21889,7 +21889,7 @@ final class SQLiteUpstreamSuiteEvidence
             }
         }
 
-        $record = $this->suiteUpstreamRunnerAdmissionBurnupCurrentSourceNext94(
+        $record = $this->suiteUpstreamRunnerAdmissionBurnupCurrentSource(
             $artifactRows,
             $currentMapped,
             $currentPhpPass,

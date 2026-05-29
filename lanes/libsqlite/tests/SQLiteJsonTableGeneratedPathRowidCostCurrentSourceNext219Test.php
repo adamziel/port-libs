@@ -30,7 +30,7 @@ $plan219 = static fn (
     ?int $lastYieldedRowid = null,
     ?int $yieldBatchSize = 3,
     ?array $projection = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidAliasLimit(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceLimitAdmission(
     'json_tree',
     $current ?? $current219,
     $next ?? $next219,

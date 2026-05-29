@@ -63,7 +63,7 @@ $plan = static fn (
     int $readerEndFrame = 5,
     array $pages = [1, 2, 3, 4, 5, 6],
     bool $reservedLock = false
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next159Plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planCheckpointModeWalSourceSwitch(
     $databasePath,
     $databaseBytes,
     $pageSize,

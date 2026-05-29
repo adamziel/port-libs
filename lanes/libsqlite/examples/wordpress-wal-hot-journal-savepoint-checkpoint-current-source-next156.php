@@ -52,7 +52,7 @@ $nextWalBytes = $makeWalBytes([
     [4, 4, 'wp next156 retry wal plugin commit'],
 ], 157, 0x15710001, 0x15710002);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next156Plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::planCurrentWalSourceSwitch(
     $databasePath,
     $databaseBytes,
     $pageSize,
