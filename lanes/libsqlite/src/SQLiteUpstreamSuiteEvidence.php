@@ -25300,6 +25300,126 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $evidenceRows
+     * @return array<string, mixed>
+     */
+    public function suiteEvidenceSliceCurrentNext86(
+        array $evidenceRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $acceptedRepositoryHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->suiteEvidenceSliceCurrentNext85(
+            $evidenceRows,
+            $currentMapped,
+            $currentPhpPass,
+            $acceptedRepositoryHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $record['status'] = str_replace('current-next85', 'current-next86', (string) ($record['status'] ?? 'blocked'));
+        $record['countable'] = ($record['status'] ?? null) === 'current-next86-suite-evidence-countable';
+        $record['counts_suite_evidence_current_next85'] = false;
+        $record['counts_suite_evidence_current_next86'] = $record['countable'];
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $record['countable']
+            ? 'publish current-next86 as one bounded suite-evidence countability slice after integrated current-next77/current-next78/current-next79/current-next80/current-next81/current-next82/current-next83/current-next84/current-next85; release/all parity remains blocked until complete zero-error closure evidence is separately accepted'
+            : 'keep current-next86 suite evidence uncounted until accepted-head, lane-local artifact, zero-error runner, duplicate-runner, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-next86 suite evidence reuses the integrated current-next77/current-next78/current-next79/current-next80/current-next81/current-next82/current-next83/current-next84/current-next85 lane-local evidence validator with next86 identifiers only';
+
+        return $record;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $evidenceRows
+     * @return array<string, mixed>
+     */
+    public function suiteEvidenceSliceCurrentNext87(
+        array $evidenceRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $acceptedRepositoryHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->suiteEvidenceSliceCurrentNext86(
+            $evidenceRows,
+            $currentMapped,
+            $currentPhpPass,
+            $acceptedRepositoryHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $record['status'] = str_replace('current-next86', 'current-next87', (string) ($record['status'] ?? 'blocked'));
+        $record['countable'] = ($record['status'] ?? null) === 'current-next87-suite-evidence-countable';
+        $record['counts_suite_evidence_current_next86'] = false;
+        $record['counts_suite_evidence_current_next87'] = $record['countable'];
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $record['countable']
+            ? 'publish current-next87 as one bounded suite-evidence countability slice after integrated current-next77/current-next78/current-next79/current-next80/current-next81/current-next82/current-next83/current-next84/current-next85/current-next86; release/all parity remains blocked until complete zero-error closure evidence is separately accepted'
+            : 'keep current-next87 suite evidence uncounted until accepted-head, lane-local artifact, zero-error runner, duplicate-runner, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-next87 suite evidence reuses the integrated current-next77/current-next78/current-next79/current-next80/current-next81/current-next82/current-next83/current-next84/current-next85/current-next86 lane-local evidence validator with next87 identifiers only';
+
+        return $record;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $evidenceRows
+     * @return array<string, mixed>
+     */
+    public function suiteEvidenceSliceCurrentNext88(
+        array $evidenceRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $acceptedRepositoryHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->suiteEvidenceSliceCurrentNext87(
+            $evidenceRows,
+            $currentMapped,
+            $currentPhpPass,
+            $acceptedRepositoryHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $record['status'] = str_replace('current-next87', 'current-next88', (string) ($record['status'] ?? 'blocked'));
+        $record['countable'] = ($record['status'] ?? null) === 'current-next88-suite-evidence-countable';
+        $record['counts_suite_evidence_current_next87'] = false;
+        $record['counts_suite_evidence_current_next88'] = $record['countable'];
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $record['countable']
+            ? 'publish current-next88 as one bounded suite-evidence countability slice after integrated current-next77/current-next78/current-next79/current-next80/current-next81/current-next82/current-next83/current-next84/current-next85/current-next86/current-next87; release/all parity remains blocked until complete zero-error closure evidence is separately accepted'
+            : 'keep current-next88 suite evidence uncounted until accepted-head, lane-local artifact, zero-error runner, duplicate-runner, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-next88 suite evidence reuses the integrated current-next77/current-next78/current-next79/current-next80/current-next81/current-next82/current-next83/current-next84/current-next85/current-next86/current-next87 lane-local evidence validator with next88 identifiers only';
+
+        return $record;
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
