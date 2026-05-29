@@ -27,14 +27,14 @@ $tables = [
 
 $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedReleaseOuterRollbackSavepoint(
     $tables,
-    ["UPDATE wp_options SET (status, option_value, bytes) = ('pre230', option_value || ':pre230', bytes + 1) WHERE (blog_id, option_name) IN (VALUES (1, 'siteurl'), (1, 'home')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id"],
+    ["UPDATE wp_options SET (status, option_value, bytes) = ('pre', option_value || ':pre', bytes + 1) WHERE (blog_id, option_name) IN (VALUES (1, 'siteurl'), (1, 'home')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id"],
     [
-        "UPDATE wp_options SET (status, option_value, bytes) = ('inner230', option_value || ':inner230', bytes + 4) WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY meta_id DESC LIMIT 2) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id",
+        "UPDATE wp_options SET (status, option_value, bytes) = ('inner', option_value || ':inner', bytes + 4) WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY meta_id DESC LIMIT 2) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id",
         "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'cleanup_batch' ORDER BY meta_id) RETURNING option_id, blog_id, option_name, status ORDER BY option_id",
     ],
     ["DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'network_drop') RETURNING option_id, blog_id, option_name, status ORDER BY option_id"],
     [
-        "UPDATE wp_options SET (status, option_value, bytes) = ('retry230', option_value || ':retry230', bytes + 2) WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY meta_id) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id",
+        "UPDATE wp_options SET (status, option_value, bytes) = ('retry', option_value || ':retry', bytes + 2) WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY meta_id) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id",
         "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'cleanup_batch' ORDER BY meta_id LIMIT 1) RETURNING option_id, blog_id, option_name, status ORDER BY option_id",
     ],
     [['blog_id', 'option_name']],
@@ -47,5 +47,5 @@ echo json_encode([
     'yieldedAfterRetryCount' => $plan['yielded_after_retry_count'],
     'finalOptionIds' => array_column($plan['current_source_tables']['wp_options'], 'option_id'),
     'finalStatuses' => array_column($plan['current_source_tables']['wp_options'], 'status', 'option_id'),
-    'dependencyClosure' => $plan['dependency_closure_next230'],
+    'dependencyClosure' => $plan['dependency_closure'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;

@@ -7,7 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
 {
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $statements
@@ -208,7 +208,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $statements
@@ -438,7 +438,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -715,7 +715,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $beforeRollbackStatements
@@ -934,7 +934,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $beforeRollbackStatements
@@ -1207,7 +1207,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $statements
@@ -1438,7 +1438,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $beforeRollbackStatements
@@ -1661,7 +1661,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -1938,7 +1938,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $statements
@@ -2168,7 +2168,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $innerStatements
@@ -2430,7 +2430,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -2694,7 +2694,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -2976,7 +2976,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $statements
@@ -3248,7 +3248,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $yieldedBeforeRollbackStatements
@@ -3511,7 +3511,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -3795,7 +3795,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -4033,7 +4033,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -4289,7 +4289,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -4612,7 +4612,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -4868,7 +4868,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -5116,7 +5116,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerDeleteStatements
@@ -5377,7 +5377,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $preFailStatements
@@ -5646,7 +5646,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -5969,7 +5969,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -6200,7 +6200,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -6466,7 +6466,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $releaseStatements
@@ -6729,7 +6729,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -7044,7 +7044,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -7309,7 +7309,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $preFailStatements
@@ -7601,7 +7601,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -7973,7 +7973,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -8208,7 +8208,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $ignoreStatements
@@ -8507,7 +8507,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $savepointStatements
@@ -8800,7 +8800,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -9076,7 +9076,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -9362,7 +9362,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -9659,7 +9659,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $beforeFailStatements
@@ -9954,7 +9954,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -10239,7 +10239,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $beforeIgnoreStatements
@@ -10528,7 +10528,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -10770,7 +10770,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -10828,7 +10828,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $beforeRollbackStatements
@@ -11142,7 +11142,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $savepointStatements
@@ -11404,7 +11404,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -11464,7 +11464,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $beforeAbortStatements
@@ -11762,7 +11762,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $innerStatements
@@ -12042,7 +12042,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -12103,7 +12103,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -12164,7 +12164,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $outerStatements
@@ -12500,7 +12500,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $yieldStatements
@@ -12797,7 +12797,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $preStatements
@@ -12814,29 +12814,29 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $afterReleaseStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_rowvalue_outer_next230',
-        string $innerSavepoint = 'wp_options_rowvalue_inner_next230',
+        string $outerSavepoint = 'wp_options_rowvalue_outer_release_rollback',
+        string $innerSavepoint = 'wp_options_rowvalue_inner_release_rollback',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($preStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next230 needs pre statements');
+            throw new \InvalidArgumentException('SQLite row-value nested release/outer rollback savepoint needs pre statements');
         }
         if ($innerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next230 needs inner statements');
+            throw new \InvalidArgumentException('SQLite row-value nested release/outer rollback savepoint needs inner statements');
         }
         if ($afterReleaseStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next230 needs after-release statements');
+            throw new \InvalidArgumentException('SQLite row-value nested release/outer rollback savepoint needs after-release statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next230 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value nested release/outer rollback savepoint needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next230 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value nested release/outer rollback savepoint needs unique constraints');
         }
         self::assertNestedReleaseOuterRollbackIdentifier($outerSavepoint, 'outer savepoint');
         self::assertNestedReleaseOuterRollbackIdentifier($innerSavepoint, 'inner savepoint');
         if ($outerSavepoint === $innerSavepoint) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next230 savepoint names must differ');
+            throw new \InvalidArgumentException('SQLite row-value nested release/outer rollback savepoint names must differ');
         }
 
         $initial = self::normalizeNestedReleaseOuterRollbackTables($tables);
@@ -12845,7 +12845,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $preStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'pre-outer-savepoint-next230',
+            'pre-outer-savepoint',
         );
 
         $outerImage = $preCurrent;
@@ -12854,7 +12854,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $innerStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'inner-before-release-next230',
+            'inner-before-release',
         );
 
         $innerReleaseImage = $innerCurrent;
@@ -12863,7 +12863,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $afterReleaseStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'after-inner-release-next230',
+            'after-inner-release',
         );
 
         $rollbackCurrent = $outerImage;
@@ -12872,11 +12872,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'retry-after-outer-rollback-next230',
+            'retry-after-outer-rollback',
         );
 
         return [
-            'status' => 'rowvalue-update-delete-returning-nested-savepoint-current-source-next230',
+            'status' => 'rowvalue-update-delete-returning-nested-release-outer-rollback-savepoint',
             'outer_savepoint' => $outerSavepoint,
             'inner_savepoint' => $innerSavepoint,
             'inner_released_before_outer_rollback' => true,
@@ -12906,13 +12906,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'retry_changes_after_outer_rollback' => self::nestedReleaseOuterRollbackChangeCount($retrySummaries),
             'changed_tables_after_retry' => self::nestedReleaseOuterRollbackChangedTables($initial, $retryCurrent),
             'row_counts' => self::nestedReleaseOuterRollbackRowCounts($retryCurrent),
-            'dependency_closure_next230' => 'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING, subquery row-value predicates, and savepoint current-source images',
+            'dependency_closure' => 'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING, subquery row-value predicates, and savepoint current-source images',
             'dependencies' => [
-                'sqlite-nested-savepoint-release-returning-discarded-by-outer-rollback-next230',
-                'sqlite-rowvalue-update-delete-returning-retry-after-outer-rollback-next230',
-                'wordpress-rowvalue-nested-savepoint-current-source-next230',
+                'sqlite-nested-savepoint-release-returning-discarded-by-outer-rollback',
+                'sqlite-rowvalue-update-delete-returning-retry-after-outer-rollback',
+                'wordpress-rowvalue-nested-release-outer-rollback-savepoint',
             ],
-            'non_overlap_next230' => 'adds nested inner RELEASE plus outer ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted simple rollback next212, OR FAIL or-fail-savepoint-retry, OR ABORT abort-statement-savepoint, OR ROLLBACK/RELEASE variants, WAL/VFS, JSON table, planner, trigger, and B-tree clusters',
+            'non_overlap' => 'adds nested inner RELEASE plus outer ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted simple rollback, OR FAIL or-fail-savepoint-retry, OR ABORT abort-statement-savepoint, OR ROLLBACK/RELEASE variants, WAL/VFS, JSON table, planner, trigger, and B-tree clusters',
         ];
     }
 
@@ -12978,11 +12978,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value nested savepoint next230 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value nested release/outer rollback savepoint tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value nested savepoint next230 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value nested release/outer rollback savepoint rows must be arrays');
                 }
             }
         }
@@ -13005,11 +13005,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value nested savepoint next230 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value nested release/outer rollback savepoint rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value nested savepoint next230 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value nested release/outer rollback savepoint rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -13082,12 +13082,12 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function assertNestedReleaseOuterRollbackIdentifier(string $value, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
-            throw new \InvalidArgumentException("SQLite row-value nested savepoint next230 {$label} must be an identifier");
+            throw new \InvalidArgumentException("SQLite row-value nested release/outer rollback savepoint {$label} must be an identifier");
         }
     }
 
 
-    /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php. */
+    /* Consolidated row-value savepoint variant. */
 /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements

@@ -62,7 +62,7 @@ $unrunnable158 = static fn (): array => $point158($current158, array_replace($ne
 
 $tests = [
     'records next158 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next158', $point158()['dependencies'], true)),
-    'preserves next145 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next145', $point158()['dependencies'], true)),
+    'preserves generated path rowid cost dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source', $point158()['dependencies'], true)),
     'pins current reader policy' => static fn (TestRunner $t) => $t->same('pin-current-json-table-generated-path-rowid-cost-source158-until-cursor-reset', $point158()['currentReaderPolicy']),
     'prepares changed next reader policy' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-generated-path-rowid-cost-source158-plan', $point158()['nextReaderPolicy']),
     'stable next reader policy reuses current' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-cost-source158-plan', $stable158()['nextReaderPolicy']),

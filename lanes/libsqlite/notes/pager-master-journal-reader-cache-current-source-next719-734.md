@@ -11,10 +11,10 @@ Validation:
 
 ```sh
 php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php
-php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext718Test.php
+php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheLiteralArithmeticBranchFenceTest.php
 php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext734Test.php
 php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next719-734.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext718Test.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext734Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheLiteralArithmeticBranchFenceTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext734Test.php
 php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next719-734.php
 git diff --check
 ```

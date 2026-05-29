@@ -31,7 +31,7 @@ $next = [
     'nested_path' => '[0].rules',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedHiddenResidualCostNext141(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedHiddenResidualCost(
     'json_tree',
     $current,
     $next,
@@ -51,7 +51,7 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedHiddenResidualCostNext141(
 );
 
 $summary = [
-    'scenario' => 'wordpress-json-table-generated-hidden-residual-cost-current-source-next141',
+    'scenario' => 'wordpress-json-table-generated-hidden-residual-cost',
     'wordpressUse' => 'Copied wp_options JSON import diagnostics can keep generated hidden constraints usable while preserving an unusable generated slug predicate as a residual filter with an explicit cost penalty before the next option payload is committed.',
     'currentCostClass' => $plan['currentGeneratedHiddenResidualCost']['costClass'],
     'nextCostClass' => $plan['nextGeneratedHiddenResidualCost']['costClass'],
@@ -59,7 +59,7 @@ $summary = [
     'nextResidualPenalty' => $plan['nextGeneratedHiddenResidualCost']['residualEvaluationPenalty'],
     'currentResidualSlugs' => array_map(static fn (array $entry): mixed => $entry['residualValues']['generated_slug'], $plan['currentGeneratedHiddenResidualCost']['residualValueTape']),
     'nextResidualSlugs' => array_map(static fn (array $entry): mixed => $entry['residualValues']['generated_slug'], $plan['nextGeneratedHiddenResidualCost']['residualValueTape']),
-    'replanReasons' => $plan['next141ReplanReasons'],
+    'replanReasons' => $plan['generatedHiddenResidualCostReplanReasons'],
     'dependencyClosure' => 'no new support component needed; reuses native JSON table current-source planning, generated hidden cost filtering, and residual predicate costing',
 ];
 
@@ -72,11 +72,11 @@ if (($argv[1] ?? '') === '--self-test') {
         || $summary['nextResidualSlugs'] !== ['seo', 'cache', 'forms', 'shop']
         || !in_array('json-table-generated-hidden-residual-cost-changed', $summary['replanReasons'], true)
     ) {
-        fwrite(STDERR, "wordpress-json-table-generated-hidden-residual-cost-current-source-next141 self-test failed\n");
+        fwrite(STDERR, "wordpress-json-table-generated-hidden-residual-cost self-test failed\n");
         exit(1);
     }
 
-    echo "wordpress-json-table-generated-hidden-residual-cost-current-source-next141 self-test passed\n";
+    echo "wordpress-json-table-generated-hidden-residual-cost self-test passed\n";
     return;
 }
 

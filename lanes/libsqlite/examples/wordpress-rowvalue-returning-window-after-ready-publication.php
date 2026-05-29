@@ -21,14 +21,14 @@ $retryStatements = [
 ];
 
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
-$next358 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext358(...$args);
-$next359 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext359(...$args);
-$next360 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext360(...$args);
-$next361 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext361(...$args);
-$next362 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext362(...$args);
-$next363 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext363(...$args);
-$next364 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext364(...$args);
-$next365 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext365(...$args);
+$next358 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterReadyPublicationHandoff(...$args);
+$next359 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterReadyPublicationSourceAudit(...$args);
+$next360 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterReadyPublicationPreflight(...$args);
+$next361 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterReadyPublicationSeal(...$args);
+$next362 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeFinalPublicationHandoff(...$args);
+$next363 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeFinalPublicationSourceAudit(...$args);
+$next364 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeFinalPublicationPreflight(...$args);
+$next365 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeFinalPublicationSeal(...$args);
 
 $statuses = [
     $next358['status'],
@@ -54,7 +54,7 @@ assert($next361['next361_ready'] === true);
 assert($next365['next365_ready'] === true);
 
 $summary = [
-    'status' => 'rowvalue-update-delete-returning-window-current-source-next358-365',
+    'status' => 'rowvalue-update-delete-returning-window-after-ready-publication',
     'candidateStatuses' => $statuses,
     'next358Handoff' => $next358['next358_handoff']['next358_handoff'],
     'next358AfterReadyRange' => $next358['next358_handoff']['after_ready_range'],
@@ -72,11 +72,11 @@ $summary = [
     'next364KeepsThroughputHigh' => $next364['next364_preflight']['keeps_libsqlite_throughput_high'],
     'next365Final' => $next365['next365_final']['next365_final'],
     'next365Ready' => $next365['next365_ready'],
-    'wordpressUse' => 'Copied wp_options imports can validate the next358-365 row-value UPDATE/DELETE RETURNING window current-source continuation after the merged next350-357 handoff while preserving independent libsqlite throughput.',
+    'wordpressUse' => 'Copied wp_options imports can validate the after-ready publication row-value UPDATE/DELETE RETURNING window continuation after the merged next350-357 handoff while preserving independent libsqlite throughput.',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
-    echo "wordpress-rowvalue-returning-window-current-source-next358-365 self-test passed\n";
+    echo "wordpress-rowvalue-returning-window-after-ready-publication self-test passed\n";
     return;
 }
 

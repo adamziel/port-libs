@@ -68,7 +68,7 @@ $summary = [
     'next372KeepsThroughputHigh' => $plans[372]['next372_preflight']['keeps_libsqlite_throughput_high'],
     'next373Final' => $plans[373]['next373_final']['next373_final'],
     'next373Ready' => $plans[373]['next373_ready'],
-    'wordpressUse' => 'Copied wp_options imports can validate the next366-373 row-value UPDATE/DELETE RETURNING window current-source continuation after the merged next358-365 handoff while preserving independent libsqlite throughput.',
+    'wordpressUse' => 'Copied wp_options imports can validate the next366-373 row-value UPDATE/DELETE RETURNING window current-source continuation after the merged after-ready-publication handoff while preserving independent libsqlite throughput.',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

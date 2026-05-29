@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 
-function libsqlite_suite_next421436_evidence(): SQLiteUpstreamSuiteEvidence
+function libsqlite_suite_final_window_evidence(): SQLiteUpstreamSuiteEvidence
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 }
 
-function libsqlite_suite_next421436_output(int $passLines = 44, int $assertions = 96, int $failures = 0): string
+function libsqlite_suite_final_window_output(int $passLines = 44, int $assertions = 96, int $failures = 0): string
 {
     $lines = ['Focused test run: 1 selected test files (root lock skipped)'];
     for ($i = 1; $i <= $passLines; $i++) {
@@ -23,7 +23,7 @@ function libsqlite_suite_next421436_output(int $passLines = 44, int $assertions 
 /**
  * @return list<array<string, mixed>>
  */
-function libsqlite_suite_next421436_rows(
+function libsqlite_suite_final_window_rows(
     int $case = 1,
     string $launcherBase = '8035502138608bf3cb7ee64d1b4686a5bb9f5ec6',
     string $integrationSource = '8035502138608bf3cb7ee64d1b4686a5bb9f5ec6'
@@ -58,7 +58,7 @@ function libsqlite_suite_next421436_rows(
  * @param list<array<string, mixed>> $rows
  * @return array<string, mixed>
  */
-function libsqlite_suite_next421436_record(
+function libsqlite_suite_final_window_record(
     array $rows,
     string $launcherBase = '8035502138608bf3cb7ee64d1b4686a5bb9f5ec6',
     string $integrationSource = '8035502138608bf3cb7ee64d1b4686a5bb9f5ec6',
@@ -66,14 +66,14 @@ function libsqlite_suite_next421436_record(
     ?int $expected = 96,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next421436_evidence()->upstreamVeryquickShardCurrentSourceNext421436(
+    return libsqlite_suite_final_window_evidence()->upstreamVeryquickShardFinalWindowEvidence(
         $rows,
         637,
         42468,
         $launcherBase,
         $integrationSource,
-        'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceCurrentSourceNext421436Test.php',
-        $output ?? libsqlite_suite_next421436_output(),
+        'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceFinalWindowTest.php',
+        $output ?? libsqlite_suite_final_window_output(),
         'current-source next421-436 upstream-suite evidence avoids merged next405-420 suite evidence, earlier prepared ranges, release/all parity, full-suite countability, and individual shard recounting',
         $expected,
         $snapshot
@@ -84,7 +84,7 @@ $tests = [];
 
 foreach (range(1, 16) as $case) {
     $tests[sprintf('current source next421-436 prepares suite evidence case %02d', $case)] = static function (TestRunner $t) use ($case): void {
-        $record = libsqlite_suite_next421436_record(libsqlite_suite_next421436_rows($case));
+        $record = libsqlite_suite_final_window_record(libsqlite_suite_final_window_rows($case));
 
         $t->same('current-source-next421-436-suite-evidence-prepared', $record['status']);
         $t->same(637, $record['current_mapped']);
@@ -105,11 +105,11 @@ foreach (range(1, 16) as $case) {
 }
 
 $tests['current source next421-436 blocks missing slice'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next421436_rows();
+    $rows = libsqlite_suite_final_window_rows();
     unset($rows[1]);
     $rows = array_values($rows);
 
-    $record = libsqlite_suite_next421436_record($rows);
+    $record = libsqlite_suite_final_window_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->same(['next422'], $record['missing_slices']);
@@ -117,11 +117,11 @@ $tests['current source next421-436 blocks missing slice'] = static function (Tes
 };
 
 $tests['current source next421-436 blocks outside slice and stale provenance'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next421436_rows();
+    $rows = libsqlite_suite_final_window_rows();
     $rows[0]['unit'] = 'suite-upstream-veryquick-shard-current-source-next404';
     $rows[1]['dashboard_source_head'] = 'stale-source';
 
-    $record = libsqlite_suite_next421436_record($rows);
+    $record = libsqlite_suite_final_window_record($rows);
     $evidence = implode('; ', array_column($record['blockers'], 'evidence'));
 
     $t->same('blocked', $record['status']);
@@ -130,11 +130,11 @@ $tests['current source next421-436 blocks outside slice and stale provenance'] =
 };
 
 $tests['current source next421-436 blocks unguarded runner and non lane note'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next421436_rows();
+    $rows = libsqlite_suite_final_window_rows();
     $rows[2]['runner_command'] = './testfixture ../libsqlite/test/testrunner.tcl veryquick';
     $rows[2]['artifact_path'] = 'lanes/libsqlite/tests/tmp-next407.log';
 
-    $record = libsqlite_suite_next421436_record($rows);
+    $record = libsqlite_suite_final_window_record($rows);
     $ids = implode(',', array_column($record['blockers'], 'id'));
 
     $t->same('blocked', $record['status']);
@@ -143,10 +143,10 @@ $tests['current source next421-436 blocks unguarded runner and non lane note'] =
 };
 
 $tests['current source next421-436 blocks runner errors and active broad runner'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next421436_rows();
+    $rows = libsqlite_suite_final_window_rows();
     $rows[3]['errors'] = 1;
 
-    $record = libsqlite_suite_next421436_record($rows, snapshot: "777 testfixture ../libsqlite/test/testrunner.tcl --jobs 4 all\n");
+    $record = libsqlite_suite_final_window_record($rows, snapshot: "777 testfixture ../libsqlite/test/testrunner.tcl --jobs 4 all\n");
     $ids = implode(',', array_column($record['blockers'], 'id'));
 
     $t->same('blocked', $record['status']);
@@ -155,9 +155,9 @@ $tests['current source next421-436 blocks runner errors and active broad runner'
 };
 
 $tests['current source next421-436 blocks focused pass mismatch'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_next421436_record(
-        libsqlite_suite_next421436_rows(),
-        output: libsqlite_suite_next421436_output(assertions: 83),
+    $record = libsqlite_suite_final_window_record(
+        libsqlite_suite_final_window_rows(),
+        output: libsqlite_suite_final_window_output(assertions: 83),
         expected: 96
     );
 
@@ -168,7 +168,7 @@ $tests['current source next421-436 blocks focused pass mismatch'] = static funct
 };
 
 $tests['current source next421-436 records next gate and dependency closure'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_next421436_record(libsqlite_suite_next421436_rows(8));
+    $record = libsqlite_suite_final_window_record(libsqlite_suite_final_window_rows(8));
 
     $t->contains('publish next421-436 as prepared upstream-suite evidence only', $record['next_gate']);
     $t->contains('current-source next421-436 evidence prep', $record['dependency_closure']);

@@ -69,7 +69,7 @@ $unrunnable160 = static fn (): array => $plan160($current160, array_replace($nex
 $tests = [
     'normalizes function name' => static fn (TestRunner $t) => $t->same('json_tree', $plan160()['function']),
     'records next160 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next160', $plan160()['dependencies'], true)),
-    'preserves next145 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next145', $plan160()['dependencies'], true)),
+    'preserves generated path rowid cost dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source', $plan160()['dependencies'], true)),
     'pins current reader source' => static fn (TestRunner $t) => $t->same('pin-current-json-table-generated-path-rowid-cost-source-until-vtab-filter-reset', $plan160()['currentReaderPolicy']),
     'prepares changed next source' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-generated-path-rowid-cost-source-plan', $plan160()['nextReaderPolicy']),
     'stable source reuses current plan' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-cost-source-plan', $stable160()['nextReaderPolicy']),

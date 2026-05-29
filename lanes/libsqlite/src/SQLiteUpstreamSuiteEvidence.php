@@ -7920,7 +7920,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext405420(
+    public function upstreamVeryquickShardPreparedWindowEvidence(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -8076,7 +8076,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext421436(
+    public function upstreamVeryquickShardFinalWindowEvidence(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,

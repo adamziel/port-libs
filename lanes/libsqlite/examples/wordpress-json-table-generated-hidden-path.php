@@ -31,7 +31,7 @@ $next = [
     'active_path' => '[1].rules',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedHiddenPathNext144(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedHiddenPath(
     'json_tree',
     $current,
     $next,
@@ -51,7 +51,7 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedHiddenPathNext144(
 );
 
 $summary = [
-    'scenario' => 'wordpress-json-table-generated-hidden-path-current-source-next144',
+    'scenario' => 'wordpress-json-table-generated-hidden-path',
     'wordpressUse' => 'Copied wp_options plugin settings can store a generated hidden JSON path that moves a json_tree scan from one rules subtree to another while preserving usable generated predicates and residual slug checks until the next statement is prepared.',
     'currentRoot' => $plan['currentGeneratedHiddenPath']['composedRoot'],
     'nextRoot' => $plan['nextGeneratedHiddenPath']['composedRoot'],
@@ -59,7 +59,7 @@ $summary = [
     'nextCostClass' => $plan['nextGeneratedHiddenPath']['costClass'],
     'currentMatchedFullkeys' => $plan['currentGeneratedHiddenPath']['matchedFullkeys'],
     'nextMatchedFullkeys' => $plan['nextGeneratedHiddenPath']['matchedFullkeys'],
-    'replanReasons' => $plan['next144ReplanReasons'],
+    'replanReasons' => $plan['generatedHiddenPathReplanReasons'],
     'dependencyClosure' => 'no new support component needed; reuses native JSON path composition, json_tree current-source rows, and generated hidden residual costing',
 ];
 
@@ -72,11 +72,11 @@ if (($argv[1] ?? '') === '--self-test') {
         || $summary['nextMatchedFullkeys'] !== ['$.plugin.groups[1].rules[0]', '$.plugin.groups[1].rules[1]']
         || !in_array('json-table-generated-hidden-path-root-changed', $summary['replanReasons'], true)
     ) {
-        fwrite(STDERR, "wordpress-json-table-generated-hidden-path-current-source-next144 self-test failed\n");
+        fwrite(STDERR, "wordpress-json-table-generated-hidden-path self-test failed\n");
         exit(1);
     }
 
-    echo "wordpress-json-table-generated-hidden-path-current-source-next144 self-test passed\n";
+    echo "wordpress-json-table-generated-hidden-path self-test passed\n";
     return;
 }
 

@@ -11385,7 +11385,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext358(
+    public static function executeAfterReadyPublicationHandoff(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -11428,7 +11428,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext359(
+    public static function executeAfterReadyPublicationSourceAudit(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -11437,7 +11437,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next359',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext358($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterReadyPublicationHandoff($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $sourceAudit = [
             'savepoint' => $savepoint,
             'next358_handoff' => $base['next358_handoff']['next358_handoff'],
@@ -11472,7 +11472,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext360(
+    public static function executeAfterReadyPublicationPreflight(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -11481,7 +11481,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next360',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext359($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterReadyPublicationSourceAudit($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $preflight = [
             'savepoint' => $savepoint,
             'next359_source_audit' => $base['next359_source_audit']['next359_source_audit'],
@@ -11521,7 +11521,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext361(
+    public static function executeAfterReadyPublicationSeal(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -11530,7 +11530,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next361',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext360($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterReadyPublicationPreflight($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $seal = [
             'savepoint' => $savepoint,
             'next358_handoff' => $base['next358_handoff']['next358_handoff'],
@@ -11566,7 +11566,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext362(
+    public static function executeFinalPublicationHandoff(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -11575,7 +11575,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next362',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext361($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterReadyPublicationSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $handoff = [
             'savepoint' => $savepoint,
             'after_ready_range' => 'next358-361',
@@ -11609,7 +11609,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext363(
+    public static function executeFinalPublicationSourceAudit(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -11618,7 +11618,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next363',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext362($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeFinalPublicationHandoff($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $sourceAudit = [
             'savepoint' => $savepoint,
             'next362_handoff' => $base['next362_handoff']['next362_handoff'],
@@ -11653,7 +11653,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext364(
+    public static function executeFinalPublicationPreflight(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -11662,7 +11662,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next364',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext363($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeFinalPublicationSourceAudit($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $preflight = [
             'savepoint' => $savepoint,
             'next363_source_audit' => $base['next363_source_audit']['next363_source_audit'],
@@ -11702,7 +11702,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext365(
+    public static function executeFinalPublicationSeal(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -11711,7 +11711,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next365',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext364($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeFinalPublicationPreflight($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $seal = [
             'savepoint' => $savepoint,
             'next362_handoff' => $base['next362_handoff']['next362_handoff'],
@@ -11735,7 +11735,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'sqlite-rowvalue-update-delete-returning-window-preflight-next364',
                 'wordpress-rowvalue-update-delete-returning-window-current-source-next365',
             ],
-            'non_overlap_next365' => 'adds the final next358-365 inspectable seal; avoids coordination files, broad suite evidence, executor changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and unrelated private state',
+            'non_overlap_next365' => 'adds the final after-ready-publication inspectable seal; avoids coordination files, broad suite evidence, executor changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and unrelated private state',
         ]);
     }
 
@@ -11762,7 +11762,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         }
 
         $savepoint ??= 'wp_options_rowvalue_window_current_handoff_' . $targetStep;
-        $base = self::executeNext365($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeFinalPublicationSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         for ($step = 366; $step <= $targetStep; $step++) {
             $blockStart = $step - (($step - 366) % 4);
             $base = self::applyReadyPublicationContinuationStep($base, $savepoint, $rowIdColumn, $step, $blockStart);
@@ -12113,7 +12113,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $previousReady = $blockStart === 382 ? 'next381_ready' : 'next' . ($blockStart - 1) . '_ready';
         $previousRange = $blockStart === 382 ? 'next378-381' : 'next' . ($blockStart - 4) . '-' . ($blockStart - 1);
         if ($blockStart === 366) {
-            $previousRange = 'next358-365';
+            $previousRange = 'after-ready-publication';
         }
         $range = 'next' . $blockStart . '-' . ($blockStart + 3);
 

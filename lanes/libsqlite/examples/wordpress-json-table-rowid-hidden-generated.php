@@ -33,7 +33,7 @@ $next = [
     'nested_path' => '[0].rules',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceRowidHiddenGeneratedNext149(
+$plan = SQLiteJsonTablePlan::currentSourceRowidHiddenGenerated(
     'json_tree',
     $current,
     $next,
@@ -55,14 +55,14 @@ $plan = SQLiteJsonTablePlan::currentSourceRowidHiddenGeneratedNext149(
 );
 
 $summary = [
-    'scenario' => 'wordpress-json-table-rowid-hidden-generated-current-source-next149',
+    'scenario' => 'wordpress-json-table-rowid-hidden-generated',
     'wordpressUse' => 'Copied wp_options plugin-setting previews can pin a json_tree rowid while generated hidden columns expose slug, priority, and enabled values across a next import.',
     'currentCostClass' => $plan['currentRowidHiddenGenerated']['costClass'],
     'currentRows' => $plan['currentRowidHiddenGenerated']['generatedRows'],
     'nextRows' => $plan['nextRowidHiddenGenerated']['generatedRows'],
     'fingerprintChanged' => $plan['currentRowidHiddenGenerated']['combinedGeneratedFingerprint'] !== $plan['nextRowidHiddenGenerated']['combinedGeneratedFingerprint'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
-    'replanReasons' => $plan['next149ReplanReasons'],
+    'replanReasons' => $plan['rowidHiddenGeneratedReplanReasons'],
     'dependencyClosure' => 'no new support component needed; reuses native JSON table hidden rowid and generated hidden-value planning',
 ];
 
@@ -73,7 +73,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($summary['nextRows'][0]['values']['generated_priority'] === 6);
     assert($summary['fingerprintChanged'] === true);
     assert(in_array('json-table-rowid-hidden-generated-values-changed', $summary['replanReasons'], true));
-    echo "wordpress-json-table-rowid-hidden-generated-current-source-next149 self-test passed\n";
+    echo "wordpress-json-table-rowid-hidden-generated self-test passed\n";
     return;
 }
 

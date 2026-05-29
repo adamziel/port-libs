@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 15:30 UTC):
+  Forty-second reduced consolidation follow-up is staged and validated in the
+  rolling libsqlite integration worktree. The batch accepts 6 clean
+  ready-marked BC handoffs on top of `543fdd6f` while excluding stale worker
+  status edits and incidental shared note hunks: upstream-suite final/prepared
+  window evidence cleanup, STAT4 expression partial source cleanup, rowvalue
+  returning-window after-ready publication cleanup, rowvalue nested
+  release/outer rollback savepoint cleanup, pager-master literal arithmetic
+  branch-fence cleanup from the WAL/VFS worker, and JSON table generated/rowid
+  helper cleanup. Compound BC and pager-master BC are deferred because they
+  overlap already-renamed files or newer integrated edits. Validation passed
+  `31` PHP lints, changed tests
+  `15 test files / 1164 assertions / 0 failures`, `10` changed WordPress
+  examples/self-tests, git diff --check, exact user-named 150 suffix scan clean
+  in `src`/`tests`/`examples`, production `CurrentSourceNextNNN` file/class
+  audits at `0`, and broad numbered production helper-method audit `3059`.
+  Public pass/mapped counters remain `154019 pass / 0 fail` and `830 / 1589`
+  because this is another suffix/helper consolidation slice.
+
 - 2026-05-29 supervisor continuation (shell samples 15:24 UTC):
   Forty-first reduced consolidation follow-up is staged and validated in the
   rolling libsqlite integration worktree. The batch accepts 7 clean

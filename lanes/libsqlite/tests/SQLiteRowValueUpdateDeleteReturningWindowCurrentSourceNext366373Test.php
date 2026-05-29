@@ -20,7 +20,7 @@ $cases = [
             'rowvalue-update-delete-returning-window-current-source-next373',
         ], $result['candidateStatuses']);
         $t->same(64, strlen($result['next366Handoff']));
-        $t->same('next358-365', $result['next366AfterReadyRange']);
+        $t->same('after-ready-publication', $result['next366AfterReadyRange']);
         $t->same(64, strlen($result['next367SourceAudit']));
         $t->same(true, $result['next367PreservesCurrentSource']);
         $t->same(64, strlen($result['next368Preflight']));

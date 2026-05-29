@@ -7,11 +7,11 @@ use PortLibs\LibSqlite\SQLiteStat4ExpressionPartialCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $prepared = [
-    'name' => 'prepared-wp-options-stat4-expression-partial-next163',
+    'name' => 'prepared-wp-options-stat4-expression-partial',
     'schemaCookie' => 1630,
     'stat4Generation' => 7,
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_autoload_updated_next163_old',
+        'name' => 'idx_wp_options_lower_autoload_updated_old',
         'rootPage' => 16301,
         'expression' => 'lower(option_name)',
         'expressionColumn' => 'option_name',
@@ -28,10 +28,10 @@ $prepared = [
 ];
 
 $current = $prepared;
-$current['name'] = 'current-wp-options-stat4-expression-partial-next163';
+$current['name'] = 'current-wp-options-stat4-expression-partial';
 $current['schemaCookie'] = 1634;
 $current['stat4Generation'] = 11;
-$current['indexes'][0]['name'] = 'idx_wp_options_lower_autoload_updated_next163';
+$current['indexes'][0]['name'] = 'idx_wp_options_lower_autoload_updated';
 $current['indexes'][0]['rootPage'] = 16341;
 $current['indexes'][0]['baseCost'] = 2;
 $current['indexes'][0]['stat4Samples'] = [
@@ -49,10 +49,10 @@ $terms = [
     ['left' => ['column' => 'updated_at'], 'operator' => 'BETWEEN', 'lower' => 100, 'upper' => 300],
 ];
 
-$plan = SQLiteStat4ExpressionPartialCurrentSourceNextPlan::materializeNext163($prepared, $current, $terms);
+$plan = SQLiteStat4ExpressionPartialCurrentSourceNextPlan::materialize($prepared, $current, $terms);
 
 echo json_encode([
-    'scenario' => 'wordpress-stat4-expression-partial-current-source-next163',
+    'scenario' => 'wordpress-stat4-expression-partial-current-source',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],
     'reprepareRequired' => $plan['reprepareRequired'],

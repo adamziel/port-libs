@@ -33,7 +33,7 @@ $next = [
     'nested_path' => '[0].rules',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedRowidOrderNext147(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedRowidOrder(
     'json_tree',
     $current,
     $next,
@@ -60,5 +60,5 @@ echo json_encode([
     'current_ordered_rowids' => $plan['currentGeneratedRowidOrder']['orderedRowids'],
     'next_ordered_rowids' => $plan['nextGeneratedRowidOrder']['orderedRowids'],
     'next_policy' => $plan['nextReaderPolicy'],
-    'reasons' => $plan['next147ReplanReasons'],
+    'reasons' => $plan['generatedRowidOrderReplanReasons'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

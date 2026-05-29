@@ -33,7 +33,7 @@ $next = [
     'generated_path' => '$.rules[2]',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostNext145(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCost(
     'json_tree',
     $current,
     $next,
@@ -49,14 +49,14 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostNext145(
 );
 
 $summary = [
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next145',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-cost',
     'wordpressUse' => 'Copied wp_options plugin-setting previews can intersect a generated JSON path with a hidden rowid seek while a next import shifts sibling rules.',
     'currentCostClass' => $plan['currentGeneratedPathRowidCost']['costClass'],
     'currentIntersectedRowids' => $plan['currentGeneratedPathRowidCost']['intersectedRowids'],
     'nextCostClass' => $plan['nextGeneratedPathRowidCost']['costClass'],
     'nextIntersectedRowids' => $plan['nextGeneratedPathRowidCost']['intersectedRowids'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
-    'replanReasons' => $plan['next145ReplanReasons'],
+    'replanReasons' => $plan['generatedPathRowidCostReplanReasons'],
     'dependencyClosure' => 'no new support component needed; reuses native JSON table generated-path cost and rowid alias constraint planning',
 ];
 
@@ -66,7 +66,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($summary['nextCostClass'] === 'json-table-generated-path-rowid-empty');
     assert($summary['nextIntersectedRowids'] === []);
     assert(in_array('json-table-generated-path-rowid-rowset-changed', $summary['replanReasons'], true));
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next145 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-cost self-test passed\n";
     return;
 }
 
