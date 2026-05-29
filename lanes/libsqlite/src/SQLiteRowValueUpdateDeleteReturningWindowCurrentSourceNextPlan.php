@@ -12464,6 +12464,244 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext382(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next382',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext381($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        return self::continuationNext382397($base, $savepoint, $rowIdColumn, 382, 382);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext383(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next383', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext382($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 383, 382);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext384(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next384', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext383($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 384, 382);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext385(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next385', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext384($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 385, 382);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext386(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next386', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext385($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 386, 386);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext387(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next387', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext386($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 387, 386);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext388(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next388', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext387($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 388, 386);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext389(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next389', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext388($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 389, 386);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext390(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next390', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext389($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 390, 390);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext391(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next391', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext390($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 391, 390);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext392(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next392', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext391($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 392, 390);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext393(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next393', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext392($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 393, 390);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext394(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next394', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext393($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 394, 394);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext395(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next395', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext394($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 395, 394);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext396(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next396', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext395($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 396, 394);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext397(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next397', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext396($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 397, 394);
+    }
+
+    /**
+     * @param array<string,mixed> $base
+     * @return array<string,mixed>
+     */
+    private static function continuationNext382397(array $base, string $savepoint, string $rowIdColumn, int $next, int $blockStart): array
+    {
+        $offset = $next - $blockStart;
+        $previousReady = $blockStart === 382 ? 'next381_ready' : 'next' . ($blockStart - 1) . '_ready';
+        $previousRange = $blockStart === 382 ? 'next378-381' : 'next' . ($blockStart - 4) . '-' . ($blockStart - 1);
+        $range = 'next' . $blockStart . '-' . ($blockStart + 3);
+
+        if ($offset === 0) {
+            $handoff = [
+                'savepoint' => $savepoint,
+                'after_ready_range' => $previousRange,
+                $previousReady => $base[$previousReady],
+                'yield_window_rows' => count($base['yield_window']),
+                'suppressed_attempt_window_rows' => count($base['suppressed_attempt_window']),
+                'retry_window_rows' => count($base['retry_window']),
+                'current_source_row_count' => count($base['current_source_tables']['wp_options'] ?? []),
+            ];
+            $handoff['next' . $next . '_handoff'] = hash('sha256', json_encode($handoff, JSON_THROW_ON_ERROR));
+
+            return array_merge($base, [
+                'status' => 'rowvalue-update-delete-returning-window-current-source-next' . $next,
+                'next' . $next . '_handoff' => $handoff,
+                'dependency_closure_next' . $next => "no new support component needed; next{$next} starts the {$range} continuation after the ready {$previousRange} row-value RETURNING window seal",
+                'dependencies_next' . $next => [
+                    'sqlite-rowvalue-update-delete-returning-window-current-source-next' . $next,
+                    'sqlite-rowvalue-update-delete-returning-window-current-source-next' . ($next - 1),
+                    'wordpress-rowvalue-update-delete-returning-window-current-source-next' . $next,
+                ],
+                'non_overlap_next' . $next => "adds handoff metadata over the ready {$previousRange} seal; avoids row-value DML execution changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, coordination files, and unrelated private state",
+            ]);
+        }
+
+        if ($offset === 1) {
+            $handoffKey = 'next' . $blockStart . '_handoff';
+            $sourceAudit = [
+                'savepoint' => $savepoint,
+                $handoffKey => $base[$handoffKey][$handoffKey],
+                'current_source_tables_hash' => hash('sha256', json_encode($base['current_source_tables'], JSON_THROW_ON_ERROR)),
+                'next_source_tables_hash' => hash('sha256', json_encode($base['next_source_tables'], JSON_THROW_ON_ERROR)),
+                'yield_window_ids' => array_column($base['yield_window'], $rowIdColumn),
+                'suppressed_attempt_window_ids' => array_column($base['suppressed_attempt_window'], $rowIdColumn),
+                'retry_window_ids' => array_column($base['retry_window'], $rowIdColumn),
+                'retry_window_dense_ranks' => array_column($base['retry_window'], 'dense_rank'),
+                'retry_rows_preserve_current_source' => $base['next_source_tables'] === $base['current_source_tables'],
+            ];
+            $sourceAudit['next' . $next . '_source_audit'] = hash('sha256', json_encode($sourceAudit, JSON_THROW_ON_ERROR));
+
+            return array_merge($base, [
+                'status' => 'rowvalue-update-delete-returning-window-current-source-next' . $next,
+                'next' . $next . '_source_audit' => $sourceAudit,
+                'dependency_closure_next' . $next => "no new support component needed; next{$next} records current-source hashes and phase window ids from the next{$blockStart} continuation",
+                'dependencies_next' . $next => [
+                    'sqlite-rowvalue-update-delete-returning-window-source-audit-next' . $next,
+                    'sqlite-rowvalue-update-delete-returning-window-current-source-next' . $blockStart,
+                    'wordpress-rowvalue-update-delete-returning-window-source-audit-next' . $next,
+                ],
+                'non_overlap_next' . $next => 'adds source-audit metadata for existing phase windows; avoids row-value parser/executor changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, lane-status files, and supervisor state',
+            ]);
+        }
+
+        if ($offset === 2) {
+            $auditKey = 'next' . ($blockStart + 1) . '_source_audit';
+            $preflight = [
+                'savepoint' => $savepoint,
+                $auditKey => $base[$auditKey][$auditKey],
+                'yield_change_count' => $base['yield_change_count'],
+                'attempt_change_count' => $base['attempt_change_count'],
+                'retry_change_count' => $base['retry_change_count'],
+                'yielded_returning_count' => $base['yielded_returning_count'],
+                'suppressed_returning_count' => $base['suppressed_returning_count'],
+                'retry_returning_count' => $base['retry_returning_count'],
+                'phase_window_rows' => [
+                    'yield' => count($base['yield_window']),
+                    'suppressed_attempt' => count($base['suppressed_attempt_window']),
+                    'retry' => count($base['retry_window']),
+                ],
+                'keeps_libsqlite_throughput_high' => true,
+            ];
+            $preflight['next' . $next . '_preflight'] = hash('sha256', json_encode($preflight, JSON_THROW_ON_ERROR));
+
+            return array_merge($base, [
+                'status' => 'rowvalue-update-delete-returning-window-current-source-next' . $next,
+                'next' . $next . '_preflight' => $preflight,
+                'dependency_closure_next' . $next => "no new support component needed; next{$next} preflights row-value RETURNING phase throughput counters before sealing {$range}",
+                'dependencies_next' . $next => [
+                    'sqlite-rowvalue-update-delete-returning-window-preflight-next' . $next,
+                    'sqlite-rowvalue-update-delete-returning-window-source-audit-next' . ($blockStart + 1),
+                    'wordpress-rowvalue-update-delete-returning-window-preflight-next' . $next,
+                ],
+                'non_overlap_next' . $next => 'adds focused throughput counters only; avoids DML execution, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and coordination surfaces',
+            ]);
+        }
+
+        $handoffKey = 'next' . $blockStart . '_handoff';
+        $auditKey = 'next' . ($blockStart + 1) . '_source_audit';
+        $preflightKey = 'next' . ($blockStart + 2) . '_preflight';
+        $seal = [
+            'savepoint' => $savepoint,
+            $handoffKey => $base[$handoffKey][$handoffKey],
+            $auditKey => $base[$auditKey][$auditKey],
+            $preflightKey => $base[$preflightKey][$preflightKey],
+            $previousReady => $base[$previousReady],
+            'retry_rows_preserve_current_source' => $base[$auditKey]['retry_rows_preserve_current_source'],
+            'keeps_libsqlite_throughput_high' => $base[$preflightKey]['keeps_libsqlite_throughput_high'],
+        ];
+        $seal['next' . $next . '_final'] = hash('sha256', json_encode($seal, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next' . $next,
+            'next' . $next . '_final' => $seal,
+            'next' . $next . '_ready' => $base[$previousReady] === true
+                && $seal['retry_rows_preserve_current_source'] === true
+                && $seal['keeps_libsqlite_throughput_high'] === true,
+            'dependency_closure_next' . $next => "no new support component needed; next{$next} seals the {$range} row-value UPDATE/DELETE RETURNING window current-source continuation after ready {$previousRange}",
+            'dependencies_next' . $next => [
+                'sqlite-rowvalue-update-delete-returning-window-current-source-next' . $next,
+                'sqlite-rowvalue-update-delete-returning-window-preflight-next' . ($blockStart + 2),
+                'wordpress-rowvalue-update-delete-returning-window-current-source-next' . $next,
+            ],
+            'non_overlap_next' . $next => "adds the final {$range} inspectable seal; avoids coordination files, broad suite evidence, executor changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and unrelated private state",
+        ]);
+    }
+
+    /**
      * @param list<array<string,mixed>> $checkpoints
      * @return array<string,mixed>
      */
