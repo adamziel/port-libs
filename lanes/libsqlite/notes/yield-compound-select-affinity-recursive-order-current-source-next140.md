@@ -34,7 +34,7 @@ PHP lint:
 
 ```text
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
-php -l lanes/libsqlite/src/SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNext140Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNext140Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-recursive-affinity-order-current-source-next140.php
 ```

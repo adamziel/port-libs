@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext158Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -65,7 +65,7 @@ $currentRows = [
     ['rowid' => 71, 'option_name' => 'theme_mods', 'autoload' => 'yes', 'option_value' => 'theme', 'option_id' => 71, 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext158Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext158(
     $preparedSource,
     $currentSource,
     $predicate,

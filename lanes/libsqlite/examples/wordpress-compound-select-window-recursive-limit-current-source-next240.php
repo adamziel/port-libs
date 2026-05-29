@@ -6,7 +6,7 @@ foreach (glob(dirname(__DIR__) . '/src/*.php') ?: [] as $file) {
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext240Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 
 $current = [
     'wp_options' => [
@@ -64,7 +64,7 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext240Plan::compare($sql, $current, $next);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext240($sql, $current, $next);
 $spillover = $plan['compoundFinalPageSpilloverDrainNext240'];
 
 if (($argv[1] ?? '') === '--self-test') {

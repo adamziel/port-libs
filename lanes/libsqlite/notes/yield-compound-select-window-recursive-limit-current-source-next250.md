@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext250Plan`, extending the accepted next246 current-source handoff with a next-page admission fence. The fence binds:
+Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, extending the accepted next246 current-source handoff with a next-page admission fence. The fence binds:
 
 - recursive CTE `LIMIT/OFFSET` exhaustion;
 - current-source handoff acknowledgements from next246;

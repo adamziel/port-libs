@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for STAT4 partial expression-index planner
 current-source reuse.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext238Plan`.
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`.
 It composes the accepted next235 vector-counter fence and adds a covering
 payload fence: every current partial-index row must have a matching
 `stat4ExpressionPayloads` row with the same expression key and covering column

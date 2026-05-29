@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNext171Plan` for current-source STAT4 partial expression indexes when an equality key is not itself a STAT4 sample.
+- Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` for current-source STAT4 partial expression indexes when an equality key is not itself a STAT4 sample.
 - The slice admits a current `lower(option_name)` partial expression-index scan when the requested key is bracketed by neighboring current STAT4 samples and matching current rows exist.
 - WordPress path: copied `wp_options` plugin scans can keep using the current partial expression index after `ANALYZE` even when `plugin_search` is not sampled directly.
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext171Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions171 = [
@@ -47,7 +47,7 @@ SELECT option_name AS label,
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary171 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext171Plan::compare($sql171, $currentTables171, $nextTables171);
+$summary171 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext171($sql171, $currentTables171, $nextTables171);
 $tests = [];
 
 $tests['compound select window recursive limit current source next171 status dependencies'] = static function (TestRunner $t) use ($summary171): void {
@@ -142,7 +142,7 @@ $tests['compound select window recursive limit current source next171 boundary a
 };
 
 $tests['compound select window recursive limit current source next171 rejects union all'] = static function (TestRunner $t) use ($currentTables171): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext171Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext171(
         "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip', 1) UNION ALL SELECT pos + 1, 'home', weight + 1 FROM wanted WHERE pos < 2 LIMIT 2 OFFSET 1) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION ALL SELECT option_name, option_id, row_number() OVER (ORDER BY option_id) FROM wp_options ORDER BY rn, label LIMIT 1 OFFSET 0",
         $currentTables171,
         $currentTables171,
@@ -150,7 +150,7 @@ $tests['compound select window recursive limit current source next171 rejects un
 };
 
 $tests['compound select window recursive limit current source next171 rejects missing recursive offset'] = static function (TestRunner $t) use ($currentTables171): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext171Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext171(
         "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip', 1) UNION ALL SELECT pos + 1, 'home', weight + 1 FROM wanted WHERE pos < 2 LIMIT 2) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION SELECT option_name, option_id, row_number() OVER (ORDER BY option_id) FROM wp_options ORDER BY rn, label LIMIT 1 OFFSET 0",
         $currentTables171,
         $currentTables171,
@@ -158,7 +158,7 @@ $tests['compound select window recursive limit current source next171 rejects mi
 };
 
 $tests['compound select window recursive limit current source next171 rejects missing final offset'] = static function (TestRunner $t) use ($currentTables171): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext171Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext171(
         "WITH RECURSIVE wanted(pos, label, weight) AS (VALUES (0, 'skip', 1) UNION ALL SELECT pos + 1, 'home', weight + 1 FROM wanted WHERE pos < 2 LIMIT 2 OFFSET 1) SELECT label, pos, row_number() OVER (ORDER BY pos) AS rn FROM wanted UNION SELECT option_name, option_id, row_number() OVER (ORDER BY option_id) FROM wp_options ORDER BY rn, label LIMIT 1",
         $currentTables171,
         $currentTables171,

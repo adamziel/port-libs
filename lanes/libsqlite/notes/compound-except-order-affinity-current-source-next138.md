@@ -2,12 +2,12 @@
 
 Status: focused PHP behavior growth for compound SELECT EXCEPT with final ORDER BY storage-class affinity across current/next sources.
 
-This slice adds `SQLiteCompoundExceptOrderAffinityCurrentSourceNext138Plan` and a WordPress copied `wp_options` smoke. It verifies that EXCEPT removal uses the left arm's NOCASE collation and SQLite storage-class equality, while the final compound ORDER BY sorts the surviving rowset by result-column storage class, explicit NULLS placement, and NOCASE name ordering after current-source changes.
+This slice adds `SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan` and a WordPress copied `wp_options` smoke. It verifies that EXCEPT removal uses the left arm's NOCASE collation and SQLite storage-class equality, while the final compound ORDER BY sorts the surviving rowset by result-column storage class, explicit NULLS placement, and NOCASE name ordering after current-source changes.
 
 Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundExceptOrderAffinityCurrentSourceNext138Test.php`
-- `php -l lanes/libsqlite/src/SQLiteCompoundExceptOrderAffinityCurrentSourceNext138Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/src/SQLiteSelectSql.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundExceptOrderAffinityCurrentSourceNext138Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-except-order-affinity-current-source-next138.php`

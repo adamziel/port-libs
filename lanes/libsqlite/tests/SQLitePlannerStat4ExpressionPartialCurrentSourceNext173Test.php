@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext173Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq173 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $notNull173 = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
@@ -78,7 +78,7 @@ $terms173 = static fn (): array => [
     $notNull173('option_name'),
 ];
 $needed173 = ['option_name', 'option_value', 'updated_at'];
-$plan173 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext173Plan::materialize(
+$plan173 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext173(
     $prepared ?? $prepared173(),
     $current ?? $current173(),
     $terms ?? $terms173(),

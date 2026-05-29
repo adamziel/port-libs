@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -61,7 +61,7 @@ SELECT option_id AS id,
  ORDER BY id, key_value, source
 SQL;
 
-$plan = SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext142Plan::compare(
+$plan = SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareNext142(
     $sql,
     ['wp_options' => $currentOptions, 'wp_option_edges' => $currentEdges],
     ['wp_options' => $nextOptions, 'wp_option_edges' => $nextEdges],

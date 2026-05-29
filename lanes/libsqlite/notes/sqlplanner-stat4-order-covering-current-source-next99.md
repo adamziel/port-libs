@@ -1,6 +1,6 @@
 # SQL Planner STAT4 Order Covering Current Source Next99
 
-This slice adds `SQLiteStat4OrderCoveringCurrentSourceNext99Plan`, a bounded
+This slice adds `SQLiteStat4OrderCoveringCurrentSourceNextPlan`, a bounded
 native planner materializer for a copied WordPress `wp_options` query after an
 `ANALYZE` refresh changes schema-cookie/STAT4/index signatures.
 

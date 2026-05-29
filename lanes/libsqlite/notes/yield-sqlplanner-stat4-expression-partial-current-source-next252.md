@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `sqlplanner-stat4-expression-partial-current-source-next252`.
 
-Behavior: adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext252Plan`, an additive current-source fence for descending partial expression-index STAT4 plans. It reuses the accepted next249 duplicate peer-count fence and proves that ascending STAT4 samples are reversed into the same descending page anchors selected from the current qualified rowset before a prepared page is reused.
+Behavior: adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, an additive current-source fence for descending partial expression-index STAT4 plans. It reuses the accepted next249 duplicate peer-count fence and proves that ascending STAT4 samples are reversed into the same descending page anchors selected from the current qualified rowset before a prepared page is reused.
 
 WordPress path: `wordpress-sqlplanner-stat4-expression-partial-current-source-next252.php` models copied `wp_options` plugin-admin pagination over a descending partial `lower(option_name)` covering index, where stale sample order or missing upper anchors must force current-source reprepare.
 

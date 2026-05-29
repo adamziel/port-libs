@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNext169Plan` for a current-source STAT4 planner handoff where a partial `lower(option_name)` expression index competes with a broader full expression index.
+- Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` for a current-source STAT4 planner handoff where a partial `lower(option_name)` expression index competes with a broader full expression index.
 - The slice keeps the current partial expression index only when refreshed STAT4/source signatures make it cheaper than the full expression-index candidate, and records a cost fence with selected/full costs, candidate signatures, and rejected full-index candidates.
 - It preserves stale prepared-statement reprepare behavior from the current source while proving a narrower planner decision: partial expression-index re-costing against a full expression-index fallback.
 - WordPress path: copied `wp_options` plugin-option scans after ANALYZE/source changes can keep the partial plugin-option expression index instead of regressing to a broader full expression index over all options.

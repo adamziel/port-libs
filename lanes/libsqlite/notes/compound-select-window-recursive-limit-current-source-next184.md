@@ -2,7 +2,7 @@
 
 ## Behavior
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext184Plan`
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`
 for a bounded current-source SELECT executor edge:
 
 - `WITH RECURSIVE` queue execution with `LIMIT ... OFFSET` exhaustion.

@@ -1,6 +1,6 @@
 # Compound SELECT Window Recursive LIMIT Current Source Next248
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext248Plan`, layered on accepted next243 current replay-ticket fencing. The new behavior gates next-source promotion for compound SELECTs that combine recursive CTE LIMIT/OFFSET, window metrics, `UNION ALL` / `INTERSECT` / `EXCEPT`, and final LIMIT/OFFSET. Promotion now requires receipts for the next-source delta set, binding next-only/current-only labels to the current replay token, spillover-drain token, recursive lineage, and next window metric frames.
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, layered on accepted next243 current replay-ticket fencing. The new behavior gates next-source promotion for compound SELECTs that combine recursive CTE LIMIT/OFFSET, window metrics, `UNION ALL` / `INTERSECT` / `EXCEPT`, and final LIMIT/OFFSET. Promotion now requires receipts for the next-source delta set, binding next-only/current-only labels to the current replay token, spillover-drain token, recursive lineage, and next window metric frames.
 
 WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next248.php` models copied `wp_options` rows where a newly autoloaded plugin option displaces a current option on the final compound page. The next source remains held until promotion receipts match the replayed current result and next delta.
 

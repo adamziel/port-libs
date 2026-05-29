@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext178Plan.php';
-require __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext184Plan.php';
+require __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext184Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $source = [
     'name' => 'wp-options-current-source',
@@ -61,7 +61,7 @@ $terms = [
     ['left' => ['column' => 'option_name'], 'operator' => 'IS NOT NULL'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext184Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext184(
     $prepared,
     $source,
     $terms,

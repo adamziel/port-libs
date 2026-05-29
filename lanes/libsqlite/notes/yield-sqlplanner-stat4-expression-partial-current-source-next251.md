@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext251Plan`, a current-source reuse fence for STAT4 partial expression indexes. After the accepted next247 boundary-peer validation admits a yielded row window, next251 verifies that every yielded rowid has a current `stat4ExpressionPayloads` covering image and that each requested covering column still matches the current table row.
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a current-source reuse fence for STAT4 partial expression indexes. After the accepted next247 boundary-peer validation admits a yielded row window, next251 verifies that every yielded rowid has a current `stat4ExpressionPayloads` covering image and that each requested covering column still matches the current table row.
 
 The WordPress path is copied `wp_options` planning with `lower(option_name)` partial expression indexes over autoloaded plugin settings. This catches stale covering payload reuse after an option value or timestamp changes without changing the expression key.
 

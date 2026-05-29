@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext206Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq206 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $notNull206 = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
@@ -79,7 +79,7 @@ $terms206 = static fn (): array => [
     $notNull206('option_name'),
     $eq206('blog_id', 1),
 ];
-$plan206 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext206Plan::materialize(
+$plan206 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext206(
     $prepared ?? $prepared206(),
     $current ?? $current206(),
     $terms ?? $terms206(),

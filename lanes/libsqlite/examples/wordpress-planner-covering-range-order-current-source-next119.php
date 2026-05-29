@@ -5,9 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
 require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteCreateIndex.php';
-require_once __DIR__ . '/../src/SQLitePlannerCoveringRangeOrderCurrentSourceNext119Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerCoveringRangeOrderCurrentSourceNext119Plan;
+use PortLibs\LibSqlite\SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan;
 
 $point = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -40,7 +40,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '1 1 1', 'nlt' => '3 3 3', 'ndlt' => '2 2 2', 'sample' => [1, 'yes', 'plugin_security']],
 ];
 
-$plan = SQLitePlannerCoveringRangeOrderCurrentSourceNext119Plan::materialize(
+$plan = SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan::materializeNext119(
     $prepared,
     $current,
     $and(

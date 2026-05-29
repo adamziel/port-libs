@@ -24,7 +24,7 @@ Focused commands run in this worktree:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext206Test.php`
 - `php lanes/libsqlite/examples/wordpress-stat4-expression-partial-or-current-source-next206.php`
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext206Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext206Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-stat4-expression-partial-or-current-source-next206.php`
 - `git diff --check -- lanes/libsqlite`

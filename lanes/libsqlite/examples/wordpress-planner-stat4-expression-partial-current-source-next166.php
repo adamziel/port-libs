@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext166Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext166Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $term = static fn (string $column, string $operator, mixed $right = null): array => ['left' => ['column' => $column], 'operator' => $operator, 'right' => $right];
 $exprIn = static fn (string $expression, array $values): array => ['left' => ['expression' => $expression], 'operator' => 'IN', 'values' => $values];
@@ -55,7 +55,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '1', 'nlt' => '3', 'ndlt' => '2', 'sample' => ['plugin_seo', 23]],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext166Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext166(
     $prepared,
     $current,
     [

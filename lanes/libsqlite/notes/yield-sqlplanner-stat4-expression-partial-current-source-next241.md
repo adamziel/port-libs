@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext241Plan`, a current-source
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a current-source
 STAT4 partial-expression planner fence that layers on the accepted next238 covering
 payload validation. The new fence rechecks each yielded current rowid against the
 full residual WHERE terms, so a covering partial expression index is not admitted

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundRecursiveCollationLimitCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteCompoundRecursiveCollationLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -57,7 +57,7 @@ SELECT option_name AS name, option_id AS depth
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundRecursiveCollationLimitCurrentSourceNext132Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundRecursiveCollationLimitCurrentSourceNextPlan::compareNext132($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound recursive collation limit current source next132 status and shape'] = static function (TestRunner $t) use ($summary): void {
@@ -114,7 +114,7 @@ $tests['compound recursive collation limit current source next132 changed names 
 };
 
 $tests['compound recursive collation limit current source next132 rejects non compound recursive select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveCollationLimitCurrentSourceNext132Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveCollationLimitCurrentSourceNextPlan::compareNext132(
         "WITH RECURSIVE wanted(name, depth) AS (VALUES ('siteurl', 0)) SELECT name FROM wanted",
         $currentTables,
         $currentTables,

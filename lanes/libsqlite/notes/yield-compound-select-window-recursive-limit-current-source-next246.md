@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext246Plan`, extending the accepted next243 replay-ticket fence with a current-source handoff token. The handoff binds:
+Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, extending the accepted next243 replay-ticket fence with a current-source handoff token. The handoff binds:
 
 - recursive LIMIT/OFFSET cursor exhaustion;
 - final-page spillover acknowledgement state from next240;

@@ -15,7 +15,7 @@ Verification:
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Test.php
 php lanes/libsqlite/examples/wordpress-compound-except-window-recursive-limit-current-source-next161.php --self-test
-php -l lanes/libsqlite/src/SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-except-window-recursive-limit-current-source-next161.php
 git diff --check -- lanes/libsqlite

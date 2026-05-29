@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Plan;
+use PortLibs\LibSqlite\SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions161 = [
@@ -46,7 +46,7 @@ SELECT option_id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary161 = static fn (): array => SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Plan::compare($sql161, $currentTables161, $nextTables161);
+$summary161 = static fn (): array => SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan::compareNext161($sql161, $currentTables161, $nextTables161);
 $tests = [];
 
 $tests['compound except window recursive limit next161 status dependencies'] = static function (TestRunner $t) use ($summary161): void {
@@ -152,7 +152,7 @@ $tests['compound except window recursive limit next161 changed signatures and re
 };
 
 $tests['compound except window recursive limit next161 rejects missing recursive'] = static function (TestRunner $t) use ($currentTables161): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan::compareNext161(
         "SELECT option_id AS id, option_name AS label, row_number() OVER (ORDER BY weight) AS win FROM wp_options EXCEPT SELECT option_id, option_name, 1 FROM wp_options WHERE option_name LIKE 'skip_%' ORDER BY win LIMIT 2 OFFSET 1",
         $currentTables161,
         $currentTables161,
@@ -160,7 +160,7 @@ $tests['compound except window recursive limit next161 rejects missing recursive
 };
 
 $tests['compound except window recursive limit next161 rejects missing except'] = static function (TestRunner $t) use ($currentTables161): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan::compareNext161(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 20) UNION ALL SELECT id + 1, label, score - 2 FROM q WHERE id < 3 LIMIT 2) SELECT id, label, row_number() OVER (ORDER BY score) AS win FROM q UNION ALL SELECT option_id, option_name, dense_rank() OVER (ORDER BY weight) AS win FROM wp_options ORDER BY win LIMIT 2 OFFSET 1",
         $currentTables161,
         $currentTables161,
@@ -168,7 +168,7 @@ $tests['compound except window recursive limit next161 rejects missing except'] 
 };
 
 $tests['compound except window recursive limit next161 rejects missing final offset'] = static function (TestRunner $t) use ($currentTables161): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan::compareNext161(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 20) UNION ALL SELECT id + 1, label, score - 2 FROM q WHERE id < 3 LIMIT 2) SELECT id, label, row_number() OVER (ORDER BY score) AS win FROM q EXCEPT SELECT option_id, option_name, 1 FROM wp_options WHERE option_name LIKE 'skip_%' ORDER BY win LIMIT 2",
         $currentTables161,
         $currentTables161,

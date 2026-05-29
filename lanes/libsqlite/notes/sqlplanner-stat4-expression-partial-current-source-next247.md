@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for current-source STAT4 expression partial-index planning where a LIMIT/OFFSET cursor window starts or ends inside duplicate expression-key peers.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext247Plan`, layered on accepted next244 current-source LIMIT/OFFSET window validation. The new fence recomputes current partial expression order, derives the first/last window expression keys, expands their full peer rowid sets, and verifies the yielded cursor did not reuse stale prepared-source boundary peers before promoting cursor reuse.
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, layered on accepted next244 current-source LIMIT/OFFSET window validation. The new fence recomputes current partial expression order, derives the first/last window expression keys, expands their full peer rowid sets, and verifies the yielded cursor did not reuse stale prepared-source boundary peers before promoting cursor reuse.
 
 WordPress path: `wordpress-planner-stat4-expression-partial-current-source-next247.php` models copied `wp_options` plugin-option queries using a partial `lower(option_name)` expression index where duplicate `plugin_forms` rows straddle the current page boundary.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext247Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext247Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next247.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext247Test.php`

@@ -18,7 +18,7 @@ Focused verification:
 ```text
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerSubqueryCoveringPartialCurrentSourceNext115Test.php
 php lanes/libsqlite/examples/wordpress-subquery-covering-partial-current-source-next115.php
-php -l lanes/libsqlite/src/SQLitePlannerSubqueryCoveringPartialCurrentSourceNext115Plan.php
+php -l lanes/libsqlite/src/SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePlannerSubqueryCoveringPartialCurrentSourceNext115Test.php
 php -l lanes/libsqlite/examples/wordpress-subquery-covering-partial-current-source-next115.php
 git diff --check -- lanes/libsqlite

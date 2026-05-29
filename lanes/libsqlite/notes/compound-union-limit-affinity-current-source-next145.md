@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for parser-level compound `UNION` duplicate elimination before final `ORDER BY` / `LIMIT` / `OFFSET` at a WordPress copied `wp_options` current/next boundary.
 
-This slice adds `SQLiteCompoundUnionLimitAffinityCurrentSourceNext145Plan`.
+This slice adds `SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan`.
 
 - `UNION` removes duplicate rows using SQLite compound row keys: integer `1` and real `1.0` compare as the same numeric value.
 - Text values such as `'1'` stay distinct from numeric `1`; no column-affinity coercion is applied to compound duplicate checks.

@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for STAT4 expression partial-index
 current-source planning.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext166Plan`,
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`,
 a bounded planner composition for stale prepared `wp_options` statements that
 must reprepare to the current source before using a partial expression index
 for a multi-value `IN` constraint. It builds on the existing next154

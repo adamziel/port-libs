@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerCoveringPartialRangeCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan;
 
 $point131 = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range131 = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -85,7 +85,7 @@ $predicate131 = static fn (): array => $and131(
     $range131('option_name', '<', 'plugin_z'),
 );
 $needed131 = ['option_name', 'option_value', 'rowid'];
-$plan131 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerCoveringPartialRangeCurrentSourceNext131Plan::materialize(
+$plan131 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan::materializeNext131(
     $prepared ?? $preparedSource131(),
     $current ?? $currentSource131(),
     $predicate ?? $predicate131(),

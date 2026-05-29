@@ -17,9 +17,9 @@ require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteSelectQuery.php';
 require_once __DIR__ . '/../src/SQLiteSelectCompound.php';
 require_once __DIR__ . '/../src/SQLiteSelectSql.php';
-require_once __DIR__ . '/../src/SQLiteCompoundRecursiveOrderLimitCurrentSourceNext146Plan.php';
+require_once __DIR__ . '/../src/SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundRecursiveOrderLimitCurrentSourceNext146Plan;
+use PortLibs\LibSqlite\SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -58,7 +58,7 @@ SELECT option_id AS id, option_name AS name, priority, 'autoload' AS source
  LIMIT 6 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundRecursiveOrderLimitCurrentSourceNext146Plan::compare($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan::compareNext146($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     if (($summary['recursive']['currentVisitOrder'] ?? null) !== ['siteurl', 'active_plugins', 'plugin_cache', 'theme_mods', 'widget_text']) {

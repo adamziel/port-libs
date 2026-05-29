@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundRecursiveLimitWindowCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -79,7 +79,7 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundRecursiveLimitWindowCurrentSourceNext135Plan::compare($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compareNext135($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($plan['status'] !== 'compound-recursive-limit-window-current-source-next135-ready') {

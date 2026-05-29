@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNext158Plan` for a bounded current-source planner handoff where a stale prepared statement uses a partial `lower(option_name)` expression index with STAT4 range samples.
+- Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` for a bounded current-source planner handoff where a stale prepared statement uses a partial `lower(option_name)` expression index with STAT4 range samples.
 - The slice materializes the current STAT4 lower/upper range fence, blocks deleted prepared rowids, admits inserted/refreshed current rowids, and keeps table lookup elided for the covering range window.
 - WordPress path: copied `wp_options` plugin-option scans after ANALYZE/source changes can keep using the current partial expression covering index without reading stale prepared rows.
 

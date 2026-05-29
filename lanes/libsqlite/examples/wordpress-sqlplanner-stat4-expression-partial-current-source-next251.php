@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext251Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $payload = static fn (array $row): array => [
     'rowid' => $row['rowid'],
@@ -87,7 +87,7 @@ $terms = [
     ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'plugin_%'],
 ];
 
-$ready = SQLitePlannerStat4ExpressionPartialCurrentSourceNext251Plan::materialize(
+$ready = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext251(
     $prepared,
     $current,
     $terms,
@@ -98,7 +98,7 @@ $ready = SQLitePlannerStat4ExpressionPartialCurrentSourceNext251Plan::materializ
 
 $stale = $current;
 $stale['indexes'][0]['stat4ExpressionPayloads'][2]['coveredValues']['option_value'] = 'stale-cache';
-$blocked = SQLitePlannerStat4ExpressionPartialCurrentSourceNext251Plan::materialize(
+$blocked = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext251(
     $prepared,
     $stale,
     $terms,

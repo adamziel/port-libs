@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext200Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -54,7 +54,7 @@ SELECT 2 AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext200Plan::compare($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext200($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-next200-ready');

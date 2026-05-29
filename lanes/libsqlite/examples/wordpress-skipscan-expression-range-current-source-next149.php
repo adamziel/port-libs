@@ -5,11 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
 require_once __DIR__ . '/../src/SQLiteIndexSkipScanPlan.php';
 require_once __DIR__ . '/../src/SQLiteSkipScanStat4PartialOrderPlan.php';
-require_once __DIR__ . '/../src/SQLitePlannerExpressionSkipScanRangeCurrentSourceNext143Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerSkipScanExpressionRangeCurrentSourceNext149Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerExpressionSkipScanRangeCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
-use PortLibs\LibSqlite\SQLitePlannerSkipScanExpressionRangeCurrentSourceNext149Plan;
+use PortLibs\LibSqlite\SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan;
 
 $prepared = [
     'name' => 'prepared-main.wp_options',
@@ -61,7 +61,7 @@ $partial = new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, [
     new SQLiteIndexPredicate('option_name', SQLiteIndexPredicate::IS_NOT_NULL),
 ]);
 
-$plan = SQLitePlannerSkipScanExpressionRangeCurrentSourceNext149Plan::materialize(
+$plan = SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan::materializeNext149(
     $prepared,
     $current,
     $partial,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionCoveringCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan;
 
 $expr144 = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
 $column144 = static fn (string $name): array => ['column' => $name];
@@ -67,7 +67,7 @@ $currentSource144 = static function () use ($preparedSource144): array {
     return $source;
 };
 
-$plan144 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionCoveringCurrentSourceNext144Plan::materialize(
+$plan144 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext144(
     $prepared ?? $preparedSource144(),
     $current ?? $currentSource144(),
     $predicate ?? $predicate144,
@@ -145,12 +145,12 @@ $tests = [
     'planner stat4 expression covering current source next144 non covering requires next' => static fn (TestRunner $t) => $t->same('requires-next-stage', $nonCovering144()['status']),
     'planner stat4 expression covering current source next144 non covering deferred seek' => static fn (TestRunner $t) => $t->same('DeferredSeek', $nonCovering144()['cursorTape']['deferredSeekOpcode']),
     'planner stat4 expression covering current source next144 validates output columns' => static function (TestRunner $t) use ($preparedSource144, $currentSource144, $predicate144, $order144, $neededExpressions144): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringCurrentSourceNext144Plan::materialize($preparedSource144(), $currentSource144(), $predicate144, $order144, [], $neededExpressions144));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext144($preparedSource144(), $currentSource144(), $predicate144, $order144, [], $neededExpressions144));
     },
     'planner stat4 expression covering current source next144 validates source indexes' => static function (TestRunner $t) use ($preparedSource144, $currentSource144, $predicate144, $order144, $needed144, $neededExpressions144): void {
         $bad = $preparedSource144();
         $bad['indexes'] = [];
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringCurrentSourceNext144Plan::materialize($bad, $currentSource144(), $predicate144, $order144, $needed144, $neededExpressions144));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext144($bad, $currentSource144(), $predicate144, $order144, $needed144, $neededExpressions144));
     },
 ];
 

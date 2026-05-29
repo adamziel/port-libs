@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext195Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentTables195 = [
@@ -56,7 +56,7 @@ SELECT 3 AS id,
  LIMIT 3 OFFSET 1
 SQL;
 
-$summary195 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext195Plan::compare($sql195, $currentTables195, $nextTables195);
+$summary195 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext195($sql195, $currentTables195, $nextTables195);
 $tests = [];
 
 $tests['compound select window recursive limit current source next195 status dependencies'] = static function (TestRunner $t) use ($summary195): void {
@@ -159,7 +159,7 @@ $tests['compound select window recursive limit current source next195 replan rea
 };
 
 $tests['compound select window recursive limit current source next195 rejects missing except'] = static function (TestRunner $t) use ($currentTables195): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext195Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext195(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'siteurl', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 5 ORDER BY 3 DESC LIMIT 5) SELECT id, label, row_number() OVER (ORDER BY score DESC) AS pos FROM q INTERSECT SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC, option_id) FROM wp_options ORDER BY pos LIMIT 2 OFFSET 1",
         $currentTables195,
         $currentTables195,
@@ -167,7 +167,7 @@ $tests['compound select window recursive limit current source next195 rejects mi
 };
 
 $tests['compound select window recursive limit current source next195 rejects missing recursive window'] = static function (TestRunner $t) use ($currentTables195): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext195Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext195(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'siteurl', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 5 ORDER BY 3 DESC LIMIT 5) SELECT id, label, score AS pos FROM q INTERSECT SELECT option_id, option_name, score FROM wp_options EXCEPT SELECT 3, 'transient_cleanup', 80 ORDER BY pos LIMIT 2 OFFSET 1",
         $currentTables195,
         $currentTables195,
@@ -189,7 +189,7 @@ foreach (range(1, 50) as $case) {
             ],
         ];
         $generatedSql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'siteurl_{$case}', " . (100 + $case) . ") UNION ALL SELECT id + 1, CASE id + 1 WHEN 2 THEN 'home_{$case}' WHEN 3 THEN 'transient_cleanup_{$case}' WHEN 4 THEN 'theme_mods_{$case}' ELSE 'rewrite_rules_{$case}' END, score - 10 FROM q WHERE id < {$extra} ORDER BY 3 DESC LIMIT {$extra}) SELECT id, label, row_number() OVER (ORDER BY score DESC) AS pos FROM q INTERSECT SELECT option_id AS id, option_name AS label, row_number() OVER (ORDER BY score DESC, option_id) AS pos FROM wp_options WHERE autoload = 'yes' EXCEPT SELECT 3 AS id, 'transient_cleanup_{$case}' AS label, 3 AS pos ORDER BY pos DESC, id LIMIT {$limit} OFFSET {$offset}";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext195Plan::compare($generatedSql, $tables, $tables);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext195($generatedSql, $tables, $tables);
         $rows = SQLiteSelectSql::execute($generatedSql, $tables);
 
         $t->same(min($limit, max(0, count($plan['currentPreLimitRows']) - $offset)), count($rows));

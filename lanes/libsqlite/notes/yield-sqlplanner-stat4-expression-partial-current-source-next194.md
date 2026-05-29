@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for a STAT4 expression partial-index planner
 current-source fence.
 
-Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNext194Plan` composes
+Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` composes
 accepted next175 LIKE-prefix STAT4 partial-expression admission and retains
 NULL-safe `IS DISTINCT FROM` residual checks over the current-source row stream.
 It rejects a current WordPress option row whose expression key equals the
@@ -20,7 +20,7 @@ WordPress smoke:
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext194Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext194Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next194.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext194Test.php`

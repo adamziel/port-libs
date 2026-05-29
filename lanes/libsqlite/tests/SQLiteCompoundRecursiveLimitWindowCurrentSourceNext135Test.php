@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundRecursiveLimitWindowCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -77,7 +77,7 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 1
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundRecursiveLimitWindowCurrentSourceNext135Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compareNext135($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound recursive limit window current-source next135 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -172,7 +172,7 @@ foreach (range(1, 42) as $case) {
 }
 
 $tests['compound recursive limit window current-source next135 rejects non recursive select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveLimitWindowCurrentSourceNext135Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compareNext135(
         'SELECT option_id AS id FROM wp_options UNION ALL SELECT option_id AS id FROM wp_options LIMIT 1',
         $currentTables,
         $currentTables,
@@ -180,7 +180,7 @@ $tests['compound recursive limit window current-source next135 rejects non recur
 };
 
 $tests['compound recursive limit window current-source next135 rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveLimitWindowCurrentSourceNext135Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compareNext135(
         "WITH RECURSIVE wanted(id, label, depth, weight) AS (VALUES (1, 'siteurl', 0, 20)) SELECT id, label, depth FROM wanted",
         $currentTables,
         $currentTables,

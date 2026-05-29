@@ -2,7 +2,7 @@
 
 - Slice: `compound-select-window-except-affinity-current-source-next133`
 - Base: `f04a2e06641da7b8156e045fbf02ee56810922b7`
-- Added behavior: `SQLiteCompoundWindowExceptAffinityCurrentSourceNext133Plan` records parser-level compound `EXCEPT` over windowed SELECT arms, current/next row signatures, removed EXCEPT rows, window metadata, and SQLite storage-class affinity class changes.
+- Added behavior: `SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan` records parser-level compound `EXCEPT` over windowed SELECT arms, current/next row signatures, removed EXCEPT rows, window metadata, and SQLite storage-class affinity class changes.
 - WordPress smoke: `examples/wordpress-compound-window-except-affinity-current-source-next133.php` models copied `wp_options` rows subtracting network options while preserving text-vs-numeric differences.
 - Focused test evidence: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundWindowExceptAffinityCurrentSourceNext133Test.php` passed with `1 test files, 120 assertions, 0 failures` and 54 PASS lines.
 - Expected dashboard movement if accepted: `phpPass` `55029 -> 55083` (+54 PASS lines). Mapped coverage unchanged at `606 / 1589`; this is focused PHP behavior growth, not a new manifest-backed upstream row.

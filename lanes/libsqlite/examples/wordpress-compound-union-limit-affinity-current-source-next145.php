@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundUnionLimitAffinityCurrentSourceNext145Plan;
+use PortLibs\LibSqlite\SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -38,7 +38,7 @@ SELECT rank_value AS rank_value, payload AS payload
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundUnionLimitAffinityCurrentSourceNext145Plan::compare(
+$plan = SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareNext145(
     $sql,
     ['wp_options' => $currentOptions, 'wp_option_stage' => $currentStage],
     ['wp_options' => $nextOptions, 'wp_option_stage' => $nextStage],

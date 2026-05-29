@@ -26,7 +26,7 @@ Verification:
   - index `idx_wp_options_lower_active_name`
   - values `plugin_cache`, `plugin_forms`, `plugin_security`
   - table lookup elided
-- `php -l lanes/libsqlite/src/SQLitePlannerSubqueryExpressionIndexCurrentSourceNext123Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerSubqueryExpressionIndexCurrentSourceNextPlan.php`
   - no syntax errors
 - `php -l lanes/libsqlite/tests/SQLitePlannerSubqueryExpressionIndexCurrentSourceNext123Test.php`
   - no syntax errors

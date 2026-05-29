@@ -5,7 +5,7 @@ next-source admission must be acknowledged against the compound operator chain,
 recursive LIMIT lineage, final LIMIT/OFFSET position, and per-page window
 frames.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext254Plan`,
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`,
 layered on accepted next250 next-page admission. The new receipt gate binds the
 accepted next-page token to `UNION ALL` / `INTERSECT` / `EXCEPT`, recursive
 emitted/skipped labels, current/next window page frames, and final
@@ -21,7 +21,7 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext254Test.php`
 - `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next254.php --self-test`
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext254Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext254Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next254.php`
 - `git diff --check -- lanes/libsqlite`

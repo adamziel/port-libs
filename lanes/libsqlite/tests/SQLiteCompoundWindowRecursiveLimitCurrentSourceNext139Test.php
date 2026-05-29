@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundWindowRecursiveLimitCurrentSourceNext139Plan;
+use PortLibs\LibSqlite\SQLiteCompoundWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -49,7 +49,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundWindowRecursiveLimitCurrentSourceNext139Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundWindowRecursiveLimitCurrentSourceNextPlan::compareNext139($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound window recursive limit current source next139 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -129,7 +129,7 @@ $tests['compound window recursive limit current source next139 changed signature
 };
 
 $tests['compound window recursive limit current source next139 rejects non recursive select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowRecursiveLimitCurrentSourceNext139Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowRecursiveLimitCurrentSourceNextPlan::compareNext139(
         'SELECT option_id AS id FROM wp_options UNION ALL SELECT option_id FROM wp_options LIMIT 2',
         $currentTables,
         $currentTables,
@@ -137,7 +137,7 @@ $tests['compound window recursive limit current source next139 rejects non recur
 };
 
 $tests['compound window recursive limit current source next139 rejects missing final limit'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowRecursiveLimitCurrentSourceNext139Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowRecursiveLimitCurrentSourceNextPlan::compareNext139(
         "WITH RECURSIVE option_rank(id, weight) AS (VALUES (1, 5) UNION ALL SELECT id + 1, weight - 1 FROM option_rank WHERE id < 3 LIMIT 3) SELECT id, sum(weight) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS window_weight FROM option_rank UNION ALL SELECT option_id, weight FROM wp_options ORDER BY window_weight",
         $currentTables,
         $currentTables,

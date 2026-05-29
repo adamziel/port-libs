@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundHavingWindowCurrentSourceNext128Plan;
+use PortLibs\LibSqlite\SQLiteCompoundHavingWindowCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -52,7 +52,7 @@ HAVING count(*) <= (
  ORDER BY autoload, total_bytes DESC
 SQL;
 
-$plan = SQLiteCompoundHavingWindowCurrentSourceNext128Plan::compare($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundHavingWindowCurrentSourceNextPlan::compareNext128($sql, $currentTables, $nextTables);
 
 if (in_array('--self-test', $argv, true)) {
     if (($plan['status'] ?? null) !== 'compound-having-window-current-source-next128') {

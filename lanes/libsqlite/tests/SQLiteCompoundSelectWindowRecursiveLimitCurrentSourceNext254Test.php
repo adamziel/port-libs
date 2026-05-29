@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext254Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions254 = [
@@ -63,7 +63,7 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary254 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext254Plan::compare($sql254, $currentTables254, $nextTables254, $cursor);
+$summary254 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext254($sql254, $currentTables254, $nextTables254, $cursor);
 $tests = [];
 
 $tests['compound select window recursive limit current source next254 status dependencies'] = static function (TestRunner $t) use ($summary254): void {
@@ -181,7 +181,7 @@ foreach (range(1, 74) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 95 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (130 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes' INTERSECT SELECT id, label, metric FROM (SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes') EXCEPT SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE option_name IN ('siteurl_{$case}') ORDER BY metric, label LIMIT 4 OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext254Plan::compare($sql, $tables, $nextTables);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext254($sql, $tables, $nextTables);
         $receipt = $plan['compoundWindowRecursiveLimitReceiptNext254'];
         $cursor = $plan['cursor'];
         $cursor['acknowledgedCurrentDequeueAcksNext237'] = $plan['currentSourceDequeueNext237']['requiredCurrentDequeueAcks'];
@@ -190,7 +190,7 @@ foreach (range(1, 74) as $case) {
         $cursor['acknowledgedSourceHandoffAcksNext246'] = $plan['compoundRecursiveLimitSourceHandoffNext246']['requiredSourceHandoffAcks'];
         $cursor['acknowledgedNextPageAdmissionAcksNext250'] = $plan['compoundCurrentSourceNextPageAdmissionNext250']['requiredNextPageAdmissionAcks'];
         $cursor['acknowledgedCompoundReceiptAcksNext254'] = $receipt['requiredCompoundReceiptAcks'];
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext254Plan::compare($sql, $tables, $nextTables, $cursor);
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext254($sql, $tables, $nextTables, $cursor);
 
         $t->same(['UNION ALL', 'INTERSECT', 'EXCEPT'], $receipt['compoundOperators']);
         $t->same(['home_' . $case, 'seed_' . $case . ':2:3', 'rewrite_' . $case, 'seed_' . $case . ':2:3:4'], $receipt['currentLabels']);

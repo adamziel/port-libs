@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext207Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $prepared = [
     'name' => 'prepared-wordpress-options-stat4-samples',
@@ -65,7 +65,7 @@ $current['rows'] = [
     ['rowid' => 80, 'blog_id' => 2, 'autoload' => 'yes', 'option_name' => 'theme_mods_twentysix', 'option_value' => 'theme', 'updated_at' => 80],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext207Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext207(
     $prepared,
     $current,
     [

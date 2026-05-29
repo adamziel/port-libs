@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNext164Plan` for a bounded current-source planner handoff where a stale prepared statement has a partial `lower(option_name)` expression index and refreshed STAT4 range samples.
+- Added `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` for a bounded current-source planner handoff where a stale prepared statement has a partial `lower(option_name)` expression index and refreshed STAT4 range samples.
 - The slice proves the partial expression-index predicate from narrower current query range bounds (`lower(option_name) >= plugin_cache` and `< plugin_t`) instead of requiring the query to repeat the original partial range verbatim.
 - The planner selects the current source when schema/stat4/source signatures change, rejects stale prepared rows, keeps covering scans table-lookup-free, and falls back when the range is too wide to imply the partial predicate or when STAT4 samples are unavailable.
 - WordPress path: copied `wp_options` plugin-option scans after ANALYZE/source changes can keep using the current partial expression index for autoloaded plugin options without reading stale prepared row payloads.

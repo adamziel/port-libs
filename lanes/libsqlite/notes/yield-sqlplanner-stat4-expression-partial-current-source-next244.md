@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `sqlplanner-stat4-expression-partial-current-source-next244`.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext244Plan`, an additive current-source LIMIT/OFFSET window fence for stale prepared statements that reuse a STAT4-backed partial expression index. After the accepted next241 residual WHERE validation, the new fence recomputes the current partial expression order and verifies that the yielded rowid window exactly matches the current source for the requested LIMIT/OFFSET.
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, an additive current-source LIMIT/OFFSET window fence for stale prepared statements that reuse a STAT4-backed partial expression index. After the accepted next241 residual WHERE validation, the new fence recomputes the current partial expression order and verifies that the yielded rowid window exactly matches the current source for the requested LIMIT/OFFSET.
 
 WordPress relevance: copied `wp_options` plugin-admin pagination can keep a prepared descending partial `lower(option_name)` expression-index plan only when the current source still yields the same page window after ANALYZE/schema/source movement.
 

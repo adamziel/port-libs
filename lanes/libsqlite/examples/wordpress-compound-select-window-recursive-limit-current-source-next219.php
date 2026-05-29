@@ -6,7 +6,7 @@ foreach (glob(dirname(__DIR__) . '/src/*.php') ?: [] as $file) {
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext219Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 
 $current = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'score' => 128],
@@ -54,7 +54,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext219Plan::compare(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext219(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],

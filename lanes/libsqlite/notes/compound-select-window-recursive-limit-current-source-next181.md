@@ -1,6 +1,6 @@
 # Compound SELECT Window Recursive LIMIT Current Source Next181
 
-This patch adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext181Plan`, a focused current-source wrapper for recursive compound SELECTs where `UNION ALL` feeds a later `UNION` distinct arm, window values are already materialized, and the final `LIMIT/OFFSET` admits only part of the post-distinct stream.
+This patch adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, a focused current-source wrapper for recursive compound SELECTs where `UNION ALL` feeds a later `UNION` distinct arm, window values are already materialized, and the final `LIMIT/OFFSET` admits only part of the post-distinct stream.
 
 Focused behavior:
 
@@ -11,7 +11,7 @@ Focused behavior:
 
 Verification evidence:
 
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext181Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext181Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next181.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext181Test.php`

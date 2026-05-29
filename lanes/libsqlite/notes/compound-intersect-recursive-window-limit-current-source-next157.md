@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for parser-level compound SELECT output where a recursive CTE queue `LIMIT` feeds a window-ranked `INTERSECT` arm, and the final compound `LIMIT/OFFSET` decides the current/next WordPress row boundary.
 
-This slice adds `SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Plan`. It records:
+This slice adds `SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNextPlan`. It records:
 
 - recursive CTE queue rows and limit exhaustion before the compound operator;
 - per-arm `row_number()` window metadata;
@@ -13,7 +13,7 @@ This slice adds `SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157
 Focused verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-intersect-recursive-window-limit-current-source-next157.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Test.php

@@ -2,11 +2,11 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4PartialSkipScanCurrentSourceNext145Plan`, a bounded planner materialization for stale prepared statements whose current source still admits a STAT4-backed partial expression skip-scan. The slice records per-prefix seek programs, current-source covering payload rows, STAT4 current/next suffix pairs, and current-source fence signatures for WordPress-style `wp_options` partial indexes on `lower(option_name)`.
+Adds `SQLitePlannerStat4PartialSkipScanCurrentSourceNextPlan`, a bounded planner materialization for stale prepared statements whose current source still admits a STAT4-backed partial expression skip-scan. The slice records per-prefix seek programs, current-source covering payload rows, STAT4 current/next suffix pairs, and current-source fence signatures for WordPress-style `wp_options` partial indexes on `lower(option_name)`.
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4PartialSkipScanCurrentSourceNext145Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4PartialSkipScanCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4PartialSkipScanCurrentSourceNext145Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-planner-stat4-partial-skipscan-current-source-next145.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4PartialSkipScanCurrentSourceNext145Test.php`

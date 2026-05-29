@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext164Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext177Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext177Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $prepared = [
     'name' => 'prepared-wordpress-options-next177',
@@ -51,7 +51,7 @@ $current['rows'] = [
     ['rowid' => 40, 'autoload' => 'yes', 'option_name' => 'theme_mods_twentysix', 'option_value' => 'theme', 'updated_at' => 40],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext177Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext177(
     $prepared,
     $current,
     [

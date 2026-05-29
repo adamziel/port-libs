@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext233Plan`, a bounded current-source STAT4 expression partial-index guard that composes next230 gap-density proof and then validates each in-window `sqlite_stat4` sample rowid against the current row image. Reuse remains ready only when every sample row still exists, its `lower(option_name)` key matches the sample key, and the row still satisfies the partial predicate.
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded current-source STAT4 expression partial-index guard that composes next230 gap-density proof and then validates each in-window `sqlite_stat4` sample rowid against the current row image. Reuse remains ready only when every sample row still exists, its `lower(option_name)` key matches the sample key, and the row still satisfies the partial predicate.
 
 ## Evidence
 

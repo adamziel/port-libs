@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `sqlplanner-stat4-expression-partial-current-source-next189`.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext189Plan`,
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`,
 layered on the accepted next185 sample-provenance fence. It admits a current
 STAT4 partial expression-index window only after every selected row payload and
 every current STAT4 sample rowid re-evaluates against the current row image:

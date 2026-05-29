@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for a STAT4 expression partial-index planner
 current-source fence.
 
-Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNext185Plan` composes
+Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` composes
 the accepted next182 LIMIT/OFFSET covering window and adds a stale-sample
 provenance fence. A prepared partial expression-index plan is only admitted when
 the current STAT4 sample signature changed, every selected window rowid exists

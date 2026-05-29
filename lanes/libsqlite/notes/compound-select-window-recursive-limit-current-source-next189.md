@@ -1,6 +1,6 @@
 # compound-select-window-recursive-limit-current-source-next189
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext189Plan`, a bounded current-source token fence for compound SELECTs that combine:
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, a bounded current-source token fence for compound SELECTs that combine:
 
 - `WITH RECURSIVE` queue `LIMIT/OFFSET`;
 - window output evaluated before compound de-duplication/final ordering;
@@ -13,7 +13,7 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext189Test.php`
 - `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next189.php`
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext189Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext189Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next189.php`
 - `git diff --check -- lanes/libsqlite`

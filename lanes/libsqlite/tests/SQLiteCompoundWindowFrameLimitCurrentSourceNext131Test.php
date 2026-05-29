@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundWindowFrameLimitCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLiteCompoundWindowFrameLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -51,7 +51,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundWindowFrameLimitCurrentSourceNext131Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundWindowFrameLimitCurrentSourceNextPlan::compareNext131($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound window frame limit current-source next131 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -133,7 +133,7 @@ foreach (range(1, 42) as $offset) {
 }
 
 $tests['compound window frame limit current-source next131 rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowFrameLimitCurrentSourceNext131Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowFrameLimitCurrentSourceNextPlan::compareNext131(
         'SELECT option_id AS id FROM wp_options LIMIT 1',
         $currentTables,
         $currentTables,

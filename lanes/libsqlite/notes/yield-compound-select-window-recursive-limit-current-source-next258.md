@@ -1,6 +1,6 @@
 # compound-select-window-recursive-limit-current-source-next258
 
-Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext258Plan`, a bounded current-source high-water handoff for compound SELECTs that combine recursive CTE LIMIT/OFFSET, window output, `UNION ALL` / `INTERSECT` / `EXCEPT`, and final compound `ORDER BY ... LIMIT ... OFFSET`.
+Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, a bounded current-source high-water handoff for compound SELECTs that combine recursive CTE LIMIT/OFFSET, window output, `UNION ALL` / `INTERSECT` / `EXCEPT`, and final compound `ORDER BY ... LIMIT ... OFFSET`.
 
 The new behavior extends accepted next254 receipt gating: after compound/window/recursive receipts are known, next-source rows are still held until the current page's final admitted row and recursive queue digest are acknowledged. This prevents a stale current-source cursor from resuming across the final compound LIMIT boundary and exposing next-source plugin option rows early.
 
@@ -11,7 +11,7 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext258Test.php`
   - `1 test files, 500 assertions, 0 failures`
   - `91` focused PASS lines
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext258Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
   - `No syntax errors detected`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext258Test.php`
   - `No syntax errors detected`

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext246Plan`, a current-source
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a current-source
 planner fence for partial expression indexes backed by `sqlite_stat4`. The slice
 reuses the accepted next243 sample-tape validation and adds a second check that
 current STAT4 `neq` duplicate cardinality matches the duplicate expression-key
@@ -14,7 +14,7 @@ prepared partial expression-index plan.
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext246Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext246Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next246.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext246Test.php`

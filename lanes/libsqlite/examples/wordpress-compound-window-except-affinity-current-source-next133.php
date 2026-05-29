@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 require_once __DIR__ . '/../src/SQLiteVdbeWindowAggregateCursor.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundWindowExceptAffinityCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -45,7 +45,7 @@ SQL;
 $result = [
     'scenario' => 'wordpress-compound-window-except-affinity-current-source-next133',
     'wordpressUse' => 'Copied wp_options import diagnostics can subtract network-level options with SQLite EXCEPT while preserving window output and storage-class affinity distinctions before writing migrated options.',
-    'plan' => SQLiteCompoundWindowExceptAffinityCurrentSourceNext133Plan::compare($sql, $currentTables, $nextTables),
+    'plan' => SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan::compareNext133($sql, $currentTables, $nextTables),
     'dependency' => 'native PHP SELECT compound/window/affinity execution; no ext/sqlite required',
 ];
 

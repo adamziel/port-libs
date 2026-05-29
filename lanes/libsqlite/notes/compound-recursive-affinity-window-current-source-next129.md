@@ -6,7 +6,7 @@ frames across current/next WordPress option sources.
 
 Behavior:
 
-- Adds `SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Plan`.
+- Adds `SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan`.
 - Compares current and next compound SELECT rowsets with two windowed arms.
 - Records recursive CTE trace rows and skipped numeric duplicate rows.
 - Reports affinity value classes that change between current and next sources.
@@ -19,8 +19,8 @@ Focused evidence:
   - `36` PASS lines.
 - `php lanes/libsqlite/examples/wordpress-compound-recursive-affinity-window-current-source-next129.php --self-test`
   - `wordpress-compound-recursive-affinity-window-current-source-next129 self-test passed`
-- `php -l lanes/libsqlite/src/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Plan.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-recursive-affinity-window-current-source-next129.php`

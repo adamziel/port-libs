@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext172Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext172Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $expression, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['expression' => $expression], 'right' => $value];
@@ -52,7 +52,7 @@ $current['rows'] = [
     ['rowid' => 18, 'option_name' => 'Plugin_Trash', 'autoload' => 'no', 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext172Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext172(
     $prepared,
     $current,
     $and($eq('autoload', 'yes'), $range('lower(option_name)', '>=', 'plugin_'), $range('lower(option_name)', '<', 'plugin_t')),

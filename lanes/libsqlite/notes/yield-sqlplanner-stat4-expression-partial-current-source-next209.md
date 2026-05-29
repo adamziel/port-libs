@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for a STAT4 expression partial-index
 planner current-source handoff.
 
-Behavior: adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext209Plan`
+Behavior: adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`
 for the current-source planner boundary where a changed partial expression
 index contains grouped OR arms. The plan is admitted only when one complete
 current partial-index OR arm is implied by the query terms and every selected

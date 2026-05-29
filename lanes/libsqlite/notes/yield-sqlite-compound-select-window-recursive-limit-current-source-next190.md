@@ -2,7 +2,7 @@
 
 Slice: `compound-select-window-recursive-limit-current-source-next190`.
 
-Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext190Plan`, a
+Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, a
 bounded current-source comparison for compound SELECTs that combine:
 
 - a recursive CTE whose queue LIMIT/OFFSET are SQL expressions;

@@ -5,11 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteCreateIndex.php';
 require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
-require_once __DIR__ . '/../src/SQLitePlannerCoveringRangeOrderCurrentSourceNext119Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerCoveringStat4RangeCurrentSourceNext138Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4CoveringRangeCurrentSourceNext140Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4CoveringRangeCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan;
 
 $point = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -48,7 +48,7 @@ $preparedSamples = [
     ['neq' => '1 1 1', 'nlt' => '2 2 2', 'ndlt' => '2 2 2', 'sample' => [1, 'yes', 'plugin_forms']],
 ];
 
-$plan = SQLitePlannerStat4CoveringRangeCurrentSourceNext140Plan::materialize(
+$plan = SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan::materializeNext140(
     $source(array_slice($rows, 0, 3), 1400, 90, 14001, $preparedSamples),
     $source($rows, 1401, 91, 14041, $currentSamples),
     $and(

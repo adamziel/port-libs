@@ -2,24 +2,24 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext157Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext158Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext161Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext164Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext169Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext171Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext173Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext175Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext177Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext180Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext182Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext185Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext188Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext191Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext195Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext195Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $prepared = [
     'name' => 'prepared-wordpress-options-next195',
@@ -68,7 +68,7 @@ $current['rows'] = [
     ['rowid' => 50, 'blog_id' => 2, 'autoload' => 'yes', 'option_name' => 'plugin_forms', 'option_value' => 'other-blog', 'updated_at' => 50],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext195Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext195(
     $prepared,
     $current,
     [

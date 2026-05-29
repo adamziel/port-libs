@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext160Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -40,7 +40,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext160Plan::compare(
+$summary = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext160(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],

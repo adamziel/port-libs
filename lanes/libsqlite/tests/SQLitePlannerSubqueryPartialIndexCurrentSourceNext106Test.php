@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerSubqueryPartialIndexCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLitePlannerSubqueryPartialIndexCurrentSourceNextPlan;
 
 $expr = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
 
@@ -67,7 +67,7 @@ $plan106 = static fn (
     ?array $current = null,
     ?array $predicate = null,
     array $needed = ['option_name', 'autoload', 'option_value'],
-): array => SQLitePlannerSubqueryPartialIndexCurrentSourceNext106Plan::materialize(
+): array => SQLitePlannerSubqueryPartialIndexCurrentSourceNextPlan::materializeNext106(
     $prepared ?? $GLOBALS['prepared_source_next106'](),
     $current ?? $GLOBALS['current_source_next106'](),
     $predicate ?? $GLOBALS['predicate_next106'](),

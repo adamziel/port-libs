@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundCteWindowOrderCurrentSourceNext134Plan;
+use PortLibs\LibSqlite\SQLiteCompoundCteWindowOrderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -61,7 +61,7 @@ SELECT option_id AS id,
  LIMIT 6
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundCteWindowOrderCurrentSourceNext134Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundCteWindowOrderCurrentSourceNextPlan::compareNext134($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound cte window order current source next134 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -160,7 +160,7 @@ foreach (range(1, 48) as $variant) {
 }
 
 $tests['compound cte window order current source next134 rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundCteWindowOrderCurrentSourceNext134Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundCteWindowOrderCurrentSourceNextPlan::compareNext134(
         'WITH ranked AS MATERIALIZED (SELECT option_id FROM wp_options) SELECT option_id AS id FROM ranked ORDER BY id',
         $currentTables,
         $currentTables,

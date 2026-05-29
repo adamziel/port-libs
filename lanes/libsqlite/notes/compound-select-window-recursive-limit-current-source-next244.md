@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for current-source compound SELECTs where
 the yielded next-source cursor must wait for a recursive LIMIT exhaustion fence.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext244Plan`,
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`,
 layered on accepted next241 final-row resume admission. The new surface is a
 recursive/window acknowledgement fence over current and next recursive queue
 trace tokens, per-arm window tokens, and final compound LIMIT rows. A cursor
@@ -18,7 +18,7 @@ rows keep their `dense_rank()` output.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext244Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext244Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next244.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext244Test.php`

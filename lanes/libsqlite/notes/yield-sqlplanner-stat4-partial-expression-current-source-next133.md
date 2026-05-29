@@ -1,6 +1,6 @@
 # sqlplanner-stat4-partial-expression-current-source-next133
 
-Adds `SQLitePlannerStat4PartialExpressionCurrentSourceNext133Plan` for a bounded
+Adds `SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan` for a bounded
 current-source planner edge where a prepared partial expression-index STAT4 scan
 survives schema/stat4/row-generation churn. The plan reparses against the
 current source, admits current inserted/updated covering rows, and blocks
@@ -10,7 +10,7 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4PartialExpressionCurrentSourceNext133Test.php`
 - `php lanes/libsqlite/examples/wordpress-stat4-partial-expression-current-source-next133.php --self-test`
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4PartialExpressionCurrentSourceNext133Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4PartialExpressionCurrentSourceNext133Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-stat4-partial-expression-current-source-next133.php`
 - `git diff --check -- lanes/libsqlite`

@@ -1,12 +1,12 @@
 # Compound window recursive affinity current-source next147
 
-Behavior slice: adds `SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Plan`, a current-source cursor fence over the existing recursive compound/window/affinity rowset. It pages current and next rowsets only after recursive `UNION` numeric-affinity deduplication and per-arm window evaluation, then rejects stale resume cursors whose offset or current/next source signatures no longer match.
+Behavior slice: adds `SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan`, a current-source cursor fence over the existing recursive compound/window/affinity rowset. It pages current and next rowsets only after recursive `UNION` numeric-affinity deduplication and per-arm window evaluation, then rejects stale resume cursors whose offset or current/next source signatures no longer match.
 
 WordPress smoke: `wordpress-compound-window-recursive-affinity-current-source-next147.php` models copied `wp_options` dependency-walk import diagnostics where a repair UI pages through current and next recursive compound rows without losing left-most output names or admitting stale cursor state after plugin rows are added.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-window-recursive-affinity-current-source-next147.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Test.php`

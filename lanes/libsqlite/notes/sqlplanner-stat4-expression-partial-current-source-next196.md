@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `sqlplanner-stat4-expression-partial-current-source-next196`.
 
-Behavior: adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext196Plan`, a bounded current-source STAT4 partial expression-index planner fence for duplicate expression-key peers. After the accepted next192 covering-column fence admits the current source, next196 verifies that rows with the same `lower(option_name)` key stay in stable rowid order before a LIMIT/OFFSET window is reused.
+Behavior: adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded current-source STAT4 partial expression-index planner fence for duplicate expression-key peers. After the accepted next192 covering-column fence admits the current source, next196 verifies that rows with the same `lower(option_name)` key stay in stable rowid order before a LIMIT/OFFSET window is reused.
 
 WordPress path: `wordpress-sqlplanner-stat4-expression-partial-current-source-next196.php` models copied `wp_options` plugin scans where mixed-case option names (`plugin_forms`, `Plugin_Forms`, `PLUGIN_FORMS`) collapse to the same expression-index key. The planner can avoid table lookup only when the current STAT4 partial-expression scan preserves deterministic peer rowid order.
 

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext236Plan`, layered on the accepted current-source STAT4 expression partial planner chain through next233.
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, layered on the accepted current-source STAT4 expression partial planner chain through next233.
 
 This slice validates `sqlite_stat4` density vectors for the selected partial expression index:
 

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext172Plan`, a bounded
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded
 native PHP planner helper for stale prepared statements that must re-read
 current-source `sqlite_stat4` samples for a partial expression index.
 

@@ -1,6 +1,6 @@
 # SQL Planner Partial Range Covering Current Source Next136
 
-This slice adds `SQLitePlannerPartialRangeCoveringCurrentSourceNext136Plan`, a
+This slice adds `SQLitePlannerPartialRangeCoveringCurrentSourceNextPlan`, a
 bounded planner/materialization wrapper for covering partial range scans. It
 reuses the accepted next131 partial range current-source planner, then
 rechecks full predicate terms against the selected current source before

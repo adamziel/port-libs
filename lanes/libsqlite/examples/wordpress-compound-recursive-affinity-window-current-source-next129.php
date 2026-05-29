@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Plan;
+use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -54,7 +54,7 @@ SELECT option_id AS id,
  ORDER BY id, class_value
 SQL;
 
-$summary = SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Plan::compare($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareNext129($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($summary['status'] === 'compound-recursive-affinity-window-current-source-next129-ready');

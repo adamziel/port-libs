@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNext176Plan;
+use PortLibs\LibSqlite\SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions176 = [
@@ -48,7 +48,7 @@ SELECT option_id AS id,
  LIMIT 3 OFFSET 1
 SQL;
 
-$summary176 = static fn (): array => SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNext176Plan::compare($sql176, $currentTables176, $nextTables176);
+$summary176 = static fn (): array => SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan::compareNext176($sql176, $currentTables176, $nextTables176);
 $tests = [];
 
 $tests['compound intersect lag lead recursive limit next176 status dependencies'] = static function (TestRunner $t) use ($summary176): void {
@@ -152,7 +152,7 @@ $tests['compound intersect lag lead recursive limit next176 changed signatures a
 };
 
 $tests['compound intersect lag lead recursive limit next176 rejects missing recursive'] = static function (TestRunner $t) use ($currentTables176): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNext176Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan::compareNext176(
         "SELECT option_id AS id, option_name AS label, lag(option_name, 1, 'siteurl') OVER (ORDER BY weight) AS marker FROM wp_options INTERSECT SELECT option_id, option_name, lag(option_name, 1, 'siteurl') OVER (ORDER BY weight) FROM wp_options ORDER BY marker LIMIT 2 OFFSET 1",
         $currentTables176,
         $currentTables176,
@@ -160,7 +160,7 @@ $tests['compound intersect lag lead recursive limit next176 rejects missing recu
 };
 
 $tests['compound intersect lag lead recursive limit next176 rejects missing intersect'] = static function (TestRunner $t) use ($currentTables176): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNext176Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan::compareNext176(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'siteurl', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 4 LIMIT 3 OFFSET 1) SELECT id, label, lag(label, 1, 'siteurl') OVER (ORDER BY score) AS marker FROM q UNION ALL SELECT option_id, option_name, lag(option_name, 1, 'siteurl') OVER (ORDER BY weight) FROM wp_options ORDER BY marker LIMIT 2 OFFSET 1",
         $currentTables176,
         $currentTables176,
@@ -168,7 +168,7 @@ $tests['compound intersect lag lead recursive limit next176 rejects missing inte
 };
 
 $tests['compound intersect lag lead recursive limit next176 rejects missing recursive offset'] = static function (TestRunner $t) use ($currentTables176): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNext176Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan::compareNext176(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'siteurl', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 4 LIMIT 3) SELECT id, label, lag(label, 1, 'siteurl') OVER (ORDER BY score) AS marker FROM q INTERSECT SELECT option_id, option_name, lag(option_name, 1, 'siteurl') OVER (ORDER BY weight) FROM wp_options ORDER BY marker LIMIT 2 OFFSET 1",
         $currentTables176,
         $currentTables176,
@@ -176,7 +176,7 @@ $tests['compound intersect lag lead recursive limit next176 rejects missing recu
 };
 
 $tests['compound intersect lag lead recursive limit next176 rejects missing final offset'] = static function (TestRunner $t) use ($currentTables176): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNext176Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan::compareNext176(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'siteurl', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 4 LIMIT 3 OFFSET 1) SELECT id, label, lag(label, 1, 'siteurl') OVER (ORDER BY score) AS marker FROM q INTERSECT SELECT option_id, option_name, lag(option_name, 1, 'siteurl') OVER (ORDER BY weight) FROM wp_options ORDER BY marker LIMIT 2",
         $currentTables176,
         $currentTables176,

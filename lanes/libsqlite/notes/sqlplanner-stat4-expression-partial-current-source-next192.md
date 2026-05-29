@@ -7,7 +7,7 @@
 - Dependency closure: no new support component needed; the slice reuses the existing STAT4 expression partial current-source planner data model.
 - Verification:
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext192Test.php`
-  - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext192Plan.php`
+  - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
   - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext192Test.php`
   - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next192.php`
   - `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next192.php --self-test`

@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionSkipScanCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan;
 
 $partial = new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, [
     new SQLiteIndexPredicate('kind', SQLiteIndexPredicate::EQUALS, 'plugin'),
@@ -49,7 +49,7 @@ $current['rootPage'] = 13719;
 $current['rows'][] = ['rowid' => 9, 'autoload' => 'no', 'option_name' => 'PLUGIN_SECURITY', 'option_value' => 'a:7', 'kind' => 'plugin'];
 $current['stat4Samples'][] = ['prefix' => 'no', 'suffix' => 'plugin_security', 'nEq' => 1, 'nLt' => 1, 'nDLt' => 1];
 
-$plan = SQLitePlannerStat4ExpressionSkipScanCurrentSourceNext137Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan::materializeNext137(
     $prepared,
     $current,
     $partial,

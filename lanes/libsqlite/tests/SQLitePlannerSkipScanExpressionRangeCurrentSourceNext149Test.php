@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
-use PortLibs\LibSqlite\SQLitePlannerSkipScanExpressionRangeCurrentSourceNext149Plan;
+use PortLibs\LibSqlite\SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan;
 
 $rows149 = static fn (): array => [
     ['rowid' => 1, 'autoload' => 'auto', 'option_name' => 'plugin_alpha', 'option_value' => 'a:1', 'kind' => 'plugin'],
@@ -94,7 +94,7 @@ $query149 = [
 ];
 $order149 = [['expression' => 'autoload'], ['expression' => 'lower(option_name)']];
 $needed149 = ['option_name', 'option_value', 'kind'];
-$plan149 = static fn (?array $prepared = null, ?array $current = null, ?array $order = null): array => SQLitePlannerSkipScanExpressionRangeCurrentSourceNext149Plan::materialize(
+$plan149 = static fn (?array $prepared = null, ?array $current = null, ?array $order = null): array => SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan::materializeNext149(
     $prepared ?? $source149(),
     $current ?? $currentSource149(),
     $partial149,

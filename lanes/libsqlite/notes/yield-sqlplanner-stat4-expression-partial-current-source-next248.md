@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext248Plan`, a current-source
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a current-source
 planner guard for partial expression indexes backed by STAT4 samples. The slice
 keeps current plan reuse only when duplicate expression-key runs in the current
 partial rowset are covered by the current STAT4 sample rowids in index order.
@@ -20,7 +20,7 @@ the cursor after duplicate option rows are imported or normalized.
 - `php lanes/libsqlite/examples/wordpress-stat4-duplicate-run-current-source-next248.php`
   - emits `stat4-expression-partial-current-source-next248-ready`
   - emits duplicate keys `plugin_cache` and `plugin_forms`
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext248Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext248Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-stat4-duplicate-run-current-source-next248.php`
 

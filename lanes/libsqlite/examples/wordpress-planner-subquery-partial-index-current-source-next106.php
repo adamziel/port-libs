@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePlannerSubqueryPartialIndexCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLitePlannerSubqueryPartialIndexCurrentSourceNextPlan;
 
 $prepared = [
     'name' => 'prepared-wp-options-plugin-subquery-next106',
@@ -41,7 +41,7 @@ $predicate = [
     ],
 ];
 
-$plan = SQLitePlannerSubqueryPartialIndexCurrentSourceNext106Plan::materialize(
+$plan = SQLitePlannerSubqueryPartialIndexCurrentSourceNextPlan::materializeNext106(
     $prepared,
     $current,
     $predicate,

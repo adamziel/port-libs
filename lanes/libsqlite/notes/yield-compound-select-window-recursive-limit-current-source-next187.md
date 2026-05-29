@@ -13,7 +13,7 @@ current/next WordPress option rows are visible.
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext187Test.php`
 - WordPress smoke: `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next187.php --self-test`
-- PHP lint: `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext187Plan.php`, `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext187Test.php`, `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next187.php`
+- PHP lint: `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`, `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext187Test.php`, `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next187.php`
 - Diff check: `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap

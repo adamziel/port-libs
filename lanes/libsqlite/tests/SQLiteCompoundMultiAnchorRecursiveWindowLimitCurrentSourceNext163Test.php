@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNext163Plan;
+use PortLibs\LibSqlite\SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions163 = [
@@ -47,7 +47,7 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 1
 SQL;
 
-$summary163 = static fn (): array => SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNext163Plan::compare($sql163, $currentTables163, $nextTables163);
+$summary163 = static fn (): array => SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNextPlan::compareNext163($sql163, $currentTables163, $nextTables163);
 $tests = [];
 
 $tests['compound multi anchor recursive window limit next163 status dependencies'] = static function (TestRunner $t) use ($summary163): void {
@@ -128,7 +128,7 @@ $tests['compound multi anchor recursive window limit next163 changed reasons'] =
 };
 
 $tests['compound multi anchor recursive window limit next163 rejects single anchor'] = static function (TestRunner $t) use ($currentTables163): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNext163Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNextPlan::compareNext163(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed', 23) UNION SELECT id + 1, label, weight - 1 FROM staged WHERE id < 3 LIMIT 2 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY weight) AS rank FROM staged UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY weight) FROM wp_options LIMIT 2",
         $currentTables163,
         $currentTables163,
@@ -136,7 +136,7 @@ $tests['compound multi anchor recursive window limit next163 rejects single anch
 };
 
 $tests['compound multi anchor recursive window limit next163 rejects missing window'] = static function (TestRunner $t) use ($currentTables163): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNext163Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNextPlan::compareNext163(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed-a', 23) UNION VALUES (2, 'seed-b', 19) EXCEPT VALUES (9, 'skip', 1) UNION SELECT id + 2, label, weight - 5 FROM staged WHERE id < 7 LIMIT 5 OFFSET 1) SELECT id, label, weight FROM staged UNION ALL SELECT option_id, option_name, weight FROM wp_options ORDER BY weight LIMIT 2",
         $currentTables163,
         $currentTables163,
@@ -144,7 +144,7 @@ $tests['compound multi anchor recursive window limit next163 rejects missing win
 };
 
 $tests['compound multi anchor recursive window limit next163 rejects missing final limit'] = static function (TestRunner $t) use ($currentTables163): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNext163Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNextPlan::compareNext163(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed-a', 23) UNION VALUES (2, 'seed-b', 19) EXCEPT VALUES (9, 'skip', 1) UNION SELECT id + 2, label, weight - 5 FROM staged WHERE id < 7 LIMIT 5 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY weight) AS rank FROM staged UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY weight) FROM wp_options ORDER BY rank",
         $currentTables163,
         $currentTables163,

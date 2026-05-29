@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext208Plan` for a disjoint compound SELECT current-source boundary:
+- Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan` for a disjoint compound SELECT current-source boundary:
   `WITH RECURSIVE` queue `ORDER BY ... LIMIT/OFFSET`, `rank()` output, `dense_rank()` partition output, `UNION ALL`, `EXCEPT`, final `ORDER BY` and `LIMIT/OFFSET`, and stale cursor rejection.
 - WordPress smoke: `examples/wordpress-compound-select-window-recursive-limit-current-source-next208.php` models copied `wp_options` preview rows where next-source autoload rows shift the ranking and final LIMIT boundary after an `EXCEPT` tail.
 - Dependency closure: no new support component is needed; this reuses native SELECT SQL compound execution, recursive queue tracing, ranking window dispatch, EXCEPT membership, current-source tokens, and final LIMIT helpers.

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundRecursiveCollationLimitCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteCompoundRecursiveCollationLimitCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -47,7 +47,7 @@ SELECT option_name AS name, option_id AS depth
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundRecursiveCollationLimitCurrentSourceNext132Plan::compare($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundRecursiveCollationLimitCurrentSourceNextPlan::compareNext132($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($summary['status'] === 'compound-recursive-collation-limit-current-source-next132-ready');

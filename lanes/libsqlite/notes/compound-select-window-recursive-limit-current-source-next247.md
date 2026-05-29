@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for current-source compound SELECTs where recursive `LIMIT/OFFSET` skipped rows and window metrics must be acknowledged before a yielded next-source cursor can advance.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext247Plan`, layered on accepted next244 recursive LIMIT exhaustion fencing. The new seal binds OFFSET-skipped recursive labels, current and next window result metrics, the yielded next-source cursor, and the next244 recursive fence into one acknowledgement set. Stale seal tokens, stale skipped-row tokens, stale next-cursor tokens, missing acknowledgements, and unexpected acknowledgements reject promotion.
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, layered on accepted next244 recursive LIMIT exhaustion fencing. The new seal binds OFFSET-skipped recursive labels, current and next window result metrics, the yielded next-source cursor, and the next244 recursive fence into one acknowledgement set. Stale seal tokens, stale skipped-row tokens, stale next-cursor tokens, missing acknowledgements, and unexpected acknowledgements reject promotion.
 
 WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next247.php` models copied `wp_options` preview queries where a new autoloaded plugin option enters the yielded next source while the current result page still depends on skipped recursive seed rows and window-ranked option rows.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext247Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext247Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next247.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext247Test.php`

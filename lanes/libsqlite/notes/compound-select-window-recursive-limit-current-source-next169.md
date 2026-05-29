@@ -12,7 +12,7 @@ Behavior covered:
 Focused verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext169Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext169Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next169.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext169Test.php

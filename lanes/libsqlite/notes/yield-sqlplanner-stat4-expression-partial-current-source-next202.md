@@ -1,6 +1,6 @@
 # sqlplanner-stat4-expression-partial-current-source-next202
 
-Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNext202Plan` composes
+Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` composes
 the accepted current-source STAT4 expression partial-index chain through next196
 and adds a prepared-vs-current partial predicate definition fingerprint. This
 keeps a prepared `lower(option_name)` partial index plan from being reused when
@@ -9,7 +9,7 @@ the current source has the same index name and compatible rows but the partial
 
 Focused evidence:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext202Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext202Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next202.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext202Test.php`

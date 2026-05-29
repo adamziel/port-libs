@@ -5,9 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteCreateIndex.php';
 require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteMultiColumnRangePlan.php';
-require_once __DIR__ . '/../src/SQLiteStat4RangeOrderCurrentSourceNext102Plan.php';
+require_once __DIR__ . '/../src/SQLiteStat4RangeOrderCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteStat4RangeOrderCurrentSourceNext102Plan;
+use PortLibs\LibSqlite\SQLiteStat4RangeOrderCurrentSourceNextPlan;
 
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
 $and = static fn (array ...$terms): array => ['operator' => 'AND', 'terms' => $terms];
@@ -43,7 +43,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '5 5', 'nlt' => '27 27', 'ndlt' => '3 3', 'sample' => ['widget_recent', 'yes']],
 ];
 
-$plan = SQLiteStat4RangeOrderCurrentSourceNext102Plan::materialize(
+$plan = SQLiteStat4RangeOrderCurrentSourceNextPlan::materializeNext102(
     $prepared,
     $current,
     $and($range('option_name', '>=', 'home'), $range('option_name', '<', 'transient_timeout')),

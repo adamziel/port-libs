@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNext149Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -54,7 +54,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNext149Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan::compareNext149($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound select recursive affinity limit current source next149 status dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -144,7 +144,7 @@ $tests['compound select recursive affinity limit current source next149 changed 
 };
 
 $tests['compound select recursive affinity limit current source next149 rejects non recursive'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNext149Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan::compareNext149(
         'SELECT option_id AS id, rank_value AS key_value, option_name AS source FROM wp_options UNION SELECT option_id, rank_value, option_name FROM wp_options ORDER BY id LIMIT 2',
         $currentTables,
         $currentTables,
@@ -152,7 +152,7 @@ $tests['compound select recursive affinity limit current source next149 rejects 
 };
 
 $tests['compound select recursive affinity limit current source next149 rejects union all'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNext149Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan::compareNext149(
         "WITH RECURSIVE option_walk(item_id, key_value, source) AS (VALUES (1, 1, 'seed')) SELECT item_id AS id, key_value, source FROM option_walk UNION ALL SELECT option_id AS id, rank_value AS key_value, option_name AS source FROM wp_options ORDER BY id LIMIT 2",
         $currentTables,
         $currentTables,
@@ -160,7 +160,7 @@ $tests['compound select recursive affinity limit current source next149 rejects 
 };
 
 $tests['compound select recursive affinity limit current source next149 rejects missing final limit'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNext149Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan::compareNext149(
         "WITH RECURSIVE option_walk(item_id, key_value, source) AS (VALUES (1, 1, 'seed')) SELECT item_id AS id, key_value, source FROM option_walk UNION SELECT option_id AS id, rank_value AS key_value, option_name AS source FROM wp_options ORDER BY id",
         $currentTables,
         $currentTables,

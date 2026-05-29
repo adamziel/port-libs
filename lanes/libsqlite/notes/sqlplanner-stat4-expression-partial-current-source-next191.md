@@ -3,7 +3,7 @@
 Status: focused behavior growth for STAT4 expression partial current-source planning.
 
 Behavior:
-- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext191Plan`, layered on next188 peer rowid fencing.
+- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, layered on next188 peer rowid fencing.
 - Rechecks each admitted current-source covering row by recomputing `lower(option_name)` from the current payload and comparing it with the indexed expression key.
 - For STAT4 anchor rows, also verifies that the current `sqlite_stat4` sample key for that rowid still matches the current payload expression key.
 - Blocks reuse when a stale STAT4 anchor or stale covering payload would let a partial `lower(option_name)` index return a row whose payload no longer matches the indexed expression key.
@@ -12,8 +12,8 @@ WordPress path:
 - `wordpress-sqlplanner-stat4-expression-partial-current-source-next191.php` models copied `wp_options` plugin-option screens using a partial `lower(option_name)` STAT4 index after copied rows and ANALYZE data have changed.
 
 Verification:
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext191Plan.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext191Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext191Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext191Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next191.php`

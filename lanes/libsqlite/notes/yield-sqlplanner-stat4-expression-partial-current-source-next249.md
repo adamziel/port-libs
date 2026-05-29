@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for
 `sqlplanner-stat4-expression-partial-current-source-next249`.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext249Plan`,
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`,
 an additive duplicate peer-count fence for partial expression-index STAT4
 plans. After accepted next245 proves sample rowid anchors against the current
 source, next249 also verifies each STAT4 sample's leading `neq` duplicate count
@@ -21,7 +21,7 @@ reuse.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext249Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next249.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext249Test.php`
 - `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next249.php --self-test`

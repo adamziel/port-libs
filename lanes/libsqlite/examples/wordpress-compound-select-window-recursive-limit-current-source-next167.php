@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext167Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -62,6 +62,6 @@ SELECT id,
 SQL;
 
 echo json_encode(
-    SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext167Plan::compare($sql, $currentTables, $nextTables),
+    SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext167($sql, $currentTables, $nextTables),
     JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR,
 ) . PHP_EOL;

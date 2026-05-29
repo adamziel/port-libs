@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext183Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions183 = [
@@ -48,7 +48,7 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 2
 SQL;
 
-$summary183 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext183Plan::compare($sql183, $currentTables183, $nextTables183);
+$summary183 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext183($sql183, $currentTables183, $nextTables183);
 $tests = [];
 
 $tests['compound select window recursive limit next183 status dependencies'] = static function (TestRunner $t) use ($summary183): void {
@@ -121,7 +121,7 @@ $tests['compound select window recursive limit next183 replan reasons'] = static
 };
 
 $tests['compound select window recursive limit next183 rejects missing recursive cte'] = static function (TestRunner $t) use ($currentTables183): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext183Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext183(
         'SELECT option_id AS id, option_name AS label, score AS metric FROM wp_options UNION SELECT option_id, option_name, score FROM wp_options ORDER BY metric LIMIT 2 OFFSET 1',
         $currentTables183,
         $currentTables183,
@@ -129,7 +129,7 @@ $tests['compound select window recursive limit next183 rejects missing recursive
 };
 
 $tests['compound select window recursive limit next183 rejects missing final offset'] = static function (TestRunner $t) use ($currentTables183): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext183Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext183(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 104) UNION ALL SELECT id + 1, label, score - 9 FROM q WHERE id < 8 LIMIT 6 OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id, option_name, lead(score, 1, score) OVER (ORDER BY score) FROM wp_options UNION SELECT option_id, option_name, score FROM wp_options ORDER BY metric LIMIT 6",
         $currentTables183,
         $currentTables183,

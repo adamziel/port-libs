@@ -13,7 +13,7 @@ Adds a lane-local current-source STAT4 covering range next-cursor plan for stale
 
 ## Dependency Closure
 
-No new support component is needed. This reuses `SQLitePlannerCoveringStat4RangeCurrentSourceNext138Plan`, `SQLitePlannerCoveringRangeOrderCurrentSourceNext119Plan`, and existing CREATE INDEX/stat4 parsing helpers.
+No new support component is needed. This reuses `SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan`, `SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan`, and existing CREATE INDEX/stat4 parsing helpers.
 
 ## Non-Overlap
 

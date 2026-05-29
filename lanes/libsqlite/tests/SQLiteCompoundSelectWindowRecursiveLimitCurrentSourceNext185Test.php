@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext185Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions185 = [
@@ -48,7 +48,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary185 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext185Plan::compare($sql185, $currentTables185, $nextTables185);
+$summary185 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext185($sql185, $currentTables185, $nextTables185);
 $tests = [];
 
 $tests['compound select window recursive limit next185 status dependencies'] = static function (TestRunner $t) use ($summary185): void {
@@ -164,7 +164,7 @@ $tests['compound select window recursive limit next185 replan reasons'] = static
 };
 
 $tests['compound select window recursive limit next185 rejects union all first operator'] = static function (TestRunner $t) use ($currentTables185): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext185Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext185(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 120) UNION ALL SELECT id + 1, label, score - 15 FROM q WHERE id < 8 LIMIT 1 OFFSET 3) SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id, option_name, dense_rank() OVER (ORDER BY score DESC) FROM wp_options UNION ALL SELECT option_id, option_name, rank() OVER (ORDER BY score DESC) FROM wp_options ORDER BY metric LIMIT 5 OFFSET 1",
         $currentTables185,
         $currentTables185,
@@ -172,7 +172,7 @@ $tests['compound select window recursive limit next185 rejects union all first o
 };
 
 $tests['compound select window recursive limit next185 rejects missing recursive single row limit'] = static function (TestRunner $t) use ($currentTables185): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext185Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext185(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 120) UNION ALL SELECT id + 1, label, score - 15 FROM q WHERE id < 8 LIMIT 2 OFFSET 3) SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q UNION SELECT option_id, option_name, dense_rank() OVER (ORDER BY score DESC) FROM wp_options UNION ALL SELECT option_id, option_name, rank() OVER (ORDER BY score DESC) FROM wp_options ORDER BY metric LIMIT 5 OFFSET 1",
         $currentTables185,
         $currentTables185,

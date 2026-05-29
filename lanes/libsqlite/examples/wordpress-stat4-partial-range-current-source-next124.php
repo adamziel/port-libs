@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4PartialRangeCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -43,7 +43,7 @@ $current['indexes'][0]['rootPage'] = 12409;
 $current['indexes'][0]['estimatedRows'] = 80;
 $current['indexes'][0]['sql'] = "CREATE INDEX idx_wp_options_blog_plugin_partial_stat4_next124 ON wp_options(blog_id, option_name, autoload, option_value) WHERE kind = 'plugin' AND option_name >= 'plugin_cache' AND option_name < 'plugin_seo'";
 
-$plan = SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare(
+$plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124(
     $prepared,
     $current,
     $predicate,

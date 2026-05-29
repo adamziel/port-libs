@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerCoveringRangeOrderCurrentSourceNext119Plan;
+use PortLibs\LibSqlite\SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan;
 
 $point119 = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range119 = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -70,7 +70,7 @@ $plan119 = static fn (
     ?array $predicate = null,
     ?array $order = null,
     ?array $needed = null,
-): array => SQLitePlannerCoveringRangeOrderCurrentSourceNext119Plan::materialize(
+): array => SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan::materializeNext119(
     $prepared ?? $preparedSource119(),
     $current ?? $currentSource119(),
     $predicate ?? $GLOBALS['predicate_next119'],

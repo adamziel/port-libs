@@ -1,6 +1,6 @@
 # SQL Planner STAT4 Expression Covering Current Source Next144
 
-This slice adds `SQLitePlannerStat4ExpressionCoveringCurrentSourceNext144Plan`, a current-source wrapper around the existing STAT4 expression-covering planner. It covers a stale prepared point lookup on `lower(option_name)` where `sqlite_stat4`, the schema cookie, and the covering index root changed after ANALYZE.
+This slice adds `SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan`, a current-source wrapper around the existing STAT4 expression-covering planner. It covers a stale prepared point lookup on `lower(option_name)` where `sqlite_stat4`, the schema cookie, and the covering index root changed after ANALYZE.
 
 Focused behavior:
 

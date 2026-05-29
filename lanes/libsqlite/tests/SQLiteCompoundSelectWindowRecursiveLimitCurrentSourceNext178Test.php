@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext178Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions178 = [
@@ -48,7 +48,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary178 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext178Plan::compare($sql178, $currentTables178, $nextTables178);
+$summary178 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext178($sql178, $currentTables178, $nextTables178);
 $tests = [];
 
 $tests['compound select window recursive limit next178 status dependencies'] = static function (TestRunner $t) use ($summary178): void {
@@ -165,7 +165,7 @@ $tests['compound select window recursive limit next178 replan reasons'] = static
 };
 
 $tests['compound select window recursive limit next178 rejects missing distinct union'] = static function (TestRunner $t) use ($currentTables178): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext178Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext178(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 7 LIMIT 5 OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id, option_name, lead(score, 1, score) OVER (ORDER BY score) FROM wp_options ORDER BY metric LIMIT 5 OFFSET 1",
         $currentTables178,
         $currentTables178,
@@ -173,7 +173,7 @@ $tests['compound select window recursive limit next178 rejects missing distinct 
 };
 
 $tests['compound select window recursive limit next178 rejects missing lead'] = static function (TestRunner $t) use ($currentTables178): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext178Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext178(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 7 LIMIT 5 OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY score) FROM wp_options UNION SELECT option_id, option_name, score FROM wp_options ORDER BY metric LIMIT 5 OFFSET 1",
         $currentTables178,
         $currentTables178,
@@ -181,7 +181,7 @@ $tests['compound select window recursive limit next178 rejects missing lead'] = 
 };
 
 $tests['compound select window recursive limit next178 rejects final limit without offset'] = static function (TestRunner $t) use ($currentTables178): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext178Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext178(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 7 LIMIT 5 OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id, option_name, lead(score, 1, score) OVER (ORDER BY score) FROM wp_options UNION SELECT option_id, option_name, score FROM wp_options ORDER BY metric LIMIT 5",
         $currentTables178,
         $currentTables178,

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `sqlplanner-stat4-expression-partial-current-source-next193`.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext193Plan`,
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`,
 layered on the accepted next189 current payload/partial-predicate fence. It
 admits a current STAT4 partial expression-index window only after rowid alias
 constraints from `rowid`, `_rowid_`, or `oid` are rechecked against the current

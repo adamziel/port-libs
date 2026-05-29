@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for a STAT4 expression partial-index
 planner current-source boundary fence.
 
-Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNext203Plan`
+Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`
 composes the accepted next196 peer-order fence and adds a LIMIT/OFFSET boundary
 sample check. A stale prepared partial expression-index scan is admitted only
 when the selected current-source window is non-empty, the first and last

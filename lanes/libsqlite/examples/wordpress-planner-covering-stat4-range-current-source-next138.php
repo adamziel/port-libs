@@ -5,10 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteCreateIndex.php';
 require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
-require_once __DIR__ . '/../src/SQLitePlannerCoveringRangeOrderCurrentSourceNext119Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerCoveringStat4RangeCurrentSourceNext138Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerCoveringStat4RangeCurrentSourceNext138Plan;
+use PortLibs\LibSqlite\SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan;
 
 $point = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -42,7 +42,7 @@ $source = static fn (array $rows, int $cookie, int $stat4, int $root): array => 
     ]],
 ];
 
-$plan = SQLitePlannerCoveringStat4RangeCurrentSourceNext138Plan::materialize(
+$plan = SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan::materializeNext138(
     $source($preparedRows, 1380, 80, 13801),
     $source($currentRows, 1381, 81, 13811),
     $and(

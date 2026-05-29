@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext241Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 foreach (glob(__DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext*Plan.php') ?: [] as $plannerFile) {
     require_once $plannerFile;
@@ -70,7 +70,7 @@ $terms = [
     ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'plugin_%'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext241Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext241(
     $prepared,
     $current,
     $terms,

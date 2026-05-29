@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Plan;
+use PortLibs\LibSqlite\SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions157 = [
@@ -46,7 +46,7 @@ SELECT option_name AS name,
  LIMIT 2 OFFSET 1
 SQL;
 
-$summary157 = static fn (): array => SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Plan::compare($sql157, $currentTables157, $nextTables157);
+$summary157 = static fn (): array => SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNextPlan::compareNext157($sql157, $currentTables157, $nextTables157);
 $tests = [];
 
 $tests['compound intersect recursive window limit current source next157 status dependencies'] = static function (TestRunner $t) use ($summary157): void {
@@ -144,7 +144,7 @@ $tests['compound intersect recursive window limit current source next157 boundar
 };
 
 $tests['compound intersect recursive window limit current source next157 rejects non intersect'] = static function (TestRunner $t) use ($currentTables157): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNextPlan::compareNext157(
         "WITH RECURSIVE wanted(pos, name) AS (VALUES (1, 'siteurl') UNION ALL SELECT pos + 1, 'home' FROM wanted WHERE pos < 2 LIMIT 2) SELECT name, pos, row_number() OVER (ORDER BY pos) AS rank FROM wanted UNION ALL SELECT option_name, seq, row_number() OVER (ORDER BY seq) FROM wp_options LIMIT 1",
         $currentTables157,
         $currentTables157,
@@ -152,7 +152,7 @@ $tests['compound intersect recursive window limit current source next157 rejects
 };
 
 $tests['compound intersect recursive window limit current source next157 rejects missing limit'] = static function (TestRunner $t) use ($currentTables157): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNextPlan::compareNext157(
         "WITH RECURSIVE wanted(pos, name) AS (VALUES (1, 'siteurl') UNION ALL SELECT pos + 1, 'home' FROM wanted WHERE pos < 2 LIMIT 2) SELECT name, pos, row_number() OVER (ORDER BY pos) AS rank FROM wanted INTERSECT SELECT option_name, seq, row_number() OVER (ORDER BY seq) FROM wp_options ORDER BY rank",
         $currentTables157,
         $currentTables157,
@@ -160,7 +160,7 @@ $tests['compound intersect recursive window limit current source next157 rejects
 };
 
 $tests['compound intersect recursive window limit current source next157 rejects missing recursive cte'] = static function (TestRunner $t) use ($currentTables157): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNext157Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundIntersectRecursiveWindowLimitCurrentSourceNextPlan::compareNext157(
         'SELECT option_name AS name, seq AS pos, row_number() OVER (ORDER BY seq) AS rank FROM wp_options INTERSECT SELECT option_name, seq, row_number() OVER (ORDER BY seq) FROM wp_options LIMIT 1',
         $currentTables157,
         $currentTables157,

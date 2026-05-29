@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundExceptOrderAffinityCurrentSourceNext138Plan;
+use PortLibs\LibSqlite\SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -38,7 +38,7 @@ SQL;
 $result = [
     'scenario' => 'wordpress-compound-except-order-affinity-current-source-next138',
     'wordpressUse' => 'Copied wp_options migration checks can subtract network-level options with EXCEPT, then apply SQLite tail ORDER BY storage-class and NOCASE rules so changed current-source rows are replayed in deterministic import order without ext/sqlite.',
-    'plan' => SQLiteCompoundExceptOrderAffinityCurrentSourceNext138Plan::compare($sql, $currentTables, $nextTables),
+    'plan' => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compareNext138($sql, $currentTables, $nextTables),
     'dependency' => 'native PHP compound SELECT EXCEPT, tail ORDER BY, and SQLite storage-class comparison; no new support component required',
 ];
 

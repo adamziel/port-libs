@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundWindowExceptOrderCurrentSourceNext143Plan;
+use PortLibs\LibSqlite\SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -39,7 +39,7 @@ SELECT option_name AS name,
  ORDER BY source_rank DESC, name
 SQL;
 
-$summary = SQLiteCompoundWindowExceptOrderCurrentSourceNext143Plan::compare($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compareNext143($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     if (array_column($summary['currentRows'], 'name') !== ['blogname', 'active_plugins', 'siteurl']) {

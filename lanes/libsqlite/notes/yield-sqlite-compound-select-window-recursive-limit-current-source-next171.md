@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Added `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext171Plan` for a current-source compound `UNION` distinct cluster.
+- Added `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan` for a current-source compound `UNION` distinct cluster.
 - The covered behavior is recursive CTE `LIMIT/OFFSET` feeding windowed compound arms, then distinct `UNION`, final `ORDER BY`, and final `LIMIT/OFFSET`.
 - This intentionally avoids accepted EXCEPT/INTERSECT compound slices, exhausted recursive queues, expression `ORDER BY`, grouped SELECT text, JSON table source/cursor behavior, and WAL/B-tree/VFS accepted clusters.
 

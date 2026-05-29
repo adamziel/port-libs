@@ -2,7 +2,7 @@
 
 Slice: `sqlplanner-covering-expression-stat4-current-source-next122`.
 
-Adds `SQLitePlannerCoveringExpressionStat4CurrentSourceNext122Plan`, a bounded
+Adds `SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan`, a bounded
 planner wrapper for stale prepared statements whose current schema/STAT4 source
 can satisfy a lower(option_name) bounded range from a covering expression index.
 The plan materializes current/next cursor rows, output-column opcodes, STAT4
@@ -11,7 +11,7 @@ columns are available from the index.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerCoveringExpressionStat4CurrentSourceNext122Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerCoveringExpressionStat4CurrentSourceNext122Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-covering-expression-stat4-current-source-next122.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerCoveringExpressionStat4CurrentSourceNext122Test.php`

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundWindowExceptOrderCurrentSourceNext143Plan;
+use PortLibs\LibSqlite\SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -40,7 +40,7 @@ SELECT option_name AS name,
  ORDER BY source_rank DESC, name
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundWindowExceptOrderCurrentSourceNext143Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compareNext143($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound window except order current source next143 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -113,7 +113,7 @@ $tests['compound window except order current source next143 changed signatures a
 };
 
 $tests['compound window except order current source next143 rejects non except compound'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptOrderCurrentSourceNext143Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compareNext143(
         'SELECT option_name AS name, row_number() OVER (ORDER BY option_id) AS source_rank FROM wp_options UNION ALL SELECT option_name, source_rank FROM wp_option_current ORDER BY source_rank',
         $currentTables,
         $currentTables,
@@ -121,7 +121,7 @@ $tests['compound window except order current source next143 rejects non except c
 };
 
 $tests['compound window except order current source next143 rejects missing final order'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptOrderCurrentSourceNext143Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compareNext143(
         'SELECT option_name AS name, row_number() OVER (ORDER BY option_id) AS source_rank FROM wp_options EXCEPT SELECT option_name, source_rank FROM wp_option_current',
         $currentTables,
         $currentTables,

@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for a STAT4 expression partial-index planner
 slice on current-source sample-row admission.
 
-Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNext228Plan` composes
+Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` composes
 the accepted next224 sample-order fence and adds a current-source validation
 step for the selected index's `sqlite_stat4` sample rows. The fence proves that
 each current STAT4 sample row still resolves to a current row image, that the
@@ -14,7 +14,7 @@ index.
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext228Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext228Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next228.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext228Test.php`

@@ -17,9 +17,9 @@ require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteSelectQuery.php';
 require_once __DIR__ . '/../src/SQLiteSelectCompound.php';
 require_once __DIR__ . '/../src/SQLiteSelectSql.php';
-require_once __DIR__ . '/../src/SQLiteCompoundWindowRecursiveLimitCurrentSourceNext139Plan.php';
+require_once __DIR__ . '/../src/SQLiteCompoundWindowRecursiveLimitCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundWindowRecursiveLimitCurrentSourceNext139Plan;
+use PortLibs\LibSqlite\SQLiteCompoundWindowRecursiveLimitCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -67,7 +67,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundWindowRecursiveLimitCurrentSourceNext139Plan::compare($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundWindowRecursiveLimitCurrentSourceNextPlan::compareNext139($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     if (array_column($summary['currentRows'], 'label') !== ['seed:2', 'seed:3', 'siteurl', 'home', 'blogname']) {

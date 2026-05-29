@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
-use PortLibs\LibSqlite\SQLitePlannerStat4CoveringSkipScanCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4CoveringSkipScanCurrentSourceNextPlan;
 
 $rows147 = static fn (): array => [
     ['rowid' => 1, 'autoload' => 'auto', 'option_name' => 'plugin_alpha', 'option_value' => 'a:1', 'kind' => 'plugin'],
@@ -97,7 +97,7 @@ $order147 = [
     ['expression' => 'lower(option_name)'],
 ];
 $needed147 = ['option_name', 'option_value', 'kind'];
-$plan147 = static fn (?array $prepared = null, ?array $current = null, ?array $order = null, ?array $needed = null): array => SQLitePlannerStat4CoveringSkipScanCurrentSourceNext147Plan::materialize(
+$plan147 = static fn (?array $prepared = null, ?array $current = null, ?array $order = null, ?array $needed = null): array => SQLitePlannerStat4CoveringSkipScanCurrentSourceNextPlan::materializeNext147(
     $prepared ?? $source147(),
     $current ?? $currentSource147(),
     $partial147,

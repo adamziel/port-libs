@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteStat4ExpressionPartialCurrentSourceNext163Plan;
+use PortLibs\LibSqlite\SQLiteStat4ExpressionPartialCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -49,7 +49,7 @@ $terms = [
     ['left' => ['column' => 'updated_at'], 'operator' => 'BETWEEN', 'lower' => 100, 'upper' => 300],
 ];
 
-$plan = SQLiteStat4ExpressionPartialCurrentSourceNext163Plan::materialize($prepared, $current, $terms);
+$plan = SQLiteStat4ExpressionPartialCurrentSourceNextPlan::materializeNext163($prepared, $current, $terms);
 
 echo json_encode([
     'scenario' => 'wordpress-stat4-expression-partial-current-source-next163',

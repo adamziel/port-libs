@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
-use PortLibs\LibSqlite\SQLitePlannerStat4PartialSkipScanCurrentSourceNext145Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4PartialSkipScanCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -58,7 +58,7 @@ $partial = new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, [
     new SQLiteIndexPredicate('__expr_lower_option_name', SQLiteIndexPredicate::IS_NOT_NULL),
 ]);
 
-$plan = SQLitePlannerStat4PartialSkipScanCurrentSourceNext145Plan::materialize(
+$plan = SQLitePlannerStat4PartialSkipScanCurrentSourceNextPlan::materializeNext145(
     $source('prepared-main.wp_options@cookie1450', 1450, 45, $preparedRows, $preparedStat4),
     $source('current-main.wp_options@cookie1451', 1451, 46, $currentRows, $currentStat4),
     $partial,

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for compound SELECT set-operator collation plus per-arm window rows across current/next sources.
 
-This slice adds `SQLiteCompoundCollationWindowCurrentSourceNext136Plan`. It checks a current-source boundary where:
+This slice adds `SQLiteCompoundCollationWindowCurrentSourceNextPlan`. It checks a current-source boundary where:
 
 - the first compound arm supplies `COLLATE NOCASE` for distinct set-operator comparison;
 - `row_number()` window values are evaluated in each arm before `UNION` duplicate elimination;

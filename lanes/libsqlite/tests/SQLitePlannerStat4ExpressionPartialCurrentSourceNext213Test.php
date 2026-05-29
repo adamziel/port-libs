@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext213Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq213 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $like213 = static fn (string $column, string $right, bool $caseSensitive = false, string $collation = 'NOCASE'): array => [
@@ -101,7 +101,7 @@ $terms213 = static fn (bool $caseSensitive = false, string $collation = 'NOCASE'
     $eq213('blog_id', 1),
     $like213('option_name', 'plugin_%', $caseSensitive, $collation),
 ];
-$plan213 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext213Plan::materialize(
+$plan213 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext213(
     $prepared ?? $prepared213(),
     $current ?? $current213(),
     $terms ?? $terms213(),

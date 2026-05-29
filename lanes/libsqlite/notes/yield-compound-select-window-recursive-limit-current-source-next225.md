@@ -1,6 +1,6 @@
 # compound-select-window-recursive-limit-current-source-next225
 
-Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext225Plan`, a bounded current-source fence for compound SELECTs that combine:
+Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, a bounded current-source fence for compound SELECTs that combine:
 
 - recursive CTE queue `ORDER BY ... LIMIT ... OFFSET ...`;
 - `lag(..., default)` output and `last_value()` frame output evaluated before compound membership;

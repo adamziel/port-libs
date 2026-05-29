@@ -1,6 +1,6 @@
 # compound-select-correlated-having-window-current-source-next128
 
-Status delta: adds `SQLiteCompoundHavingWindowCurrentSourceNext128Plan`, a
+Status delta: adds `SQLiteCompoundHavingWindowCurrentSourceNextPlan`, a
 current/next diagnostic wrapper around native `SQLiteSelectSql` compound SELECT
 execution for arms that combine aggregate `HAVING` gates, correlated subqueries,
 and window projections. The WordPress smoke models copied `wp_options` current
@@ -19,8 +19,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Syntax/example evidence:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteCompoundHavingWindowCurrentSourceNext128Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLiteCompoundHavingWindowCurrentSourceNext128Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundHavingWindowCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteCompoundHavingWindowCurrentSourceNextPlan.php
 
 php -l lanes/libsqlite/tests/SQLiteCompoundHavingWindowCurrentSourceNext128Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteCompoundHavingWindowCurrentSourceNext128Test.php

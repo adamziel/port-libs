@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteStat4ExpressionRangeCurrentSourceNext104Plan;
+use PortLibs\LibSqlite\SQLiteStat4ExpressionRangeCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -48,7 +48,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '5 5', 'nlt' => '25 25', 'sample' => ['plugin_forms', 105]],
 ];
 
-$plan = SQLiteStat4ExpressionRangeCurrentSourceNext104Plan::compare($prepared, $current, $predicate, ['option_name', 'option_value', 'autoload']);
+$plan = SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($prepared, $current, $predicate, ['option_name', 'option_value', 'autoload']);
 
 echo json_encode([
     'scenario' => 'wordpress-stat4-expression-range-current-source-next104',

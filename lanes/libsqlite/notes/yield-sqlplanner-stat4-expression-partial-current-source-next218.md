@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext218Plan`, a bounded
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded
 current-source STAT4 expression partial-index fence for `lower(option_name)`
 WordPress option predicates. The slice sits after the accepted current-source
 STAT4 grouped LIKE/OR fences and blocks reuse when the current expression

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerExpressionCoveringRangeCurrentSourceNext146Plan;
+use PortLibs\LibSqlite\SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan;
 
 $expr146 = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
 $column146 = static fn (string $name): array => ['column' => $name];
@@ -75,7 +75,7 @@ $plan146 = static fn (
     ?array $rows = null,
     ?array $order = null,
     ?array $needed = null,
-): array => SQLitePlannerExpressionCoveringRangeCurrentSourceNext146Plan::materialize(
+): array => SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan::materializeNext146(
     $prepared ?? $preparedSource146(),
     $current ?? $currentSource146(),
     $next,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteStat4ExpressionPartialCurrentSourceNext163Plan;
+use PortLibs\LibSqlite\SQLiteStat4ExpressionPartialCurrentSourceNextPlan;
 
 $term163 = static fn (string $column, string $operator, mixed $right = null): array => ['left' => ['column' => $column], 'operator' => $operator, 'right' => $right];
 $between163 = static fn (string $column, mixed $lower, mixed $upper): array => ['left' => ['column' => $column], 'operator' => 'BETWEEN', 'lower' => $lower, 'upper' => $upper];
@@ -74,7 +74,7 @@ $query163 = static fn (): array => [
     $term163('option_name', 'IS NOT NULL'),
     $between163('updated_at', 100, 300),
 ];
-$plan163 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null): array => SQLiteStat4ExpressionPartialCurrentSourceNext163Plan::materialize(
+$plan163 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null): array => SQLiteStat4ExpressionPartialCurrentSourceNextPlan::materializeNext163(
     $prepared ?? $prepared163(),
     $current ?? $current163(),
     $terms ?? $query163(),
@@ -168,20 +168,20 @@ return [
     'stat4 expression partial next163 validates source indexes' => static function (TestRunner $t) use ($prepared163, $current163, $query163): void {
         $bad = $current163();
         $bad['indexes'] = [];
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionPartialCurrentSourceNext163Plan::materialize($prepared163(), $bad, $query163()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionPartialCurrentSourceNextPlan::materializeNext163($prepared163(), $bad, $query163()));
     },
     'stat4 expression partial next163 validates stat4 sample shape' => static function (TestRunner $t) use ($prepared163, $current163, $query163): void {
         $bad = $current163();
         $bad['indexes'][0]['stat4Samples'][0]['sample'] = ['siteurl'];
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionPartialCurrentSourceNext163Plan::materialize($prepared163(), $bad, $query163()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionPartialCurrentSourceNextPlan::materializeNext163($prepared163(), $bad, $query163()));
     },
     'stat4 expression partial next163 validates stat4 neq' => static function (TestRunner $t) use ($prepared163, $current163, $query163): void {
         $bad = $current163();
         $bad['indexes'][0]['stat4Samples'][0]['neq'] = '0 0 0';
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionPartialCurrentSourceNext163Plan::materialize($prepared163(), $bad, $query163()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionPartialCurrentSourceNextPlan::materializeNext163($prepared163(), $bad, $query163()));
     },
     'stat4 expression partial next163 validates schema cookie' => static function (TestRunner $t) use ($prepared163, $current163, $query163): void {
         $bad = $prepared163(['schemaCookie' => -1]);
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionPartialCurrentSourceNext163Plan::materialize($bad, $current163(), $query163()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionPartialCurrentSourceNextPlan::materializeNext163($bad, $current163(), $query163()));
     },
 ];

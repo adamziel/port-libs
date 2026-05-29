@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext161Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -69,7 +69,7 @@ $arms = [[
     $notNull('option_name'),
 ]];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext161Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext161(
     $prepared,
     $current,
     $arms,

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteCompoundWindowExceptLimitCurrentSourceNext141Plan`, a focused
+Adds `SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan`, a focused
 current-source diagnostic for parser-level compound SELECTs that combine:
 
 - a window-function output column in compound arms,

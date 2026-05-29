@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePlannerCoveringPartialRangeCurrentSourceNext131Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerPartialRangeCoveringCurrentSourceNext136Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerPartialRangeCoveringCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteMultiColumnRangePlan.php';
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
 require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteCreateIndex.php';
 
-use PortLibs\LibSqlite\SQLitePlannerPartialRangeCoveringCurrentSourceNext136Plan;
+use PortLibs\LibSqlite\SQLitePlannerPartialRangeCoveringCurrentSourceNextPlan;
 
 $point = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -38,7 +38,7 @@ $current['stat4Generation'] = 61;
 $current['rows'][] = ['rowid' => 7, 'blog_id' => 1, 'autoload' => 'yes', 'kind' => 'mu-plugin', 'option_name' => 'plugin_mu', 'option_value' => 'mu'];
 $current['rows'][] = ['rowid' => 8, 'blog_id' => 1, 'autoload' => 'yes', 'kind' => 'plugin', 'option_name' => 'plugin_security', 'option_value' => 'a:5'];
 
-$plan = SQLitePlannerPartialRangeCoveringCurrentSourceNext136Plan::materialize(
+$plan = SQLitePlannerPartialRangeCoveringCurrentSourceNextPlan::materializeNext136(
     $prepared,
     $current,
     $and(

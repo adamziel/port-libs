@@ -9,7 +9,7 @@ Adds a current-source drain fence for compound SELECT queries that combine:
 - mixed `UNION ALL`, `INTERSECT`, and `EXCEPT`
 - final compound `ORDER BY ... LIMIT ... OFFSET`
 
-The new `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext228Plan`
+The new `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`
 reuses the accepted next224 executor coverage, then adds a row-level
 acknowledgement contract for the current limited compound page. Staged
 next-source rows remain held until the current page's drain token and required
@@ -22,7 +22,7 @@ Run from the repository root:
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext228Test.php
 php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next228.php
-php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext228Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext228Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next228.php
 git diff --check -- lanes/libsqlite

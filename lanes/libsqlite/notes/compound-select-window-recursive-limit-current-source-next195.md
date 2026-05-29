@@ -15,8 +15,8 @@ Focused test run: 1 selected test files (root lock skipped)
 63 PASS lines
 1 test files, 302 assertions, 0 failures
 
-php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext195Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext195Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext195Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext195Test.php

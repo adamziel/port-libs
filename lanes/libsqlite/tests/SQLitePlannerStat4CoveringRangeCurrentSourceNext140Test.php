@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4CoveringRangeCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan;
 
 $point140 = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range140 = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -78,7 +78,7 @@ $predicate140 = static fn (): array => $and140(
 );
 $order140 = [['column' => 'option_name']];
 $needed140 = ['option_name', 'option_value', 'rowid'];
-$plan140 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerStat4CoveringRangeCurrentSourceNext140Plan::materialize(
+$plan140 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan::materializeNext140(
     $prepared ?? $preparedWithStaleBoundary140(),
     $current ?? $current140(),
     $predicate ?? $predicate140(),

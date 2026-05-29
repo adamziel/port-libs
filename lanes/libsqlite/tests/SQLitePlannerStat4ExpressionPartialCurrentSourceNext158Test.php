@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext158Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $expr158 = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
 $column158 = static fn (string $name): array => ['column' => $name];
@@ -86,7 +86,7 @@ $plan158 = static fn (
     ?array $preparedRows = null,
     ?array $currentRows = null,
     ?array $predicate = null,
-): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext158Plan::materialize(
+): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext158(
     $preparedSource ?? $preparedSource158(),
     $currentSource ?? $currentSource158(),
     $predicate ?? $predicate158,

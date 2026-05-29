@@ -6,9 +6,9 @@ require_once __DIR__ . '/../src/SQLiteCreateIndex.php';
 require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
 require_once __DIR__ . '/../src/SQLiteMultiColumnRangePlan.php';
-require_once __DIR__ . '/../src/SQLitePlannerCoveringPartialRangeCurrentSourceNext131Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerCoveringPartialRangeCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan;
 
 $point = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -49,7 +49,7 @@ $current = [
     ]],
 ];
 
-$plan = SQLitePlannerCoveringPartialRangeCurrentSourceNext131Plan::materialize(
+$plan = SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan::materializeNext131(
     $prepared,
     $current,
     $and(

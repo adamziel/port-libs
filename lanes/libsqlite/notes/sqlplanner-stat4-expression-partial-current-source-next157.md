@@ -5,7 +5,7 @@ slice.
 
 Behavior:
 
-- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext157Plan`, a bounded
+- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded
   composition over `SQLiteSelectExpressionIndexPlan` for partial expression
   indexes that use STAT4 samples and covering current-source rows.
 - Fences prepared/current/next sources by schema cookie, STAT4 generation,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Plan;
+use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -64,7 +64,7 @@ SELECT option_id AS id,
  ORDER BY id, class_value
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareNext129($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound recursive affinity window current source next129 status and compound shape'] = static function (TestRunner $t) use ($summary): void {
@@ -138,7 +138,7 @@ foreach (range(1, 28) as $stop) {
 }
 
 $tests['compound recursive affinity window current source next129 rejects non compound recursive select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext129Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareNext129(
         'WITH RECURSIVE wanted(node, weight) AS (VALUES (1, 1)) SELECT node FROM wanted',
         $currentTables,
         $currentTables,

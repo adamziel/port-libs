@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteStat4ExpressionCoveringCurrentSourceNext117Plan;
+use PortLibs\LibSqlite\SQLiteStat4ExpressionCoveringCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -59,7 +59,7 @@ $currentSource = [
     ],
 ];
 
-$plan = SQLiteStat4ExpressionCoveringCurrentSourceNext117Plan::materialize(
+$plan = SQLiteStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext117(
     $preparedSource,
     $currentSource,
     $predicate,

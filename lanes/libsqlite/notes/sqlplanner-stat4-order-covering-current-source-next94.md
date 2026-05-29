@@ -13,7 +13,7 @@ lookups and temp B-tree sorting for a WordPress-style `wp_options` plugin scan.
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteStat4OrderCoveringCurrentSourceNext94Test.php`
 - Example smoke: `php lanes/libsqlite/examples/wordpress-planner-stat4-order-covering-current-source-next94.php --self-test`
-- Lint: `php -l lanes/libsqlite/src/SQLiteStat4OrderCoveringCurrentSourceNext94Plan.php`, `php -l lanes/libsqlite/tests/SQLiteStat4OrderCoveringCurrentSourceNext94Test.php`, `php -l lanes/libsqlite/examples/wordpress-planner-stat4-order-covering-current-source-next94.php`
+- Lint: `php -l lanes/libsqlite/src/SQLiteStat4OrderCoveringCurrentSourceNextPlan.php`, `php -l lanes/libsqlite/tests/SQLiteStat4OrderCoveringCurrentSourceNext94Test.php`, `php -l lanes/libsqlite/examples/wordpress-planner-stat4-order-covering-current-source-next94.php`
 - Diff check: `git diff --check -- lanes/libsqlite`
 
 ## Dependency Closure

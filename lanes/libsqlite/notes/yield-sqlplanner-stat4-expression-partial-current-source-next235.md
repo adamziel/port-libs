@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for a STAT4 partial expression-index planner
 current-source fence.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext235Plan`,
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`,
 which extends the accepted next232 first-prefix STAT4 counter fence to
 multi-prefix STAT4 vectors for a partial expression index. The selected
 `lower(option_name), blog_id` sample vectors must match current partial-index

@@ -2,14 +2,14 @@
 
 ## Behavior
 
-- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext217Plan`.
+- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`.
 - Composes accepted next212 current-source STAT4 partial-expression grouped LIKE admission.
 - Adds a one-row lookahead yield fence for resumable current-source cursors.
 - Verifies the visible page matches the lookahead prefix, the resume rowid and next rowid are recorded, peer rowids remain ordered under equal expression keys, and the cursor program appends `RecheckCurrentNextStat4Yield` only when the current/next stream is proven.
 
 ## Verification
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext217Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext217Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next217.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext217Test.php`

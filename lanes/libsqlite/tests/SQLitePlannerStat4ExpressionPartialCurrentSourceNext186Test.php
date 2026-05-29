@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext186Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq186 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $notNull186 = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
@@ -70,7 +70,7 @@ $terms186 = static fn (array $values = null): array => [
     $exprGt186('lower(option_name)', 'plugin_'),
 ];
 $needed186 = ['option_name', 'option_value', 'autoload', 'blog_id'];
-$plan186 = static fn (int $limit = 3, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext186Plan::materialize(
+$plan186 = static fn (int $limit = 3, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext186(
     $prepared ?? $prepared186(),
     $current ?? $current186(),
     $terms ?? $terms186(),
@@ -136,7 +136,7 @@ return [
     'planner stat4 expression partial current source next186 duplicate fallback' => static fn (TestRunner $t) => $t->same('requires-next-stage', $duplicate186()['status']),
     'planner stat4 expression partial current source next186 duplicate rows empty' => static fn (TestRunner $t) => $t->same([], $duplicate186()['matchedRowids']),
     'planner stat4 expression partial current source next186 detail' => static fn (TestRunner $t) => $t->contains('NEXT186 IN LIMIT WINDOW', $plan186()['detail']),
-    'planner stat4 expression partial current source next186 dependencies' => static fn (TestRunner $t) => $t->same(['SQLitePlannerStat4ExpressionPartialCurrentSourceNext183Plan', 'sqlite-sqlplanner-stat4-expression-partial-current-source-next186'], $plan186()['dependencies']),
+    'planner stat4 expression partial current source next186 dependencies' => static fn (TestRunner $t) => $t->same(['SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan', 'sqlite-sqlplanner-stat4-expression-partial-current-source-next186'], $plan186()['dependencies']),
     'planner stat4 expression partial current source next186 dependency closure' => static fn (TestRunner $t) => $t->contains('no new support component needed', $plan186()['dependency_closure']),
     'planner stat4 expression partial current source next186 non overlap' => static fn (TestRunner $t) => $t->contains('unwindowed IN-list multi-probe', $plan186()['non_overlap']),
     'planner stat4 expression partial current source next186 rejects negative limit' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan186(-1, 0)),

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundUnionLimitAffinityCurrentSourceNext145Plan;
+use PortLibs\LibSqlite\SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -42,7 +42,7 @@ SELECT rank_value AS rank_value, payload AS payload
  ORDER BY rank_value ASC, payload ASC
  LIMIT 4 OFFSET 1
 SQL;
-$summary = static fn (): array => SQLiteCompoundUnionLimitAffinityCurrentSourceNext145Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareNext145($sql, $currentTables, $nextTables);
 
 $tests = [];
 
@@ -127,7 +127,7 @@ $tests['compound union limit affinity current source next145 changed signatures 
 };
 
 $tests['compound union limit affinity current source next145 rejects union all'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundUnionLimitAffinityCurrentSourceNext145Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareNext145(
         "SELECT rank_value, payload FROM wp_options UNION ALL SELECT rank_value, payload FROM wp_option_stage ORDER BY rank_value LIMIT 3",
         $currentTables,
         $currentTables,
@@ -135,7 +135,7 @@ $tests['compound union limit affinity current source next145 rejects union all']
 };
 
 $tests['compound union limit affinity current source next145 rejects no limit'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundUnionLimitAffinityCurrentSourceNext145Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareNext145(
         "SELECT rank_value, payload FROM wp_options UNION SELECT rank_value, payload FROM wp_option_stage ORDER BY rank_value",
         $currentTables,
         $currentTables,

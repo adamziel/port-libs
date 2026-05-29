@@ -6,10 +6,10 @@ require_once __DIR__ . '/../src/SQLiteCreateIndex.php';
 require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
 require_once __DIR__ . '/../src/SQLiteSelectExpressionIndexPlan.php';
-require_once __DIR__ . '/../src/SQLiteStat4ExpressionCoveringCurrentSourceNext117Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionCoveringCurrentSourceNext144Plan.php';
+require_once __DIR__ . '/../src/SQLiteStat4ExpressionCoveringCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionCoveringCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan;
 
 $lower = ['function' => 'lower', 'column' => 'option_name'];
 $predicate = [
@@ -53,7 +53,7 @@ $current['rows'] = [
     ['rowid' => 203, 'option_id' => 203, 'option_name' => 'Plugin_Cache', 'autoload' => 'yes', 'option_value' => 'current-cache-b', 'blog_id' => 8],
 ];
 
-$plan = SQLitePlannerStat4ExpressionCoveringCurrentSourceNext144Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext144(
     $prepared,
     $current,
     $predicate,

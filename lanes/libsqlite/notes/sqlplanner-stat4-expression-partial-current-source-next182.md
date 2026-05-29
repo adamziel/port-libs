@@ -3,7 +3,7 @@
 Status: focused behavior growth for `sqlplanner-stat4-expression-partial-current-source-next182`.
 
 Behavior:
-- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext182Plan`, a bounded
+- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded
   current-source wrapper over the accepted next177/next180 STAT4 partial
   expression-index path.
 - Applies LIMIT/OFFSET windowing after the descending current-source row stream

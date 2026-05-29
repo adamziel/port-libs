@@ -1,6 +1,6 @@
 # SQL planner covering range order current-source next119
 
-Implemented `SQLitePlannerCoveringRangeOrderCurrentSourceNext119Plan` for
+Implemented `SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan` for
 ordinary multicolumn covering range scans that must be replanned against the
 current schema/STAT4 source before streaming `ORDER BY` from the index cursor.
 
@@ -22,7 +22,7 @@ Behavior covered:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerCoveringRangeOrderCurrentSourceNext119Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerCoveringRangeOrderCurrentSourceNext119Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-planner-covering-range-order-current-source-next119.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerCoveringRangeOrderCurrentSourceNext119Test.php`

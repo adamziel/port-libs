@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -44,7 +44,7 @@ SELECT option_name AS name, sort_key, 0 AS depth, 'direct' AS source
  LIMIT 6
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNext140Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan::compareNext140($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound select affinity recursive order current source next140 status dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -106,7 +106,7 @@ $tests['compound select affinity recursive order current source next140 changed 
 };
 
 $tests['compound select affinity recursive order current source next140 rejects non recursive select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNext140Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan::compareNext140(
         'SELECT option_name AS name, sort_key FROM wp_options UNION ALL SELECT option_name AS name, sort_key FROM wp_options ORDER BY sort_key',
         $currentTables,
         $currentTables,

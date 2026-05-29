@@ -19,7 +19,7 @@ new `PLUGIN_SECURITY` option through `lower(option_name)` skip-scan.
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionSkipScanCurrentSourceNext137Plan.php
+php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionSkipScanCurrentSourceNext137Test.php
 php -l lanes/libsqlite/examples/wordpress-planner-stat4-expression-skipscan-current-source-next137.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionSkipScanCurrentSourceNext137Test.php

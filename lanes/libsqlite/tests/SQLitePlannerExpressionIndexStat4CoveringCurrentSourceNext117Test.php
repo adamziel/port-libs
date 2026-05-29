@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteStat4ExpressionCoveringCurrentSourceNext117Plan;
+use PortLibs\LibSqlite\SQLiteStat4ExpressionCoveringCurrentSourceNextPlan;
 
 $expr = static fn (string $function, string $column, ?string $path = null): array => array_filter(
     ['function' => $function, 'column' => $column, 'path' => $path],
@@ -68,7 +68,7 @@ $currentSource = static fn (): array => [
 ];
 
 $plan = static function (?array $predicate = null, ?array $prepared = null, ?array $current = null, array $neededColumns = ['option_name', 'autoload', 'option_id', 'blog_id'], array $neededExpressions = null) use ($preparedSource, $currentSource, $and, $in, $jsonChannel, $autoloadYes): array {
-    return SQLiteStat4ExpressionCoveringCurrentSourceNext117Plan::materialize(
+    return SQLiteStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext117(
         $prepared ?? $preparedSource(),
         $current ?? $currentSource(),
         $predicate ?? $and($in($jsonChannel, ['alpha', 'beta', 'stable']), $autoloadYes),
@@ -171,7 +171,7 @@ $tests['planner expression index stat4 covering current source next117 validates
 };
 
 $tests['planner expression index stat4 covering current source next117 validates order direction'] = static function (TestRunner $t) use ($preparedSource, $currentSource, $jsonChannel, $autoloadYes, $and, $in): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionCoveringCurrentSourceNext117Plan::materialize(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext117(
         $preparedSource(),
         $currentSource(),
         $and($in($jsonChannel, ['alpha']), $autoloadYes),

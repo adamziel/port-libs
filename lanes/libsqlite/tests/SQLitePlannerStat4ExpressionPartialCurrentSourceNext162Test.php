@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext162Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $term162 = static fn (string $column, string $operator, mixed $right = null): array => ['left' => ['column' => $column], 'operator' => $operator, 'right' => $right];
 $exprTerm162 = static fn (string $expression, string $operator, mixed $right = null): array => ['left' => ['expression' => $expression], 'operator' => $operator, 'right' => $right];
@@ -68,7 +68,7 @@ $query162 = static fn (): array => [
 ];
 $needed162 = ['option_name', 'option_value', 'blog_id'];
 
-$plan162 = static fn (?array $prepared = null, ?array $current = null, ?array $query = null, ?array $next = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext162Plan::materialize(
+$plan162 = static fn (?array $prepared = null, ?array $current = null, ?array $query = null, ?array $next = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext162(
     $prepared ?? $prepared162(),
     $current ?? $current162(),
     $query ?? $query162(),

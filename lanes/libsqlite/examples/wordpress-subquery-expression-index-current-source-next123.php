@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePlannerSubqueryExpressionIndexCurrentSourceNext123Plan;
+use PortLibs\LibSqlite\SQLitePlannerSubqueryExpressionIndexCurrentSourceNextPlan;
 
 $prepared = [
     'name' => 'prepared-wp-options-expression-index',
@@ -33,7 +33,7 @@ $current['stat4Generation'] = 78;
 $current['indexes'][0]['rootPage'] = 12310;
 $current['indexes'][0]['estimatedRows'] = 5;
 
-$plan = SQLitePlannerSubqueryExpressionIndexCurrentSourceNext123Plan::materialize($prepared, $current, [
+$plan = SQLitePlannerSubqueryExpressionIndexCurrentSourceNextPlan::materializeNext123($prepared, $current, [
     'operator' => 'IN_SUBQUERY',
     'left' => ['function' => 'lower', 'column' => 'option_name', 'collation' => 'NOCASE', 'affinity' => 'TEXT'],
     'subquery' => [

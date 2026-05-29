@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
-use PortLibs\LibSqlite\SQLitePlannerExpressionSkipScanRangeCurrentSourceNext143Plan;
+use PortLibs\LibSqlite\SQLitePlannerExpressionSkipScanRangeCurrentSourceNextPlan;
 
 $partial = new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, [
     new SQLiteIndexPredicate('kind', SQLiteIndexPredicate::EQUALS, 'plugin'),
@@ -50,7 +50,7 @@ $current['upperInclusive'] = true;
 $current['rows'][] = ['rowid' => 4, 'autoload' => 'no', 'option_name' => 'plugin_zeta', 'option_value' => 'a:10', 'kind' => 'plugin'];
 $current['stat4Samples'][] = ['prefix' => 'no', 'suffix' => 'plugin_zeta', 'nEq' => 1, 'nLt' => 1, 'nDLt' => 1];
 
-$plan = SQLitePlannerExpressionSkipScanRangeCurrentSourceNext143Plan::materialize(
+$plan = SQLitePlannerExpressionSkipScanRangeCurrentSourceNextPlan::materializeNext143(
     $prepared,
     $current,
     $partial,

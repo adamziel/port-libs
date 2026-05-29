@@ -1,6 +1,6 @@
 # sqlplanner-stat4-partial-covering-current-source-next135
 
-Adds `SQLitePlannerStat4PartialCoveringCurrentSourceNext135Plan`, an additive
+Adds `SQLitePlannerStat4PartialCoveringCurrentSourceNextPlan`, an additive
 planner wrapper that composes the existing STAT4 partial-covering current-source
 comparator with current row-stream materialization. A stale prepared
 `wp_options` partial covering index scan now reports the current schema/stat4

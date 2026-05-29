@@ -1,6 +1,6 @@
 # SQL Planner Partial Expression Skip-Scan Current Source Next139
 
-This slice adds `SQLitePlannerPartialExpressionSkipScanCurrentSourceNext139Plan`,
+This slice adds `SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan`,
 a bounded current-source planner fence for stale prepared partial expression
 skip-scan plans when the partial index predicate itself changed in the current
 schema.

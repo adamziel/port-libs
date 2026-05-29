@@ -6,7 +6,7 @@ foreach (glob(dirname(__DIR__) . '/src/*.php') ?: [] as $file) {
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext241Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 
 $current = [
     'wp_options' => [
@@ -41,7 +41,7 @@ SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY au
  LIMIT 3 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext241Plan::compare($sql, $current, $next);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext241($sql, $current, $next);
 $receipt = $plan['resumeAdmissionReceiptNext241'];
 
 if (($argv[1] ?? '') === '--self-test') {

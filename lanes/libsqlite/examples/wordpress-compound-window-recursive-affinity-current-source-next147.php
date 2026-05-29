@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -61,13 +61,13 @@ SELECT option_id AS id,
  ORDER BY id, key_value, source
 SQL;
 
-$first = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Plan::page(
+$first = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan::pageNext147(
     $sql,
     ['wp_options' => $currentOptions, 'wp_option_edges' => $currentEdges],
     ['wp_options' => $nextOptions, 'wp_option_edges' => $nextEdges],
     4,
 );
-$second = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Plan::page(
+$second = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan::pageNext147(
     $sql,
     ['wp_options' => $currentOptions, 'wp_option_edges' => $currentEdges],
     ['wp_options' => $nextOptions, 'wp_option_edges' => $nextEdges],

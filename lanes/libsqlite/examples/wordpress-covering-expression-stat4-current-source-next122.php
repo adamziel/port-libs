@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePlannerCoveringExpressionStat4CurrentSourceNext122Plan;
+use PortLibs\LibSqlite\SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan;
 
 $lower = ['function' => 'lower', 'column' => 'option_name'];
 $predicate = [
@@ -53,7 +53,7 @@ $rows = [
     ['rowid' => 51, 'option_name' => 'plugin_seo', 'autoload' => 'yes', 'option_value' => 'seo-enabled', 'option_id' => 51, 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerCoveringExpressionStat4CurrentSourceNext122Plan::materialize(
+$plan = SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan::materializeNext122(
     $prepared,
     $current,
     $predicate,

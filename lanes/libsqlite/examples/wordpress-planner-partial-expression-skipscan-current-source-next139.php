@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
-use PortLibs\LibSqlite\SQLitePlannerPartialExpressionSkipScanCurrentSourceNext139Plan;
+use PortLibs\LibSqlite\SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan;
 
 $prepared = [
     'name' => 'prepared-main.wp_options@cookie1390',
@@ -52,7 +52,7 @@ $current['rows'][] = ['rowid' => 11, 'autoload' => 'yes', 'option_name' => null,
 $current['stat4Samples'][] = ['prefix' => 'no', 'suffix' => 'plugin_security', 'nEq' => 1, 'nLt' => 2, 'nDLt' => 2];
 $current['stat4Samples'][] = ['prefix' => 'yes', 'suffix' => 'plugin_zeta', 'nEq' => 1, 'nLt' => 1, 'nDLt' => 1];
 
-$plan = SQLitePlannerPartialExpressionSkipScanCurrentSourceNext139Plan::materialize(
+$plan = SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan::materializeNext139(
     $prepared,
     $current,
     new SQLiteIndexPredicate('kind', SQLiteIndexPredicate::EQUALS, 'plugin'),

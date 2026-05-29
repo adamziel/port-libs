@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext161Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq161 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $notNull161 = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
@@ -79,7 +79,7 @@ $arms161 = static fn (): array => [[
     $notNull161('option_name'),
 ]];
 $needed161 = ['option_name', 'option_value', 'updated_at'];
-$plan161 = static fn (?array $prepared = null, ?array $current = null, ?array $arms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext161Plan::materialize(
+$plan161 = static fn (?array $prepared = null, ?array $current = null, ?array $arms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext161(
     $prepared ?? $prepared161(),
     $current ?? $current161(),
     $arms ?? $arms161(),

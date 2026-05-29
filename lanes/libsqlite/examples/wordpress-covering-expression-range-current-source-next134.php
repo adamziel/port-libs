@@ -7,11 +7,11 @@ require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
 require_once __DIR__ . '/../src/SQLiteJsonExtractIndexExpression.php';
 require_once __DIR__ . '/../src/SQLiteSelectExpressionIndexPlan.php';
-require_once __DIR__ . '/../src/SQLitePlannerCoveringExpressionStat4CurrentSourceNext122Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNext128Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerCoveringExpressionRangeCurrentSourceNext134Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerCoveringExpressionRangeCurrentSourceNext134Plan;
+use PortLibs\LibSqlite\SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan;
 
 $expr = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
 $column = static fn (string $name): array => ['column' => $name];
@@ -60,7 +60,7 @@ $rows = [
     ['rowid' => 60, 'option_name' => 'plugin_seo', 'autoload' => 'yes', 'option_value' => 'seo-enabled', 'option_id' => 60, 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerCoveringExpressionRangeCurrentSourceNext134Plan::materialize(
+$plan = SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan::materializeNext134(
     $preparedSource,
     $currentSource,
     $preparedPredicate,

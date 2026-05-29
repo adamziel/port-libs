@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteStat4OrderCoveringCurrentSourceNext94Plan;
+use PortLibs\LibSqlite\SQLiteStat4OrderCoveringCurrentSourceNextPlan;
 
 $point = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -70,7 +70,7 @@ $plan = static fn (
     ?array $fresh = null,
     ?array $order = null,
     ?array $columns = null,
-): array => SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare(
+): array => SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94(
     $prepared ?? $source(),
     $fresh ?? $current(),
     $GLOBALS['predicate_next94'],
@@ -130,45 +130,45 @@ $tests = [
     'planner stat4 order covering current source next94 reuses prepared when signatures match' => static function (TestRunner $t) use ($source): void {
         $prepared = $source();
         $fresh = $source(['name' => 'current-same-analysis', 'schemaCookie' => 30, 'stat4Generation' => 12]);
-        $t->same('prepared', SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($prepared, $fresh, $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94'])['selectedSource']);
+        $t->same('prepared', SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($prepared, $fresh, $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94'])['selectedSource']);
     },
     'planner stat4 order covering current source next94 no reprepare when signatures match' => static function (TestRunner $t) use ($source): void {
         $prepared = $source();
         $fresh = $source(['name' => 'current-same-analysis', 'schemaCookie' => 30, 'stat4Generation' => 12]);
-        $t->same(false, SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($prepared, $fresh, $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94'])['reprepareRequired']);
+        $t->same(false, SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($prepared, $fresh, $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94'])['reprepareRequired']);
     },
     'planner stat4 order covering current source next94 schema cookie alone invalidates' => static function (TestRunner $t) use ($source): void {
-        $t->same(true, SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($source(), $source(['schemaCookie' => 31]), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94'])['schemaCookieChanged']);
+        $t->same(true, SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($source(), $source(['schemaCookie' => 31]), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94'])['schemaCookieChanged']);
     },
     'planner stat4 order covering current source next94 stat4 generation alone invalidates' => static function (TestRunner $t) use ($source): void {
-        $t->same(true, SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($source(), $source(['stat4Generation' => 13]), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94'])['stat4GenerationChanged']);
+        $t->same(true, SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($source(), $source(['stat4Generation' => 13]), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94'])['stat4GenerationChanged']);
     },
     'planner stat4 order covering current source next94 projection change invalidates' => static function (TestRunner $t) use ($source): void {
         $prepared = $source();
         $fresh = $source(['coveringColumns' => ['autoload', 'option_name', 'option_value', 'blog_id']]);
-        $t->same(true, SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($prepared, $fresh, $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94'])['projectionChanged']);
+        $t->same(true, SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($prepared, $fresh, $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94'])['projectionChanged']);
     },
     'planner stat4 order covering current source next94 missing covering column defers lookup' => static fn (TestRunner $t) => $t->same(false, $plan(null, null, null, ['option_name', 'missing_meta'])['tableLookupElided']),
     'planner stat4 order covering current source next94 missing covering column not covering order' => static fn (TestRunner $t) => $t->same(false, $plan(null, null, null, ['option_name', 'missing_meta'])['coveringOrderPlan']),
     'planner stat4 order covering current source next94 reverse order needs temp sort' => static fn (TestRunner $t) => $t->same(true, $plan(null, null, [['column' => 'option_name', 'direction' => 'DESC']])['selectedPlan']['blockSortRequired']),
     'planner stat4 order covering current source next94 reverse order not covering order plan' => static fn (TestRunner $t) => $t->same(false, $plan(null, null, [['column' => 'option_name', 'direction' => 'DESC']])['coveringOrderPlan']),
     'planner stat4 order covering current source next94 validates schema cookie' => static function (TestRunner $t) use ($source): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($source(['schemaCookie' => -1]), $source(), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($source(['schemaCookie' => -1]), $source(), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94']));
     },
     'planner stat4 order covering current source next94 validates stat4 generation' => static function (TestRunner $t) use ($source): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($source(['stat4Generation' => -1]), $source(), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($source(['stat4Generation' => -1]), $source(), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94']));
     },
     'planner stat4 order covering current source next94 validates indexes list' => static function (TestRunner $t) use ($source): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($source(['indexes' => ['bad' => []]]), $source(), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($source(['indexes' => ['bad' => []]]), $source(), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], $GLOBALS['needed_columns_next94']));
     },
     'planner stat4 order covering current source next94 validates needed columns' => static function (TestRunner $t) use ($source): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($source(), $source(), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], ['']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($source(), $source(), $GLOBALS['predicate_next94'], $GLOBALS['order_by_next94'], ['']));
     },
     'planner stat4 order covering current source next94 validates order columns' => static function (TestRunner $t) use ($source): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($source(), $source(), $GLOBALS['predicate_next94'], [['column' => '']], $GLOBALS['needed_columns_next94']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($source(), $source(), $GLOBALS['predicate_next94'], [['column' => '']], $GLOBALS['needed_columns_next94']));
     },
     'planner stat4 order covering current source next94 validates order direction' => static function (TestRunner $t) use ($source): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNext94Plan::compare($source(), $source(), $GLOBALS['predicate_next94'], [['column' => 'option_name', 'direction' => 'SIDEWAYS']], $GLOBALS['needed_columns_next94']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNextPlan::compareNext94($source(), $source(), $GLOBALS['predicate_next94'], [['column' => 'option_name', 'direction' => 'SIDEWAYS']], $GLOBALS['needed_columns_next94']));
     },
 ];
 

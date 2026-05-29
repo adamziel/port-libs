@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext238Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $rows = [
     ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_zulu', 'option_value' => 'zulu', 'updated_at' => 60],
@@ -74,7 +74,7 @@ $prepared['stat4Generation'] = 238;
 $prepared['indexes'][0]['rootPage'] = 23801;
 $prepared['indexes'][0]['stat4Samples'] = array_slice($source['indexes'][0]['stat4Samples'], 0, 3);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext238Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext238(
     $prepared,
     $source,
     [

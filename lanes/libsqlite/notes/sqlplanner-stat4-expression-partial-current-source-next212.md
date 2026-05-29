@@ -2,7 +2,7 @@
 
 Status: focused behavior growth for `sqlplanner-stat4-expression-partial-current-source-next212`.
 
-Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNext212Plan` layers on
+Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` layers on
 the accepted current-source STAT4 expression partial grouped-OR fence and adds a
 separate grouped partial-arm proof for `LIKE` prefix predicates. The planner
 keeps the accepted next209 row stream for base range/materialization, then
@@ -17,7 +17,7 @@ WordPress smoke:
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext212Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext212Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next212.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext212Test.php`

@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for current-source STAT4 expression partial-index planning.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan`. It composes the accepted next218 expression-payload covering fence, then validates that the selected page of matched `lower(option_name)` rows resolves to current `sqlite_stat4` samples in the scan order actually reused by the descending partial expression index. The new fence blocks reuse when a matched expression key is missing from current samples or when current sample order no longer matches the selected stream.
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`. It composes the accepted next218 expression-payload covering fence, then validates that the selected page of matched `lower(option_name)` rows resolves to current `sqlite_stat4` samples in the scan order actually reused by the descending partial expression index. The new fence blocks reuse when a matched expression key is missing from current samples or when current sample order no longer matches the selected stream.
 
 WordPress smoke: `wordpress-sqlplanner-stat4-expression-partial-current-source-next224.php` models a copied `wp_options` plugin scan where `plugin_seo`, `Plugin_Mail`, and duplicate `plugin_forms` rows can reuse the current partial expression index only after current STAT4 sample ordinals prove the page order and duplicate peers.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next224.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Test.php`

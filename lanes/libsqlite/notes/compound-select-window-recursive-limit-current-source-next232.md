@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext232Plan`, a
+Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, a
 bounded current-source handoff fence for compound SELECT text that combines:
 
 - `WITH RECURSIVE` queue `LIMIT/OFFSET`;

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteStat4RangeOrderCurrentSourceNext97Plan.php';
+require_once __DIR__ . '/../src/SQLiteStat4RangeOrderCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteStat4RangeOrderCurrentSourceNext97Plan;
+use PortLibs\LibSqlite\SQLiteStat4RangeOrderCurrentSourceNextPlan;
 
 $prepared = [
     'name' => 'wp-options-before-analyze',
@@ -49,7 +49,7 @@ $current['stat4Samples'] = [
     ['value' => 'plugin_theta', 'nEq' => 1, 'nLt' => 5, 'nDLt' => 4],
 ];
 
-$plan = SQLiteStat4RangeOrderCurrentSourceNext97Plan::compare($prepared, $current, [['column' => 'option_name']]);
+$plan = SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($prepared, $current, [['column' => 'option_name']]);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['selectedSource'] === 'current');

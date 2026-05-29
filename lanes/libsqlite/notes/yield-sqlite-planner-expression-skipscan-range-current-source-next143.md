@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for the assigned expression skip-scan range
 current-source planner slice.
 
-Behavior: adds `SQLitePlannerExpressionSkipScanRangeCurrentSourceNext143Plan`
+Behavior: adds `SQLitePlannerExpressionSkipScanRangeCurrentSourceNextPlan`
 to fence stale prepared expression skip-scan plans when the current source
 changes lower/upper range bounds, upper-bound inclusiveness, or collation. The
 plan rewrites the expression range terms to the current source, classifies

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -63,7 +63,7 @@ SELECT option_id AS id,
  ORDER BY id, key_value, source
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext142Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareNext142($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound recursive affinity window current source next142 status dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -157,7 +157,7 @@ $tests['compound recursive affinity window current source next142 changed signat
 };
 
 $tests['compound recursive affinity window current source next142 rejects non compound recursive select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext142Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareNext142(
         'WITH RECURSIVE option_walk(item_id, key_value, source, score) AS (VALUES (1, 1, \'seed\', 1)) SELECT item_id FROM option_walk',
         $currentTables,
         $currentTables,
@@ -165,7 +165,7 @@ $tests['compound recursive affinity window current source next142 rejects non co
 };
 
 $tests['compound recursive affinity window current source next142 rejects missing window'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext142Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareNext142(
         'WITH RECURSIVE option_walk(item_id, key_value, source, score) AS (VALUES (1, 1, \'seed\', 1)) SELECT item_id AS id, key_value, source, score FROM option_walk UNION SELECT option_id AS id, weight AS key_value, option_name AS source, priority AS score FROM wp_options',
         $currentTables,
         $currentTables,
@@ -173,7 +173,7 @@ $tests['compound recursive affinity window current source next142 rejects missin
 };
 
 $tests['compound recursive affinity window current source next142 rejects union all only'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNext142Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareNext142(
         'WITH RECURSIVE option_walk(item_id, key_value, source, score) AS (VALUES (1, 1, \'seed\', 1)) SELECT item_id AS id, key_value, source, sum(score) OVER (ORDER BY item_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS window_score FROM option_walk UNION ALL SELECT option_id AS id, weight AS key_value, option_name AS source, priority AS window_score FROM wp_options',
         $currentTables,
         $currentTables,

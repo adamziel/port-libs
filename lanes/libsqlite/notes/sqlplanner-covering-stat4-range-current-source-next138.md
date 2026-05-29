@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for non-partial covering STAT4 range row-stream admission.
 
-This slice adds `SQLitePlannerCoveringStat4RangeCurrentSourceNext138Plan`. It composes the accepted covering range-order planner, then materializes the selected current source's covering row stream, STAT4 range buckets, row-stream signatures, and cursor recheck opcode for a normal multicolumn covering index over copied `wp_options` rows.
+This slice adds `SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan`. It composes the accepted covering range-order planner, then materializes the selected current source's covering row stream, STAT4 range buckets, row-stream signatures, and cursor recheck opcode for a normal multicolumn covering index over copied `wp_options` rows.
 
 WordPress path: `wordpress-planner-covering-stat4-range-current-source-next138.php` models a plugin-option range scan on `(blog_id, autoload, option_name, option_value, rowid)` after a copied import updates schema/stat4 generations. The planner reparses to the current source, admits only rows matching the equality prefix and range bounds, keeps payload columns in the index, and avoids a table lookup.
 

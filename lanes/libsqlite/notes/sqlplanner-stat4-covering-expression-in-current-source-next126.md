@@ -20,7 +20,7 @@ payloads from the current covering index cursor without ext/sqlite.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4CoveringExpressionInCurrentSourceNext126Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4CoveringExpressionInCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4CoveringExpressionInCurrentSourceNext126Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-stat4-covering-expression-in-current-source-next126.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4CoveringExpressionInCurrentSourceNext126Test.php`

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for compound SELECTs where recursive CTE rows and copied `wp_options` rows both produce window metrics before `UNION` / `INTERSECT` / `EXCEPT`, final `ORDER BY`, and final `LIMIT/OFFSET` page selection.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext236Plan`, layered on the accepted next233 final-ordinal resume fence. The new behavior requires per-row current-source window metric acknowledgements before next-source rows are exposed. This catches the narrower upstream-style hazard where labels or ordinals can still look resumable while `sum()` / `nth_value()` window metrics drift after next-source `wp_options` rows are staged.
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, layered on the accepted next233 final-ordinal resume fence. The new behavior requires per-row current-source window metric acknowledgements before next-source rows are exposed. This catches the narrower upstream-style hazard where labels or ordinals can still look resumable while `sum()` / `nth_value()` window metrics drift after next-source `wp_options` rows are staged.
 
 Focused verification:
 

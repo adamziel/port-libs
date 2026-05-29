@@ -7,7 +7,7 @@ sources are combined.
 
 Behavior:
 
-- Adds `SQLiteCompoundRecursiveCollationLimitCurrentSourceNext132Plan`.
+- Adds `SQLiteCompoundRecursiveCollationLimitCurrentSourceNextPlan`.
 - Compares current and next compound rowsets for recursive option dependency
   names.
 - Records left-arm compound set collation metadata separately from final

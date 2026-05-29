@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerSubqueryExpressionIndexCurrentSourceNext123Plan;
+use PortLibs\LibSqlite\SQLitePlannerSubqueryExpressionIndexCurrentSourceNextPlan;
 
 $expr123 = static fn (string $function, string $column, string $collation = 'NOCASE', string $affinity = 'TEXT'): array => [
     'function' => $function,
@@ -67,7 +67,7 @@ $plan123 = static fn (
     ?array $current = null,
     ?array $predicate = null,
     array $needed = ['option_id', 'option_name', 'autoload'],
-): array => SQLitePlannerSubqueryExpressionIndexCurrentSourceNext123Plan::materialize(
+): array => SQLitePlannerSubqueryExpressionIndexCurrentSourceNextPlan::materializeNext123(
     $prepared ?? $prepared123(),
     $current ?? $current123(),
     $predicate ?? $predicate123(),

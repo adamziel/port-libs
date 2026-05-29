@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerSubqueryCoveringPartialCurrentSourceNext115Plan;
+use PortLibs\LibSqlite\SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan;
 
 $expr115 = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
 
@@ -68,7 +68,7 @@ $plan115 = static fn (
     ?array $current = null,
     ?array $predicate = null,
     array $needed = ['option_name', 'autoload', 'option_value'],
-): array => SQLitePlannerSubqueryCoveringPartialCurrentSourceNext115Plan::materialize(
+): array => SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan::materializeNext115(
     $prepared ?? $GLOBALS['prepared_source_next115'](),
     $current ?? $GLOBALS['current_source_next115'](),
     $predicate ?? $GLOBALS['predicate_next115'](),

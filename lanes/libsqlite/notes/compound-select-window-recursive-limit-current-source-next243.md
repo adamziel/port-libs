@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for current-source compound SELECTs where final limited rows must replay their window metrics and recursive lineage before a changed next-source row can be admitted.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext243Plan`, layered on accepted next240 spillover drain behavior. The new replay fence binds the current final page to row ordinal, row id, label, window metric, recursive emitted/skipped lineage, spillover token, and next-source labels. Stale replay tokens, stale signatures, missing tickets, and unexpected tickets reject next-source promotion.
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, layered on accepted next240 spillover drain behavior. The new replay fence binds the current final page to row ordinal, row id, label, window metric, recursive emitted/skipped lineage, spillover token, and next-source labels. Stale replay tokens, stale signatures, missing tickets, and unexpected tickets reject next-source promotion.
 
 WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next243.php` models copied `wp_options` rows where a new autoloaded plugin option crosses the final `UNION ALL` / `INTERSECT` / `EXCEPT` page while recursive seed rows keep their window metric lineage.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext243Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext243Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next243.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext243Test.php`

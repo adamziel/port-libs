@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNext128Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan;
 
 $expr128 = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
 $column128 = static fn (string $name): array => ['column' => $name];
@@ -85,7 +85,7 @@ $plan128 = static fn (
     ?array $currentPredicate = null,
     ?array $rows = null,
     ?array $needed = null,
-): array => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNext128Plan::materialize(
+): array => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeNext128(
     $prepared ?? $preparedSource128(),
     $current ?? $currentSource128(),
     $preparedPredicate ?? $preparedPredicate128,
@@ -178,10 +178,10 @@ $tests = [
     'planner stat4 expression covering range current source next128 validates source indexes' => static function (TestRunner $t) use ($preparedSource128, $currentSource128, $preparedPredicate128, $currentPredicate128, $rows128, $order128, $needed128, $lower128): void {
         $bad = $preparedSource128();
         $bad['indexes'] = [];
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNext128Plan::materialize($bad, $currentSource128(), $preparedPredicate128, $currentPredicate128, $rows128(), $order128, $needed128, [$lower128]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeNext128($bad, $currentSource128(), $preparedPredicate128, $currentPredicate128, $rows128(), $order128, $needed128, [$lower128]));
     },
     'planner stat4 expression covering range current source next128 validates output columns' => static function (TestRunner $t) use ($preparedSource128, $currentSource128, $preparedPredicate128, $currentPredicate128, $rows128, $order128, $lower128): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNext128Plan::materialize($preparedSource128(), $currentSource128(), $preparedPredicate128, $currentPredicate128, $rows128(), $order128, [], [$lower128]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan::materializeNext128($preparedSource128(), $currentSource128(), $preparedPredicate128, $currentPredicate128, $rows128(), $order128, [], [$lower128]));
     },
 ];
 

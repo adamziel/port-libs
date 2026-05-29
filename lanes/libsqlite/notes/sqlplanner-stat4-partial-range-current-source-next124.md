@@ -1,6 +1,6 @@
 # sqlplanner-stat4-partial-range-current-source-next124
 
-Implemented `SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan` for a
+Implemented `SQLitePlannerStat4PartialRangeCurrentSourceNextPlan` for a
 current-source STAT4 partial-index range edge: when ANALYZE/schema changes
 narrow a partial index's range predicate, a stale prepared plan is forced to
 reprepare and select the current partial range/root/stat4 source. The plan
@@ -24,7 +24,7 @@ Focused test run: 1 selected test files (root lock skipped)
 php lanes/libsqlite/examples/wordpress-stat4-partial-range-current-source-next124.php --self-test
 wordpress-stat4-partial-range-current-source-next124 self-test passed
 
-php -l lanes/libsqlite/src/SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan.php
+php -l lanes/libsqlite/src/SQLitePlannerStat4PartialRangeCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePlannerStat4PartialRangeCurrentSourceNext124Test.php
 php -l lanes/libsqlite/examples/wordpress-stat4-partial-range-current-source-next124.php
 No syntax errors detected in all changed PHP files.

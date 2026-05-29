@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext172Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions172 = [
@@ -46,7 +46,7 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 2
 SQL;
 
-$summary172 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext172Plan::compare($sql172, $currentTables172, $nextTables172);
+$summary172 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext172($sql172, $currentTables172, $nextTables172);
 $tests = [];
 
 $tests['compound select window recursive limit next172 status dependencies'] = static function (TestRunner $t) use ($summary172): void {
@@ -139,7 +139,7 @@ $tests['compound select window recursive limit next172 changed reasons'] = stati
 };
 
 $tests['compound select window recursive limit next172 rejects union all only'] = static function (TestRunner $t) use ($currentTables172): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext172Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext172(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed', 40) UNION ALL SELECT id + 1, label, weight - 4 FROM staged WHERE id < 8 LIMIT 5) SELECT id, label, lead(label, 1, 'tail') OVER (ORDER BY weight) AS window_label, cume_dist() OVER (ORDER BY weight) AS window_rank FROM staged UNION ALL SELECT option_id, option_name, lead(option_name, 1, 'tail') OVER (ORDER BY weight), cume_dist() OVER (ORDER BY weight) FROM wp_options ORDER BY window_rank LIMIT 2 OFFSET 1",
         $currentTables172,
         $currentTables172,
@@ -147,7 +147,7 @@ $tests['compound select window recursive limit next172 rejects union all only'] 
 };
 
 $tests['compound select window recursive limit next172 rejects missing final offset'] = static function (TestRunner $t) use ($currentTables172): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext172Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext172(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed', 40) UNION ALL SELECT id + 1, label, weight - 4 FROM staged WHERE id < 8 LIMIT 5) SELECT id, label, lead(label, 1, 'tail') OVER (ORDER BY weight) AS window_label, cume_dist() OVER (ORDER BY weight) AS window_rank FROM staged UNION SELECT option_id, option_name, lead(option_name, 1, 'tail') OVER (ORDER BY weight), cume_dist() OVER (ORDER BY weight) FROM wp_options ORDER BY window_rank LIMIT 2",
         $currentTables172,
         $currentTables172,
@@ -155,7 +155,7 @@ $tests['compound select window recursive limit next172 rejects missing final off
 };
 
 $tests['compound select window recursive limit next172 rejects missing cume dist'] = static function (TestRunner $t) use ($currentTables172): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext172Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext172(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed', 40) UNION ALL SELECT id + 1, label, weight - 4 FROM staged WHERE id < 8 LIMIT 5) SELECT id, label, lead(label, 1, 'tail') OVER (ORDER BY weight) AS window_label, row_number() OVER (ORDER BY weight) AS window_rank FROM staged UNION SELECT option_id, option_name, lead(option_name, 1, 'tail') OVER (ORDER BY weight), row_number() OVER (ORDER BY weight) FROM wp_options ORDER BY window_rank LIMIT 2 OFFSET 1",
         $currentTables172,
         $currentTables172,

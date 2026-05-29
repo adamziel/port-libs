@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundCollationWindowCurrentSourceNext136Plan;
+use PortLibs\LibSqlite\SQLiteCompoundCollationWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -40,7 +40,7 @@ SQL;
 
 $currentTables = ['wp_options' => $currentOptions, 'network_options' => $currentNetwork];
 $nextTables = ['wp_options' => $nextOptions, 'network_options' => $nextNetwork];
-$summary = static fn (): array => SQLiteCompoundCollationWindowCurrentSourceNext136Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundCollationWindowCurrentSourceNextPlan::compareNext136($sql, $currentTables, $nextTables);
 
 $tests = [];
 
@@ -106,7 +106,7 @@ $tests['compound collation window current source next136 replan reasons'] = stat
 };
 
 $tests['compound collation window current source next136 rejects non distinct compound'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundCollationWindowCurrentSourceNext136Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundCollationWindowCurrentSourceNextPlan::compareNext136(
         "SELECT option_name AS name FROM wp_options UNION ALL SELECT option_name AS name FROM network_options",
         $currentTables,
         $currentTables,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteStat4OrderCoveringCurrentSourceNext99Plan;
+use PortLibs\LibSqlite\SQLiteStat4OrderCoveringCurrentSourceNextPlan;
 
 $point = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -72,7 +72,7 @@ $plan99 = static fn (
     ?array $predicateOverride = null,
     ?array $orderOverride = null,
     ?array $columnsOverride = null,
-): array => SQLiteStat4OrderCoveringCurrentSourceNext99Plan::materialize(
+): array => SQLiteStat4OrderCoveringCurrentSourceNextPlan::materializeNext99(
     $prepared ?? $source99(),
     $current ?? $current99(),
     $predicateOverride ?? $GLOBALS['predicate_next99'],
@@ -185,7 +185,7 @@ $tests['planner stat4 order covering current source next99 missing covering defe
 $tests['planner stat4 order covering current source next99 missing covering table source'] = static fn (TestRunner $t) => $t->same('table', $missingColumnPlan()['cursorTape']['program'][4]['source']);
 
 $tests['planner stat4 order covering current source next99 validates output columns'] = static function (TestRunner $t) use ($source99, $current99): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNext99Plan::materialize($source99(), $current99(), $GLOBALS['predicate_next99'], $GLOBALS['order_by_next99'], ['']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4OrderCoveringCurrentSourceNextPlan::materializeNext99($source99(), $current99(), $GLOBALS['predicate_next99'], $GLOBALS['order_by_next99'], ['']));
 };
 
 return $tests;

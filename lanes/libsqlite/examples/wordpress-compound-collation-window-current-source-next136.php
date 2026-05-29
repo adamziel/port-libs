@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundCollationWindowCurrentSourceNext136Plan;
+use PortLibs\LibSqlite\SQLiteCompoundCollationWindowCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -33,7 +33,7 @@ SELECT option_name AS name,
  ORDER BY name COLLATE NOCASE, rn
 SQL;
 
-$plan = SQLiteCompoundCollationWindowCurrentSourceNext136Plan::compare($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundCollationWindowCurrentSourceNextPlan::compareNext136($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'compound-collation-window-current-source-next136-ready');

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNext144Plan`, a bounded diagnostic plan for parser-level `WITH RECURSIVE` CTE queue `ORDER BY` feeding window-function compound arms and a final compound `ORDER BY`.
+- Adds `SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan`, a bounded diagnostic plan for parser-level `WITH RECURSIVE` CTE queue `ORDER BY` feeding window-function compound arms and a final compound `ORDER BY`.
 - Covers current/next source boundaries where a new WordPress option subtree changes recursive queue admission, per-arm `row_number()` output, and final compound ordering.
 - This avoids accepted next134/139/140/141 compound surfaces by combining recursive queue ordering and window-arm ranking before final compound ordering, rather than CTE materialized windows, final LIMIT/OFFSET, affinity-only recursive ordering, or EXCEPT/window LIMIT behavior.
 

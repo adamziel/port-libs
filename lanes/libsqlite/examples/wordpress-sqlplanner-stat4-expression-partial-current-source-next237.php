@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext237Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $notNull = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
@@ -78,7 +78,7 @@ $prepared['indexes'][0]['rootPage'] = 23701;
 $prepared['indexes'][0]['stat4Samples'] = array_slice($source['indexes'][0]['stat4Samples'], 0, 3);
 $prepared['rows'] = array_slice($source['rows'], 3, 3);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext237Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext237(
     $prepared,
     $source,
     [

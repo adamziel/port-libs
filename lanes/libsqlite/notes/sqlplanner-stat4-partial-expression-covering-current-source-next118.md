@@ -1,6 +1,6 @@
 # sqlplanner-stat4-partial-expression-covering-current-source-next118
 
-This slice adds `SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Plan`, an additive current-source wrapper for stale prepared statements that can use a partial expression index as a covering STAT4 cursor after schema/stat4/index metadata changes.
+This slice adds `SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan`, an additive current-source wrapper for stale prepared statements that can use a partial expression index as a covering STAT4 cursor after schema/stat4/index metadata changes.
 
 Behavior covered:
 
@@ -12,7 +12,7 @@ Behavior covered:
 Focused verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Plan.php
+php -l lanes/libsqlite/src/SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Test.php
 php -l lanes/libsqlite/examples/wordpress-stat4-partial-expression-covering-current-source-next118.php
 

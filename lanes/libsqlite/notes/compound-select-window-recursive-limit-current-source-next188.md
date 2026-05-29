@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for parser-level compound SELECT output where recursive CTE `LIMIT/OFFSET` rows feed `first_value()` / `last_value()` window frame endpoints before a final compound `ORDER BY ... LIMIT/OFFSET` current/next boundary.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext188Plan` and covers:
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan` and covers:
 
 - recursive queue `LIMIT 4 OFFSET 1` skip/admit tracing before compound row production;
 - `first_value()` and `last_value()` endpoint windows evaluated inside compound arms before `UNION` distinct handling;
@@ -12,7 +12,7 @@ This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext188Pla
 Focused verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext188Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext188Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next188.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext188Test.php

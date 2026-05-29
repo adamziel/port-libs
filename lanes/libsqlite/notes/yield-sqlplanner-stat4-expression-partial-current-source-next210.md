@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext210Plan`.
+- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`.
 - Extends the current-source STAT4 expression partial-index planner chain after
   next209 grouped partial OR admission.
 - Adds a duplicate expression-key peer fence: when a current STAT4 partial

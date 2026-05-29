@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4PartialCoveringCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4PartialCoveringCurrentSourceNextPlan;
 
 $point135 = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range135 = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -86,7 +86,7 @@ $predicate135 = static fn (): array => $and135(
 );
 $order135 = [['column' => 'option_name']];
 $needed135 = ['autoload', 'option_value', 'rowid'];
-$plan135 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerStat4PartialCoveringCurrentSourceNext135Plan::materialize(
+$plan135 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerStat4PartialCoveringCurrentSourceNextPlan::materializeNext135(
     $prepared ?? $preparedSource135(),
     $current ?? $currentSource135(),
     $predicate ?? $predicate135(),

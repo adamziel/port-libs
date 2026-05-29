@@ -1,6 +1,6 @@
 # SQL planner STAT4 partial-covering current-source next142
 
-- Behavior: `SQLitePlannerStat4PartialCoveringCurrentSourceNext142Plan` composes the accepted next135 partial-covering STAT4 row stream and adds current/next ORDER block materialization for duplicate range keys and right-part sort handoff while keeping payload reads on the covering index cursor.
+- Behavior: `SQLitePlannerStat4PartialCoveringCurrentSourceNextPlan` composes the accepted next135 partial-covering STAT4 row stream and adds current/next ORDER block materialization for duplicate range keys and right-part sort handoff while keeping payload reads on the covering index cursor.
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4PartialCoveringCurrentSourceNext142Test.php`
 - WordPress smoke: `php lanes/libsqlite/examples/wordpress-stat4-partial-covering-current-source-next142.php --self-test`
 - Assertion/pass delta: 68 new focused TestRunner PASS lines.

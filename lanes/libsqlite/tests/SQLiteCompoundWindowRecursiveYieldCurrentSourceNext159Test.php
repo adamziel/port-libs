@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundWindowRecursiveYieldCurrentSourceNext159Plan;
+use PortLibs\LibSqlite\SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -43,7 +43,7 @@ SELECT option_id AS id,
  LIMIT 2, 6
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundWindowRecursiveYieldCurrentSourceNext159Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan::compareNext159($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound window recursive yield next159 status dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -139,7 +139,7 @@ $tests['compound window recursive yield next159 replan reasons'] = static functi
 };
 
 $tests['compound window recursive yield next159 rejects missing comma limit'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowRecursiveYieldCurrentSourceNext159Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan::compareNext159(
         "WITH RECURSIVE option_queue(id, label, score) AS (VALUES (1, 'seed', 20) UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 3 FROM option_queue WHERE id < 8 LIMIT 6) SELECT id, label, ntile(3) OVER (ORDER BY score DESC, id) AS win_value FROM option_queue UNION ALL SELECT option_id AS id, option_name AS label, percent_rank() OVER (ORDER BY weight DESC, option_id) AS win_value FROM wp_options WHERE autoload = 'yes' ORDER BY win_value DESC, id LIMIT 6 OFFSET 2",
         $currentTables,
         $currentTables,
@@ -147,7 +147,7 @@ $tests['compound window recursive yield next159 rejects missing comma limit'] = 
 };
 
 $tests['compound window recursive yield next159 rejects missing percent rank'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowRecursiveYieldCurrentSourceNext159Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowRecursiveYieldCurrentSourceNextPlan::compareNext159(
         "WITH RECURSIVE option_queue(id, label, score) AS (VALUES (1, 'seed', 20) UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 3 FROM option_queue WHERE id < 8 LIMIT 6) SELECT id, label, ntile(3) OVER (ORDER BY score DESC, id) AS win_value FROM option_queue UNION ALL SELECT option_id AS id, option_name AS label, lag(weight, 1, weight) OVER (ORDER BY weight DESC, option_id) AS win_value FROM wp_options WHERE autoload = 'yes' ORDER BY win_value DESC, id LIMIT 2, 6",
         $currentTables,
         $currentTables,

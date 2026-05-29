@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -43,7 +43,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '1', 'nlt' => '2', 'ndlt' => '1', 'sample' => ['siteurl', 1]],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext154(
     $prepared,
     $current,
     [

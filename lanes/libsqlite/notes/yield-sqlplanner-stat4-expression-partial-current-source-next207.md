@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext207Plan`, a current-source planner fence for STAT4 expression partial indexes. The slice reuses the accepted next206 OR-arm implication planner path, then validates every current `sqlite_stat4` sample rowid against the current row image and the selected partial-index WHERE predicate before reusing the current-source expression partial index.
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a current-source planner fence for STAT4 expression partial indexes. The slice reuses the accepted next206 OR-arm implication planner path, then validates every current `sqlite_stat4` sample rowid against the current row image and the selected partial-index WHERE predicate before reusing the current-source expression partial index.
 
 This blocks a stale post-ANALYZE sample set from making a partial index look admissible or cheaper when one sample now points at a row outside the partial predicate, or at a rowid that no longer exists.
 

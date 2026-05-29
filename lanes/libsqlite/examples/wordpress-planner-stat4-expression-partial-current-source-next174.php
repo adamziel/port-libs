@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext174Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext174Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $term = static fn (string $column, string $operator, mixed $right = null): array => ['left' => ['column' => $column], 'operator' => $operator, 'right' => $right];
 $exprRange = static fn (string $expression, string $operator, string $right): array => ['left' => ['expression' => $expression], 'operator' => $operator, 'right' => $right];
@@ -60,7 +60,7 @@ $next = $current;
 $next['name'] = 'next-wp-options-outside-plugin-range-churn';
 $next['rows'][] = ['rowid' => 40, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'siteurl', 'option_value' => 'https://next.example.test', 'updated_at' => 40];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext174Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext174(
     $prepared,
     $current,
     [

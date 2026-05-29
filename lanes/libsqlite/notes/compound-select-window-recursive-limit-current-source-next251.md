@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for current-source compound SELECTs where a next-source promotion must also prove the compound operator trace and final page row ordinals before the next source can be admitted.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext251Plan`, layered on accepted next248 next-source promotion receipts. The new fence binds promotion to the `UNION ALL` / `INTERSECT` / `EXCEPT` operator sequence, final current/next page ordinals, labels, ids, metrics, recursive lineage, and next248 promotion token. Stale audit tokens, stale signatures, missing receipts, unexpected receipts, and non-list receipts reject admission.
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, layered on accepted next248 next-source promotion receipts. The new fence binds promotion to the `UNION ALL` / `INTERSECT` / `EXCEPT` operator sequence, final current/next page ordinals, labels, ids, metrics, recursive lineage, and next248 promotion token. Stale audit tokens, stale signatures, missing receipts, unexpected receipts, and non-list receipts reject admission.
 
 WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next251.php` models copied `wp_options` rows where a new autoloaded plugin option changes the final compound page. The next source remains held until the operator/final-page audit matches the replayed current result and next delta.
 

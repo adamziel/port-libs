@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundExceptOrderAffinityCurrentSourceNext138Plan;
+use PortLibs\LibSqlite\SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -45,7 +45,7 @@ SQL;
 
 $currentTables = ['wp_options' => $currentOptions, 'network_options' => $currentNetwork];
 $nextTables = ['wp_options' => $nextOptions, 'network_options' => $nextNetwork];
-$summary = static fn (): array => SQLiteCompoundExceptOrderAffinityCurrentSourceNext138Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compareNext138($sql, $currentTables, $nextTables);
 
 $tests = [];
 
@@ -135,7 +135,7 @@ $tests['compound except order affinity current source next138 replan reasons'] =
 };
 
 $tests['compound except order affinity current source next138 rejects missing except'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundExceptOrderAffinityCurrentSourceNext138Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compareNext138(
         'SELECT option_name AS name FROM wp_options UNION SELECT option_name AS name FROM network_options ORDER BY name',
         $currentTables,
         $currentTables,
@@ -143,7 +143,7 @@ $tests['compound except order affinity current source next138 rejects missing ex
 };
 
 $tests['compound except order affinity current source next138 rejects missing tail order'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundExceptOrderAffinityCurrentSourceNext138Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compareNext138(
         'SELECT option_name AS name FROM wp_options EXCEPT SELECT option_name AS name FROM network_options',
         $currentTables,
         $currentTables,

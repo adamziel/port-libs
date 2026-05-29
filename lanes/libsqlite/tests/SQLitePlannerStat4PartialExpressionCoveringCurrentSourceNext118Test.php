@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan;
 
 $expr118 = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
 $column118 = static fn (string $name): array => ['column' => $name];
@@ -68,7 +68,7 @@ $plan118 = static fn (
     ?array $predicate = null,
     ?array $rows = null,
     ?array $needed = null,
-): array => SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Plan::materialize(
+): array => SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan::materializeNext118(
     $prepared ?? $preparedSource118(),
     $current ?? $currentSource118(),
     $predicate ?? $GLOBALS['predicate_next118'],
@@ -169,14 +169,14 @@ $tests['planner stat4 partial expression covering current source next118 no stat
 $tests['planner stat4 partial expression covering current source next118 validates source indexes'] = static function (TestRunner $t) use ($preparedSource118, $currentSource118, $predicate118, $rows118, $order118, $needed118, $lower118): void {
     $bad = $preparedSource118();
     $bad['indexes'] = [];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Plan::materialize($bad, $currentSource118(), $predicate118, $rows118(), $order118, $needed118, [$lower118]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan::materializeNext118($bad, $currentSource118(), $predicate118, $rows118(), $order118, $needed118, [$lower118]));
 };
 $tests['planner stat4 partial expression covering current source next118 validates schema cookie'] = static function (TestRunner $t) use ($preparedSource118, $currentSource118, $predicate118, $rows118, $order118, $needed118, $lower118): void {
     $bad = $preparedSource118(['schemaCookie' => -1]);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Plan::materialize($bad, $currentSource118(), $predicate118, $rows118(), $order118, $needed118, [$lower118]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan::materializeNext118($bad, $currentSource118(), $predicate118, $rows118(), $order118, $needed118, [$lower118]));
 };
 $tests['planner stat4 partial expression covering current source next118 validates covering columns'] = static function (TestRunner $t) use ($preparedSource118, $currentSource118, $predicate118, $rows118, $order118, $lower118): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Plan::materialize($preparedSource118(), $currentSource118(), $predicate118, $rows118(), $order118, [], [$lower118]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan::materializeNext118($preparedSource118(), $currentSource118(), $predicate118, $rows118(), $order118, [], [$lower118]));
 };
 
 return $tests;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -51,7 +51,7 @@ SELECT option_id AS id,
  LIMIT 7
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNext144Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan::compareNext144($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound select recursive window order current source next144 status dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -140,7 +140,7 @@ $tests['compound select recursive window order current source next144 changed si
 };
 
 $tests['compound select recursive window order current source next144 rejects non recursive select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNext144Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan::compareNext144(
         'SELECT option_id AS id, option_name AS label, row_number() OVER (ORDER BY option_id) AS visit_rank FROM wp_options ORDER BY visit_rank',
         $currentTables,
         $currentTables,
@@ -148,7 +148,7 @@ $tests['compound select recursive window order current source next144 rejects no
 };
 
 $tests['compound select recursive window order current source next144 rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNext144Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan::compareNext144(
         'WITH RECURSIVE option_walk(id, label, queue_key, depth) AS (SELECT option_id, option_name, priority, 0 FROM wp_options WHERE parent_id = 0 UNION ALL SELECT child.option_id, child.option_name, child.priority, option_walk.depth + 1 FROM wp_options AS child JOIN option_walk ON child.parent_id = option_walk.id WHERE option_walk.depth < 3 ORDER BY 3 ASC, 1 ASC LIMIT 8) SELECT id, label, depth, queue_key, row_number() OVER (ORDER BY queue_key ASC, id ASC) AS visit_rank FROM option_walk ORDER BY visit_rank',
         $currentTables,
         $currentTables,

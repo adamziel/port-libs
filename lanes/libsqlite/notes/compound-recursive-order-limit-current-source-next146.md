@@ -13,7 +13,7 @@ Behavior covered:
 Focused verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteCompoundRecursiveOrderLimitCurrentSourceNext146Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundRecursiveOrderLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundRecursiveOrderLimitCurrentSourceNext146Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-recursive-order-limit-current-source-next146.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundRecursiveOrderLimitCurrentSourceNext146Test.php

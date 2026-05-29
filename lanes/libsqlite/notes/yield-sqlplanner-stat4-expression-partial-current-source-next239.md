@@ -5,7 +5,7 @@
 - Verification:
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext239Test.php`
   - `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next239.php`
-  - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext239Plan.php`
+  - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
   - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext239Test.php`
   - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next239.php`
   - `git diff --check -- lanes/libsqlite`

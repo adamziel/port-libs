@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4PartialRangeCurrentSourceNextPlan;
 
 $point124 = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range124 = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -44,7 +44,7 @@ $predicate124 = static fn (string $lower = 'plugin_cache', string $upper = 'plug
 );
 
 $plan124 = static function () use ($source124, $predicate124): array {
-    return SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare(
+    return SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124(
         $source124(),
         $source124([
             'name' => 'current-plugin-range-after-analyze',
@@ -120,44 +120,44 @@ $tests = [
 $tests += [
     'planner stat4 partial range current source next124 reuses prepared when identical' => static function (TestRunner $t) use ($source124, $predicate124): void {
         $source = $source124();
-        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare($source, $source, $predicate124(), [['column' => 'option_name']], ['autoload']);
+        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124($source, $source, $predicate124(), [['column' => 'option_name']], ['autoload']);
         $t->same('prepared', $plan['selectedSource']);
     },
     'planner stat4 partial range current source next124 identical source has no stale range' => static function (TestRunner $t) use ($source124, $predicate124): void {
         $source = $source124();
-        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare($source, $source, $predicate124(), [['column' => 'option_name']], ['autoload']);
+        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124($source, $source, $predicate124(), [['column' => 'option_name']], ['autoload']);
         $t->same(false, $plan['partialRangeChanged']);
     },
     'planner stat4 partial range current source next124 cookie alone reparses' => static function (TestRunner $t) use ($source124, $predicate124): void {
-        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare($source124(), $source124(['schemaCookie' => 124]), $predicate124(), [['column' => 'option_name']], ['autoload']);
+        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124($source124(), $source124(['schemaCookie' => 124]), $predicate124(), [['column' => 'option_name']], ['autoload']);
         $t->same(true, $plan['schemaCookieChanged']);
     },
     'planner stat4 partial range current source next124 stat4 alone reparses' => static function (TestRunner $t) use ($source124, $predicate124): void {
-        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare($source124(), $source124(['stat4Generation' => 45]), $predicate124(), [['column' => 'option_name']], ['autoload']);
+        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124($source124(), $source124(['stat4Generation' => 45]), $predicate124(), [['column' => 'option_name']], ['autoload']);
         $t->same(true, $plan['stat4GenerationChanged']);
     },
     'planner stat4 partial range current source next124 current unproved partial becomes unusable' => static function (TestRunner $t) use ($source124, $predicate124): void {
-        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare($source124(), $source124(['schemaCookie' => 124, 'partialLower' => 'plugin_mu']), $predicate124(), [['column' => 'option_name']], ['autoload']);
+        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124($source124(), $source124(['schemaCookie' => 124, 'partialLower' => 'plugin_mu']), $predicate124(), [['column' => 'option_name']], ['autoload']);
         $t->same('unusable', $plan['status']);
     },
     'planner stat4 partial range current source next124 current unproved partial selects current' => static function (TestRunner $t) use ($source124, $predicate124): void {
-        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare($source124(), $source124(['schemaCookie' => 124, 'partialLower' => 'plugin_mu']), $predicate124(), [['column' => 'option_name']], ['autoload']);
+        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124($source124(), $source124(['schemaCookie' => 124, 'partialLower' => 'plugin_mu']), $predicate124(), [['column' => 'option_name']], ['autoload']);
         $t->same('current', $plan['selectedSource']);
     },
     'planner stat4 partial range current source next124 wider predicate proves current lower' => static function (TestRunner $t) use ($source124, $predicate124): void {
-        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare($source124(), $source124(['schemaCookie' => 124, 'partialLower' => 'plugin_mu']), $predicate124('plugin_mu', 'plugin_z'), [['column' => 'option_name']], ['autoload']);
+        $plan = SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124($source124(), $source124(['schemaCookie' => 124, 'partialLower' => 'plugin_mu']), $predicate124('plugin_mu', 'plugin_z'), [['column' => 'option_name']], ['autoload']);
         $t->same('usable', $plan['status']);
     },
     'planner stat4 partial range current source next124 validates prepared schema cookie' => static function (TestRunner $t) use ($source124, $predicate124): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare($source124(['schemaCookie' => -1]), $source124(), $predicate124(), [['column' => 'option_name']], ['autoload']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124($source124(['schemaCookie' => -1]), $source124(), $predicate124(), [['column' => 'option_name']], ['autoload']));
     },
     'planner stat4 partial range current source next124 validates current stat4 generation' => static function (TestRunner $t) use ($source124, $predicate124): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare($source124(), $source124(['stat4Generation' => -1]), $predicate124(), [['column' => 'option_name']], ['autoload']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124($source124(), $source124(['stat4Generation' => -1]), $predicate124(), [['column' => 'option_name']], ['autoload']));
     },
     'planner stat4 partial range current source next124 validates index list' => static function (TestRunner $t) use ($source124, $predicate124): void {
         $bad = $source124();
         $bad['indexes'] = ['bad' => []];
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialRangeCurrentSourceNext124Plan::compare($bad, $source124(), $predicate124(), [['column' => 'option_name']], ['autoload']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4PartialRangeCurrentSourceNextPlan::compareNext124($bad, $source124(), $predicate124(), [['column' => 'option_name']], ['autoload']));
     },
 ];
 

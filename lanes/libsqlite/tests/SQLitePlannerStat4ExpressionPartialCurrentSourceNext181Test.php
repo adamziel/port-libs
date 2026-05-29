@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext181Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq181 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $notNull181 = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
@@ -80,7 +80,7 @@ $terms181 = static fn (): array => [
 ];
 $order181 = ['expression' => 'lower(option_name)', 'direction' => 'ASC', 'collation' => 'BINARY'];
 $needed181 = ['option_name', 'option_value', 'autoload'];
-$plan181 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null, ?array $order = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext181Plan::materialize(
+$plan181 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null, ?array $order = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext181(
     $prepared ?? $prepared181(),
     $current ?? $current181(),
     $terms ?? $terms181(),

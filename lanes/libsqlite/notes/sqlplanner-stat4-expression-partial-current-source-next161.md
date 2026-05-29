@@ -5,7 +5,7 @@ slice.
 
 Behavior:
 
-- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext161Plan`.
+- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`.
 - Models a stale prepared `wp_options` statement whose OR-split
   `lower(option_name)` probes can use a current partial STAT4 expression index
   only when every OR arm independently proves the index partial predicate.

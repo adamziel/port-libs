@@ -1,6 +1,6 @@
 # compound-select-window-recursive-limit-current-source-next202
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext202Plan`, a bounded current-source cursor replay fence for parser-level compound SELECTs that combine:
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, a bounded current-source cursor replay fence for parser-level compound SELECTs that combine:
 
 - recursive CTE queue `ORDER BY ... LIMIT ... OFFSET ...`;
 - `ntile()` bucket output and `first_value()` frame output evaluated inside compound arms before `UNION` distinct handling;
@@ -11,7 +11,7 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext202Test.php` -> `1 test files, 379 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next202.php`
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext202Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext202Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next202.php`
 - `git diff --check -- lanes/libsqlite`

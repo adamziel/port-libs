@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext226Plan`, a bounded
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded
 planner proof for partial expression-index range scans over copied
 `wp_options` rows. The slice composes the accepted next219 peer-run cursor
 proof, then verifies that the current STAT4 sample window for

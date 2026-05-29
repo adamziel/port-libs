@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for an ordinary covering partial range
 planner current-source handoff.
 
-This slice adds `SQLitePlannerCoveringPartialRangeCurrentSourceNext131Plan`.
+This slice adds `SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan`.
 It composes the existing `SQLiteMultiColumnRangePlan` with current/next source
 fences so a prepared `wp_options` partial covering index scan can reprepare to
 the current schema/stat4 source, keep the range cursor on the partial covering

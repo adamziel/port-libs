@@ -5,7 +5,7 @@ use a partial expression index with STAT4 samples over copied `wp_options` rows.
 
 Evidence target:
 
-- `SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Plan` fences schema
+- `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` fences schema
   cookie, STAT4 generation, index metadata, partial predicate terms, current
   source rows, and selected STAT4 row stream before returning index cursor
   diagnostics.

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -43,7 +43,7 @@ SELECT option_name AS name, sort_key, 0 AS depth, 'direct' AS source
  LIMIT 6
 SQL;
 
-$plan = SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNext140Plan::compare(
+$plan = SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan::compareNext140(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],

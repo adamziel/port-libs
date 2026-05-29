@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNext174Plan;
+use PortLibs\LibSqlite\SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNextPlan;
 
 $current = [
     'wp_options' => [
@@ -43,7 +43,7 @@ SELECT option_id AS id,
  LIMIT 0 OFFSET 2
 SQL;
 
-$plan = SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNext174Plan::compare($sql, $current, $next);
+$plan = SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNextPlan::compareNext174($sql, $current, $next);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentRows'] === []);

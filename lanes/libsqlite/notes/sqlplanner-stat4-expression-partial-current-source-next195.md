@@ -4,7 +4,7 @@ Status: focused behavior growth for `sqlplanner-stat4-expression-partial-current
 
 Behavior:
 
-- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext195Plan`, composing accepted next191 payload expression-key fencing.
+- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, composing accepted next191 payload expression-key fencing.
 - Rejects stale prepared partial expression-index reuse unless the current source's partial-index WHERE predicate is implied by the query terms.
 - Rechecks selected current-source rows against the current partial predicate before admitting the covering STAT4 row stream.
 

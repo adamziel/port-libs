@@ -24,7 +24,7 @@ php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-cu
 php -l lanes/libsqlite/src/SQLiteWindowFunction.php
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/src/SQLiteSelectQuery.php
-php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext213Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext213Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next213.php
 git diff --check -- lanes/libsqlite

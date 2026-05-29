@@ -1,6 +1,6 @@
 # sqlplanner-stat4-expression-partial-current-source-next176
 
-Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext176Plan`, a bounded
+Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, a bounded
 planner refinement for STAT4-backed partial expression indexes when the usable
 range has an exclusive lower bound and inclusive upper bound.
 

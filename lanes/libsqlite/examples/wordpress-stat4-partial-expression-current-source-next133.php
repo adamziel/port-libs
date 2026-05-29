@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4PartialExpressionCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan;
 
 $lower = ['function' => 'lower', 'column' => 'option_name'];
 $predicate = [
@@ -52,7 +52,7 @@ $currentRows = [
     ['rowid' => 21, 'option_name' => 'plugin_cache', 'autoload' => 'yes', 'option_value' => 'cache-new', 'option_id' => 21, 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerStat4PartialExpressionCurrentSourceNext133Plan::materialize(
+$plan = SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan::materializeNext133(
     $preparedSource,
     $currentSource,
     $predicate,

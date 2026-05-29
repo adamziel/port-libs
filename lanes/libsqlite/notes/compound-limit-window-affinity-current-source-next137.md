@@ -1,6 +1,6 @@
 # compound-limit-window-affinity-current-source-next137
 
-Status delta: adds `SQLiteCompoundLimitWindowAffinityCurrentSourceNext137Plan`,
+Status delta: adds `SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan`,
 a focused current-source diagnostic for compound SELECT final `LIMIT`/`OFFSET`
 over windowed arms where the admitted boundary changes storage class across a
 WordPress option import.
@@ -24,8 +24,8 @@ php lanes/libsqlite/examples/wordpress-compound-limit-window-affinity-current-so
 Syntax/diff checks:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteCompoundLimitWindowAffinityCurrentSourceNext137Plan.php
-# No syntax errors detected in lanes/libsqlite/src/SQLiteCompoundLimitWindowAffinityCurrentSourceNext137Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan.php
+# No syntax errors detected in lanes/libsqlite/src/SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundLimitWindowAffinityCurrentSourceNext137Test.php
 # No syntax errors detected in lanes/libsqlite/tests/SQLiteCompoundLimitWindowAffinityCurrentSourceNext137Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-limit-window-affinity-current-source-next137.php

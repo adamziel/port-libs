@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for compound SELECT current-source handoff
 where a recursive queue and window frame must both be acknowledged before a
 next-source cursor is promoted.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext235Plan`.
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`.
 It layers on the accepted next232 current-page handoff and adds a promotion
 barrier made from:
 
@@ -21,7 +21,7 @@ its queue/window metadata are acknowledged.
 Verification:
 
 ```bash
-php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext235Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext235Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next235.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext235Test.php

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext160Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions160 = [
@@ -42,7 +42,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary160 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext160Plan::compare($sql160, $currentTables160, $nextTables160);
+$summary160 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext160($sql160, $currentTables160, $nextTables160);
 $tests = [];
 
 $tests['compound select window recursive limit current source next160 status dependencies'] = static function (TestRunner $t) use ($summary160): void {
@@ -122,7 +122,7 @@ $tests['compound select window recursive limit current source next160 changed si
 };
 
 $tests['compound select window recursive limit current source next160 rejects missing comma recursive limit'] = static function (TestRunner $t) use ($currentTables160): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext160Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext160(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed', 22) UNION ALL SELECT id + 1, 'seed:' || (id + 1), weight - 3 FROM staged WHERE id < 7 LIMIT 4) SELECT id, label, row_number() OVER (ORDER BY id) AS rank FROM staged UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY weight DESC) FROM wp_options LIMIT 2",
         $currentTables160,
         $currentTables160,
@@ -130,7 +130,7 @@ $tests['compound select window recursive limit current source next160 rejects mi
 };
 
 $tests['compound select window recursive limit current source next160 rejects non compound'] = static function (TestRunner $t) use ($currentTables160): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext160Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext160(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed', 22) UNION ALL SELECT id + 1, 'seed:' || (id + 1), weight - 3 FROM staged WHERE id < 7 LIMIT 1, 4) SELECT id, label, row_number() OVER (ORDER BY id) AS rank FROM staged LIMIT 2",
         $currentTables160,
         $currentTables160,
@@ -138,7 +138,7 @@ $tests['compound select window recursive limit current source next160 rejects no
 };
 
 $tests['compound select window recursive limit current source next160 rejects missing final limit'] = static function (TestRunner $t) use ($currentTables160): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext160Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext160(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed', 22) UNION ALL SELECT id + 1, 'seed:' || (id + 1), weight - 3 FROM staged WHERE id < 7 LIMIT 1, 4) SELECT id, label, row_number() OVER (ORDER BY id) AS rank FROM staged UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY weight DESC) FROM wp_options ORDER BY rank",
         $currentTables160,
         $currentTables160,

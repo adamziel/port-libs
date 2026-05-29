@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext188Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions188 = [
@@ -48,7 +48,7 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 1
 SQL;
 
-$summary188 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext188Plan::compare($sql188, $currentTables188, $nextTables188);
+$summary188 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext188($sql188, $currentTables188, $nextTables188);
 $tests = [];
 
 $tests['compound select window recursive limit next188 status dependencies'] = static function (TestRunner $t) use ($summary188): void {
@@ -153,7 +153,7 @@ $tests['compound select window recursive limit next188 replan reasons'] = static
 };
 
 $tests['compound select window recursive limit next188 rejects missing endpoint windows'] = static function (TestRunner $t) use ($currentTables188): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext188Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext188(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 120) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 7 LIMIT 4 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score DESC) AS peer FROM q UNION ALL SELECT option_id, option_name, dense_rank() OVER (ORDER BY score DESC) FROM wp_options UNION SELECT option_id, option_name, lag(option_name, 1, option_name) OVER (ORDER BY option_id) FROM wp_options ORDER BY peer LIMIT 6 OFFSET 1",
         $currentTables188,
         $currentTables188,
@@ -161,7 +161,7 @@ $tests['compound select window recursive limit next188 rejects missing endpoint 
 };
 
 $tests['compound select window recursive limit next188 rejects missing final limit'] = static function (TestRunner $t) use ($currentTables188): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext188Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext188(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 120) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 7 LIMIT 4 OFFSET 1) SELECT id, label, first_value(label) OVER (ORDER BY score DESC ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS peer FROM q UNION ALL SELECT option_id, option_name, last_value(option_name) OVER (ORDER BY score DESC ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options UNION SELECT option_id, option_name, lag(option_name, 1, option_name) OVER (ORDER BY option_id) FROM wp_options ORDER BY peer",
         $currentTables188,
         $currentTables188,
@@ -180,7 +180,7 @@ foreach (range(1, 52) as $case) {
             ],
         ];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (130 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 7 LIMIT 4 OFFSET 1) SELECT id, label, first_value(label) OVER (ORDER BY score DESC ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS peer FROM q UNION ALL SELECT option_id AS id, option_name AS label, last_value(option_name) OVER (PARTITION BY autoload ORDER BY score DESC ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS peer FROM wp_options WHERE autoload = 'yes' UNION SELECT option_id AS id, option_name AS label, lag(option_name, 1, option_name) OVER (ORDER BY option_id) AS peer FROM wp_options WHERE score >= " . (80 + $case) . " ORDER BY peer, id LIMIT 6 OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext188Plan::compare($sql, $tables, $tables);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext188($sql, $tables, $tables);
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $t->same(6, count($rows));

@@ -6,7 +6,7 @@ compound `LIMIT/OFFSET` page suppresses already-produced current-source rows.
 
 Behavior added:
 
-- `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext240Plan` reuses the
+- `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan` reuses the
   accepted next237 compound recursive/window/dequeue execution.
 - The new `compoundFinalPageSpilloverDrainNext240` surface materializes labels
   skipped by final `OFFSET` and truncated by final `LIMIT`.

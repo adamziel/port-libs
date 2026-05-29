@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteStat4OrderCoveringCurrentSourceNext99Plan;
+use PortLibs\LibSqlite\SQLiteStat4OrderCoveringCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -42,7 +42,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '1 2 2 2', 'nlt' => '14 14 14 14', 'ndlt' => '4 4 4 4', 'sample' => [1, 'yes', 'plugin_slider', 'a:5:{}']],
 ];
 
-$plan = SQLiteStat4OrderCoveringCurrentSourceNext99Plan::materialize(
+$plan = SQLiteStat4OrderCoveringCurrentSourceNextPlan::materializeNext99(
     $prepared,
     $current,
     $and(

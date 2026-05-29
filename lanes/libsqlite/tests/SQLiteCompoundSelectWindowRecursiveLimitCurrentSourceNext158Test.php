@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext158Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions158 = [
@@ -47,7 +47,7 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary158 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext158Plan::compare($sql158, $currentTables158, $nextTables158);
+$summary158 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext158($sql158, $currentTables158, $nextTables158);
 $tests = [];
 
 $tests['compound select window recursive limit current source next158 status dependencies'] = static function (TestRunner $t) use ($summary158): void {
@@ -146,7 +146,7 @@ $tests['compound select window recursive limit current source next158 changed si
 };
 
 $tests['compound select window recursive limit current source next158 rejects non recursive'] = static function (TestRunner $t) use ($currentTables158): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext158Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext158(
         'SELECT option_id AS id, option_name AS label FROM wp_options UNION SELECT option_id, option_name FROM wp_options LIMIT 2 OFFSET 1',
         $currentTables158,
         $currentTables158,
@@ -154,7 +154,7 @@ $tests['compound select window recursive limit current source next158 rejects no
 };
 
 $tests['compound select window recursive limit current source next158 rejects missing window'] = static function (TestRunner $t) use ($currentTables158): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext158Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext158(
         "WITH RECURSIVE option_queue(id, label, weight) AS (VALUES (1, 'seed', 20) UNION ALL SELECT id + 1, label, weight - 1 FROM option_queue WHERE id < 3 LIMIT 2 OFFSET 1) SELECT id, label, weight AS score FROM option_queue UNION SELECT option_id, option_name, weight FROM wp_options ORDER BY score LIMIT 2 OFFSET 1",
         $currentTables158,
         $currentTables158,
@@ -162,7 +162,7 @@ $tests['compound select window recursive limit current source next158 rejects mi
 };
 
 $tests['compound select window recursive limit current source next158 rejects missing final limit'] = static function (TestRunner $t) use ($currentTables158): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext158Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext158(
         "WITH RECURSIVE option_queue(id, label, weight) AS (VALUES (1, 'seed', 20) UNION ALL SELECT id + 1, label, weight - 1 FROM option_queue WHERE id < 3 LIMIT 2 OFFSET 1) SELECT id, label, sum(weight) OVER (ORDER BY id) AS score FROM option_queue UNION SELECT option_id, option_name, weight FROM wp_options ORDER BY score",
         $currentTables158,
         $currentTables158,

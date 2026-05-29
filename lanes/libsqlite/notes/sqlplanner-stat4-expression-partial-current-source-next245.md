@@ -1,6 +1,6 @@
 # SQL Planner STAT4 Expression Partial Current Source Next245
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext245Plan`, layered on the accepted next242 histogram-counter proof. It validates that every current `sqlite_stat4` sample rowid still anchors to a current partial-index row whose recomputed `lower(option_name)` key and `blog_id` match the sample payload.
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, layered on the accepted next242 histogram-counter proof. It validates that every current `sqlite_stat4` sample rowid still anchors to a current partial-index row whose recomputed `lower(option_name)` key and `blog_id` match the sample payload.
 
 Behavior covered:
 

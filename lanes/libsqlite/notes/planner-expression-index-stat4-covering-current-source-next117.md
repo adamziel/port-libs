@@ -1,6 +1,6 @@
 # planner-expression-index-stat4-covering-current-source-next117
 
-Adds `SQLiteStat4ExpressionCoveringCurrentSourceNext117Plan`, a bounded
+Adds `SQLiteStat4ExpressionCoveringCurrentSourceNextPlan`, a bounded
 current-source fence over STAT4 expression covering index scans.
 
 Behavior:

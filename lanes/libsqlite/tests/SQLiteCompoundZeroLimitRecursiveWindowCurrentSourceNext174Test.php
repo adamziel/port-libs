@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNext174Plan;
+use PortLibs\LibSqlite\SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions174 = [
@@ -42,7 +42,7 @@ SELECT option_id AS id,
  LIMIT 0 OFFSET 2
 SQL;
 
-$summary174 = static fn (): array => SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNext174Plan::compare($sql174, $currentTables174, $nextTables174);
+$summary174 = static fn (): array => SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNextPlan::compareNext174($sql174, $currentTables174, $nextTables174);
 $tests = [];
 
 $tests['compound zero limit recursive window current source next174 status dependencies'] = static function (TestRunner $t) use ($summary174): void {
@@ -150,7 +150,7 @@ $tests['compound zero limit recursive window current source next174 replan reaso
 };
 
 $tests['compound zero limit recursive window current source next174 rejects missing final zero limit'] = static function (TestRunner $t) use ($currentTables174): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNext174Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNextPlan::compareNext174(
         "WITH RECURSIVE q(id, label, weight) AS (VALUES (1, 'seed', 50) UNION ALL SELECT id + 1, label, weight - 5 FROM q WHERE id < 5 LIMIT 4) SELECT id, label, row_number() OVER (ORDER BY weight DESC) AS bucket FROM q UNION ALL SELECT option_id, option_name, dense_rank() OVER (ORDER BY weight DESC) FROM wp_options ORDER BY bucket LIMIT 1",
         $currentTables174,
         $currentTables174,
@@ -158,7 +158,7 @@ $tests['compound zero limit recursive window current source next174 rejects miss
 };
 
 $tests['compound zero limit recursive window current source next174 rejects missing window'] = static function (TestRunner $t) use ($currentTables174): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNext174Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNextPlan::compareNext174(
         "WITH RECURSIVE q(id, label, weight) AS (VALUES (1, 'seed', 50) UNION ALL SELECT id + 1, label, weight - 5 FROM q WHERE id < 5 LIMIT 4) SELECT id, label, weight AS bucket FROM q UNION ALL SELECT option_id, option_name, weight FROM wp_options ORDER BY bucket LIMIT 0",
         $currentTables174,
         $currentTables174,
@@ -166,7 +166,7 @@ $tests['compound zero limit recursive window current source next174 rejects miss
 };
 
 $tests['compound zero limit recursive window current source next174 rejects non compound'] = static function (TestRunner $t) use ($currentTables174): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNext174Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNextPlan::compareNext174(
         "WITH RECURSIVE q(id, label, weight) AS (VALUES (1, 'seed', 50)) SELECT id, label, row_number() OVER (ORDER BY weight DESC) AS bucket FROM q LIMIT 0",
         $currentTables174,
         $currentTables174,

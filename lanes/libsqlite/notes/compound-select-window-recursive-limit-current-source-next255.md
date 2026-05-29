@@ -2,13 +2,13 @@
 
 ## Behavior
 
-Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext255Plan`, layered on accepted next250 next-page admission. The new continuation fence binds the admitted current page, held next page, current/next window metrics, recursive emitted/skipped lineage, and spillover labels before next-source rows may resume after the final compound `LIMIT/OFFSET`.
+Adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`, layered on accepted next250 next-page admission. The new continuation fence binds the admitted current page, held next page, current/next window metrics, recursive emitted/skipped lineage, and spillover labels before next-source rows may resume after the final compound `LIMIT/OFFSET`.
 
 WordPress path: `wordpress-compound-select-window-recursive-limit-current-source-next255.php` models copied `wp_options` retry scans where a plugin option enters the held next page. The next source remains held until continuation acknowledgements prove both the current recursive/window page and next candidate page match the replay cursor.
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext255Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext255Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next255.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext255Test.php`

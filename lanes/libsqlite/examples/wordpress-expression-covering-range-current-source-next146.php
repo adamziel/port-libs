@@ -7,12 +7,12 @@ require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
 require_once __DIR__ . '/../src/SQLiteJsonExtractIndexExpression.php';
 require_once __DIR__ . '/../src/SQLiteSelectExpressionIndexPlan.php';
-require_once __DIR__ . '/../src/SQLitePlannerCoveringExpressionStat4CurrentSourceNext122Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNext128Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerCoveringExpressionRangeCurrentSourceNext134Plan.php';
-require_once __DIR__ . '/../src/SQLitePlannerExpressionCoveringRangeCurrentSourceNext146Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerExpressionCoveringRangeCurrentSourceNext146Plan;
+use PortLibs\LibSqlite\SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan;
 
 $expr = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
 $column = static fn (string $name): array => ['column' => $name];
@@ -62,7 +62,7 @@ $rows = [
 ];
 $nextSource = $currentSource + ['rows' => $rows];
 
-$plan = SQLitePlannerExpressionCoveringRangeCurrentSourceNext146Plan::materialize(
+$plan = SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan::materializeNext146(
     $preparedSource,
     $currentSource,
     $nextSource,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectExceptWindowLimitCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -46,7 +46,7 @@ SELECT option_name AS name,
  LIMIT 1, 3
 SQL;
 
-$plan = SQLiteCompoundSelectExceptWindowLimitCurrentSourceNext148Plan::compare($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectExceptWindowLimitCurrentSourceNextPlan::compareNext148($sql, $currentTables, $nextTables);
 $result = [
     'scenario' => 'wordpress-compound-select-except-window-limit-current-source-next148',
     'sqlShape' => 'SELECT window(...) FROM wp_options EXCEPT SELECT audit rows EXCEPT SELECT stale rows ORDER BY output columns LIMIT offset,count',

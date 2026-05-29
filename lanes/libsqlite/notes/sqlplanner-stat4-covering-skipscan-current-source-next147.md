@@ -3,7 +3,7 @@
 Status: focused current-source planner behavior growth for STAT4 covering
 skip-scan plans.
 
-This slice adds `SQLitePlannerStat4CoveringSkipScanCurrentSourceNext147Plan`.
+This slice adds `SQLitePlannerStat4CoveringSkipScanCurrentSourceNextPlan`.
 It reuses the accepted expression skip-scan range/current-source planner and
 adds a STAT4 covering fence for stale prepared statements whose current
 `sqlite_stat4` sample payload, sample count, prefix order, or covering payload

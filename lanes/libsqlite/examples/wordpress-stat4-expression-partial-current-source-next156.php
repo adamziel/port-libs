@@ -7,9 +7,9 @@ require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteIndexPredicate.php';
 require_once __DIR__ . '/../src/SQLiteJsonExtractIndexExpression.php';
 require_once __DIR__ . '/../src/SQLiteSelectExpressionIndexPlan.php';
-require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext156Plan.php';
+require_once __DIR__ . '/../src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext156Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $expr = static fn (string $function, string $column): array => ['function' => $function, 'column' => $column];
 $column = static fn (string $column): array => ['column' => $column];
@@ -65,7 +65,7 @@ $current = [
 ];
 
 $lowerName = $expr('lower', 'option_name');
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNext156Plan::materialize(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext156(
     $prepared,
     $current,
     $and(

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -63,7 +63,7 @@ SELECT option_id AS id,
  ORDER BY id, key_value, source
 SQL;
 
-$page = static fn (int $limit = 4, int $offset = 0, ?array $cursor = null): array => SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Plan::page($sql, $currentTables, $nextTables, $limit, $offset, $cursor);
+$page = static fn (int $limit = 4, int $offset = 0, ?array $cursor = null): array => SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan::pageNext147($sql, $currentTables, $nextTables, $limit, $offset, $cursor);
 $tests = [];
 
 $tests['compound window recursive affinity current source next147 status'] = static fn (TestRunner $t) => $t->same('compound-window-recursive-affinity-current-source-next147-ready', $page()['status']);
@@ -120,8 +120,8 @@ foreach (range(1, 44) as $case) {
             ],
         ];
         $sql = "WITH RECURSIVE option_walk(item_id, key_value, source, score) AS (VALUES (1, 1, 'seed', {$case}) UNION SELECT wp_option_edges.dst, wp_option_edges.weight, 'edge', score + 1 FROM wp_option_edges JOIN option_walk ON wp_option_edges.src = item_id WHERE item_id < 3 UNION SELECT item_id, key_value + 0.0, source, score FROM option_walk WHERE item_id = 1) SELECT item_id AS id, key_value, source, sum(score) FILTER (WHERE key_value = 1) OVER (ORDER BY item_id, source ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_score FROM option_walk UNION SELECT option_id AS id, weight AS key_value, option_name AS source, sum(priority) FILTER (WHERE autoload = 'no') OVER (ORDER BY option_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS window_score FROM wp_options WHERE option_id IN (SELECT item_id FROM option_walk) ORDER BY id, key_value, source";
-        $first = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Plan::page($sql, $tables, $tables, 3);
-        $second = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNext147Plan::page($sql, $tables, $tables, 3, 3, $first['cursor']);
+        $first = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan::pageNext147($sql, $tables, $tables, 3);
+        $second = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan::pageNext147($sql, $tables, $tables, 3, 3, $first['cursor']);
 
         $t->same([1, 1, 2], $first['currentPageIds']);
         $t->same(3, $second['offset']);

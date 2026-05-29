@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for current-source compound SELECTs where
 recursive CTE LIMIT rows and per-arm window output must both be acknowledged
 before a changed next-source final LIMIT page can be admitted.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext238Plan`,
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`,
 layered on the accepted next235 promotion barrier. The new surface is a
 source-generation seal over the final compound LIMIT boundary: the current and
 next admitted labels, skipped offset rows, truncated rows, and page hashes must
@@ -17,7 +17,7 @@ recursive dependency rows keep their window rank.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext238Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext238Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next238.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext238Test.php`

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundHavingWindowCurrentSourceNext128Plan;
+use PortLibs\LibSqlite\SQLiteCompoundHavingWindowCurrentSourceNextPlan;
 
 $currentOptions = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 10, 'enabled' => 1],
@@ -60,7 +60,7 @@ SQL;
 
 $currentTables = ['wp_options' => $currentOptions, 'wp_options_stage' => $currentStage];
 $nextTables = ['wp_options' => $nextOptions, 'wp_options_stage' => $nextStage];
-$summary = static fn (): array => SQLiteCompoundHavingWindowCurrentSourceNext128Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundHavingWindowCurrentSourceNextPlan::compareNext128($sql, $currentTables, $nextTables);
 
 $tests = [];
 
@@ -137,7 +137,7 @@ foreach (range(1, 36) as $offset) {
         $nextTables['wp_options_stage'][] = ['stage_id' => 400 + $offset, 'option_name' => 'next_' . $offset, 'autoload' => 'no', 'bytes' => 7 + $offset, 'enabled' => 1];
 
         $sql = "SELECT autoload, sum(bytes) AS total_bytes, count(*) OVER (ORDER BY autoload ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS source_enabled FROM wp_options GROUP BY autoload HAVING sum(bytes) >= (SELECT count(*) * 10 FROM wp_options_stage WHERE wp_options_stage.autoload = wp_options.autoload) UNION ALL SELECT autoload, count(*) AS total_bytes, count(*) OVER (ORDER BY autoload ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS source_enabled FROM wp_options_stage GROUP BY autoload HAVING count(*) <= (SELECT count(*) FROM wp_options WHERE wp_options.autoload = wp_options_stage.autoload) ORDER BY autoload, total_bytes DESC";
-        $plan = SQLiteCompoundHavingWindowCurrentSourceNext128Plan::compare($sql, $currentTables, $nextTables);
+        $plan = SQLiteCompoundHavingWindowCurrentSourceNextPlan::compareNext128($sql, $currentTables, $nextTables);
 
         $t->same([$offset + 30, $offset + 10, 1], array_column($plan['currentRows'], 'total_bytes'));
         $t->same([50 + (2 * $offset), 1, $offset + 10, 1], array_column($plan['nextRows'], 'total_bytes'));
@@ -146,7 +146,7 @@ foreach (range(1, 36) as $offset) {
 }
 
 $tests['compound having window current source next128 rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundHavingWindowCurrentSourceNext128Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundHavingWindowCurrentSourceNextPlan::compareNext128(
         'SELECT autoload, sum(bytes) AS total_bytes FROM wp_options GROUP BY autoload HAVING sum(bytes) > 1',
         $currentTables,
         $currentTables,

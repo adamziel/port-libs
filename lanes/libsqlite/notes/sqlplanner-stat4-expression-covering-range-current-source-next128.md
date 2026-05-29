@@ -1,6 +1,6 @@
 # sqlplanner-stat4-expression-covering-range-current-source-next128
 
-Implemented `SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNext128Plan`
+Implemented `SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan`
 for a current-source STAT4 expression covering range edge. A prepared
 `lower(option_name)` covering expression-index cursor may be stale after
 schema-cookie, STAT4 generation, root-page, and range-bound changes; this slice

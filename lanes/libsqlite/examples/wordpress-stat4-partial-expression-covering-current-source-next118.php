@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -45,7 +45,7 @@ $rows = [
     ['rowid' => 51, 'option_name' => 'plugin_cache', 'autoload' => 'no', 'option_value' => 'cache-disabled', 'blog_id' => 3],
 ];
 
-$plan = SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNext118Plan::materialize(
+$plan = SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan::materializeNext118(
     $prepared,
     $current,
     $predicate,

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds a bounded current-source STAT4 fence for partial expression indexes that carry trailing payload columns. The new `SQLitePlannerStat4ExpressionPartialCurrentSourceNext237Plan` reuses the accepted next228 sample partial-predicate fence, then verifies each current `sqlite_stat4` sample row still has matching trailing payload values such as `autoload` and `blog_id` before a yielded covering scan is reused.
+Adds a bounded current-source STAT4 fence for partial expression indexes that carry trailing payload columns. The new `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` reuses the accepted next228 sample partial-predicate fence, then verifies each current `sqlite_stat4` sample row still has matching trailing payload values such as `autoload` and `blog_id` before a yielded covering scan is reused.
 
 ## Evidence
 

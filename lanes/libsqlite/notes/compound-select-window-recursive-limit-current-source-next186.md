@@ -10,7 +10,7 @@
 
 - Focused command: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext186Test.php`
 - WordPress smoke: `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next186.php --self-test`
-- PHP lint: `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext186Plan.php && php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext186Test.php && php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next186.php`
+- PHP lint: `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php && php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext186Test.php && php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next186.php`
 - Diff check: `git diff --check -- lanes/libsqlite`
 
 ## Next

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteStat4ExpressionPartialCurrentSourceNext163Plan`, a bounded planner
+Adds `SQLiteStat4ExpressionPartialCurrentSourceNextPlan`, a bounded planner
 diagnostic for stale prepared statements that must re-read the current source
 before choosing a partial expression index from STAT4 equality+range samples.
 

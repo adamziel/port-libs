@@ -5,7 +5,7 @@ partial-index planner edge.
 
 Behavior:
 
-- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext208Plan`, composing
+- Adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, composing
   the accepted next206 current-source partial-OR proof and adding a fresh STAT4
   sample-window selectivity fence.
 - Admits the current partial expression-index scan only when the matched

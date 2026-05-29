@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for
 `sqlplanner-stat4-expression-partial-current-source-next231`.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext231Plan`,
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`,
 an additive current-source page membership fence for partial expression-index
 STAT4 plans. After the accepted next228 sample-row partial-predicate proof, it
 recomputes the qualifying current rowset for the query WHERE terms, applies the

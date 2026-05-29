@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext165Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $column165 = static fn (string $column, string $operator, mixed $right = null): array => ['left' => ['column' => $column], 'operator' => $operator, 'right' => $right];
 $exprRange165 = static fn (string $expression, string $operator, mixed $right): array => ['left' => ['expression' => $expression], 'operator' => $operator, 'right' => $right];
@@ -58,7 +58,7 @@ $query165 = static fn (): array => [
     $column165('updated_at', '>=', 40),
     $column165('updated_at', '<', 90),
 ];
-$plan165 = static fn (?array $prepared = null, ?array $current = null, ?array $query = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext165Plan::materialize(
+$plan165 = static fn (?array $prepared = null, ?array $current = null, ?array $query = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext165(
     $prepared ?? $prepared165(),
     $current ?? $current165(),
     $query ?? $query165(),

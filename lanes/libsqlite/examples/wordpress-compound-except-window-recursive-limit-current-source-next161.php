@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Plan;
+use PortLibs\LibSqlite\SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan;
 
 $currentTables = [
     'wp_options' => [
@@ -45,7 +45,7 @@ SELECT option_id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext161Plan::compare($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan::compareNext161($sql, $currentTables, $nextTables);
 
 $result = [
     'scenario' => 'wordpress-compound-except-window-recursive-limit-current-source-next161',

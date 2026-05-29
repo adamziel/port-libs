@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNext176Plan;
+use PortLibs\LibSqlite\SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -47,7 +47,7 @@ SELECT option_id AS id,
  LIMIT 3 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNext176Plan::compare($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan::compareNext176($sql, $currentTables, $nextTables);
 $result = [
     'scenario' => 'wordpress-compound-intersect-lag-lead-recursive-limit-current-source-next176',
     'sqlShape' => 'WITH RECURSIVE LIMIT/OFFSET feeding lag-window INTERSECT arms with final ORDER BY/LIMIT/OFFSET',

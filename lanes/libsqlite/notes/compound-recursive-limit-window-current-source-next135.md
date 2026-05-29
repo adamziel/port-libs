@@ -8,7 +8,7 @@ after current/next WordPress option sources are combined.
 
 Behavior:
 
-- Adds `SQLiteCompoundRecursiveLimitWindowCurrentSourceNext135Plan`.
+- Adds `SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan`.
 - Compares current and next compound rowsets for copied `wp_options` dependency
   walks.
 - Records recursive queue trace rows and the terminal queue-limit boundary.

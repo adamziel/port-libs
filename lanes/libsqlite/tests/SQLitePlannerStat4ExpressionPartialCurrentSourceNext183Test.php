@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext183Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq183 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
 $notNull183 = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
@@ -76,7 +76,7 @@ $terms183 = static fn (array $values = null): array => [
     $exprGt183('lower(option_name)', 'plugin_'),
 ];
 $needed183 = ['option_name', 'option_value', 'autoload', 'blog_id'];
-$plan183 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext183Plan::materialize(
+$plan183 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext183(
     $prepared ?? $prepared183(),
     $current ?? $current183(),
     $terms ?? $terms183(),
@@ -137,7 +137,7 @@ return [
     'planner stat4 expression partial current source next183 cursor result' => static fn (TestRunner $t) => $t->same([30, 10, 11, 20], $plan183()['cursorProgram'][5]['rowids']),
     'planner stat4 expression partial current source next183 cursor next probe' => static fn (TestRunner $t) => $t->same('NextInProbe', $plan183()['cursorProgram'][6]['opcode']),
     'planner stat4 expression partial current source next183 detail' => static fn (TestRunner $t) => $t->contains('NEXT183 IN MULTI-PROBE', $plan183()['detail']),
-    'planner stat4 expression partial current source next183 dependencies' => static fn (TestRunner $t) => $t->same(['SQLitePlannerStat4ExpressionPartialCurrentSourceNext171Plan', 'sqlite-sqlplanner-stat4-expression-partial-current-source-next183'], $plan183()['dependencies']),
+    'planner stat4 expression partial current source next183 dependencies' => static fn (TestRunner $t) => $t->same(['SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan', 'sqlite-sqlplanner-stat4-expression-partial-current-source-next183'], $plan183()['dependencies']),
     'planner stat4 expression partial current source next183 dependency closure' => static fn (TestRunner $t) => $t->contains('no new support component needed', $plan183()['dependency_closure']),
     'planner stat4 expression partial current source next183 non overlap' => static fn (TestRunner $t) => $t->contains('IN-list multi-probe', $plan183()['non_overlap']),
     'planner stat4 expression partial current source next183 fresh source' => static fn (TestRunner $t) => $t->same('prepared', $fresh183()['selectedSource']),

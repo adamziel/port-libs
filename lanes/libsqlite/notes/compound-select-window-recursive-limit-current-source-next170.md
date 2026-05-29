@@ -1,6 +1,6 @@
 # Compound SELECT Window Recursive LIMIT Current Source Next170
 
-This isolated patch adds `SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNext170Plan` and focused coverage for a recursive CTE queue whose `OFFSET` exhausts anchor rows before a windowed compound SELECT tail is reduced by `EXCEPT` and then bounded by final `LIMIT/OFFSET`.
+This isolated patch adds `SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan` and focused coverage for a recursive CTE queue whose `OFFSET` exhausts anchor rows before a windowed compound SELECT tail is reduced by `EXCEPT` and then bounded by final `LIMIT/OFFSET`.
 
 Focused behavior:
 

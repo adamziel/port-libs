@@ -21,7 +21,7 @@ Focused verification:
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundExhaustedRecursiveWindowLimitCurrentSourceNext166Test.php
 php lanes/libsqlite/examples/wordpress-compound-exhausted-recursive-window-limit-current-source-next166.php --self-test
-php -l lanes/libsqlite/src/SQLiteCompoundExhaustedRecursiveWindowLimitCurrentSourceNext166Plan.php
+php -l lanes/libsqlite/src/SQLiteCompoundExhaustedRecursiveWindowLimitCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteCompoundExhaustedRecursiveWindowLimitCurrentSourceNext166Test.php
 php -l lanes/libsqlite/examples/wordpress-compound-exhausted-recursive-window-limit-current-source-next166.php
 git diff --check -- lanes/libsqlite

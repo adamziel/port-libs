@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteStat4RangeOrderCurrentSourceNext97Plan;
+use PortLibs\LibSqlite\SQLiteStat4RangeOrderCurrentSourceNextPlan;
 
 $source = static function (array $overrides = []): array {
     return $overrides + [
@@ -60,7 +60,7 @@ $current = static function (array $overrides = []) use ($source): array {
 };
 
 $plan = static fn (array $orderBy = [['column' => 'option_name']], ?array $prepared = null, ?array $fresh = null): array =>
-    SQLiteStat4RangeOrderCurrentSourceNext97Plan::compare($prepared ?? $source(), $fresh ?? $current(), $orderBy);
+    SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($prepared ?? $source(), $fresh ?? $current(), $orderBy);
 
 $tests = [
     'planner stat4 range order current source next97 selects current source' => static fn (TestRunner $t) => $t->same('current', $plan()['selectedSource']),
@@ -91,7 +91,7 @@ $tests = [
     'planner stat4 range order current source next97 no reverse asc' => static fn (TestRunner $t) => $t->same(false, $plan()['selectedPlan']['reverseScan']),
     'planner stat4 range order current source next97 detail reparses current' => static fn (TestRunner $t) => $t->contains('REPREPARE STAT4 RANGE ORDER USING CURRENT SOURCE wp-options-after-analyze', $plan()['detail']),
     'planner stat4 range order current source next97 detail keeps range order' => static fn (TestRunner $t) => $t->contains('ORDER BY RANGE', $plan()['detail']),
-    'planner stat4 range order current source next97 dependencies name helper' => static fn (TestRunner $t) => $t->same(true, in_array('SQLiteStat4RangeOrderCurrentSourceNext97Plan', $plan()['dependencies'], true)),
+    'planner stat4 range order current source next97 dependencies name helper' => static fn (TestRunner $t) => $t->same(true, in_array('SQLiteStat4RangeOrderCurrentSourceNextPlan', $plan()['dependencies'], true)),
     'planner stat4 range order current source next97 reverse rowids' => static fn (TestRunner $t) => $t->same([7, 6, 4, 2, 1], $plan([['column' => 'option_name', 'direction' => 'DESC']])['selectedPlan']['rowids']),
     'planner stat4 range order current source next97 reverse mode' => static fn (TestRunner $t) => $t->same('range-reverse', $plan([['column' => 'option_name', 'direction' => 'DESC']])['selectedPlan']['orderByMode']),
     'planner stat4 range order current source next97 reverse flag' => static fn (TestRunner $t) => $t->same(true, $plan([['column' => 'option_name', 'direction' => 'DESC']])['selectedPlan']['reverseScan']),
@@ -129,25 +129,25 @@ $tests = [
         $t->same(true, $plan([['column' => 'option_name']], $source(), $source(['stat4Generation' => 8]))['stat4GenerationChanged']);
     },
     'planner stat4 range order current source next97 validates schema cookie' => static function (TestRunner $t) use ($source, $current): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNext97Plan::compare($source(['schemaCookie' => -1]), $current()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(['schemaCookie' => -1]), $current()));
     },
     'planner stat4 range order current source next97 validates stat4 generation' => static function (TestRunner $t) use ($source, $current): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNext97Plan::compare($source(['stat4Generation' => -1]), $current()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(['stat4Generation' => -1]), $current()));
     },
     'planner stat4 range order current source next97 validates row lists' => static function (TestRunner $t) use ($source, $current): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNext97Plan::compare($source(['rows' => ['bad' => []]]), $current()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(['rows' => ['bad' => []]]), $current()));
     },
     'planner stat4 range order current source next97 validates sample value' => static function (TestRunner $t) use ($source, $current): void {
         $bad = $current(['stat4Samples' => [['nEq' => 1, 'nLt' => 0, 'nDLt' => 0]]]);
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNext97Plan::compare($source(), $bad));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(), $bad));
     },
     'planner stat4 range order current source next97 validates sample counters' => static function (TestRunner $t) use ($source, $current): void {
         $bad = $current(['stat4Samples' => [['value' => 'plugin_alpha', 'nEq' => -1, 'nLt' => 0, 'nDLt' => 0]]]);
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNext97Plan::compare($source(), $bad));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(), $bad));
     },
     'planner stat4 range order current source next97 validates order direction' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan([['column' => 'option_name', 'direction' => 'SIDEWAYS']])),
     'planner stat4 range order current source next97 validates collation' => static function (TestRunner $t) use ($source, $current): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNext97Plan::compare($source(['collation' => 'RTRIM']), $current()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(['collation' => 'RTRIM']), $current()));
     },
 ];
 

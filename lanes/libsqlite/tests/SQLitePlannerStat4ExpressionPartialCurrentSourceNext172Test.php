@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNext172Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 $eq = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $expression, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['expression' => $expression], 'right' => $value];
@@ -76,7 +76,7 @@ $plan172 = static fn (
     ?array $prepared = null,
     ?array $current = null,
     ?array $predicate = null,
-): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNext172Plan::materialize(
+): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext172(
     $prepared ?? $prepared172(),
     $current ?? $current172(),
     $predicate ?? $GLOBALS['predicate_next172'],
@@ -155,17 +155,17 @@ $tests['planner stat4 expression partial current source next172 missing partial 
 $tests['planner stat4 expression partial current source next172 missing partial no cursor'] = static fn (TestRunner $t) => $t->same(null, $missingPartial()['cursorTape']['indexName']);
 
 $tests['planner stat4 expression partial current source next172 validates schema cookie'] = static function (TestRunner $t) use ($prepared172, $current172): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNext172Plan::materialize($prepared172(['schemaCookie' => -1]), $current172(), $GLOBALS['predicate_next172']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext172($prepared172(['schemaCookie' => -1]), $current172(), $GLOBALS['predicate_next172']));
 };
 $tests['planner stat4 expression partial current source next172 validates stat4 sample'] = static function (TestRunner $t) use ($prepared172, $current172): void {
     $bad = $current172();
     $bad['indexes'][0]['stat4Samples'][0]['sample'] = [];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNext172Plan::materialize($prepared172(), $bad, $GLOBALS['predicate_next172']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext172($prepared172(), $bad, $GLOBALS['predicate_next172']));
 };
 $tests['planner stat4 expression partial current source next172 validates rows'] = static function (TestRunner $t) use ($prepared172, $current172): void {
     $bad = $current172();
     $bad['rows'][] = 'bad-row';
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNext172Plan::materialize($prepared172(), $bad, $GLOBALS['predicate_next172']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext172($prepared172(), $bad, $GLOBALS['predicate_next172']));
 };
 
 return $tests;

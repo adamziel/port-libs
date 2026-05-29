@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePlannerStat4PartialCoveringCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLitePlannerStat4PartialCoveringCurrentSourceNextPlan;
 
 $point = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
@@ -59,7 +59,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '1 2 2', 'nlt' => '8 4 4', 'ndlt' => '4 4 4', 'sample' => [1, 'plugin_seo', 'yes']],
 ];
 
-$plan = SQLitePlannerStat4PartialCoveringCurrentSourceNext142Plan::materialize(
+$plan = SQLitePlannerStat4PartialCoveringCurrentSourceNextPlan::materializeNext142(
     $prepared,
     $current,
     $predicate,

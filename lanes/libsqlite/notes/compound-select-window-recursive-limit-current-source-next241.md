@@ -5,7 +5,7 @@ a yielded recursive/window result page must prove the final current and next
 rows still match the source-generation seal before a next-source cursor can
 resume.
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext241Plan`,
+This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`,
 layered on the accepted next238 source-generation seal. The new surface is a
 resume-admission receipt over current final rows, next final rows, and the
 recursive/window/LIMIT boundary. A resume cursor must acknowledge all three
@@ -19,7 +19,7 @@ recursive dependency rows keep their window rank.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext241Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext241Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next241.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext241Test.php`

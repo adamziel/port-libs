@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePlannerSubqueryCoveringPartialCurrentSourceNext115Plan;
+use PortLibs\LibSqlite\SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -25,7 +25,7 @@ $current['schemaCookie'] = 115;
 $current['stat4Generation'] = 52;
 $current['indexes'][0]['rootPage'] = 11510;
 
-$plan = SQLitePlannerSubqueryCoveringPartialCurrentSourceNext115Plan::materialize(
+$plan = SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan::materializeNext115(
     $prepared,
     $current,
     [

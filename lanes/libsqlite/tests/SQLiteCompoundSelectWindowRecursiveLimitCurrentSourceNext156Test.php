@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext156Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -43,7 +43,7 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 2
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext156Plan::compare($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext156($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound select window recursive limit next156 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -129,7 +129,7 @@ $tests['compound select window recursive limit next156 replan reasons'] = static
 };
 
 $tests['compound select window recursive limit next156 rejects simple select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext156Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext156(
         'SELECT option_id AS id FROM wp_options UNION ALL SELECT option_id FROM wp_options LIMIT 2',
         $currentTables,
         $currentTables,
@@ -137,7 +137,7 @@ $tests['compound select window recursive limit next156 rejects simple select'] =
 };
 
 $tests['compound select window recursive limit next156 rejects missing final limit'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext156Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext156(
         "WITH RECURSIVE option_queue(id, label, score) AS (VALUES (1, 'seed', 20) UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 4 FROM option_queue WHERE id < 7 LIMIT 5) SELECT id, label, row_number() OVER (ORDER BY score DESC, id) AS win_value FROM option_queue UNION ALL SELECT option_id AS id, option_name AS label, lag(weight, 1, weight) OVER (ORDER BY weight DESC, option_id) AS win_value FROM wp_options WHERE autoload = 'yes' ORDER BY win_value DESC, id",
         $currentTables,
         $currentTables,

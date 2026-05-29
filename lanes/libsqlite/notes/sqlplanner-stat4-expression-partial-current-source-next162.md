@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for a current-source STAT4 expression
 partial-index planner edge.
 
-This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNext162Plan`,
+This slice adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`,
 a bounded composition over the existing next154 STAT4 expression partial helper.
 It covers stale prepared statements where the current index keeps the same
 expression equality key but changes the partial predicate, such as adding a
@@ -19,7 +19,7 @@ WordPress smoke:
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext162Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext162Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next162.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext162Test.php`

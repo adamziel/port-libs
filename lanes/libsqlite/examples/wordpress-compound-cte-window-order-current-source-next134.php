@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundCteWindowOrderCurrentSourceNext134Plan;
+use PortLibs\LibSqlite\SQLiteCompoundCteWindowOrderCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
@@ -56,7 +56,7 @@ SELECT option_id AS id,
  LIMIT 6
 SQL;
 
-$result = SQLiteCompoundCteWindowOrderCurrentSourceNext134Plan::compare(
+$result = SQLiteCompoundCteWindowOrderCurrentSourceNextPlan::compareNext134(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],

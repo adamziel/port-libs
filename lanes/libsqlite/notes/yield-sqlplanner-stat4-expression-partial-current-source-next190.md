@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for a STAT4 expression partial-index planner
 current-source fence.
 
-Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNext190Plan` composes
+Behavior: `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` composes
 accepted next175 LIKE-prefix STAT4 partial-expression admission and retains a
 `NOT IN` residual fence over the current-source row stream. It rejects excluded
 WordPress option names after current STAT4 prefix admission, preserves SQL NULL
@@ -20,7 +20,7 @@ WordPress smoke:
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNext190Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext190Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next190.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext190Test.php`

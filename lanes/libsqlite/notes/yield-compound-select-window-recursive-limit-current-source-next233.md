@@ -4,7 +4,7 @@ Behavior slice: current-source compound SELECT handoff now records a final `ORDE
 
 Files:
 
-- `src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext233Plan.php`
+- `src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext233Test.php`
 - `examples/wordpress-compound-select-window-recursive-limit-current-source-next233.php`
 
@@ -12,7 +12,7 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext233Test.php`
 - `php lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next233.php`
-- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext233Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext233Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-compound-select-window-recursive-limit-current-source-next233.php`
 - `git diff --check -- lanes/libsqlite`

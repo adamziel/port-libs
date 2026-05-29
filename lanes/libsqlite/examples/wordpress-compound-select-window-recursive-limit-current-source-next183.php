@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext183Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -47,7 +47,7 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 2
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext183Plan::compare($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext183($sql, $currentTables, $nextTables);
 $result = [
     'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next183',
     'sqlShape' => 'WITH RECURSIVE LIMIT/OFFSET feeding lag/lead window arms before UNION ALL/UNION and final ORDER BY/LIMIT/OFFSET',

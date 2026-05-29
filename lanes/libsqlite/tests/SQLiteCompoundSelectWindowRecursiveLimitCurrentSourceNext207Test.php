@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext207Plan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions207 = [
@@ -71,7 +71,7 @@ SELECT id,
  LIMIT 6 OFFSET 1
 SQL;
 
-$summary207 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext207Plan::compare($sql207, $currentTables207, $nextTables207, $cursor);
+$summary207 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext207($sql207, $currentTables207, $nextTables207, $cursor);
 $tests = [];
 
 $tests['compound select window recursive limit current source next207 status dependencies'] = static function (TestRunner $t) use ($summary207): void {
@@ -164,7 +164,7 @@ $tests['compound select window recursive limit current source next207 replan rea
 };
 
 $tests['compound select window recursive limit current source next207 rejects missing except'] = static function (TestRunner $t) use ($currentTables207): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext207Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext207(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 140) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 9 ORDER BY score DESC LIMIT 8 OFFSET 1) SELECT id, label, lead(score, 1, -7) OVER (ORDER BY score DESC, id) AS metric FROM q UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC) FROM wp_options INTERSECT SELECT id, label, metric FROM (SELECT id, label, lead(score, 1, -7) OVER (ORDER BY score DESC, id) AS metric FROM q) ORDER BY metric DESC, id LIMIT 6 OFFSET 1",
         $currentTables207,
         $currentTables207,
@@ -172,7 +172,7 @@ $tests['compound select window recursive limit current source next207 rejects mi
 };
 
 $tests['compound select window recursive limit current source next207 rejects unordered recursive limit'] = static function (TestRunner $t) use ($currentTables207): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext207Plan::compare(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext207(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 140) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 9 LIMIT 8 OFFSET 1) SELECT id, label, lead(score, 1, -7) OVER (ORDER BY score DESC, id) AS metric FROM q UNION ALL SELECT option_id, option_name, nth_value(score, 2) OVER (ORDER BY score DESC ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options INTERSECT SELECT id, label, metric FROM (SELECT id, label, lead(score, 1, -7) OVER (ORDER BY score DESC, id) AS metric FROM q) ORDER BY metric DESC, id LIMIT 6 OFFSET 1",
         $currentTables207,
         $currentTables207,
@@ -193,8 +193,8 @@ foreach (range(1, 58) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 112 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (140 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 9 ORDER BY score DESC LIMIT 8 OFFSET 1) SELECT id, label, lead(score, 1, -7) OVER (ORDER BY score DESC, id) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, nth_value(score, 2) OVER (PARTITION BY autoload ORDER BY score DESC, option_id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS metric FROM wp_options WHERE autoload = 'yes' EXCEPT SELECT 2 AS id, 'seed_{$case}:2' AS label, " . (120 + $case) . " AS metric INTERSECT SELECT id, label, metric FROM (SELECT id, label, lead(score, 1, -7) OVER (ORDER BY score DESC, id) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, nth_value(score, 2) OVER (PARTITION BY autoload ORDER BY score DESC, option_id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS metric FROM wp_options WHERE autoload = 'yes') ORDER BY metric DESC, id LIMIT {$finalLimit} OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext207Plan::compare($sql, $tables, $nextTables);
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext207Plan::compare($sql, $tables, $nextTables, $plan['cursor']);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext207($sql, $tables, $nextTables);
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext207($sql, $tables, $nextTables, $plan['cursor']);
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $t->same($finalLimit, count($rows));

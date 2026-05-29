@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteStat4RangeOrderCurrentSourceNext102Plan;
+use PortLibs\LibSqlite\SQLiteStat4RangeOrderCurrentSourceNextPlan;
 
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
 $between = static fn (string $column, mixed $lower, mixed $upper): array => ['operator' => 'BETWEEN', 'left' => ['column' => $column], 'lower' => $lower, 'upper' => $upper];
@@ -49,7 +49,7 @@ $currentSource = static fn (): array => [
 ];
 
 $plan = static function (?array $predicate = null, array $orderBy = [['column' => 'option_name']], array $needed = ['option_name', 'autoload', 'option_value'], ?array $prepared = null, ?array $current = null) use ($preparedSource, $currentSource, $and, $range): array {
-    return SQLiteStat4RangeOrderCurrentSourceNext102Plan::materialize(
+    return SQLiteStat4RangeOrderCurrentSourceNextPlan::materializeNext102(
         $prepared ?? $preparedSource(),
         $current ?? $currentSource(),
         $predicate ?? $and($range('option_name', '>=', 'home'), $range('option_name', '<', 'transient_timeout')),
