@@ -49,7 +49,7 @@ $currentSource = static fn (): array => [
 ];
 
 $plan = static function (?array $predicate = null, array $orderBy = [['column' => 'option_name']], array $needed = ['option_name', 'autoload', 'option_value'], ?array $prepared = null, ?array $current = null) use ($preparedSource, $currentSource, $and, $range): array {
-    return SQLiteStat4RangeOrderCurrentSourceNextPlan::materializeNext102(
+    return SQLiteStat4RangeOrderCurrentSourceNextPlan::materializeRangeOrderCursorTape(
         $prepared ?? $preparedSource(),
         $current ?? $currentSource(),
         $predicate ?? $and($range('option_name', '>=', 'home'), $range('option_name', '<', 'transient_timeout')),

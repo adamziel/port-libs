@@ -24,7 +24,7 @@ $indexes = [[
     'sql' => 'CREATE INDEX idx_wp_options_autoload_name_stat4_next92 ON wp_options(autoload, option_name, option_value)',
 ]];
 
-$plan = SQLiteMultiColumnRangePlan::stat4RangeOrderCurrentSourceNext92(
+$plan = SQLiteMultiColumnRangePlan::stat4RangeOrder(
     $indexes,
     $and(
         $point('autoload', 'yes'),

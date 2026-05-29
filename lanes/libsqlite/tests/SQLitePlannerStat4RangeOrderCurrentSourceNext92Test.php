@@ -50,7 +50,7 @@ $plan = static fn (
     ?array $predicate = null,
     array $orderBy = [['column' => 'option_name']],
     array $neededColumns = ['option_name'],
-): array => SQLiteMultiColumnRangePlan::stat4RangeOrderCurrentSourceNext92(
+): array => SQLiteMultiColumnRangePlan::stat4RangeOrder(
     $indexes(),
     $predicate ?? $and($point('autoload', 'yes'), $range('option_name', '>=', 'plugin_'), $range('option_name', '<', 'theme_')),
     $orderBy,

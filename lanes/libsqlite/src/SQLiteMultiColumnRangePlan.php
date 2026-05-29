@@ -63,7 +63,7 @@ final class SQLiteMultiColumnRangePlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function stat4RangeOrderCurrentSourceNext92(array $indexDefinitions, array $predicate, array $orderBy, array $neededColumns = []): array
+    public static function stat4RangeOrder(array $indexDefinitions, array $predicate, array $orderBy, array $neededColumns = []): array
     {
         self::validateOrderBy($orderBy);
 

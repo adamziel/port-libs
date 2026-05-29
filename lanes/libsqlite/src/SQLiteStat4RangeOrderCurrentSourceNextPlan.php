@@ -15,17 +15,17 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param list<array{column:string,direction?:string}> $orderBy
          * @return array<string,mixed>
          */
-        public static function compareNext97(array $preparedSource, array $currentSource, array $orderBy = []): array
+        public static function compareRangeOrder(array $preparedSource, array $currentSource, array $orderBy = []): array
         {
-            $prepared = self::sourcePlanNext97($preparedSource, $orderBy);
-            $current = self::sourcePlanNext97($currentSource, $orderBy);
+            $prepared = self::sourcePlanRangeOrder($preparedSource, $orderBy);
+            $current = self::sourcePlanRangeOrder($currentSource, $orderBy);
 
-            $preparedCookie = self::nonNegativeIntNext97($preparedSource, 'schemaCookie');
-            $currentCookie = self::nonNegativeIntNext97($currentSource, 'schemaCookie');
-            $preparedStat4 = self::nonNegativeIntNext97($preparedSource, 'stat4Generation');
-            $currentStat4 = self::nonNegativeIntNext97($currentSource, 'stat4Generation');
-            $preparedRange = self::rangeSignatureNext97($preparedSource);
-            $currentRange = self::rangeSignatureNext97($currentSource);
+            $preparedCookie = self::nonNegativeIntRangeOrder($preparedSource, 'schemaCookie');
+            $currentCookie = self::nonNegativeIntRangeOrder($currentSource, 'schemaCookie');
+            $preparedStat4 = self::nonNegativeIntRangeOrder($preparedSource, 'stat4Generation');
+            $currentStat4 = self::nonNegativeIntRangeOrder($currentSource, 'stat4Generation');
+            $preparedRange = self::rangeSignature($preparedSource);
+            $currentRange = self::rangeSignature($currentSource);
             $stale = $preparedCookie !== $currentCookie
                 || $preparedStat4 !== $currentStat4
                 || $preparedRange !== $currentRange;
@@ -41,10 +41,10 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
                 'rangeChanged' => $preparedRange !== $currentRange,
                 'orderByModeChanged' => ($prepared['orderByMode'] ?? null) !== ($current['orderByMode'] ?? null),
                 'estimatedRowsDelta' => (int) ($current['estimatedRows'] ?? 0) - (int) ($prepared['estimatedRows'] ?? 0),
-                'preparedSource' => self::sourceSummaryNext97($preparedSource, $prepared),
-                'currentSource' => self::sourceSummaryNext97($currentSource, $current),
+                'preparedSource' => self::sourceSummaryRangeOrder($preparedSource, $prepared),
+                'currentSource' => self::sourceSummaryRangeOrder($currentSource, $current),
                 'selectedPlan' => $selected,
-                'detail' => self::detailNext97($stale, $selected, $currentSource),
+                'detail' => self::detailRangeOrder($stale, $selected, $currentSource),
                 'dependencies' => [
                     'SQLiteStat4RangeOrderCurrentSourceNextPlan',
                     'SQLiteIndexPredicate',
@@ -58,16 +58,16 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param list<array{column:string,direction?:string}> $orderBy
          * @return array<string,mixed>
          */
-        private static function sourcePlanNext97(array $source, array $orderBy): array
+        private static function sourcePlanRangeOrder(array $source, array $orderBy): array
         {
-            $indexName = self::stringValueNext97($source, 'indexName');
-            $rangeColumn = self::stringValueNext97($source, 'rangeColumn');
-            $collation = strtoupper(self::stringValueNext97($source, 'collation', 'BINARY'));
+            $indexName = self::stringValueRangeOrder($source, 'indexName');
+            $rangeColumn = self::stringValueRangeOrder($source, 'rangeColumn');
+            $collation = strtoupper(self::stringValueRangeOrder($source, 'collation', 'BINARY'));
             if (!in_array($collation, ['BINARY', 'NOCASE'], true)) {
                 throw new \InvalidArgumentException('SQLite STAT4 range-order planner supports BINARY and NOCASE collations');
             }
 
-            $rows = self::listValueNext97($source, 'rows');
+            $rows = self::listValueRangeOrder($source, 'rows');
             $lower = $source['lower'] ?? null;
             $upper = $source['upper'] ?? null;
             $upperInclusive = (bool) ($source['upperInclusive'] ?? true);
@@ -84,16 +84,16 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
                     ++$omittedNullRangeRows;
                     continue;
                 }
-                if (self::withinNext97($row[$rangeColumn], $lower, $upper, $upperInclusive, $collation)) {
+                if (self::withinRange($row[$rangeColumn], $lower, $upper, $upperInclusive, $collation)) {
                     $matchingRows[] = $row;
                 }
             }
 
-            $orderEvidence = self::orderEvidenceNext97($rangeColumn, $orderBy);
+            $orderEvidence = self::orderEvidenceRangeOrder($rangeColumn, $orderBy);
             usort(
                 $matchingRows,
                 static function (array $left, array $right) use ($rangeColumn, $collation, $orderEvidence): int {
-                    $comparison = self::compareValuesNext97($left[$rangeColumn] ?? null, $right[$rangeColumn] ?? null, $collation);
+                    $comparison = self::compareRangeValues($left[$rangeColumn] ?? null, $right[$rangeColumn] ?? null, $collation);
                     if ($comparison === 0) {
                         $comparison = ((int) ($left['rowid'] ?? 0)) <=> ((int) ($right['rowid'] ?? 0));
                     }
@@ -102,9 +102,9 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
                 }
             );
 
-            $samples = self::stat4SamplesNext97(self::listValueNext97($source, 'stat4Samples'));
-            $currentNext = self::currentNextForRangeNext97($samples, $lower, $upper, $upperInclusive, $collation);
-            $estimate = self::estimateRowsNext97($samples, $currentNext['rangeSamples'], count($matchingRows));
+            $samples = self::stat4SamplesRangeOrder(self::listValueRangeOrder($source, 'stat4Samples'));
+            $currentNext = self::currentAndNextSamplesForRange($samples, $lower, $upper, $upperInclusive, $collation);
+            $estimate = self::estimateRangeRows($samples, $currentNext['rangeSamples'], count($matchingRows));
             $seekCount = $matchingRows === [] ? 0 : 1;
             $sortPenalty = $orderEvidence['blockSortRequired'] ? max(1, count($matchingRows)) : 0;
 
@@ -128,7 +128,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
                 'blockSortRequired' => $orderEvidence['blockSortRequired'],
                 'reverseScan' => $orderEvidence['reverseScan'],
                 'sortBlockCount' => $orderEvidence['blockSortRequired'] ? 1 : 0,
-                'detail' => self::planDetailNext97($indexName, $rangeColumn, $orderEvidence),
+                'detail' => self::planDetailRangeOrder($indexName, $rangeColumn, $orderEvidence),
             ];
         }
 
@@ -136,7 +136,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param list<array<string,mixed>> $samples
          * @return list<array{value:mixed,nEq:int,nLt:int,nDLt:int}>
          */
-        private static function stat4SamplesNext97(array $samples): array
+        private static function stat4SamplesRangeOrder(array $samples): array
         {
             $normalized = [];
             foreach ($samples as $sample) {
@@ -163,23 +163,23 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param list<array{value:mixed,nEq:int,nLt:int,nDLt:int}> $samples
          * @return array{current:array<string,mixed>|null,next:array<string,mixed>|null,rangeSamples:int,nLtSpan:int}
          */
-        private static function currentNextForRangeNext97(array $samples, mixed $lower, mixed $upper, bool $upperInclusive, string $collation): array
+        private static function currentAndNextSamplesForRange(array $samples, mixed $lower, mixed $upper, bool $upperInclusive, string $collation): array
         {
             $inRange = [];
             foreach ($samples as $sample) {
-                if (self::withinNext97($sample['value'], $lower, $upper, $upperInclusive, $collation)) {
+                if (self::withinRange($sample['value'], $lower, $upper, $upperInclusive, $collation)) {
                     $inRange[] = $sample;
                 }
             }
-            usort($inRange, static fn (array $left, array $right): int => self::compareValuesNext97($left['value'], $right['value'], $collation));
+            usort($inRange, static fn (array $left, array $right): int => self::compareRangeValues($left['value'], $right['value'], $collation));
 
             $first = $inRange[0] ?? null;
             $last = $inRange === [] ? null : $inRange[array_key_last($inRange)];
             $span = $first === null || $last === null ? 0 : max(0, $last['nLt'] - $first['nLt'] + $last['nEq']);
 
             return [
-                'current' => self::sampleEvidenceNext97($first),
-                'next' => self::sampleEvidenceNext97($inRange[1] ?? null),
+                'current' => self::sampleEvidenceRangeOrder($first),
+                'next' => self::sampleEvidenceRangeOrder($inRange[1] ?? null),
                 'rangeSamples' => count($inRange),
                 'nLtSpan' => $span,
             ];
@@ -189,7 +189,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param array{value:mixed,nEq:int,nLt:int,nDLt:int}|null $sample
          * @return array<string,mixed>|null
          */
-        private static function sampleEvidenceNext97(?array $sample): ?array
+        private static function sampleEvidenceRangeOrder(?array $sample): ?array
         {
             if ($sample === null) {
                 return null;
@@ -206,7 +206,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @return array{mode:string,satisfied:bool,blockSortRequired:bool,reverseScan:bool}
          */
-        private static function orderEvidenceNext97(string $rangeColumn, array $orderBy): array
+        private static function orderEvidenceRangeOrder(string $rangeColumn, array $orderBy): array
         {
             if ($orderBy === []) {
                 return ['mode' => 'none', 'satisfied' => false, 'blockSortRequired' => false, 'reverseScan' => false];
@@ -227,7 +227,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
             return ['mode' => $direction === 'DESC' ? 'range-reverse' : 'range', 'satisfied' => true, 'blockSortRequired' => false, 'reverseScan' => $direction === 'DESC'];
         }
 
-        private static function estimateRowsNext97(array $samples, int $rangeSamples, int $fallback): int
+        private static function estimateRangeRows(array $samples, int $rangeSamples, int $fallback): int
         {
             if ($rangeSamples === 0) {
                 return max(1, $fallback);
@@ -246,13 +246,13 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function sourceSummaryNext97(array $source, array $plan): array
+        private static function sourceSummaryRangeOrder(array $source, array $plan): array
         {
             return [
-                'name' => self::stringValueNext97($source, 'name', 'source'),
-                'schemaCookie' => self::nonNegativeIntNext97($source, 'schemaCookie'),
-                'stat4Generation' => self::nonNegativeIntNext97($source, 'stat4Generation'),
-                'rangeSignature' => self::rangeSignatureNext97($source),
+                'name' => self::stringValueRangeOrder($source, 'name', 'source'),
+                'schemaCookie' => self::nonNegativeIntRangeOrder($source, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeIntRangeOrder($source, 'stat4Generation'),
+                'rangeSignature' => self::rangeSignature($source),
                 'rowids' => $plan['rowids'] ?? [],
                 'estimatedRows' => $plan['estimatedRows'] ?? 0,
                 'estimatedCost' => $plan['estimatedCost'] ?? 0,
@@ -267,26 +267,26 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function rangeSignatureNext97(array $source): string
+        private static function rangeSignature(array $source): string
         {
-            return serialize([$source['lower'] ?? null, $source['upper'] ?? null, (bool) ($source['upperInclusive'] ?? true), self::stringValueNext97($source, 'collation', 'BINARY')]);
+            return serialize([$source['lower'] ?? null, $source['upper'] ?? null, (bool) ($source['upperInclusive'] ?? true), self::stringValueRangeOrder($source, 'collation', 'BINARY')]);
         }
 
         /**
          * @param array<string,mixed> $plan
          * @param array<string,mixed> $currentSource
          */
-        private static function detailNext97(bool $stale, array $plan, array $currentSource): string
+        private static function detailRangeOrder(bool $stale, array $plan, array $currentSource): string
         {
             $action = $stale ? 'REPREPARE STAT4 RANGE ORDER USING CURRENT SOURCE ' : 'REUSE PREPARED STAT4 RANGE ORDER ';
 
-            return $action . self::stringValueNext97($currentSource, 'name', 'current') . ' ' . (string) ($plan['detail'] ?? 'NO PLAN');
+            return $action . self::stringValueRangeOrder($currentSource, 'name', 'current') . ' ' . (string) ($plan['detail'] ?? 'NO PLAN');
         }
 
         /**
          * @param array{mode:string,satisfied:bool,blockSortRequired:bool,reverseScan:bool} $orderEvidence
          */
-        private static function planDetailNext97(string $indexName, string $rangeColumn, array $orderEvidence): string
+        private static function planDetailRangeOrder(string $indexName, string $rangeColumn, array $orderEvidence): string
         {
             $detail = 'SEARCH ' . $indexName . ' USING STAT4 ' . $rangeColumn . ' RANGE';
             if ($orderEvidence['satisfied']) {
@@ -298,16 +298,16 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
             return $detail;
         }
 
-        private static function withinNext97(mixed $value, mixed $lower, mixed $upper, bool $upperInclusive, string $collation): bool
+        private static function withinRange(mixed $value, mixed $lower, mixed $upper, bool $upperInclusive, string $collation): bool
         {
             if ($value === null) {
                 return false;
             }
-            if ($lower !== null && self::compareValuesNext97($value, $lower, $collation) < 0) {
+            if ($lower !== null && self::compareRangeValues($value, $lower, $collation) < 0) {
                 return false;
             }
             if ($upper !== null) {
-                $comparison = self::compareValuesNext97($value, $upper, $collation);
+                $comparison = self::compareRangeValues($value, $upper, $collation);
                 if ($comparison > 0 || ($comparison === 0 && !$upperInclusive)) {
                     return false;
                 }
@@ -316,7 +316,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
             return true;
         }
 
-        private static function compareValuesNext97(mixed $left, mixed $right, string $collation): int
+        private static function compareRangeValues(mixed $left, mixed $right, string $collation): int
         {
             if ($left === null || $right === null) {
                 return $left === $right ? 0 : ($left === null ? -1 : 1);
@@ -334,7 +334,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $data
          */
-        private static function stringValueNext97(array $data, string $key, ?string $default = null): string
+        private static function stringValueRangeOrder(array $data, string $key, ?string $default = null): string
         {
             $value = $data[$key] ?? $default;
             if (!is_string($value) || $value === '') {
@@ -347,7 +347,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $data
          */
-        private static function nonNegativeIntNext97(array $data, string $key): int
+        private static function nonNegativeIntRangeOrder(array $data, string $key): int
         {
             $value = $data[$key] ?? null;
             if (!is_int($value) || $value < 0) {
@@ -361,7 +361,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param array<string,mixed> $data
          * @return list<array<string,mixed>>
          */
-        private static function listValueNext97(array $data, string $key): array
+        private static function listValueRangeOrder(array $data, string $key): array
         {
             $value = $data[$key] ?? null;
             if (!is_array($value) || !array_is_list($value)) {
@@ -381,18 +381,18 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext102(array $preparedSource, array $currentSource, array $predicate, array $orderBy, array $neededColumns = []): array
+        public static function materializeRangeOrderCursorTape(array $preparedSource, array $currentSource, array $predicate, array $orderBy, array $neededColumns = []): array
         {
-            $prepared = self::sourcePlanNext102($preparedSource, $predicate, $orderBy, $neededColumns);
-            $current = self::sourcePlanNext102($currentSource, $predicate, $orderBy, $neededColumns);
-            $preparedFence = self::fenceNext102($preparedSource, $predicate, $orderBy, $neededColumns);
-            $currentFence = self::fenceNext102($currentSource, $predicate, $orderBy, $neededColumns);
+            $prepared = self::sourcePlanRangeOrderCursorTape($preparedSource, $predicate, $orderBy, $neededColumns);
+            $current = self::sourcePlanRangeOrderCursorTape($currentSource, $predicate, $orderBy, $neededColumns);
+            $preparedFence = self::fenceRangeOrderCursorTape($preparedSource, $predicate, $orderBy, $neededColumns);
+            $currentFence = self::fenceRangeOrderCursorTape($currentSource, $predicate, $orderBy, $neededColumns);
             $stale = $preparedFence !== $currentFence;
             $selected = $stale ? $current : $prepared;
             $source = $stale ? $currentSource : $preparedSource;
             $range = is_array($selected['rangeConstraint'] ?? null) ? $selected['rangeConstraint'] : null;
             $stat4 = is_array($selected['stat4RangeCurrentNext'] ?? null) ? $selected['stat4RangeCurrentNext'] : null;
-            $reverse = self::reverseScanNext102($orderBy);
+            $reverse = self::reverseScanCursorTape($orderBy);
             $covering = ($selected['covering'] ?? false) === true;
 
             return [
@@ -400,11 +400,11 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
                 'selectedSource' => $stale ? 'current' : 'prepared',
                 'stalePreparedStatement' => $stale,
                 'reprepareRequired' => $stale,
-                'schemaCookieChanged' => self::nonNegativeIntNext102($preparedSource, 'schemaCookie') !== self::nonNegativeIntNext102($currentSource, 'schemaCookie'),
-                'stat4GenerationChanged' => self::nonNegativeIntNext102($preparedSource, 'stat4Generation') !== self::nonNegativeIntNext102($currentSource, 'stat4Generation'),
-                'indexSignatureChanged' => self::indexSignatureNext102($preparedSource) !== self::indexSignatureNext102($currentSource),
-                'predicateSignatureChanged' => self::predicateSignatureNext102($predicate) !== ($preparedSource['preparedPredicateSignature'] ?? self::predicateSignatureNext102($predicate)),
-                'orderSignature' => self::orderSignatureNext102($orderBy),
+                'schemaCookieChanged' => self::nonNegativeIntCursorTape($preparedSource, 'schemaCookie') !== self::nonNegativeIntCursorTape($currentSource, 'schemaCookie'),
+                'stat4GenerationChanged' => self::nonNegativeIntCursorTape($preparedSource, 'stat4Generation') !== self::nonNegativeIntCursorTape($currentSource, 'stat4Generation'),
+                'indexSignatureChanged' => self::indexSignatureCursorTape($preparedSource) !== self::indexSignatureCursorTape($currentSource),
+                'predicateSignatureChanged' => self::predicateSignatureCursorTape($predicate) !== ($preparedSource['preparedPredicateSignature'] ?? self::predicateSignatureCursorTape($predicate)),
+                'orderSignature' => self::orderSignatureCursorTape($orderBy),
                 'preparedPlan' => $prepared,
                 'currentPlan' => $current,
                 'selectedPlan' => $selected,
@@ -412,30 +412,30 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
                 'estimatedCostDelta' => (int) ($current['estimatedCost'] ?? 0) - (int) ($prepared['estimatedCost'] ?? 0),
                 'cursorTape' => [
                     'source' => $stale ? 'current' : 'prepared',
-                    'sourceName' => self::stringValueNext102($source, 'name', 'source'),
+                    'sourceName' => self::stringValueCursorTape($source, 'name', 'source'),
                     'indexName' => $selected['name'] ?? $selected['selected'] ?? null,
                     'rootPage' => $selected['rootPage'] ?? null,
                     'rangeColumn' => $selected['rangeColumn'] ?? null,
-                    'seekOpcode' => self::seekOpcodeNext102($range, $reverse),
-                    'stopOpcode' => self::stopOpcodeNext102($range, $reverse),
+                    'seekOpcode' => self::seekOpcodeCursorTape($range, $reverse),
+                    'stopOpcode' => self::stopOpcodeCursorTape($range, $reverse),
                     'nextOpcode' => $reverse ? 'Prev' : 'Next',
                     'scanDirection' => $reverse ? 'descending' : 'ascending',
-                    'lowerValue' => self::rangeValueNext102($range, 'lower'),
-                    'upperValue' => self::rangeValueNext102($range, 'upper'),
-                    'lowerInclusive' => self::rangeInclusiveNext102($range, 'lower'),
-                    'upperInclusive' => self::rangeInclusiveNext102($range, 'upper'),
-                    'stat4LowerCurrent' => self::boundaryKeyNext102($stat4, 'lower', 'current'),
-                    'stat4LowerNext' => self::boundaryKeyNext102($stat4, 'lower', 'next'),
-                    'stat4UpperCurrent' => self::boundaryKeyNext102($stat4, 'upper', 'current'),
-                    'stat4UpperNext' => self::boundaryKeyNext102($stat4, 'upper', 'next'),
-                    'stat4LowerExact' => self::boundaryExactNext102($stat4, 'lower'),
-                    'stat4UpperExact' => self::boundaryExactNext102($stat4, 'upper'),
+                    'lowerValue' => self::rangeValueCursorTape($range, 'lower'),
+                    'upperValue' => self::rangeValueCursorTape($range, 'upper'),
+                    'lowerInclusive' => self::rangeInclusiveCursorTape($range, 'lower'),
+                    'upperInclusive' => self::rangeInclusiveCursorTape($range, 'upper'),
+                    'stat4LowerCurrent' => self::boundaryKeyCursorTape($stat4, 'lower', 'current'),
+                    'stat4LowerNext' => self::boundaryKeyCursorTape($stat4, 'lower', 'next'),
+                    'stat4UpperCurrent' => self::boundaryKeyCursorTape($stat4, 'upper', 'current'),
+                    'stat4UpperNext' => self::boundaryKeyCursorTape($stat4, 'upper', 'next'),
+                    'stat4LowerExact' => self::boundaryExactCursorTape($stat4, 'lower'),
+                    'stat4UpperExact' => self::boundaryExactCursorTape($stat4, 'upper'),
                     'stat4EmptyGap' => (bool) ($stat4['emptyGap'] ?? false),
                     'stat4MatchedSamples' => $selected['stat4MatchedSamples'] ?? 0,
                     'covering' => $covering,
                     'deferredSeekOpcode' => $covering ? null : 'DeferredSeek',
                     'sorterOpen' => ($selected['blockSortRequired'] ?? false) === true,
-                    'program' => self::programNext102($selected, $range, $orderBy, $neededColumns, $covering),
+                    'program' => self::programCursorTape($selected, $range, $orderBy, $neededColumns, $covering),
                 ],
                 'currentSourceFence' => $currentFence,
                 'detail' => ($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 RANGE ORDER CURRENT SOURCE ' . (string) ($selected['detail'] ?? 'NO PLAN'),
@@ -451,10 +451,10 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function sourcePlanNext102(array $source, array $predicate, array $orderBy, array $neededColumns): array
+        private static function sourcePlanRangeOrderCursorTape(array $source, array $predicate, array $orderBy, array $neededColumns): array
         {
-            $plan = SQLiteMultiColumnRangePlan::stat4RangeOrderCurrentSourceNext92(
-                self::listValueNext102($source, 'indexes'),
+            $plan = SQLiteMultiColumnRangePlan::stat4RangeOrder(
+                self::listValueCursorTape($source, 'indexes'),
                 $predicate,
                 $orderBy,
                 $neededColumns,
@@ -473,25 +473,25 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function fenceNext102(array $source, array $predicate, array $orderBy, array $neededColumns): array
+        private static function fenceRangeOrderCursorTape(array $source, array $predicate, array $orderBy, array $neededColumns): array
         {
             return [
-                'schemaCookie' => self::nonNegativeIntNext102($source, 'schemaCookie'),
-                'stat4Generation' => self::nonNegativeIntNext102($source, 'stat4Generation'),
-                'indexSignature' => self::indexSignatureNext102($source),
-                'predicateSignature' => self::predicateSignatureNext102($predicate),
-                'orderSignature' => self::orderSignatureNext102($orderBy),
-                'projectionSignature' => self::projectionSignatureNext102($neededColumns),
+                'schemaCookie' => self::nonNegativeIntCursorTape($source, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeIntCursorTape($source, 'stat4Generation'),
+                'indexSignature' => self::indexSignatureCursorTape($source),
+                'predicateSignature' => self::predicateSignatureCursorTape($predicate),
+                'orderSignature' => self::orderSignatureCursorTape($orderBy),
+                'projectionSignature' => self::projectionSignatureCursorTape($neededColumns),
             ];
         }
 
         /**
          * @param array<string,mixed> $source
          */
-        private static function indexSignatureNext102(array $source): string
+        private static function indexSignatureCursorTape(array $source): string
         {
             $parts = [];
-            foreach (self::listValueNext102($source, 'indexes') as $index) {
+            foreach (self::listValueCursorTape($source, 'indexes') as $index) {
                 $parts[] = hash('sha256', serialize([
                     $index['name'] ?? null,
                     $index['rootPage'] ?? null,
@@ -508,7 +508,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $predicate
          */
-        private static function predicateSignatureNext102(array $predicate): string
+        private static function predicateSignatureCursorTape(array $predicate): string
         {
             return hash('sha256', serialize($predicate));
         }
@@ -516,7 +516,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param list<array{column:string,direction?:string}> $orderBy
          */
-        private static function orderSignatureNext102(array $orderBy): string
+        private static function orderSignatureCursorTape(array $orderBy): string
         {
             $parts = [];
             foreach ($orderBy as $term) {
@@ -537,7 +537,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param list<string> $neededColumns
          */
-        private static function projectionSignatureNext102(array $neededColumns): string
+        private static function projectionSignatureCursorTape(array $neededColumns): string
         {
             $columns = $neededColumns;
             sort($columns, SORT_STRING);
@@ -548,31 +548,31 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param array<string,mixed>|null $range
          */
-        private static function seekOpcodeNext102(?array $range, bool $reverse): string
+        private static function seekOpcodeCursorTape(?array $range, bool $reverse): string
         {
             if ($reverse) {
-                return self::rangeInclusiveNext102($range, 'upper') ? 'SeekLE' : 'SeekLT';
+                return self::rangeInclusiveCursorTape($range, 'upper') ? 'SeekLE' : 'SeekLT';
             }
 
-            return self::rangeInclusiveNext102($range, 'lower') ? 'SeekGE' : 'SeekGT';
+            return self::rangeInclusiveCursorTape($range, 'lower') ? 'SeekGE' : 'SeekGT';
         }
 
         /**
          * @param array<string,mixed>|null $range
          */
-        private static function stopOpcodeNext102(?array $range, bool $reverse): string
+        private static function stopOpcodeCursorTape(?array $range, bool $reverse): string
         {
             if ($reverse) {
-                return self::rangeInclusiveNext102($range, 'lower') ? 'IdxLT' : 'IdxLE';
+                return self::rangeInclusiveCursorTape($range, 'lower') ? 'IdxLT' : 'IdxLE';
             }
 
-            return self::rangeInclusiveNext102($range, 'upper') ? 'IdxGT' : 'IdxGE';
+            return self::rangeInclusiveCursorTape($range, 'upper') ? 'IdxGT' : 'IdxGE';
         }
 
         /**
          * @param array<string,mixed>|null $range
          */
-        private static function rangeValueNext102(?array $range, string $side): mixed
+        private static function rangeValueCursorTape(?array $range, string $side): mixed
         {
             if ($range === null) {
                 return null;
@@ -595,7 +595,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param array<string,mixed>|null $range
          */
-        private static function rangeInclusiveNext102(?array $range, string $side): bool
+        private static function rangeInclusiveCursorTape(?array $range, string $side): bool
         {
             if ($range === null) {
                 return true;
@@ -618,7 +618,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param array<string,mixed>|null $stat4
          */
-        private static function boundaryKeyNext102(?array $stat4, string $side, string $which): mixed
+        private static function boundaryKeyCursorTape(?array $stat4, string $side, string $which): mixed
         {
             $boundary = is_array($stat4[$side] ?? null) ? $stat4[$side] : null;
             $sample = is_array($boundary[$which] ?? null) ? $boundary[$which] : null;
@@ -629,7 +629,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param array<string,mixed>|null $stat4
          */
-        private static function boundaryExactNext102(?array $stat4, string $side): bool
+        private static function boundaryExactCursorTape(?array $stat4, string $side): bool
         {
             $boundary = is_array($stat4[$side] ?? null) ? $stat4[$side] : null;
 
@@ -639,7 +639,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param list<array{column:string,direction?:string}> $orderBy
          */
-        private static function reverseScanNext102(array $orderBy): bool
+        private static function reverseScanCursorTape(array $orderBy): bool
         {
             return $orderBy !== [] && strtoupper((string) ($orderBy[0]['direction'] ?? 'ASC')) === 'DESC';
         }
@@ -651,13 +651,13 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return list<array<string,mixed>>
          */
-        private static function programNext102(array $plan, ?array $range, array $orderBy, array $neededColumns, bool $covering): array
+        private static function programCursorTape(array $plan, ?array $range, array $orderBy, array $neededColumns, bool $covering): array
         {
-            $reverse = self::reverseScanNext102($orderBy);
+            $reverse = self::reverseScanCursorTape($orderBy);
             $program = [
                 ['opcode' => 'OpenRead', 'target' => 'index', 'rootPage' => $plan['rootPage'] ?? null],
-                ['opcode' => self::seekOpcodeNext102($range, $reverse), 'column' => $plan['rangeColumn'] ?? null, 'value' => $reverse ? self::rangeValueNext102($range, 'upper') : self::rangeValueNext102($range, 'lower')],
-                ['opcode' => self::stopOpcodeNext102($range, $reverse), 'column' => $plan['rangeColumn'] ?? null, 'value' => $reverse ? self::rangeValueNext102($range, 'lower') : self::rangeValueNext102($range, 'upper')],
+                ['opcode' => self::seekOpcodeCursorTape($range, $reverse), 'column' => $plan['rangeColumn'] ?? null, 'value' => $reverse ? self::rangeValueCursorTape($range, 'upper') : self::rangeValueCursorTape($range, 'lower')],
+                ['opcode' => self::stopOpcodeCursorTape($range, $reverse), 'column' => $plan['rangeColumn'] ?? null, 'value' => $reverse ? self::rangeValueCursorTape($range, 'lower') : self::rangeValueCursorTape($range, 'upper')],
             ];
             if (!$covering) {
                 $program[] = ['opcode' => 'DeferredSeek', 'target' => 'table'];
@@ -679,7 +679,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $data
          */
-        private static function stringValueNext102(array $data, string $key, ?string $default = null): string
+        private static function stringValueCursorTape(array $data, string $key, ?string $default = null): string
         {
             $value = $data[$key] ?? $default;
             if (!is_string($value) || $value === '') {
@@ -692,7 +692,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $data
          */
-        private static function nonNegativeIntNext102(array $data, string $key): int
+        private static function nonNegativeIntCursorTape(array $data, string $key): int
         {
             $value = $data[$key] ?? null;
             if (!is_int($value) || $value < 0) {
@@ -706,7 +706,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
          * @param array<string,mixed> $data
          * @return list<array<string,mixed>>
          */
-        private static function listValueNext102(array $data, string $key): array
+        private static function listValueCursorTape(array $data, string $key): array
         {
             $value = $data[$key] ?? null;
             if (!is_array($value) || !array_is_list($value)) {

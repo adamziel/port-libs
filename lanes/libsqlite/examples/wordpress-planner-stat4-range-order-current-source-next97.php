@@ -49,7 +49,7 @@ $current['stat4Samples'] = [
     ['value' => 'plugin_theta', 'nEq' => 1, 'nLt' => 5, 'nDLt' => 4],
 ];
 
-$plan = SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($prepared, $current, [['column' => 'option_name']]);
+$plan = SQLiteStat4RangeOrderCurrentSourceNextPlan::compareRangeOrder($prepared, $current, [['column' => 'option_name']]);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['selectedSource'] === 'current');

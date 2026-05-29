@@ -43,7 +43,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '5 5', 'nlt' => '27 27', 'ndlt' => '3 3', 'sample' => ['widget_recent', 'yes']],
 ];
 
-$plan = SQLiteStat4RangeOrderCurrentSourceNextPlan::materializeNext102(
+$plan = SQLiteStat4RangeOrderCurrentSourceNextPlan::materializeRangeOrderCursorTape(
     $prepared,
     $current,
     $and($range('option_name', '>=', 'home'), $range('option_name', '<', 'transient_timeout')),

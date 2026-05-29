@@ -60,7 +60,7 @@ $current = static function (array $overrides = []) use ($source): array {
 };
 
 $plan = static fn (array $orderBy = [['column' => 'option_name']], ?array $prepared = null, ?array $fresh = null): array =>
-    SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($prepared ?? $source(), $fresh ?? $current(), $orderBy);
+    SQLiteStat4RangeOrderCurrentSourceNextPlan::compareRangeOrder($prepared ?? $source(), $fresh ?? $current(), $orderBy);
 
 $tests = [
     'planner stat4 range order current source next97 selects current source' => static fn (TestRunner $t) => $t->same('current', $plan()['selectedSource']),
@@ -129,25 +129,25 @@ $tests = [
         $t->same(true, $plan([['column' => 'option_name']], $source(), $source(['stat4Generation' => 8]))['stat4GenerationChanged']);
     },
     'planner stat4 range order current source next97 validates schema cookie' => static function (TestRunner $t) use ($source, $current): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(['schemaCookie' => -1]), $current()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareRangeOrder($source(['schemaCookie' => -1]), $current()));
     },
     'planner stat4 range order current source next97 validates stat4 generation' => static function (TestRunner $t) use ($source, $current): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(['stat4Generation' => -1]), $current()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareRangeOrder($source(['stat4Generation' => -1]), $current()));
     },
     'planner stat4 range order current source next97 validates row lists' => static function (TestRunner $t) use ($source, $current): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(['rows' => ['bad' => []]]), $current()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareRangeOrder($source(['rows' => ['bad' => []]]), $current()));
     },
     'planner stat4 range order current source next97 validates sample value' => static function (TestRunner $t) use ($source, $current): void {
         $bad = $current(['stat4Samples' => [['nEq' => 1, 'nLt' => 0, 'nDLt' => 0]]]);
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(), $bad));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareRangeOrder($source(), $bad));
     },
     'planner stat4 range order current source next97 validates sample counters' => static function (TestRunner $t) use ($source, $current): void {
         $bad = $current(['stat4Samples' => [['value' => 'plugin_alpha', 'nEq' => -1, 'nLt' => 0, 'nDLt' => 0]]]);
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(), $bad));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareRangeOrder($source(), $bad));
     },
     'planner stat4 range order current source next97 validates order direction' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan([['column' => 'option_name', 'direction' => 'SIDEWAYS']])),
     'planner stat4 range order current source next97 validates collation' => static function (TestRunner $t) use ($source, $current): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareNext97($source(['collation' => 'RTRIM']), $current()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4RangeOrderCurrentSourceNextPlan::compareRangeOrder($source(['collation' => 'RTRIM']), $current()));
     },
 ];
 
