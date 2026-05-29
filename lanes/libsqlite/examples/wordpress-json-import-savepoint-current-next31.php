@@ -54,7 +54,7 @@ $plan = SQLiteWordPressJsonImportSavepointPlan::plan([
 ]);
 
 echo json_encode([
-    'scenario' => 'wordpress-json-import-savepoint-current-next31',
+    'scenario' => 'wordpress-json-import-savepoint',
     'wordpressUse' => 'Apply copied wp_options JSON option mutations with SQLite statement-journal savepoint rollback semantics so one malformed JSON option rolls back without discarding the surrounding plugin-settings import.',
     'status' => $plan['status'],
     'appliedStatements' => array_column($plan['applied'], 'statement'),

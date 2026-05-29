@@ -142,9 +142,9 @@ final class SQLiteWordPressMultisiteJsonWalImportPlan
                 'frames' => $walFrames,
             ],
             'dependencies' => [
-                'sqlite-wordpress-multisite-json-wal-import-current-next54',
-                'sqlite-wordpress-schema-json-savepoint-wal-current-next49',
-                'sqlite-wordpress-json-import-wal-savepoint-current-next35',
+                'sqlite-wordpress-multisite-json-wal-import',
+                'sqlite-wordpress-schema-json-savepoint-wal',
+                'sqlite-wordpress-json-import-wal-savepoint',
             ],
         ];
     }

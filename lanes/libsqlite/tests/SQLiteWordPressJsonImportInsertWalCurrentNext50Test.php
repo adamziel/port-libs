@@ -100,7 +100,7 @@ $cases = [
     'plugin batch updates one and inserts one' => [static fn (): mixed => [$plan()['json_import']['batches'][0]['updated'], $plan()['json_import']['batches'][0]['inserted']], [1, 1]],
     'theme batch updates one and inserts one' => [static fn (): mixed => [$plan()['json_import']['batches'][1]['updated'], $plan()['json_import']['batches'][1]['inserted']], [1, 1]],
     'dependency includes next50' => [static fn (): mixed => in_array('sqlite-wordpress-json-import-insert-wal-current-next50', $plan()['dependencies'], true), true],
-    'dependency includes next35 planner' => [static fn (): mixed => in_array('sqlite-wordpress-json-import-wal-savepoint-current-next35', $plan()['dependencies'], true), true],
+    'dependency includes WAL savepoint import planner' => [static fn (): mixed => in_array('sqlite-wordpress-json-import-wal-savepoint', $plan()['dependencies'], true), true],
     'dependency includes options wal import' => [static fn (): mixed => in_array('wordpress-options-wal-import-current-next', $plan()['dependencies'], true), true],
     'dependency includes wal append transaction' => [static fn (): mixed => in_array('sqlite-wal-append-transaction', $plan()['dependencies'], true), true],
     'active plugins next page name' => [static fn (): mixed => $decodePage($plan(), 0)['option_name'], 'active_plugins'],

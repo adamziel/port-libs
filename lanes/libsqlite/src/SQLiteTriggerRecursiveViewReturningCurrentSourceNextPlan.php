@@ -1129,7 +1129,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool} $options
      * @return array<string,mixed>
      */
-    public static function executeNext161(
+    public static function executeRecursiveViewCurrentSourceAdmission(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -1138,36 +1138,36 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $key = self::identifierNext161((string) ($options['key'] ?? 'option_name'), 'key');
-        $savepoint = self::tokenNext161((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_161'), 'savepoint');
+        $key = self::recursiveViewBoundaryAdmissionIdentifier((string) ($options['key'] ?? 'option_name'), 'key');
+        $savepoint = self::recursiveViewBoundaryAdmissionToken((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_admission'), 'savepoint');
         $recursive = (bool) ($options['recursive_triggers'] ?? true);
         $maxDepth = (int) ($options['max_depth'] ?? 2);
         if ($maxDepth < 0) {
-            throw new InvalidArgumentException('SQLite recursive view RETURNING next161 max depth must be non-negative');
+            throw new InvalidArgumentException('SQLite recursive view RETURNING current-source admission max depth must be non-negative');
         }
         if ($returning === []) {
-            throw new InvalidArgumentException('SQLite recursive view RETURNING next161 projection cannot be empty');
+            throw new InvalidArgumentException('SQLite recursive view RETURNING current-source admission projection cannot be empty');
         }
 
-        $baseRows = self::normalizeRowsNext161($rows, $key);
-        $currentView = self::normalizeViewNext161($currentView, 'current view');
-        $nextView = self::normalizeViewNext161($nextView, 'next view');
+        $baseRows = self::normalizeRecursiveViewBoundaryAdmissionRows($rows, $key);
+        $currentView = self::normalizeRecursiveViewBoundaryAdmissionDefinition($currentView, 'current view');
+        $nextView = self::normalizeRecursiveViewBoundaryAdmissionDefinition($nextView, 'next view');
         $admitNext = (bool) ($options['admit_next_source'] ?? false);
 
-        $current = self::runViewSourceNext161($baseRows, $currentInput, $currentView, $returning, $key, $recursive, $maxDepth, 'current');
-        $nextAttempt = self::runViewSourceNext161($admitNext ? $current['rows'] : $baseRows, $nextInput, $nextView, $returning, $key, $recursive, $maxDepth, 'next');
+        $current = self::runRecursiveViewBoundaryAdmissionSource($baseRows, $currentInput, $currentView, $returning, $key, $recursive, $maxDepth, 'current');
+        $nextAttempt = self::runRecursiveViewBoundaryAdmissionSource($admitNext ? $current['rows'] : $baseRows, $nextInput, $nextView, $returning, $key, $recursive, $maxDepth, 'next');
 
         return [
             'status' => $admitNext
-                ? 'trigger-recursive-view-returning-next-source-admitted-next161'
-                : 'trigger-recursive-view-returning-current-source-pinned-next161',
+                ? 'trigger-recursive-view-returning-next-source-admitted'
+                : 'trigger-recursive-view-returning-current-source-pinned',
             'savepoint' => $savepoint,
             'key' => $key,
             'recursive_triggers' => $recursive,
             'max_depth' => $maxDepth,
-            'current_view' => self::viewSummaryNext161($currentView),
-            'next_view' => self::viewSummaryNext161($nextView),
-            'visible_view' => self::viewSummaryNext161($admitNext ? $nextView : $currentView),
+            'current_view' => self::recursiveViewBoundaryAdmissionSummary($currentView),
+            'next_view' => self::recursiveViewBoundaryAdmissionSummary($nextView),
+            'visible_view' => self::recursiveViewBoundaryAdmissionSummary($admitNext ? $nextView : $currentView),
             'before_rows' => $baseRows,
             'current_rows' => $current['rows'],
             'after_savepoint' => $admitNext ? $nextAttempt['rows'] : $baseRows,
@@ -1195,7 +1195,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 ? 'recursive-view-returning-next-source-admitted-after-current-drain'
                 : 'recursive-view-returning-current-source-drained-before-next-source',
             'dependencies' => [
-                'sqlite-trigger-recursive-view-returning-current-source-next161',
+                'sqlite-trigger-recursive-view-returning-current-source-admission',
                 'sqlite-instead-of-view-trigger-recursive-returning',
                 'sqlite-current-view-source-returning-drain',
                 'sqlite-next-view-source-attempted-only',
@@ -1207,19 +1207,19 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function normalizeRowsNext161(array $rows, string $key): array
+    private static function normalizeRecursiveViewBoundaryAdmissionRows(array $rows, string $key): array
     {
         if (!array_is_list($rows)) {
-            throw new InvalidArgumentException('SQLite recursive view RETURNING next161 rows must be a list');
+            throw new InvalidArgumentException('SQLite recursive view RETURNING current-source admission rows must be a list');
         }
         $seen = [];
         foreach ($rows as $row) {
             if (!is_array($row) || !array_key_exists($key, $row)) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next161 row key {$key} is missing");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING current-source admission row key {$key} is missing");
             }
             $value = (string) $row[$key];
             if (isset($seen[$value])) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next161 duplicate key {$value}");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING current-source admission duplicate key {$value}");
             }
             $seen[$value] = true;
         }
@@ -1231,37 +1231,37 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $view
      * @return array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column:string,recursive_suffix:string,audit_label:string}
      */
-    private static function normalizeViewNext161(array $view, string $label): array
+    private static function normalizeRecursiveViewBoundaryAdmissionDefinition(array $view, string $label): array
     {
         $columns = $view['columns'] ?? null;
         $mapping = $view['mapping'] ?? null;
         if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next161 {$label} columns must be a non-empty list");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING current-source admission {$label} columns must be a non-empty list");
         }
         if (!is_array($mapping) || $mapping === []) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next161 {$label} mapping must not be empty");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING current-source admission {$label} mapping must not be empty");
         }
 
         $normalized = [
-            'name' => self::identifierNext161((string) ($view['name'] ?? ''), $label . ' name'),
-            'source' => self::tokenNext161((string) ($view['source'] ?? ''), $label . ' source'),
-            'trigger' => self::identifierNext161((string) ($view['trigger'] ?? ''), $label . ' trigger'),
-            'trigger_source' => self::tokenNext161((string) ($view['trigger_source'] ?? ''), $label . ' trigger source'),
-            'columns' => array_map(static fn (mixed $column): string => self::identifierNext161((string) $column, $label . ' column'), $columns),
+            'name' => self::recursiveViewBoundaryAdmissionIdentifier((string) ($view['name'] ?? ''), $label . ' name'),
+            'source' => self::recursiveViewBoundaryAdmissionToken((string) ($view['source'] ?? ''), $label . ' source'),
+            'trigger' => self::recursiveViewBoundaryAdmissionIdentifier((string) ($view['trigger'] ?? ''), $label . ' trigger'),
+            'trigger_source' => self::recursiveViewBoundaryAdmissionToken((string) ($view['trigger_source'] ?? ''), $label . ' trigger source'),
+            'columns' => array_map(static fn (mixed $column): string => self::recursiveViewBoundaryAdmissionIdentifier((string) $column, $label . ' column'), $columns),
             'mapping' => [],
-            'recursive_column' => self::identifierNext161((string) ($view['recursive_column'] ?? 'name'), $label . ' recursive column'),
-            'recursive_suffix' => self::tokenNext161((string) ($view['recursive_suffix'] ?? '_child'), $label . ' recursive suffix'),
-            'audit_label' => self::tokenNext161((string) ($view['audit_label'] ?? $label), $label . ' audit label'),
+            'recursive_column' => self::recursiveViewBoundaryAdmissionIdentifier((string) ($view['recursive_column'] ?? 'name'), $label . ' recursive column'),
+            'recursive_suffix' => self::recursiveViewBoundaryAdmissionToken((string) ($view['recursive_suffix'] ?? '_child'), $label . ' recursive suffix'),
+            'audit_label' => self::recursiveViewBoundaryAdmissionToken((string) ($view['audit_label'] ?? $label), $label . ' audit label'),
         ];
         foreach ($mapping as $viewColumn => $tableColumn) {
-            $viewColumn = self::identifierNext161((string) $viewColumn, $label . ' mapping view column');
+            $viewColumn = self::recursiveViewBoundaryAdmissionIdentifier((string) $viewColumn, $label . ' mapping view column');
             if (!in_array($viewColumn, $normalized['columns'], true)) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next161 {$label} mapping column {$viewColumn} is not visible");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING current-source admission {$label} mapping column {$viewColumn} is not visible");
             }
-            $normalized['mapping'][$viewColumn] = self::identifierNext161((string) $tableColumn, $label . ' mapping table column');
+            $normalized['mapping'][$viewColumn] = self::recursiveViewBoundaryAdmissionIdentifier((string) $tableColumn, $label . ' mapping table column');
         }
         if (!array_key_exists($normalized['recursive_column'], $normalized['mapping'])) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next161 {$label} recursive column is not mapped");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING current-source admission {$label} recursive column is not mapped");
         }
 
         return $normalized;
@@ -1274,12 +1274,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,array<string,mixed>,string,int,int,string):mixed> $returning
      * @return array{rows:list<array<string,mixed>>,yield_stream:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,recursive_edges:list<array<string,mixed>>,changes:int,statement_rows:int}
      */
-    private static function runViewSourceNext161(array $rows, array $input, array $view, array $returning, string $key, bool $recursive, int $maxDepth, string $phase): array
+    private static function runRecursiveViewBoundaryAdmissionSource(array $rows, array $input, array $view, array $returning, string $key, bool $recursive, int $maxDepth, string $phase): array
     {
         $queue = [];
         foreach (array_values($input) as $ordinal => $row) {
             if (!is_array($row)) {
-                throw new InvalidArgumentException('SQLite recursive view RETURNING next161 input row must be an array');
+                throw new InvalidArgumentException('SQLite recursive view RETURNING current-source admission input row must be an array');
             }
             $queue[] = ['view_row' => $row, 'ordinal' => (int) $ordinal, 'depth' => 0, 'parent' => null];
         }
@@ -1293,15 +1293,15 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         while ($queue !== []) {
             $item = array_shift($queue);
-            $incoming = self::projectViewRowNext161($item['view_row'], $view);
+            $incoming = self::projectRecursiveViewBoundaryAdmissionRow($item['view_row'], $view);
             $rowKey = (string) ($incoming[$key] ?? '');
             if ($rowKey === '') {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next161 projected key {$key} is empty");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING current-source admission projected key {$key} is empty");
             }
-            $event = self::rowIndexNext161($rows, $key, $rowKey) === null ? 'insert' : 'update';
-            $rows = self::upsertRowNext161($rows, $key, $incoming);
-            $returningRow = self::returningRowNext161($returning, $incoming, $item['view_row'], $event, (int) $item['ordinal'], (int) $item['depth'], $view['trigger_source']);
-            $envelope = self::returningEnvelopeNext161($phase, $view, (int) $item['ordinal'], (int) $item['depth'], $event, $returningRow);
+            $event = self::recursiveViewBoundaryAdmissionRowIndex($rows, $key, $rowKey) === null ? 'insert' : 'update';
+            $rows = self::upsertRecursiveViewBoundaryAdmissionRow($rows, $key, $incoming);
+            $returningRow = self::recursiveViewBoundaryAdmissionReturningRow($returning, $incoming, $item['view_row'], $event, (int) $item['ordinal'], (int) $item['depth'], $view['trigger_source']);
+            $envelope = self::recursiveViewBoundaryAdmissionReturningEnvelope($phase, $view, (int) $item['ordinal'], (int) $item['depth'], $event, $returningRow);
             $returningRows[] = $envelope;
             $yield[] = $envelope + [
                 'status' => 'changed',
@@ -1326,7 +1326,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 continue;
             }
 
-            $childViewRow = self::childViewRowNext161($item['view_row'], $view);
+            $childViewRow = self::childRecursiveViewBoundaryAdmissionRow($item['view_row'], $view);
             $queue[] = [
                 'view_row' => $childViewRow,
                 'ordinal' => $statementRows,
@@ -1360,12 +1360,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column:string,recursive_suffix:string,audit_label:string} $view
      * @return array<string,mixed>
      */
-    private static function projectViewRowNext161(array $viewRow, array $view): array
+    private static function projectRecursiveViewBoundaryAdmissionRow(array $viewRow, array $view): array
     {
         $row = [];
         foreach ($view['mapping'] as $viewColumn => $tableColumn) {
             if (!array_key_exists($viewColumn, $viewRow)) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next161 missing view column {$viewColumn}");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING current-source admission missing view column {$viewColumn}");
             }
             $row[$tableColumn] = $viewRow[$viewColumn];
         }
@@ -1378,7 +1378,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column:string,recursive_suffix:string,audit_label:string} $view
      * @return array<string,mixed>
      */
-    private static function childViewRowNext161(array $viewRow, array $view): array
+    private static function childRecursiveViewBoundaryAdmissionRow(array $viewRow, array $view): array
     {
         $child = $viewRow;
         $column = $view['recursive_column'];
@@ -1397,9 +1397,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function upsertRowNext161(array $rows, string $key, array $incoming): array
+    private static function upsertRecursiveViewBoundaryAdmissionRow(array $rows, string $key, array $incoming): array
     {
-        $index = self::rowIndexNext161($rows, $key, (string) $incoming[$key]);
+        $index = self::recursiveViewBoundaryAdmissionRowIndex($rows, $key, (string) $incoming[$key]);
         if ($index === null) {
             $rows[] = $incoming;
             return $rows;
@@ -1409,7 +1409,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $rows;
     }
 
-    private static function rowIndexNext161(array $rows, string $key, string $value): ?int
+    private static function recursiveViewBoundaryAdmissionRowIndex(array $rows, string $key, string $value): ?int
     {
         foreach ($rows as $index => $row) {
             if ((string) ($row[$key] ?? '') === $value) {
@@ -1424,32 +1424,32 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,array<string,mixed>,string,int,int,string):mixed> $returning
      * @return array<string,mixed>
      */
-    private static function returningRowNext161(array $returning, array $new, array $viewRow, string $event, int $ordinal, int $depth, string $source): array
+    private static function recursiveViewBoundaryAdmissionReturningRow(array $returning, array $new, array $viewRow, string $event, int $ordinal, int $depth, string $source): array
     {
         $out = [];
         foreach (array_values($returning) as $index => $expr) {
             if (is_string($expr)) {
                 $alias = str_starts_with($expr, 'new.') ? substr($expr, 4) : $expr;
-                $out[$alias] = self::exprValueNext161($expr, $new, $viewRow, $event, $ordinal, $depth, $source);
+                $out[$alias] = self::recursiveViewBoundaryAdmissionExpressionValue($expr, $new, $viewRow, $event, $ordinal, $depth, $source);
                 continue;
             }
             if (is_array($expr)) {
                 $sql = (string) ($expr['expr'] ?? '');
                 $alias = (string) ($expr['as'] ?? (str_starts_with($sql, 'new.') ? substr($sql, 4) : $sql));
-                $out[self::identifierNext161($alias, 'RETURNING alias')] = self::exprValueNext161($sql, $new, $viewRow, $event, $ordinal, $depth, $source);
+                $out[self::recursiveViewBoundaryAdmissionIdentifier($alias, 'RETURNING alias')] = self::recursiveViewBoundaryAdmissionExpressionValue($sql, $new, $viewRow, $event, $ordinal, $depth, $source);
                 continue;
             }
             if (is_callable($expr)) {
                 $out['expr' . $index] = $expr($new, $viewRow, $event, $ordinal, $depth, $source);
                 continue;
             }
-            throw new InvalidArgumentException('SQLite recursive view RETURNING next161 projection expression is unsupported');
+            throw new InvalidArgumentException('SQLite recursive view RETURNING current-source admission projection expression is unsupported');
         }
 
         return $out;
     }
 
-    private static function exprValueNext161(string $expr, array $new, array $viewRow, string $event, int $ordinal, int $depth, string $source): mixed
+    private static function recursiveViewBoundaryAdmissionExpressionValue(string $expr, array $new, array $viewRow, string $event, int $ordinal, int $depth, string $source): mixed
     {
         return match ($expr) {
             'event' => $event,
@@ -1468,7 +1468,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column:string,recursive_suffix:string,audit_label:string} $view
      * @return array<string,mixed>
      */
-    private static function returningEnvelopeNext161(string $phase, array $view, int $ordinal, int $depth, string $event, array $returning): array
+    private static function recursiveViewBoundaryAdmissionReturningEnvelope(string $phase, array $view, int $ordinal, int $depth, string $event, array $returning): array
     {
         return [
             'phase' => $phase,
@@ -1487,7 +1487,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column:string,recursive_suffix:string,audit_label:string} $view
      * @return array<string,mixed>
      */
-    private static function viewSummaryNext161(array $view): array
+    private static function recursiveViewBoundaryAdmissionSummary(array $view): array
     {
         return [
             'name' => $view['name'],
@@ -1502,19 +1502,19 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
-    private static function identifierNext161(string $value, string $label): string
+    private static function recursiveViewBoundaryAdmissionIdentifier(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next161 {$label} is malformed");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING current-source admission {$label} is malformed");
         }
 
         return $value;
     }
 
-    private static function tokenNext161(string $value, string $label): string
+    private static function recursiveViewBoundaryAdmissionToken(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@\\/-]+$/', $value) !== 1) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next161 {$label} is malformed");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING current-source admission {$label} is malformed");
         }
 
         return $value;

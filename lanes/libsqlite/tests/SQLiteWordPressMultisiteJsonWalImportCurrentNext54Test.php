@@ -159,7 +159,7 @@ $cases = [
             ['meta_id' => 70, 'meta_key' => 'network_settings', 'meta_value' => '{"ok":true}'],
         ])],
     ])['wal']['frames'][0]['page_number'],
-    'dependency marker names current next54' => static fn (): mixed => in_array('sqlite-wordpress-multisite-json-wal-import-current-next54', $plan([
+    'dependency marker names multisite JSON WAL import' => static fn (): mixed => in_array('sqlite-wordpress-multisite-json-wal-import', $plan([
         ['name' => 'deps', 'blog_id' => 1, 'json' => $jsonRows([
             ['option_name' => 'deps_settings', 'option_value' => '{"ok":true}'],
         ])],
@@ -230,7 +230,7 @@ $expected = [
     'WAL frames preserve savepoint names in order' => ['first_blog', 'second_blog'],
     'page numbers isolate blog tables' => [3, 19],
     'network page numbers use network range' => 41,
-    'dependency marker names current next54' => true,
+    'dependency marker names multisite JSON WAL import' => true,
     'bad source type rolls back batch as JSON admission failure' => 'rolled_back',
     'bad blog id rolls back row normalization failure' => 'rolled_back',
     'later network release does not release open next blog preview' => [

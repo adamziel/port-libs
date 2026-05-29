@@ -127,7 +127,7 @@ final class SQLiteWordPressJsonSchemaWalSavepointPlan
             'dependencies' => [
                 'sqlite-schema-cookie-current',
                 'sqlite-wal-savepoint-current',
-                'sqlite-wordpress-json-schema-wal-savepoint-current-next51',
+                'sqlite-wordpress-json-schema-wal-savepoint',
             ],
         ];
     }

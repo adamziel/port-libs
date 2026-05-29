@@ -157,8 +157,8 @@ final class SQLiteWordPressNetworkJsonWalSavepointPlan
                 'current_next47' => true,
             ],
             'dependencies' => [
-                'sqlite-wordpress-network-json-wal-savepoint-current-next47',
-                'sqlite-wordpress-json-import-wal-savepoint-current-next35',
+                'sqlite-wordpress-network-json-wal-savepoint',
+                'sqlite-wordpress-json-import-wal-savepoint',
                 'sqlite-savepoint-wal-rollback',
             ],
         ];

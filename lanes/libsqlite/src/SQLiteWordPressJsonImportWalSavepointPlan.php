@@ -212,7 +212,7 @@ final class SQLiteWordPressJsonImportWalSavepointPlan
                 'current_next35' => true,
             ],
             'dependencies' => [
-                'sqlite-wordpress-json-import-wal-savepoint-current-next35',
+                'sqlite-wordpress-json-import-wal-savepoint',
                 'sqlite-wordpress-import-transaction-current',
                 'sqlite-json-extract',
                 'sqlite-savepoint-wal-rollback',

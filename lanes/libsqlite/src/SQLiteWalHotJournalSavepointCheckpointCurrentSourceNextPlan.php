@@ -10682,19 +10682,19 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 public static function plan(array $writerPlan, array $appendBatches, int $nextCommitFrame): array
                 {
                     if (($writerPlan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next209') {
-                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next210 requires an admitted next209 writer plan');
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission requires an admitted next209 writer plan');
                     }
                     if ($appendBatches === []) {
-                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next210 requires append batches');
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission requires append batches');
                     }
 
                     $minimumStatementGeneration = self::intField($writerPlan, 'minimum_statement_generation', 0);
                     $nextWriterGeneration = self::intField($writerPlan, 'next_writer_generation', $minimumStatementGeneration + 1);
                     if ($nextWriterGeneration <= $minimumStatementGeneration) {
-                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next210 writer generation must follow the statement generation');
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission writer generation must follow the statement generation');
                     }
                     if ($nextCommitFrame < 1) {
-                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next210 commit frame must be positive');
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission commit frame must be positive');
                     }
 
                     $databaseDigest = self::digestField($writerPlan, 'checkpointed_database_digest');
@@ -10704,7 +10704,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                     $reopenWriters = self::stringList($writerPlan, 'reopen_writer_names');
                     $blockedGuards = $writerPlan['blocked_guard_names'] ?? null;
                     if (!is_array($blockedGuards)) {
-                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next210 requires next209 guard state');
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission requires next209 guard state');
                     }
 
                     $batchRows = [];
@@ -10742,16 +10742,16 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                             'reason' => 'accepted appends cannot retain hot rollback-journal identity',
                         ],
                     ];
-                    $blockedGuardsNext210 = array_values(array_column(
+                    $blockedAppendAdmissionGuards = array_values(array_column(
                         array_filter($guardRows, static fn (array $row): bool => !$row['matched']),
                         'name'
                     ));
-                    $ready = $blockedGuardsNext210 === [];
+                    $ready = $blockedAppendAdmissionGuards === [];
 
                     return [
                         'status' => $ready
-                            ? 'wal-hot-journal-savepoint-checkpoint-current-source-next210'
-                            : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next210',
+                            ? 'wal-hot-journal-savepoint-checkpoint-post-checkpoint-append-admission'
+                            : 'wal-hot-journal-savepoint-checkpoint-post-checkpoint-append-admission-blocked',
                         'reason' => $ready
                             ? 'post_checkpoint_wal_appends_follow_current_writer_generation'
                             : 'post_checkpoint_wal_appends_wait_for_current_source_refresh',
@@ -10774,14 +10774,14 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'guard_rows' => $guardRows,
                         'guard_names' => array_column($guardRows, 'name'),
                         'guard_matches' => array_column($guardRows, 'matched'),
-                        'blocked_guard_names' => $blockedGuardsNext210,
+                        'blocked_guard_names' => $blockedAppendAdmissionGuards,
                         'operation_names' => array_values(array_merge(
                             is_array($writerPlan['operation_names'] ?? null) ? $writerPlan['operation_names'] : [],
-                            ['verify_post_checkpoint_wal_append_current_source_next210'],
+                            ['verify_post_checkpoint_wal_append_admission'],
                             array_map(
                                 static fn (array $row): string => $row['accepted']
-                                    ? 'accept_post_checkpoint_wal_append_current_source_next210'
-                                    : 'block_post_checkpoint_wal_append_current_source_next210',
+                                    ? 'accept_post_checkpoint_wal_append_batch'
+                                    : 'block_post_checkpoint_wal_append_batch',
                                 $batchRows
                             )
                         )),
@@ -10792,13 +10792,13 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         'dependencies' => array_values(array_unique(array_merge(
                             is_array($writerPlan['dependencies'] ?? null) ? $writerPlan['dependencies'] : [],
                             [
-                                'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next210',
+                                'sqlite-wal-post-checkpoint-append-admission',
                                 'sqlite-post-checkpoint-wal-append-generation-fence',
                                 'wordpress-import-post-checkpoint-wal-append-after-hot-journal',
                             ]
                         ))),
                         'dependency_closure' => 'no new support component needed; reuses next209 writer-generation fences, WAL/database digests, and append-frame metadata',
-                        'non_overlap' => 'next210 gates new WAL append batches after next209 writer reuse; it does not repeat next208 reader-slot reuse, next209 writer-handle admission, WAL byte truncation, checkpoint transaction planning, VFS savepoint rollback apply, rollback-journal commit/apply, WAL file writing, or hot-journal recovery application',
+                        'non_overlap' => 'post-checkpoint append admission gates new WAL append batches after next209 writer reuse; it does not repeat next208 reader-slot reuse, next209 writer-handle admission, WAL byte truncation, checkpoint transaction planning, VFS savepoint rollback apply, rollback-journal commit/apply, WAL file writing, or hot-journal recovery application',
                     ];
                 }
 
@@ -10809,7 +10809,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 {
                     $value = $values[$key] ?? null;
                     if (!is_int($value) || $value < $minimum) {
-                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next210 requires {$key}");
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission requires {$key}");
                     }
 
                     return $value;
@@ -10822,7 +10822,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 {
                     $value = $values[$key] ?? null;
                     if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
-                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next210 requires {$key}");
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission requires {$key}");
                     }
 
                     return $value;
@@ -10836,11 +10836,11 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 {
                     $list = $values[$key] ?? null;
                     if (!is_array($list) || $list === []) {
-                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next210 requires {$key}");
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission requires {$key}");
                     }
                     foreach ($list as $value) {
                         if (!is_string($value) || $value === '') {
-                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next210 {$key} must contain non-empty strings");
+                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission {$key} must contain non-empty strings");
                         }
                     }
 
@@ -10865,11 +10865,11 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                 ): array {
                     $name = $batch['name'] ?? null;
                     if (!is_string($name) || $name === '') {
-                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next210 append batch name is required');
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission append batch name is required');
                     }
                     $writer = $batch['writer_name'] ?? null;
                     if (!is_string($writer) || $writer === '') {
-                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next210 {$name} writer name is required");
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission {$name} writer name is required");
                     }
                     $writerGeneration = $batch['writer_generation'] ?? null;
                     $checkpointFrame = $batch['checkpoint_frame'] ?? null;
@@ -10877,23 +10877,23 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                     $commitFrame = $batch['commit_frame'] ?? null;
                     foreach (['writer_generation' => $writerGeneration, 'checkpoint_frame' => $checkpointFrame, 'first_frame' => $firstFrame, 'commit_frame' => $commitFrame] as $key => $value) {
                         if (!is_int($value) || $value < 0) {
-                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next210 {$name} {$key} must be a non-negative integer");
+                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission {$name} {$key} must be a non-negative integer");
                         }
                     }
                     foreach (['observed_database_digest', 'observed_wal_digest', 'observed_consumer_digest'] as $key) {
                         if (!is_string($batch[$key] ?? null) || !preg_match('/^[a-f0-9]{64}$/', (string) $batch[$key])) {
-                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next210 {$name} {$key} is required");
+                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission {$name} {$key} is required");
                         }
                     }
                     $pageDigests = $batch['page_digests'] ?? null;
                     if (!is_array($pageDigests) || $pageDigests === []) {
-                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next210 {$name} page digests are required");
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission {$name} page digests are required");
                     }
                     $normalizedPages = [];
                     foreach ($pageDigests as $page => $digest) {
                         $pageNumber = (int) $page;
                         if ($pageNumber <= 0 || !is_string($digest) || !preg_match('/^[a-f0-9]{64}$/', $digest)) {
-                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next210 {$name} page digests must map positive pages to sha256 strings");
+                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission {$name} page digests must map positive pages to sha256 strings");
                         }
                         $normalizedPages[$pageNumber] = $digest;
                     }
@@ -10926,7 +10926,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                     }
                     if (($batch['hot_journal_digest'] ?? null) !== null) {
                         if (!is_string($batch['hot_journal_digest']) || !preg_match('/^[a-f0-9]{64}$/', $batch['hot_journal_digest'])) {
-                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next210 {$name} hot journal digest must be a sha256 string or null");
+                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint post-checkpoint append admission {$name} hot journal digest must be a sha256 string or null");
                         }
                         $reasons[] = 'append_retains_hot_journal_digest';
                     }

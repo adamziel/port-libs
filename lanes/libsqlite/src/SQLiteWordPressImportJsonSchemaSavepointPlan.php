@@ -119,7 +119,7 @@ final class SQLiteWordPressImportJsonSchemaSavepointPlan
             ],
             'dependencies' => [
                 'sqlite-wordpress-import-json-schema-savepoint',
-                'sqlite-wordpress-json-import-wal-savepoint-current-next35',
+                'sqlite-wordpress-json-import-wal-savepoint',
                 'sqlite-wordpress-import-transaction-current',
                 'sqlite-json-extract',
             ],

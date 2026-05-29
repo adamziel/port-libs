@@ -82,9 +82,9 @@ final class SQLiteWordPressSchemaJsonWalImportPlan
                 'checkpoint_or_leave_wal',
             ])),
             'dependencies' => [
-                'sqlite-wordpress-schema-bulk-import-current-next33',
-                'sqlite-wordpress-json-import-savepoint-current-next31',
-                'sqlite-wal-import-yield-current-next41',
+                'sqlite-wordpress-schema-bulk-import',
+                'sqlite-wordpress-json-import-savepoint',
+                'sqlite-wal-import-yield',
             ],
         ];
     }
