@@ -69,7 +69,7 @@ final class SQLiteVfsCurrentSourceNextPlan
             'next578-593' => self::runPriorPublishedReuseSnapshotFence($operations, $options),
             'next594-609' => self::runPrePublishedReuseSnapshotFence($operations, $options),
             'next610-625' => self::runPublishedReuseSnapshotFence($operations, $options),
-            'next626-641' => self::runExtendedPublishedReuseSnapshotFence($operations, $options),
+            'extended-published-reuse-snapshot-fence' => self::runExtendedPublishedReuseSnapshotFence($operations, $options),
             default => throw new \InvalidArgumentException('SQLite VFS current-source stable helper does not support slice ' . $slice),
         };
     }
@@ -78,7 +78,7 @@ final class SQLiteVfsCurrentSourceNextPlan
     {
         if (isset($options['slice'])) {
             $slice = strtolower(trim((string) $options['slice']));
-            if ($slice !== 'close-reopen-current-source' && preg_match('/^next\d+-\d+$/', $slice) !== 1) {
+            if (!in_array($slice, ['close-reopen-current-source', 'extended-published-reuse-snapshot-fence'], true) && preg_match('/^next\d+-\d+$/', $slice) !== 1) {
                 throw new \InvalidArgumentException('SQLite VFS current-source slice is unsupported');
             }
             return $slice;
@@ -87,13 +87,13 @@ final class SQLiteVfsCurrentSourceNextPlan
             $file = isset($frame['file']) ? (string) $frame['file'] : '';
             if (preg_match('/current-source-next(?<start>\d+)-(?<end>\d+)/i', $file, $matches) === 1) {
                 $candidate = 'next' . $matches['start'] . '-' . $matches['end'];
-                if (in_array($candidate, ['next146-149', 'close-reopen-current-source', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next206-209', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625', 'next626-641'], true)) {
+                if (in_array($candidate, ['next146-149', 'close-reopen-current-source', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next206-209', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625'], true)) {
                     return $candidate;
                 }
             }
             if (preg_match('/SQLiteVfsCurrentSourceNext(?<start>\d+)(?<end>\d{3})Test\.php$/', $file, $matches) === 1) {
                 $candidate = 'next' . $matches['start'] . '-' . $matches['end'];
-                if (in_array($candidate, ['next146-149', 'close-reopen-current-source', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next206-209', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625', 'next626-641'], true)) {
+                if (in_array($candidate, ['next146-149', 'close-reopen-current-source', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next206-209', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625'], true)) {
                     return $candidate;
                 }
             }
@@ -158,12 +158,12 @@ final class SQLiteVfsCurrentSourceNextPlan
                     $end >= 578 && $end <= 593 => 'next578-593',
                     $end >= 594 && $end <= 609 => 'next594-609',
                     $end >= 610 && $end <= 625 => 'next610-625',
-                    $end >= 626 && $end <= 641 => 'next626-641',
-                    default => 'next626-641',
+                    $end >= 626 && $end <= 641 => 'extended-published-reuse-snapshot-fence',
+                    default => 'extended-published-reuse-snapshot-fence',
                 };
             }
         }
-        return 'next626-641';
+        return 'extended-published-reuse-snapshot-fence';
     }
 
     // Consolidated behavior from next146-149.
@@ -23213,7 +23213,7 @@ private static function run158161(array $operations, array $options = []): array
     private static function runExtendedPublishedReuseSnapshotFence(array $operations, array $options = []): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next626-641 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS current-source extended published-reuse snapshot fence requires operations');
         }
 
         $state = self::hydrateExtendedPublishedReuseSnapshotFence($options['current'] ?? []);
@@ -23261,7 +23261,7 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
 
-            throw new \InvalidArgumentException('SQLite VFS current-source next626-641 operation is unsupported');
+            throw new \InvalidArgumentException('SQLite VFS current-source extended published-reuse snapshot fence operation is unsupported');
         }
 
         return [
@@ -23301,7 +23301,7 @@ private static function run158161(array $operations, array $options = []): array
                 'vfs-current-source-snapshot-reuse-publish-next546-561',
                 'vfs-current-source-snapshot-reuse-publish-next562-577',
                 'vfs-current-source-snapshot-reuse-publish-next610-625',
-                'vfs-current-source-snapshot-reuse-publish-next626-641',
+                'vfs-current-source-extended-published-reuse-snapshot-fence',
                 'vfs-current-source-snapshot-reuse-publish-next642-657',
                 'vfs-current-source-snapshot-reuse-publish-next658-673',
                 'vfs-current-source-snapshot-reuse-publish-next674-689',
@@ -23336,7 +23336,7 @@ private static function run158161(array $operations, array $options = []): array
                 'vfs-current-source-snapshot-reuse-publish-next1138-1153',
                 'vfs-current-source-snapshot-reuse-publish-next1154-1169',
             ],
-            'non_overlap' => 'next626-641 follows merged next610-625 by requiring the shared-cache-next625 receipt before creating a fresh current-source snapshot and publishing shared-cache-next641; next642-657 follows the integrated next626-641 handoff by requiring shared-cache-next641 before publishing shared-cache-next657; next658-673 follows the integrated next642-657 handoff by requiring shared-cache-next657 before publishing shared-cache-next673; next674-689 follows the integrated next658-673 handoff by requiring shared-cache-next673 before publishing shared-cache-next689; next690-705 follows the integrated next674-689 handoff by requiring shared-cache-next689 before publishing shared-cache-next705; next706-721 follows the integrated next690-705 handoff by requiring shared-cache-next705 before publishing shared-cache-next721; next722-737 follows the integrated next706-721 handoff by requiring shared-cache-next721 before publishing shared-cache-next737; next738-753 follows the integrated next722-737 handoff by requiring shared-cache-next737 before publishing shared-cache-next753; next754-769 follows the integrated next738-753 handoff by requiring shared-cache-next753 before publishing shared-cache-next769; next770-785 follows the integrated next754-769 handoff by requiring shared-cache-next769 before publishing shared-cache-next785; next786-801 follows the integrated next770-785 handoff by requiring shared-cache-next785 before publishing shared-cache-next801; next802-817 follows the integrated next786-801 handoff by requiring shared-cache-next801 before publishing shared-cache-next817; next818-833 follows the integrated next802-817 handoff by requiring shared-cache-next817 before publishing shared-cache-next833; next834-849 follows the integrated next818-833 handoff by requiring shared-cache-next833 before publishing shared-cache-next849; next850-865 follows the integrated next834-849 handoff by requiring shared-cache-next849 before publishing shared-cache-next865; next866-881 follows the integrated next850-865 handoff by requiring shared-cache-next865 before publishing shared-cache-next881; next882-897 follows the integrated next866-881 handoff by requiring shared-cache-next881 before publishing shared-cache-next897; next898-913 follows the integrated next882-897 handoff by requiring shared-cache-next897 before publishing shared-cache-next913; next914-929 follows the integrated next898-913 handoff by requiring shared-cache-next913 before publishing shared-cache-next929; next930-945 follows the integrated next914-929 handoff by requiring shared-cache-next929 before publishing shared-cache-next945; next946-961 follows the integrated next930-945 handoff by requiring shared-cache-next945 before publishing shared-cache-next961; next962-977 follows the integrated next946-961 handoff by requiring shared-cache-next961 before publishing shared-cache-next977; next978-993 follows the integrated next962-977 handoff by requiring shared-cache-next977 before publishing shared-cache-next993; next994-1009 follows the integrated next978-993 handoff by requiring shared-cache-next993 before publishing shared-cache-next1009; next1010-1025 follows the integrated next994-1009 handoff by requiring shared-cache-next1009 before publishing shared-cache-next1025; next1026-1041 follows the integrated next1010-1025 handoff by requiring shared-cache-next1025 before publishing shared-cache-next1041; next1042-1057 follows the integrated next1026-1041 handoff by requiring shared-cache-next1041 before publishing shared-cache-next1057; next1058-1073 follows the integrated next1042-1057 handoff by requiring shared-cache-next1057 before publishing shared-cache-next1073; next1074-1089 follows the integrated next1058-1073 handoff by requiring shared-cache-next1073 before publishing shared-cache-next1089; next1090-1105 follows the integrated next1074-1089 handoff by requiring shared-cache-next1089 before publishing shared-cache-next1105; next1106-1121 follows the integrated next1090-1105 handoff by requiring shared-cache-next1105 before publishing shared-cache-next1121; next1122-1137 follows the integrated next1106-1121 handoff by requiring shared-cache-next1121 before publishing shared-cache-next1137; next1138-1153 follows the integrated next1122-1137 handoff by requiring shared-cache-next1137 before publishing shared-cache-next1153; next1154-1169 follows the integrated next1138-1153 handoff by requiring shared-cache-next1153 before publishing shared-cache-next1169. These windows do not modify prior next610-625 files, earlier capture/readiness/lease gates, dirty flushing, VFS locking, WAL checkpointing, or B-tree behavior.',
+            'non_overlap' => 'extended published-reuse snapshot fence follows merged next610-625 by requiring the shared-cache-next625 receipt before creating a fresh current-source snapshot and publishing shared-cache-next641; next642-657 follows the integrated extended published-reuse snapshot fence handoff by requiring shared-cache-next641 before publishing shared-cache-next657; next658-673 follows the integrated next642-657 handoff by requiring shared-cache-next657 before publishing shared-cache-next673; next674-689 follows the integrated next658-673 handoff by requiring shared-cache-next673 before publishing shared-cache-next689; next690-705 follows the integrated next674-689 handoff by requiring shared-cache-next689 before publishing shared-cache-next705; next706-721 follows the integrated next690-705 handoff by requiring shared-cache-next705 before publishing shared-cache-next721; next722-737 follows the integrated next706-721 handoff by requiring shared-cache-next721 before publishing shared-cache-next737; next738-753 follows the integrated next722-737 handoff by requiring shared-cache-next737 before publishing shared-cache-next753; next754-769 follows the integrated next738-753 handoff by requiring shared-cache-next753 before publishing shared-cache-next769; next770-785 follows the integrated next754-769 handoff by requiring shared-cache-next769 before publishing shared-cache-next785; next786-801 follows the integrated next770-785 handoff by requiring shared-cache-next785 before publishing shared-cache-next801; next802-817 follows the integrated next786-801 handoff by requiring shared-cache-next801 before publishing shared-cache-next817; next818-833 follows the integrated next802-817 handoff by requiring shared-cache-next817 before publishing shared-cache-next833; next834-849 follows the integrated next818-833 handoff by requiring shared-cache-next833 before publishing shared-cache-next849; next850-865 follows the integrated next834-849 handoff by requiring shared-cache-next849 before publishing shared-cache-next865; next866-881 follows the integrated next850-865 handoff by requiring shared-cache-next865 before publishing shared-cache-next881; next882-897 follows the integrated next866-881 handoff by requiring shared-cache-next881 before publishing shared-cache-next897; next898-913 follows the integrated next882-897 handoff by requiring shared-cache-next897 before publishing shared-cache-next913; next914-929 follows the integrated next898-913 handoff by requiring shared-cache-next913 before publishing shared-cache-next929; next930-945 follows the integrated next914-929 handoff by requiring shared-cache-next929 before publishing shared-cache-next945; next946-961 follows the integrated next930-945 handoff by requiring shared-cache-next945 before publishing shared-cache-next961; next962-977 follows the integrated next946-961 handoff by requiring shared-cache-next961 before publishing shared-cache-next977; next978-993 follows the integrated next962-977 handoff by requiring shared-cache-next977 before publishing shared-cache-next993; next994-1009 follows the integrated next978-993 handoff by requiring shared-cache-next993 before publishing shared-cache-next1009; next1010-1025 follows the integrated next994-1009 handoff by requiring shared-cache-next1009 before publishing shared-cache-next1025; next1026-1041 follows the integrated next1010-1025 handoff by requiring shared-cache-next1025 before publishing shared-cache-next1041; next1042-1057 follows the integrated next1026-1041 handoff by requiring shared-cache-next1041 before publishing shared-cache-next1057; next1058-1073 follows the integrated next1042-1057 handoff by requiring shared-cache-next1057 before publishing shared-cache-next1073; next1074-1089 follows the integrated next1058-1073 handoff by requiring shared-cache-next1073 before publishing shared-cache-next1089; next1090-1105 follows the integrated next1074-1089 handoff by requiring shared-cache-next1089 before publishing shared-cache-next1105; next1106-1121 follows the integrated next1090-1105 handoff by requiring shared-cache-next1105 before publishing shared-cache-next1121; next1122-1137 follows the integrated next1106-1121 handoff by requiring shared-cache-next1121 before publishing shared-cache-next1137; next1138-1153 follows the integrated next1122-1137 handoff by requiring shared-cache-next1137 before publishing shared-cache-next1153; next1154-1169 follows the integrated next1138-1153 handoff by requiring shared-cache-next1153 before publishing shared-cache-next1169. These windows do not modify merged next610-625 files, earlier capture/readiness/lease gates, dirty flushing, VFS locking, WAL checkpointing, or B-tree behavior.',
         ];
     }
 
@@ -23553,7 +23553,7 @@ private static function run158161(array $operations, array $options = []): array
         if (preg_match('/^publish\s*\(\s*(?<snapshot>[A-Za-z0-9_.:-]+)\s*,\s*(?<claim>[A-Za-z0-9_.:-]+)\s*,\s*(?<token>[A-Za-z0-9_.:-]+)\s*\)$/', $trimmed, $matches) === 1) {
             return ['kind' => 'publish', 'snapshot' => $matches['snapshot'], 'claim' => $matches['claim'], 'token' => $matches['token']];
         }
-        throw new \InvalidArgumentException('SQLite VFS current-source next626-641 operation is unsupported');
+        throw new \InvalidArgumentException('SQLite VFS current-source extended published-reuse snapshot fence operation is unsupported');
     }
 
     private static function summaryExtendedPublishedReuseSnapshotFence(array $state): array
@@ -23637,7 +23637,7 @@ private static function run158161(array $operations, array $options = []): array
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next626-641 requires valid paths');
+            throw new \InvalidArgumentException('SQLite VFS current-source extended published-reuse snapshot fence requires valid paths');
         }
         return $path;
     }
@@ -23646,7 +23646,7 @@ private static function run158161(array $operations, array $options = []): array
     {
         $token = trim($token);
         if ($token === '' || preg_match('/^[A-Za-z0-9_.:\/-]+$/', $token) !== 1) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next626-641 requires valid ' . $label);
+            throw new \InvalidArgumentException('SQLite VFS current-source extended published-reuse snapshot fence requires valid ' . $label);
         }
         return $token;
     }
@@ -23654,7 +23654,7 @@ private static function run158161(array $operations, array $options = []): array
     private static function nonNegativeIntExtendedPublishedReuseSnapshotFence(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next626-641 requires non-negative ' . $label);
+            throw new \InvalidArgumentException('SQLite VFS current-source extended published-reuse snapshot fence requires non-negative ' . $label);
         }
         return $value;
     }
@@ -23734,7 +23734,7 @@ private static function run158161(array $operations, array $options = []): array
     private static function positiveIntExtendedPublishedReuseSnapshotFence(mixed $value, string $label): int
     {
         if (!is_int($value) || $value <= 0) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next626-641 requires positive ' . $label);
+            throw new \InvalidArgumentException('SQLite VFS current-source extended published-reuse snapshot fence requires positive ' . $label);
         }
         return $value;
     }

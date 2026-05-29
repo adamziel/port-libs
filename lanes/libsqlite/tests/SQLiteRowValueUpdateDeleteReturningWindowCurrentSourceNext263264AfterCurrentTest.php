@@ -23,12 +23,12 @@ $cases = [
         $t->true(str_contains($result['dependencyClosure'], 'no new support component needed'));
     },
     'combined after-current handoff' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next261-264-after-current.php';
+        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-after-current-segment-peer.php';
 
-        $t->same('rowvalue-update-delete-returning-window-current-source-next261-264-after-current', $result['status']);
+        $t->same('rowvalue-update-delete-returning-window-after-current-segment-peer', $result['status']);
         $t->same([
             'rowvalue-update-delete-returning-window-current-source-next261',
-            'wordpress-rowvalue-returning-window-current-source-next262 self-test passed',
+            'wordpress-rowvalue-returning-window-peer-group-admission self-test passed',
             'rowvalue-update-delete-returning-window-current-source-next263',
             'rowvalue-update-delete-returning-window-current-source-next264',
         ], $result['candidateStatuses']);

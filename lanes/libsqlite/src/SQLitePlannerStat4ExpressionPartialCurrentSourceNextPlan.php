@@ -35073,7 +35073,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializePreparedHandoffResumeWindow($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::preparedHandoffValidationFence($base, $currentSource, $neededColumns);
+        $fence = self::preparedHandoffFenceForRange($base, $currentSource, $neededColumns, "stat4Next862877PreparationFence", 878, 893, "next862-877");
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next862-877-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -35093,7 +35093,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next878893Prepared" => $ready,
                 "next878893HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::preparedHandoffValidationCursorProgram($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::preparedHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next878-893-prep"],
@@ -35102,100 +35102,6 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             "non_overlap" => "prepares next878-893 current-source handoff slices only; avoids changing next862-877 handoff windows, next846-861 handoff windows, next830-845 handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, next558-573 handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " NEXT878-893 PREPARED HANDOFF"),
         ]);
-    }
-
-    private static function preparedHandoffValidationFence(array $base, array $currentSource, array $neededColumns): array
-    {
-        if ($neededColumns === []) {
-            throw new \InvalidArgumentException("SQLite next878-893 needs projected columns");
-        }
-
-        $prior = $base["stat4Next862877PreparationFence"] ?? null;
-        if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next878-893 needs next862-877 handoff fence");
-        }
-
-        $priorWindows = $prior["handoffWindows"] ?? null;
-        if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next878-893 needs next862-877 handoff windows");
-        }
-
-        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
-        $windows = [];
-        $blocked = [];
-        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
-
-        foreach (range(878, 893) as $slice) {
-            $ordinal = $slice - 878;
-            $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
-            if (!is_array($priorWindow)) {
-                throw new \InvalidArgumentException("SQLite next878-893 prior handoff windows must be arrays");
-            }
-
-            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
-            $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
-            $priorProjected = $priorWindow["projectedColumns"] ?? [];
-            $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
-            $ready = is_array($row)
-                && in_array($priorSlice, $priorPrepared, true)
-                && ($priorWindow["prepared"] ?? null) === true
-                && $projectionMatches;
-
-            if (!$ready) {
-                $blocked[] = $slice;
-            }
-
-            $windows[] = [
-                "slice" => $slice,
-                "continuesSlice" => $priorSlice,
-                "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
-                "projectedColumns" => $projected,
-                "priorProjectedColumns" => $priorProjected,
-                "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
-                "projectionMatchesPrior" => $projectionMatches,
-                "prepared" => $ready,
-            ];
-        }
-
-        $prepared = array_values(array_map(
-            static fn (array $window): int => $window["slice"],
-            array_filter($windows, static fn (array $window): bool => $window["prepared"]),
-        ));
-
-        return [
-            "sliceRange" => [878, 893],
-            "sliceCount" => 16,
-            "priorSliceRange" => $prior["sliceRange"] ?? null,
-            "priorHandoffSignature" => $prior["handoffSignature"] ?? null,
-            "previousFenceReady" => ($prior["allSlicesPrepared"] ?? null) === true && count($priorPrepared) === 16,
-            "preparedSlices" => $prepared,
-            "blockedSlices" => $blocked,
-            "allSlicesPrepared" => $blocked === [] && count($prepared) === 16,
-            "handoffWindows" => $windows,
-            "handoffSignature" => hash("sha256", json_encode($windows, JSON_THROW_ON_ERROR)),
-        ];
-    }
-
-    private static function preparedHandoffValidationCursorProgram(array $program, bool $ready, array $fence): array
-    {
-        if (!$ready) {
-            return $program;
-        }
-
-        $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext878893Handoff",
-            "mode" => "next878-893-current-source-stat4-expression-partial-prep",
-            "sliceRange" => $fence["sliceRange"],
-            "priorSliceRange" => $fence["priorSliceRange"],
-            "preparedSlices" => $fence["preparedSlices"],
-            "priorHandoffSignature" => $fence["priorHandoffSignature"],
-            "handoffSignature" => $fence["handoffSignature"],
-        ];
-
-        return $program;
     }
 
     /**
@@ -35214,7 +35120,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializePreparedHandoffValidationWindow($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceLatePreparedHandoff($base, $currentSource, $neededColumns);
+        $fence = self::preparedHandoffFenceForRange($base, $currentSource, $neededColumns, "stat4Next878893PreparationFence", 894, 909, "next878-893");
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next878-893-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -35234,7 +35140,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next894909Prepared" => $ready,
                 "next894909HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramLatePreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::preparedHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next894-909-prep"],
@@ -35243,100 +35149,6 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             "non_overlap" => "prepares next894-909 current-source handoff slices only; avoids changing next878-893 handoff windows, next862-877 handoff windows, next846-861 handoff windows, next830-845 handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, next558-573 handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " NEXT894-909 PREPARED HANDOFF"),
         ]);
-    }
-
-    private static function handoffFenceLatePreparedHandoff(array $base, array $currentSource, array $neededColumns): array
-    {
-        if ($neededColumns === []) {
-            throw new \InvalidArgumentException("SQLite next894-909 needs projected columns");
-        }
-
-        $prior = $base["stat4Next878893PreparationFence"] ?? null;
-        if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next894-909 needs next878-893 handoff fence");
-        }
-
-        $priorWindows = $prior["handoffWindows"] ?? null;
-        if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next894-909 needs next878-893 handoff windows");
-        }
-
-        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
-        $windows = [];
-        $blocked = [];
-        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
-
-        foreach (range(894, 909) as $slice) {
-            $ordinal = $slice - 894;
-            $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
-            if (!is_array($priorWindow)) {
-                throw new \InvalidArgumentException("SQLite next894-909 prior handoff windows must be arrays");
-            }
-
-            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
-            $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
-            $priorProjected = $priorWindow["projectedColumns"] ?? [];
-            $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
-            $ready = is_array($row)
-                && in_array($priorSlice, $priorPrepared, true)
-                && ($priorWindow["prepared"] ?? null) === true
-                && $projectionMatches;
-
-            if (!$ready) {
-                $blocked[] = $slice;
-            }
-
-            $windows[] = [
-                "slice" => $slice,
-                "continuesSlice" => $priorSlice,
-                "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
-                "projectedColumns" => $projected,
-                "priorProjectedColumns" => $priorProjected,
-                "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
-                "projectionMatchesPrior" => $projectionMatches,
-                "prepared" => $ready,
-            ];
-        }
-
-        $prepared = array_values(array_map(
-            static fn (array $window): int => $window["slice"],
-            array_filter($windows, static fn (array $window): bool => $window["prepared"]),
-        ));
-
-        return [
-            "sliceRange" => [894, 909],
-            "sliceCount" => 16,
-            "priorSliceRange" => $prior["sliceRange"] ?? null,
-            "priorHandoffSignature" => $prior["handoffSignature"] ?? null,
-            "previousFenceReady" => ($prior["allSlicesPrepared"] ?? null) === true && count($priorPrepared) === 16,
-            "preparedSlices" => $prepared,
-            "blockedSlices" => $blocked,
-            "allSlicesPrepared" => $blocked === [] && count($prepared) === 16,
-            "handoffWindows" => $windows,
-            "handoffSignature" => hash("sha256", json_encode($windows, JSON_THROW_ON_ERROR)),
-        ];
-    }
-
-    private static function cursorProgramLatePreparedHandoff(array $program, bool $ready, array $fence): array
-    {
-        if (!$ready) {
-            return $program;
-        }
-
-        $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext894909Handoff",
-            "mode" => "next894-909-current-source-stat4-expression-partial-prep",
-            "sliceRange" => $fence["sliceRange"],
-            "priorSliceRange" => $fence["priorSliceRange"],
-            "preparedSlices" => $fence["preparedSlices"],
-            "priorHandoffSignature" => $fence["priorHandoffSignature"],
-            "handoffSignature" => $fence["handoffSignature"],
-        ];
-
-        return $program;
     }
 
     /**
@@ -35355,7 +35167,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializeLatePreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceContinuationPreparedHandoff($base, $currentSource, $neededColumns);
+        $fence = self::preparedHandoffFenceForRange($base, $currentSource, $neededColumns, "stat4Next894909PreparationFence", 910, 925, "next894-909");
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next894-909-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -35375,7 +35187,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next910925Prepared" => $ready,
                 "next910925HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramContinuationPreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::preparedHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next910-925-prep"],
@@ -35384,100 +35196,6 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             "non_overlap" => "prepares next910-925 current-source handoff slices only; avoids changing next894-909 handoff windows, next878-893 handoff windows, next862-877 handoff windows, next846-861 handoff windows, next830-845 handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, next558-573 handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " NEXT910-925 PREPARED HANDOFF"),
         ]);
-    }
-
-    private static function handoffFenceContinuationPreparedHandoff(array $base, array $currentSource, array $neededColumns): array
-    {
-        if ($neededColumns === []) {
-            throw new \InvalidArgumentException("SQLite next910-925 needs projected columns");
-        }
-
-        $prior = $base["stat4Next894909PreparationFence"] ?? null;
-        if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next910-925 needs next894-909 handoff fence");
-        }
-
-        $priorWindows = $prior["handoffWindows"] ?? null;
-        if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next910-925 needs next894-909 handoff windows");
-        }
-
-        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
-        $windows = [];
-        $blocked = [];
-        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
-
-        foreach (range(910, 925) as $slice) {
-            $ordinal = $slice - 910;
-            $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
-            if (!is_array($priorWindow)) {
-                throw new \InvalidArgumentException("SQLite next910-925 prior handoff windows must be arrays");
-            }
-
-            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
-            $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
-            $priorProjected = $priorWindow["projectedColumns"] ?? [];
-            $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
-            $ready = is_array($row)
-                && in_array($priorSlice, $priorPrepared, true)
-                && ($priorWindow["prepared"] ?? null) === true
-                && $projectionMatches;
-
-            if (!$ready) {
-                $blocked[] = $slice;
-            }
-
-            $windows[] = [
-                "slice" => $slice,
-                "continuesSlice" => $priorSlice,
-                "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
-                "projectedColumns" => $projected,
-                "priorProjectedColumns" => $priorProjected,
-                "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
-                "projectionMatchesPrior" => $projectionMatches,
-                "prepared" => $ready,
-            ];
-        }
-
-        $prepared = array_values(array_map(
-            static fn (array $window): int => $window["slice"],
-            array_filter($windows, static fn (array $window): bool => $window["prepared"]),
-        ));
-
-        return [
-            "sliceRange" => [910, 925],
-            "sliceCount" => 16,
-            "priorSliceRange" => $prior["sliceRange"] ?? null,
-            "priorHandoffSignature" => $prior["handoffSignature"] ?? null,
-            "previousFenceReady" => ($prior["allSlicesPrepared"] ?? null) === true && count($priorPrepared) === 16,
-            "preparedSlices" => $prepared,
-            "blockedSlices" => $blocked,
-            "allSlicesPrepared" => $blocked === [] && count($prepared) === 16,
-            "handoffWindows" => $windows,
-            "handoffSignature" => hash("sha256", json_encode($windows, JSON_THROW_ON_ERROR)),
-        ];
-    }
-
-    private static function cursorProgramContinuationPreparedHandoff(array $program, bool $ready, array $fence): array
-    {
-        if (!$ready) {
-            return $program;
-        }
-
-        $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext910925Handoff",
-            "mode" => "next910-925-current-source-stat4-expression-partial-prep",
-            "sliceRange" => $fence["sliceRange"],
-            "priorSliceRange" => $fence["priorSliceRange"],
-            "preparedSlices" => $fence["preparedSlices"],
-            "priorHandoffSignature" => $fence["priorHandoffSignature"],
-            "handoffSignature" => $fence["handoffSignature"],
-        ];
-
-        return $program;
     }
 
     /**
@@ -35496,7 +35214,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializeContinuationPreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceAdvancedPreparedHandoff($base, $currentSource, $neededColumns);
+        $fence = self::preparedHandoffFenceForRange($base, $currentSource, $neededColumns, "stat4Next910925PreparationFence", 926, 941, "next910-925");
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next910-925-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -35516,7 +35234,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next926941Prepared" => $ready,
                 "next926941HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramAdvancedPreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::preparedHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next926-941-prep"],
@@ -35525,100 +35243,6 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             "non_overlap" => "prepares next926-941 current-source handoff slices only; avoids changing next910-925 handoff windows, next894-909 handoff windows, next878-893 handoff windows, next862-877 handoff windows, next846-861 handoff windows, next830-845 handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, next558-573 handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " NEXT926-941 PREPARED HANDOFF"),
         ]);
-    }
-
-    private static function handoffFenceAdvancedPreparedHandoff(array $base, array $currentSource, array $neededColumns): array
-    {
-        if ($neededColumns === []) {
-            throw new \InvalidArgumentException("SQLite next926-941 needs projected columns");
-        }
-
-        $prior = $base["stat4Next910925PreparationFence"] ?? null;
-        if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next926-941 needs next910-925 handoff fence");
-        }
-
-        $priorWindows = $prior["handoffWindows"] ?? null;
-        if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next926-941 needs next910-925 handoff windows");
-        }
-
-        $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
-        $windows = [];
-        $blocked = [];
-        $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
-
-        foreach (range(926, 941) as $slice) {
-            $ordinal = $slice - 926;
-            $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
-            if (!is_array($priorWindow)) {
-                throw new \InvalidArgumentException("SQLite next926-941 prior handoff windows must be arrays");
-            }
-
-            $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
-            $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsForPreparedHandoff($row, $neededColumns) : [];
-            $priorProjected = $priorWindow["projectedColumns"] ?? [];
-            $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueForPreparedHandoff($priorWindow["slice"] ?? null, "prior slice");
-            $ready = is_array($row)
-                && in_array($priorSlice, $priorPrepared, true)
-                && ($priorWindow["prepared"] ?? null) === true
-                && $projectionMatches;
-
-            if (!$ready) {
-                $blocked[] = $slice;
-            }
-
-            $windows[] = [
-                "slice" => $slice,
-                "continuesSlice" => $priorSlice,
-                "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
-                "projectedColumns" => $projected,
-                "priorProjectedColumns" => $priorProjected,
-                "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
-                "projectionMatchesPrior" => $projectionMatches,
-                "prepared" => $ready,
-            ];
-        }
-
-        $prepared = array_values(array_map(
-            static fn (array $window): int => $window["slice"],
-            array_filter($windows, static fn (array $window): bool => $window["prepared"]),
-        ));
-
-        return [
-            "sliceRange" => [926, 941],
-            "sliceCount" => 16,
-            "priorSliceRange" => $prior["sliceRange"] ?? null,
-            "priorHandoffSignature" => $prior["handoffSignature"] ?? null,
-            "previousFenceReady" => ($prior["allSlicesPrepared"] ?? null) === true && count($priorPrepared) === 16,
-            "preparedSlices" => $prepared,
-            "blockedSlices" => $blocked,
-            "allSlicesPrepared" => $blocked === [] && count($prepared) === 16,
-            "handoffWindows" => $windows,
-            "handoffSignature" => hash("sha256", json_encode($windows, JSON_THROW_ON_ERROR)),
-        ];
-    }
-
-    private static function cursorProgramAdvancedPreparedHandoff(array $program, bool $ready, array $fence): array
-    {
-        if (!$ready) {
-            return $program;
-        }
-
-        $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext926941Handoff",
-            "mode" => "next926-941-current-source-stat4-expression-partial-prep",
-            "sliceRange" => $fence["sliceRange"],
-            "priorSliceRange" => $fence["priorSliceRange"],
-            "preparedSlices" => $fence["preparedSlices"],
-            "priorHandoffSignature" => $fence["priorHandoffSignature"],
-            "handoffSignature" => $fence["handoffSignature"],
-        ];
-
-        return $program;
     }
 
     /**
@@ -35637,7 +35261,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializeAdvancedPreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFencePenultimatePreparedHandoff($base, $currentSource, $neededColumns);
+        $fence = self::preparedHandoffFenceForRange($base, $currentSource, $neededColumns, "stat4Next926941PreparationFence", 942, 957, "next926-941");
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next926-941-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -35657,7 +35281,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next942957Prepared" => $ready,
                 "next942957HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramPenultimatePreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::preparedHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next942-957-prep"],
@@ -35668,20 +35292,33 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFencePenultimatePreparedHandoff(array $base, array $currentSource, array $neededColumns): array
-    {
+    /**
+     * @param array<string,mixed> $base
+     * @param array<string,mixed> $currentSource
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    private static function preparedHandoffFenceForRange(
+        array $base,
+        array $currentSource,
+        array $neededColumns,
+        string $priorFenceKey,
+        int $firstSlice,
+        int $lastSlice,
+        string $priorLabel
+    ): array {
         if ($neededColumns === []) {
-            throw new \InvalidArgumentException("SQLite next942-957 needs projected columns");
+            throw new \InvalidArgumentException("SQLite prepared handoff needs projected columns");
         }
 
-        $prior = $base["stat4Next926941PreparationFence"] ?? null;
+        $prior = $base[$priorFenceKey] ?? null;
         if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next942-957 needs next926-941 handoff fence");
+            throw new \InvalidArgumentException("SQLite prepared handoff needs {$priorLabel} handoff fence");
         }
 
         $priorWindows = $prior["handoffWindows"] ?? null;
         if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next942-957 needs next926-941 handoff windows");
+            throw new \InvalidArgumentException("SQLite prepared handoff needs {$priorLabel} handoff windows");
         }
 
         $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
@@ -35689,11 +35326,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         $blocked = [];
         $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
 
-        foreach (range(942, 957) as $slice) {
-            $ordinal = $slice - 942;
+        foreach (range($firstSlice, $lastSlice) as $slice) {
+            $ordinal = $slice - $firstSlice;
             $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
             if (!is_array($priorWindow)) {
-                throw new \InvalidArgumentException("SQLite next942-957 prior handoff windows must be arrays");
+                throw new \InvalidArgumentException("SQLite prepared handoff prior windows must be arrays");
             }
 
             $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
@@ -35728,30 +35365,37 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             static fn (array $window): int => $window["slice"],
             array_filter($windows, static fn (array $window): bool => $window["prepared"]),
         ));
+        $sliceCount = $lastSlice - $firstSlice + 1;
 
         return [
-            "sliceRange" => [942, 957],
-            "sliceCount" => 16,
+            "sliceRange" => [$firstSlice, $lastSlice],
+            "sliceCount" => $sliceCount,
             "priorSliceRange" => $prior["sliceRange"] ?? null,
             "priorHandoffSignature" => $prior["handoffSignature"] ?? null,
-            "previousFenceReady" => ($prior["allSlicesPrepared"] ?? null) === true && count($priorPrepared) === 16,
+            "previousFenceReady" => ($prior["allSlicesPrepared"] ?? null) === true && count($priorPrepared) === $sliceCount,
             "preparedSlices" => $prepared,
             "blockedSlices" => $blocked,
-            "allSlicesPrepared" => $blocked === [] && count($prepared) === 16,
+            "allSlicesPrepared" => $blocked === [] && count($prepared) === $sliceCount,
             "handoffWindows" => $windows,
             "handoffSignature" => hash("sha256", json_encode($windows, JSON_THROW_ON_ERROR)),
         ];
     }
 
-    private static function cursorProgramPenultimatePreparedHandoff(array $program, bool $ready, array $fence): array
+    private static function preparedHandoffCursorProgramForRange(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
         }
 
+        $range = $fence["sliceRange"] ?? [0, 0];
+        $first = (int) ($range[0] ?? 0);
+        $last = (int) ($range[1] ?? 0);
+        $compactRange = $first . $last;
+        $label = "next{$first}-{$last}";
+
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext942957Handoff",
-            "mode" => "next942-957-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialNext{$compactRange}Handoff",
+            "mode" => "{$label}-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
