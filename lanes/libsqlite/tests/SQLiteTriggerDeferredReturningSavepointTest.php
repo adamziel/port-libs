@@ -53,7 +53,7 @@ $triggers119 = [
     ],
 ];
 $updates119 = [['match' => 10, 'set' => ['post_id' => 110, 'post_title' => 'Rekeyed parent']]];
-$plan119 = static fn (array $options = []) => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepointNext119(
+$plan119 = static fn (array $options = []) => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepoint(
     $parents119,
     $children119,
     $updates119,
@@ -103,7 +103,7 @@ $cases119 = [
     'trigger effects are retained as before rollback evidence' => [static fn (): mixed => array_column($rolled119()['trigger_effects_before_rollback'], 'trigger'), ['wp_posts_au_enqueue_child', 'wp_posts_au_enqueue_leaf', 'wp_posts_au_orphan_audit']],
     'foreign key actions are retained as before rollback evidence' => [static fn (): mixed => array_column($rolled119()['foreign_key_actions_before_rollback'], 'to'), [110, 120, 130]],
     'dependencies include original recursive marker' => [static fn (): mixed => in_array('sqlite-trigger-deferred-fk-returning-recursive-current-source-next114', $rolled119()['dependencies'], true), true],
-    'dependencies include savepoint marker' => [static fn (): mixed => in_array('sqlite-trigger-deferred-returning-savepoint-current-source-next119', $rolled119()['dependencies'], true), true],
+    'dependencies include savepoint marker' => [static fn (): mixed => in_array('sqlite-trigger-deferred-returning-savepoint', $rolled119()['dependencies'], true), true],
     'dependencies include returning rollback ordering marker' => [static fn (): mixed => in_array('sqlite-returning-yield-before-rollback-to-savepoint', $rolled119()['dependencies'], true), true],
     'dependencies include deferred queue clear marker' => [static fn (): mixed => in_array('sqlite-deferred-fk-queue-cleared-by-savepoint-rollback', $rolled119()['dependencies'], true), true],
     'release path does not mark rolled back' => [static fn (): mixed => $released119()['rolled_back'], false],
@@ -120,14 +120,14 @@ $cases119 = [
     'non recursive savepoint discards one returning row' => [static fn (): mixed => $nonRecursive119()['discarded_returning_count'], 1],
     'custom savepoint is accepted' => [static fn (): mixed => $plan119(['savepoint' => 'wp_batch_two'])['savepoint'], 'wp_batch_two'],
     'bad savepoint name throws' => [static fn (): mixed => $plan119(['savepoint' => 'bad-name']), InvalidArgumentException::class],
-    'bad parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepointNext119($parents119, $children119, $updates119, ['parent_key' => 'bad-key', 'child_key' => 'post_id']), InvalidArgumentException::class],
+    'bad parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepoint($parents119, $children119, $updates119, ['parent_key' => 'bad-key', 'child_key' => 'post_id']), InvalidArgumentException::class],
     'missing child key throws from restored key collection' => [static function () use ($parents119, $updates119, $foreignKey119): mixed {
-        return SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepointNext119($parents119, [['meta_id' => 1]], $updates119, $foreignKey119);
+        return SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepoint($parents119, [['meta_id' => 1]], $updates119, $foreignKey119);
     }, InvalidArgumentException::class],
 ];
 
 foreach ($cases119 as $name => [$callback, $expected]) {
-    $tests['trigger deferred returning savepoint current source next119 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['trigger deferred returning savepoint ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

@@ -32,14 +32,14 @@ $preDeleteResult217 = static fn (): array => SQLiteUpdateDeleteReturningSql::exe
 $rollbackProbe217 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($rollbackUpdate217, $preDeleteResult217()['tables'], 'option_id', [], true);
 $retryUpdateResult217 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate217, $tables217, 'option_id', $unique217);
 $retryDeleteResult217 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete217, $retryUpdateResult217()['tables'], 'option_id', $unique217);
-$plan217 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217(
+$plan217 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict(
     $tables217,
     [$preUpdate217, $preDelete217],
     $rollbackUpdate217,
     [$retryUpdate217, $retryDelete217],
     $unique217,
 );
-$customPlan217 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217(
+$customPlan217 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict(
     $tables217,
     [$preUpdate217],
     $rollbackUpdate217,
@@ -126,15 +126,15 @@ $cases217 = [
     'custom identifiers' => [static fn (): mixed => [$customPlan217()['transaction'], $customPlan217()['savepoint'], $customPlan217()['retry_savepoint']], ['wp_tx_custom217', 'wp_savepoint_custom217', 'wp_retry_custom217']],
     'custom pre count' => [static fn (): mixed => $customPlan217()['pre_rollback_yielded_count'], 2],
     'custom retry count' => [static fn (): mixed => $customPlan217()['retry_yielded_count'], 3],
-    'malformed empty pre rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217($tables217, [], $rollbackUpdate217, [$retryUpdate217], $unique217), InvalidArgumentException::class],
-    'malformed empty rollback rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217($tables217, [$preUpdate217], '', [$retryUpdate217], $unique217), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217($tables217, [$preUpdate217], $rollbackUpdate217, [], $unique217), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217($tables217, [$preUpdate217], $rollbackUpdate217, [$retryUpdate217], []), InvalidArgumentException::class],
-    'malformed transaction rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217($tables217, [$preUpdate217], $rollbackUpdate217, [$retryUpdate217], $unique217, 'bad-name'), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217($tables217, [$preUpdate217], $rollbackUpdate217, [$retryUpdate217], $unique217, 'good_tx', 'bad-name'), InvalidArgumentException::class],
-    'malformed retry savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217($tables217, [$preUpdate217], $rollbackUpdate217, [$retryUpdate217], $unique217, 'good_tx', 'good_savepoint', 'bad-name'), InvalidArgumentException::class],
-    'malformed rollback action rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217($tables217, [$preUpdate217], str_replace('OR ROLLBACK', 'OR FAIL', $rollbackUpdate217), [$retryUpdate217], $unique217), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext217(['wp_options' => ['bad']], [$preUpdate217], $rollbackUpdate217, [$retryUpdate217], $unique217), InvalidArgumentException::class],
+    'malformed empty pre rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict($tables217, [], $rollbackUpdate217, [$retryUpdate217], $unique217), InvalidArgumentException::class],
+    'malformed empty rollback rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict($tables217, [$preUpdate217], '', [$retryUpdate217], $unique217), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict($tables217, [$preUpdate217], $rollbackUpdate217, [], $unique217), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict($tables217, [$preUpdate217], $rollbackUpdate217, [$retryUpdate217], []), InvalidArgumentException::class],
+    'malformed transaction rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict($tables217, [$preUpdate217], $rollbackUpdate217, [$retryUpdate217], $unique217, 'bad-name'), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict($tables217, [$preUpdate217], $rollbackUpdate217, [$retryUpdate217], $unique217, 'good_tx', 'bad-name'), InvalidArgumentException::class],
+    'malformed retry savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict($tables217, [$preUpdate217], $rollbackUpdate217, [$retryUpdate217], $unique217, 'good_tx', 'good_savepoint', 'bad-name'), InvalidArgumentException::class],
+    'malformed rollback action rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict($tables217, [$preUpdate217], str_replace('OR ROLLBACK', 'OR FAIL', $rollbackUpdate217), [$retryUpdate217], $unique217), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToConflict(['wp_options' => ['bad']], [$preUpdate217], $rollbackUpdate217, [$retryUpdate217], $unique217), InvalidArgumentException::class],
 ];
 
 $tests = [];

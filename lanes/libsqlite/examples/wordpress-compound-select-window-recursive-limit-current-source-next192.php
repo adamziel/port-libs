@@ -41,14 +41,14 @@ SELECT id, label, score AS metric FROM q
  LIMIT 5 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext192(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCurrentGap(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],
 );
 
 $payload = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next192',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-recursiveCurrentGap',
     'wordpressUse' => 'Copied wp_options preview queries can combine recursive dependency queues with percent_rank/cume_dist window arms and reject stale current-source resume tokens before staged next-source autoload rows affect the final compound LIMIT.',
     'status' => $plan['status'],
     'distributionFunctions' => $plan['windows']['distributionFunctions'],
@@ -58,16 +58,16 @@ $payload = [
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next192-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next192 self-test failed\n");
+if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-recursiveCurrentGap-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-recursiveCurrentGap self-test failed\n");
     exit(1);
 }
 if ($payload['distributionFunctions'] !== ['percent_rank', 'cume_dist']) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next192 distribution windows failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-recursiveCurrentGap distribution windows failed\n");
     exit(1);
 }
 if ($payload['currentTokenLength'] !== 64 || $payload['nextTokenLength'] !== 64) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next192 token guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-recursiveCurrentGap token guard failed\n");
     exit(1);
 }
 

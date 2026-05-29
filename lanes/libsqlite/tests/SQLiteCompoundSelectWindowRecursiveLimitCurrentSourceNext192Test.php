@@ -48,21 +48,21 @@ SELECT id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary192 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext192($sql192, $currentTables192, $nextTables192, $cursor);
+$summary192 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCurrentGap($sql192, $currentTables192, $nextTables192, $cursor);
 $tests = [];
 
-$tests['compound select window recursive limit next192 status dependencies'] = static function (TestRunner $t) use ($summary192): void {
+$tests['compound select window recursive limit recursiveCurrentGap status dependencies'] = static function (TestRunner $t) use ($summary192): void {
     $plan = $summary192();
-    $t->same('compound-select-window-recursive-limit-current-source-next192-ready', $plan['status']);
+    $t->same('compound-select-window-recursive-limit-current-source-recursiveCurrentGap-ready', $plan['status']);
     $t->same([
-        'sqlite-select-sql-recursive-queue-order-limit-next192',
-        'sqlite-select-sql-percent-rank-cume-dist-window-next192',
-        'sqlite-current-source-token-fence-next192',
+        'sqlite-select-sql-recursive-queue-order-limit-recursiveCurrentGap',
+        'sqlite-select-sql-percent-rank-cume-dist-window-recursiveCurrentGap',
+        'sqlite-current-source-token-fence-recursiveCurrentGap',
     ], $plan['dependencies']);
     $t->contains('no new support component needed', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit next192 compound metadata'] = static function (TestRunner $t) use ($summary192): void {
+$tests['compound select window recursive limit recursiveCurrentGap compound metadata'] = static function (TestRunner $t) use ($summary192): void {
     $compound = $summary192()['compound'];
     $t->same(['UNION ALL', 'UNION'], $compound['operators']);
     $t->same(5, $compound['limit']);
@@ -71,7 +71,7 @@ $tests['compound select window recursive limit next192 compound metadata'] = sta
     $t->same([3, 3], [$compound['currentArms'], $compound['nextArms']]);
 };
 
-$tests['compound select window recursive limit next192 recursive ordered queue'] = static function (TestRunner $t) use ($summary192): void {
+$tests['compound select window recursive limit recursiveCurrentGap recursive ordered queue'] = static function (TestRunner $t) use ($summary192): void {
     $queue = $summary192()['recursiveQueue'];
     $t->same('q', $queue['name']);
     $t->same('UNION ALL', $queue['operator']);
@@ -82,7 +82,7 @@ $tests['compound select window recursive limit next192 recursive ordered queue']
     $t->same([0, 0], [$queue['currentLimitRemaining'], $queue['currentOffsetRemaining']]);
 };
 
-$tests['compound select window recursive limit next192 distribution windows'] = static function (TestRunner $t) use ($summary192): void {
+$tests['compound select window recursive limit recursiveCurrentGap distribution windows'] = static function (TestRunner $t) use ($summary192): void {
     $windows = $summary192()['windows'];
     $t->same(['percent_rank', 'cume_dist'], $windows['functions']);
     $t->same(['percent_rank', 'cume_dist'], $windows['distributionFunctions']);
@@ -90,7 +90,7 @@ $tests['compound select window recursive limit next192 distribution windows'] = 
     $t->same([2, 2], array_column($windows['current'], 'orderCount'));
 };
 
-$tests['compound select window recursive limit next192 source tokens'] = static function (TestRunner $t) use ($summary192): void {
+$tests['compound select window recursive limit recursiveCurrentGap source tokens'] = static function (TestRunner $t) use ($summary192): void {
     $source = $summary192()['sourceWindow'];
     $t->same(64, strlen($source['currentToken']));
     $t->same(64, strlen($source['nextToken']));
@@ -99,52 +99,52 @@ $tests['compound select window recursive limit next192 source tokens'] = static 
     $t->true(in_array('plugin_loaded', $source['nextTruncatedLabels'], true));
 };
 
-$tests['compound select window recursive limit next192 cursor accepts current token'] = static function (TestRunner $t) use ($summary192): void {
+$tests['compound select window recursive limit recursiveCurrentGap cursor accepts current token'] = static function (TestRunner $t) use ($summary192): void {
     $first = $summary192();
     $second = $summary192($first['cursor']);
     $t->same($first['sourceWindow']['currentToken'], $second['sourceWindow']['currentToken']);
     $t->same($first['cursor']['nextOffset'], $second['cursor']['nextOffset']);
 };
 
-$tests['compound select window recursive limit next192 rejects stale cursor'] = static function (TestRunner $t) use ($summary192): void {
+$tests['compound select window recursive limit recursiveCurrentGap rejects stale cursor'] = static function (TestRunner $t) use ($summary192): void {
     $cursor = $summary192()['cursor'];
     $cursor['currentToken'] = str_repeat('f', 64);
     $t->throws(InvalidArgumentException::class, static fn () => $summary192($cursor));
 };
 
-$tests['compound select window recursive limit next192 rejects missing queue order'] = static function (TestRunner $t) use ($currentTables192): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext192(
+$tests['compound select window recursive limit recursiveCurrentGap rejects missing queue order'] = static function (TestRunner $t) use ($currentTables192): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCurrentGap(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 1) UNION ALL SELECT id + 1, label, score FROM q WHERE id < 4 LIMIT 2 OFFSET 1) SELECT id, label, percent_rank() OVER (ORDER BY id) AS metric FROM q UNION SELECT option_id, option_name, cume_dist() OVER (ORDER BY score) FROM wp_options ORDER BY metric LIMIT 2 OFFSET 0",
         $currentTables192,
         $currentTables192,
     ));
 };
 
-$tests['compound select window recursive limit next192 rejects missing distribution window'] = static function (TestRunner $t) use ($currentTables192): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext192(
+$tests['compound select window recursive limit recursiveCurrentGap rejects missing distribution window'] = static function (TestRunner $t) use ($currentTables192): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCurrentGap(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 1) UNION ALL SELECT id + 1, label, score FROM q WHERE id < 4 ORDER BY score DESC LIMIT 2 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY id) AS metric FROM q UNION SELECT option_id, option_name, cume_dist() OVER (ORDER BY score) FROM wp_options ORDER BY metric LIMIT 2 OFFSET 0",
         $currentTables192,
         $currentTables192,
     ));
 };
 
-$tests['compound select window recursive limit next192 rejects missing final offset'] = static function (TestRunner $t) use ($currentTables192): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext192(
+$tests['compound select window recursive limit recursiveCurrentGap rejects missing final offset'] = static function (TestRunner $t) use ($currentTables192): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCurrentGap(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 1) UNION ALL SELECT id + 1, label, score FROM q WHERE id < 4 ORDER BY score DESC LIMIT 2 OFFSET 1) SELECT id, label, percent_rank() OVER (ORDER BY id) AS metric FROM q UNION SELECT option_id, option_name, cume_dist() OVER (ORDER BY score) FROM wp_options ORDER BY metric LIMIT 2",
         $currentTables192,
         $currentTables192,
     ));
 };
 
-$tests['compound select window recursive limit next192 non overlap reasons'] = static function (TestRunner $t) use ($summary192): void {
+$tests['compound select window recursive limit recursiveCurrentGap non overlap reasons'] = static function (TestRunner $t) use ($summary192): void {
     $plan = $summary192();
     $t->contains('avoids accepted next189', $plan['non_overlap']);
-    $t->true(in_array('recursive-queue-order-limit-current-source-next192', $plan['replanReasons'], true));
-    $t->true(in_array('percent-rank-cume-dist-before-compound-limit-next192', $plan['replanReasons'], true));
+    $t->true(in_array('recursive-queue-order-limit-current-source-recursiveCurrentGap', $plan['replanReasons'], true));
+    $t->true(in_array('percent-rank-cume-dist-before-compound-limit-recursiveCurrentGap', $plan['replanReasons'], true));
 };
 
 foreach (range(1, 64) as $case) {
-    $tests['compound select window recursive limit next192 generated distribution queue ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit recursiveCurrentGap generated distribution queue ' . $case] = static function (TestRunner $t) use ($case): void {
         $recursiveLimit = 5 + ($case % 4);
         $finalLimit = 3 + ($case % 5);
         $tables = [
@@ -158,8 +158,8 @@ foreach (range(1, 64) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'queued_' . $case, 'autoload' => 'yes', 'score' => 114 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (132 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 8 FROM q WHERE id < 9 ORDER BY score DESC LIMIT {$recursiveLimit} OFFSET 1) SELECT id, label, percent_rank() OVER (ORDER BY score DESC, id) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, cume_dist() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes' UNION SELECT id, label, score AS metric FROM q ORDER BY metric DESC, id LIMIT {$finalLimit} OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext192($sql, $tables, $nextTables);
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext192($sql, $tables, $nextTables, $plan['cursor']);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCurrentGap($sql, $tables, $nextTables);
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCurrentGap($sql, $tables, $nextTables, $plan['cursor']);
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $t->same($finalLimit, count($rows));

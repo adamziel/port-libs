@@ -50,7 +50,7 @@ $returning141 = [
     ['expr' => 'new.post_title', 'as' => 'title'],
     static fn (array $new, array $old, int $statement, int $depth): string => $statement . ':' . $depth . ':' . $old['post_id'] . '>' . $new['post_id'],
 ];
-$plan141 = static fn (array $options = []): array => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetryNext141(
+$plan141 = static fn (array $options = []): array => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetry(
     $parents141,
     $children141,
     $updates141,
@@ -110,9 +110,9 @@ $cases141 = [
     'retry deferred queue is clear' => [static fn (): mixed => $blocked141()['retry']['deferred_queue'], []],
     'retry has no pre-yielded returning rows' => [static fn (): mixed => $blocked141()['retry']['returning_rows'], []],
     'retry status names restored source' => [static fn (): mixed => $blocked141()['retry']['status'], 'retry-from-restored-savepoint-image'],
-    'dependencies include prior next119 marker' => [static fn (): mixed => in_array('sqlite-trigger-deferred-returning-savepoint-current-source-next119', $blocked141()['dependencies'], true), true],
-    'dependencies include next141 marker' => [static fn (): mixed => in_array('sqlite-trigger-deferred-returning-savepoint-current-source-next141', $blocked141()['dependencies'], true), true],
-    'dependencies include commit barrier marker' => [static fn (): mixed => in_array('sqlite-deferred-fk-commit-barrier-after-returning', $blocked141()['dependencies'], true), true],
+    'dependencies include savepoint marker' => [static fn (): mixed => in_array('sqlite-trigger-deferred-returning-savepoint', $blocked141()['dependencies'], true), true],
+    'dependencies include commit barrier marker' => [static fn (): mixed => in_array('sqlite-trigger-deferred-returning-commit-barrier', $blocked141()['dependencies'], true), true],
+    'dependencies include deferred fk barrier marker' => [static fn (): mixed => in_array('sqlite-deferred-fk-commit-barrier-after-returning', $blocked141()['dependencies'], true), true],
     'dependencies include retry marker' => [static fn (): mixed => in_array('sqlite-savepoint-current-source-retry-after-deferred-commit-failure', $blocked141()['dependencies'], true), true],
     'release path is not rolled back' => [static fn (): mixed => $released141()['rolled_back'], false],
     'release path keeps commit blocked' => [static fn (): mixed => $released141()['commit_blocked'], true],
@@ -132,14 +132,14 @@ $cases141 = [
     'non recursive retry status says not needed' => [static fn (): mixed => $nonRecursive141()['retry']['status'], 'retry-not-needed'],
     'custom retry source is accepted' => [static fn (): mixed => $plan141(['retry_source' => 'retry_two'])['retry']['source'], 'retry_two'],
     'bad savepoint throws' => [static fn (): mixed => $plan141(['savepoint' => 'bad-name']), InvalidArgumentException::class],
-    'bad parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetryNext141($parents141, $children141, $updates141, ['parent_key' => 'bad-key', 'child_key' => 'post_id']), InvalidArgumentException::class],
+    'bad parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetry($parents141, $children141, $updates141, ['parent_key' => 'bad-key', 'child_key' => 'post_id']), InvalidArgumentException::class],
     'missing child key throws from retry key collection' => [static function () use ($parents141, $updates141, $foreignKey141): mixed {
-        return SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetryNext141($parents141, [['meta_id' => 1]], $updates141, $foreignKey141);
+        return SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetry($parents141, [['meta_id' => 1]], $updates141, $foreignKey141);
     }, InvalidArgumentException::class],
 ];
 
 foreach ($cases141 as $name => [$callback, $expected]) {
-    $tests['trigger deferred returning savepoint current source next141 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['trigger deferred returning commit barrier ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

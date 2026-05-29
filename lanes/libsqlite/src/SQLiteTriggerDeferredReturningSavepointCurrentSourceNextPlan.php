@@ -6,9 +6,7 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
 {
-
-    /* Variant consolidated from SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php. */
-/**
+    /**
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
      * @param list<array<string,mixed>> $updates
@@ -18,7 +16,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
      * @param array{savepoint?:string,rollback_to?:bool,recursive_triggers?:bool,max_depth?:int,current_source?:string,next_source?:string} $options
      * @return array<string,mixed>
      */
-    public static function updateParentsWithinSavepointNext119(
+    public static function updateParentsWithinSavepoint(
         array $parents,
         array $children,
         array $updates,
@@ -27,7 +25,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
         array $returning = ['*'],
         array $options = [],
     ): array {
-        $savepoint = self::identifierNext119((string) ($options['savepoint'] ?? 'wp_import_batch'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_import_batch'), 'savepoint');
         $rollbackTo = (bool) ($options['rollback_to'] ?? true);
         $currentSource = (string) ($options['current_source'] ?? 'current-savepoint-source');
         $nextSource = (string) ($options['next_source'] ?? 'next-after-rollback-to');
@@ -76,17 +74,17 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
                 'commit_status' => $afterCommit,
             ],
             'returning_rows' => $statement['returning_rows'],
-            'yielded' => self::markYieldedRowsNext119($statement['yielded'], $savepoint, $rollbackTo),
+            'yielded' => self::markYieldedRows($statement['yielded'], $savepoint, $rollbackTo),
             'trigger_effects_before_rollback' => $statement['trigger_effects'],
             'foreign_key_actions_before_rollback' => $statement['foreign_key_actions'],
             'deferred_before_rollback' => $statement['deferred_violations'],
             'discarded_returning_count' => $rollbackTo ? count($statement['returning_rows']) : 0,
-            'restored_parent_keys' => self::rowKeysNext119($afterParents, (string) $foreignKey['parent_key']),
-            'restored_child_keys' => self::rowKeysNext119($afterChildren, (string) $foreignKey['child_key']),
+            'restored_parent_keys' => self::rowKeys($afterParents, (string) $foreignKey['parent_key']),
+            'restored_child_keys' => self::rowKeys($afterChildren, (string) $foreignKey['child_key']),
             'dependencies' => array_values(array_unique(array_merge(
                 $statement['dependencies'],
                 [
-                    'sqlite-trigger-deferred-returning-savepoint-current-source-next119',
+                    'sqlite-trigger-deferred-returning-savepoint',
                     'sqlite-returning-yield-before-rollback-to-savepoint',
                     'sqlite-deferred-fk-queue-cleared-by-savepoint-rollback',
                 ],
@@ -98,7 +96,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
      * @param list<array<string,mixed>> $yielded
      * @return list<array<string,mixed>>
      */
-    private static function markYieldedRowsNext119(array $yielded, string $savepoint, bool $rolledBack): array
+    private static function markYieldedRows(array $yielded, string $savepoint, bool $rolledBack): array
     {
         foreach ($yielded as &$row) {
             $row['savepoint'] = $savepoint;
@@ -113,9 +111,9 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<mixed>
      */
-    private static function rowKeysNext119(array $rows, string $column): array
+    private static function rowKeys(array $rows, string $column): array
     {
-        $column = self::identifierNext119($column, 'row key column');
+        $column = self::identifier($column, 'row key column');
         $keys = [];
         foreach ($rows as $row) {
             if (!array_key_exists($column, $row)) {
@@ -127,7 +125,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
         return $keys;
     }
 
-    private static function identifierNext119(string $identifier, string $label): string
+    private static function identifier(string $identifier, string $label): string
     {
         if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier)) {
             throw new \InvalidArgumentException("SQLite trigger deferred RETURNING savepoint {$label} is malformed");
@@ -136,9 +134,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
         return $identifier;
     }
 
-
-    /* Variant consolidated from SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php. */
-/**
+    /**
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
      * @param list<array<string,mixed>> $updates
@@ -148,7 +144,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
      * @param array{savepoint?:string,rollback_to?:bool,retry_after_rollback?:bool,recursive_triggers?:bool,max_depth?:int,current_source?:string,next_source?:string,retry_source?:string} $options
      * @return array<string,mixed>
      */
-    public static function commitBarrierRetryNext141(
+    public static function commitBarrierRetry(
         array $parents,
         array $children,
         array $updates,
@@ -157,14 +153,14 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
         array $returning = ['*'],
         array $options = [],
     ): array {
-        $savepoint = self::identifierNext141((string) ($options['savepoint'] ?? 'wp_import_batch'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_import_batch'), 'savepoint');
         $rollbackTo = (bool) ($options['rollback_to'] ?? true);
         $retryAfterRollback = (bool) ($options['retry_after_rollback'] ?? true);
         $currentSource = (string) ($options['current_source'] ?? 'current-trigger-returning-source');
         $nextSource = (string) ($options['next_source'] ?? 'next-deferred-commit-source');
         $retrySource = (string) ($options['retry_source'] ?? 'next-retry-after-rollback-source');
 
-        $attempt = SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepointNext119(
+        $attempt = SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepoint(
             $parents,
             $children,
             $updates,
@@ -186,11 +182,11 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
             ? 'deferred-fk-blocks-commit-after-returning-yield'
             : 'commit-admits-returning-source';
         $durableRows = ($blocked && $rollbackTo) ? [] : $attempt['returning_rows'];
-        $invalidatedRows = ($blocked && $rollbackTo) ? self::invalidatedReturningRowsNext141($attempt['returning_rows'], $savepoint, $currentSource, $nextSource) : [];
+        $invalidatedRows = ($blocked && $rollbackTo) ? self::invalidatedReturningRows($attempt['returning_rows'], $savepoint, $currentSource, $nextSource) : [];
 
         $retry = null;
         if ($retryAfterRollback && $rollbackTo) {
-            $retry = self::retryPlanNext141($attempt, $foreignKey, $updates, $retrySource, $blocked);
+            $retry = self::retryPlan($attempt, $foreignKey, $updates, $retrySource, $blocked);
         }
 
         return [
@@ -218,7 +214,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
             'dependencies' => array_values(array_unique(array_merge(
                 $attempt['dependencies'],
                 [
-                    'sqlite-trigger-deferred-returning-savepoint-current-source-next141',
+                    'sqlite-trigger-deferred-returning-commit-barrier',
                     'sqlite-deferred-fk-commit-barrier-after-returning',
                     'sqlite-savepoint-current-source-retry-after-deferred-commit-failure',
                 ],
@@ -230,7 +226,7 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
      * @param list<array<string,mixed>> $returningRows
      * @return list<array<string,mixed>>
      */
-    private static function invalidatedReturningRowsNext141(array $returningRows, string $savepoint, string $currentSource, string $nextSource): array
+    private static function invalidatedReturningRows(array $returningRows, string $savepoint, string $currentSource, string $nextSource): array
     {
         $invalidated = [];
         foreach ($returningRows as $index => $row) {
@@ -253,19 +249,19 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
      * @param list<array<string,mixed>> $updates
      * @return array<string,mixed>
      */
-    private static function retryPlanNext141(array $attempt, array $foreignKey, array $updates, string $retrySource, bool $blocked): array
+    private static function retryPlan(array $attempt, array $foreignKey, array $updates, string $retrySource, bool $blocked): array
     {
-        $parentKey = self::identifierNext141((string) $foreignKey['parent_key'], 'parent key');
-        $childKey = self::identifierNext141((string) $foreignKey['child_key'], 'child key');
+        $parentKey = self::identifier((string) $foreignKey['parent_key'], 'parent key');
+        $childKey = self::identifier((string) $foreignKey['child_key'], 'child key');
         $parents = $attempt['after_savepoint']['parent'];
         $children = $attempt['after_savepoint']['child'];
 
         return [
             'source' => $retrySource,
             'admitted' => $blocked,
-            'parent_keys' => self::rowKeysNext141($parents, $parentKey),
-            'child_keys' => self::rowKeysNext141($children, $childKey),
-            'pending_updates' => self::pendingUpdateKeysNext141($updates),
+            'parent_keys' => self::rowKeys($parents, $parentKey),
+            'child_keys' => self::rowKeys($children, $childKey),
+            'pending_updates' => self::pendingUpdateKeys($updates),
             'deferred_queue' => $attempt['after_savepoint']['deferred_violations'],
             'returning_rows' => [],
             'status' => $blocked ? 'retry-from-restored-savepoint-image' : 'retry-not-needed',
@@ -273,27 +269,10 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
     }
 
     /**
-     * @param list<array<string,mixed>> $rows
-     * @return list<mixed>
-     */
-    private static function rowKeysNext141(array $rows, string $column): array
-    {
-        $keys = [];
-        foreach ($rows as $row) {
-            if (!array_key_exists($column, $row)) {
-                throw new \InvalidArgumentException("SQLite deferred RETURNING retry row key {$column} is missing");
-            }
-            $keys[] = $row[$column];
-        }
-
-        return $keys;
-    }
-
-    /**
      * @param list<array<string,mixed>> $updates
      * @return list<mixed>
      */
-    private static function pendingUpdateKeysNext141(array $updates): array
+    private static function pendingUpdateKeys(array $updates): array
     {
         $keys = [];
         foreach ($updates as $update) {
@@ -303,12 +282,4 @@ final class SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan
         return $keys;
     }
 
-    private static function identifierNext141(string $identifier, string $label): string
-    {
-        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier)) {
-            throw new \InvalidArgumentException("SQLite deferred RETURNING retry {$label} is malformed");
-        }
-
-        return $identifier;
-    }
 }

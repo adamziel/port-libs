@@ -57,15 +57,15 @@ SELECT 3 AS id,
  LIMIT 3 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext195($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareWindowOffsetBoundary($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? null) === '--self-test') {
-    if (($plan['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next195-ready') {
-        fwrite(STDERR, "unexpected compound/window recursive LIMIT next195 status\n");
+    if (($plan['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-windowOffsetBoundary-ready') {
+        fwrite(STDERR, "unexpected compound/window recursive LIMIT windowOffsetBoundary status\n");
         exit(1);
     }
     if (array_column($plan['nextRows'], 'label') !== ['theme_mods', 'home', 'siteurl']) {
-        fwrite(STDERR, "unexpected next compound/window recursive LIMIT next195 boundary\n");
+        fwrite(STDERR, "unexpected next compound/window recursive LIMIT windowOffsetBoundary boundary\n");
         exit(1);
     }
     if (($plan['compound']['intersectBeforeExcept'] ?? null) !== true) {
@@ -73,12 +73,12 @@ if (($argv[1] ?? null) === '--self-test') {
         exit(1);
     }
 
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next195 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-windowOffsetBoundary self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next195',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-windowOffsetBoundary',
     'currentLabels' => array_column($plan['currentRows'], 'label'),
     'nextLabels' => array_column($plan['nextRows'], 'label'),
     'nextPreLimitLabels' => array_column($plan['nextPreLimitRows'], 'label'),

@@ -40,28 +40,28 @@ SELECT id, label, score AS metric FROM q
  LIMIT 5 OFFSET 2
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext193(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveSourceAdmission(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],
 );
 
 $payload = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next193',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-currentSourceAdmission',
     'wordpressUse' => 'Copied wp_options preview queries can fence recursive dependency rows and window-ranked autoload rows with a current-source signature before staged next-source rows are admitted across the compound LIMIT boundary.',
     'status' => $plan['status'],
-    'sourceSignatureLength' => strlen($plan['currentSourceNext193']['sourceSignature']),
-    'nextSignatureLength' => strlen($plan['currentSourceNext193']['nextSourceSignature']),
-    'admission' => $plan['currentSourceNext193']['admission'],
+    'sourceSignatureLength' => strlen($plan['currentSourceAdmission']['sourceSignature']),
+    'nextSignatureLength' => strlen($plan['currentSourceAdmission']['nextSourceSignature']),
+    'admission' => $plan['currentSourceAdmission']['admission'],
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next193-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next193 self-test failed\n");
+if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-currentSourceAdmission-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-currentSourceAdmission self-test failed\n");
     exit(1);
 }
 if ($payload['sourceSignatureLength'] !== 64 || $payload['nextSignatureLength'] !== 64) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next193 signature guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-currentSourceAdmission signature guard failed\n");
     exit(1);
 }
 

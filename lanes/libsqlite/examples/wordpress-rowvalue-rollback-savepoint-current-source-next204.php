@@ -28,7 +28,7 @@ $rollback = "UPDATE OR ROLLBACK wp_options SET (blog_id, option_name, status, op
 $retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry204', option_value || ':retry204', bytes + 5) WHERE (blog_id, option_name) IN ((3, 'rewrite_rules'), (3, 'plugin_batch')) RETURNING option_id, status, option_value ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (VALUES (1, '_transient_feed'), (1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, option_name ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext204(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackConflictRetry(
     $tables,
     [$outer],
     [$savepoint],

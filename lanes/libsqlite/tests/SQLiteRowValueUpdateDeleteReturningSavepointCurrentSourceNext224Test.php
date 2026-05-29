@@ -34,14 +34,14 @@ $outerUpdateResult224 = static fn (): array => SQLiteUpdateDeleteReturningSql::e
 $outerDeleteResult224 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($outerDelete224, $outerUpdateResult224()['tables'], 'option_id', $unique224);
 $retryUpdateResult224 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate224, $tables224, 'option_id', $unique224);
 $retryDeleteResult224 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete224, $retryUpdateResult224()['tables'], 'option_id', $unique224);
-$plan224 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext224(
+$plan224 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointMaterialization(
     $tables224,
     [$innerUpdate224, $innerDelete224],
     [$outerUpdate224, $outerDelete224],
     [$retryUpdate224, $retryDelete224],
     $unique224,
 );
-$customPlan224 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext224(
+$customPlan224 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointMaterialization(
     $tables224,
     [$innerUpdate224],
     [$outerUpdate224],
@@ -122,14 +122,14 @@ $cases224 = [
     'custom savepoints' => [static fn (): mixed => [$customPlan224()['outer_savepoint'], $customPlan224()['inner_savepoint']], ['outer_custom224', 'inner_custom224']],
     'custom suppressed count' => [static fn (): mixed => $customPlan224()['suppressed_returning_count'], 4],
     'custom retry count' => [static fn (): mixed => $customPlan224()['retry_returning_count'], 3],
-    'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext224($tables224, [], [$outerUpdate224], [$retryUpdate224], $unique224), InvalidArgumentException::class],
-    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext224($tables224, [$innerUpdate224], [], [$retryUpdate224], $unique224), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext224($tables224, [$innerUpdate224], [$outerUpdate224], [], $unique224), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext224($tables224, [$innerUpdate224], [$outerUpdate224], [$retryUpdate224], []), InvalidArgumentException::class],
-    'malformed outer savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext224($tables224, [$innerUpdate224], [$outerUpdate224], [$retryUpdate224], $unique224, 'bad-name'), InvalidArgumentException::class],
-    'malformed inner savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext224($tables224, [$innerUpdate224], [$outerUpdate224], [$retryUpdate224], $unique224, 'outer_good', 'bad-name'), InvalidArgumentException::class],
-    'malformed same savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext224($tables224, [$innerUpdate224], [$outerUpdate224], [$retryUpdate224], $unique224, 'same224', 'same224'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext224(['wp_options' => ['bad']], [$innerUpdate224], [$outerUpdate224], [$retryUpdate224], $unique224), InvalidArgumentException::class],
+    'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointMaterialization($tables224, [], [$outerUpdate224], [$retryUpdate224], $unique224), InvalidArgumentException::class],
+    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointMaterialization($tables224, [$innerUpdate224], [], [$retryUpdate224], $unique224), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointMaterialization($tables224, [$innerUpdate224], [$outerUpdate224], [], $unique224), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointMaterialization($tables224, [$innerUpdate224], [$outerUpdate224], [$retryUpdate224], []), InvalidArgumentException::class],
+    'malformed outer savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointMaterialization($tables224, [$innerUpdate224], [$outerUpdate224], [$retryUpdate224], $unique224, 'bad-name'), InvalidArgumentException::class],
+    'malformed inner savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointMaterialization($tables224, [$innerUpdate224], [$outerUpdate224], [$retryUpdate224], $unique224, 'outer_good', 'bad-name'), InvalidArgumentException::class],
+    'malformed same savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointMaterialization($tables224, [$innerUpdate224], [$outerUpdate224], [$retryUpdate224], $unique224, 'same224', 'same224'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointMaterialization(['wp_options' => ['bad']], [$innerUpdate224], [$outerUpdate224], [$retryUpdate224], $unique224), InvalidArgumentException::class],
 ];
 
 $tests = [];

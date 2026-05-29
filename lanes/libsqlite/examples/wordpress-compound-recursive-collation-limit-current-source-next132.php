@@ -47,7 +47,7 @@ SELECT option_name AS name, option_id AS depth
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundRecursiveCollationLimitCurrentSourceNextPlan::compareNext132($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundRecursiveCollationLimitCurrentSourceNextPlan::compareRecursiveCollationLimit($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($summary['status'] === 'compound-recursive-collation-limit-current-source-next132-ready');

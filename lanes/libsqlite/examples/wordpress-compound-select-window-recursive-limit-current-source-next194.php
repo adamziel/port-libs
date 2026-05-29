@@ -50,14 +50,14 @@ SELECT 2 AS id,
  LIMIT 4 OFFSET 0
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext194($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCursorGate($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-next194-ready');
+    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-recursiveCursorGate-ready');
     assert($plan['membershipBoundary']['currentAdmittedLabels'] === ['siteurl']);
     assert($plan['membershipBoundary']['nextAdmittedLabels'] === ['plugin_loaded']);
     assert($plan['membershipBoundary']['currentToken'] !== $plan['membershipBoundary']['nextToken']);
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next194 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-recursiveCursorGate self-test passed\n";
     return;
 }
 

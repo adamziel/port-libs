@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 11:41:00 UTC",
-    "sourceCommit": "580f23495b290ccf1447bebe8a218bb741a75db1",
-    "sourceCommitShort": "580f23495b29",
+    "generated": "2026-05-29 11:45:26 UTC",
+    "sourceCommit": "c490f16357ac039abff28445078bbb7437570787",
+    "sourceCommitShort": "c490f16357ac",
     "sourceBranch": "unknown",
-    "dashboardCommit": "580f23495b290ccf1447bebe8a218bb741a75db1",
-    "dashboardCommitShort": "580f23495b29",
+    "dashboardCommit": "c490f16357ac039abff28445078bbb7437570787",
+    "dashboardCommitShort": "c490f16357ac",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -88,9 +88,9 @@
             "phase": "second current functional batch plus broad numeric suff...",
             "audit": "Accepted 9 ready libsqlite handoffs on to...",
             "currentWork": "Integrated functional helpers for attach temp WAL schema cache routing, JSON aggregate wi...",
-            "nextTarget": "Keep 10-11 visible fifth-pass consolidation workers active, integrate new clean handoffs...",
+            "nextTarget": "Keep 10-11 visible seventh-pass consolidation workers active, integrate new clean handoff...",
             "blocker": "No blocker for the pushed focused batches.",
-            "commit": "fourth-"
+            "commit": "second "
         },
         {
             "library": "LightningCSS",

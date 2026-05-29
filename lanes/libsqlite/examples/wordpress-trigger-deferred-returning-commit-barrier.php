@@ -18,7 +18,7 @@ $children = [
     ['meta_id' => 2, 'post_id' => 20, 'meta_key' => '_source'],
     ['meta_id' => 3, 'post_id' => 30, 'meta_key' => '_source'],
 ];
-$plan = SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetryNext141(
+$plan = SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetry(
     $parents,
     $children,
     [['match' => 10, 'set' => ['post_id' => 110, 'post_title' => 'Rekeyed parent']]],
@@ -70,7 +70,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['durable_returning_rows'] === []);
     assert($plan['retry']['parent_keys'] === [10, 20, 30]);
     assert($plan['retry']['status'] === 'retry-from-restored-savepoint-image');
-    echo "wordpress-trigger-deferred-returning-savepoint-current-source-next141 self-test passed\n";
+    echo "wordpress-trigger-deferred-returning-commit-barrier self-test passed\n";
     return;
 }
 

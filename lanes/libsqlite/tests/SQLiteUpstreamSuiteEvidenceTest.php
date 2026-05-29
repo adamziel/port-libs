@@ -4025,7 +4025,6 @@ MD);
         $nextSource = '4844844844844844844844844844844844844844';
 
         foreach (range(469, 484) as $slice) {
-            $method = 'upstreamVeryquickShardCurrentSourceNext' . $slice;
             $focusedOutput = implode("\n", [
                 'Focused test run: 1 selected test files (root lock skipped)',
                 'PASS next' . $slice . ' veryquick-shard admits current-source mapped coverage',
@@ -4033,7 +4032,8 @@ MD);
                 '1 test files, 24 assertions, 0 failures',
             ]);
 
-            $record = $evidence->{$method}(
+            $record = $evidence->upstreamVeryquickShardCurrentSourceShard(
+                $slice,
                 [
                     [
                         'unit' => 'suite-upstream-veryquick-shard-current-source-next' . $slice,
@@ -4097,7 +4097,6 @@ MD);
         $nextSource = '5005005005005005005005005005005005005005';
 
         foreach (range(485, 500) as $slice) {
-            $method = 'upstreamVeryquickShardCurrentSourceNext' . $slice;
             $focusedOutput = implode("\n", [
                 'Focused test run: 1 selected test files (root lock skipped)',
                 'PASS next' . $slice . ' veryquick-shard admits current-source mapped coverage',
@@ -4105,7 +4104,8 @@ MD);
                 '1 test files, 24 assertions, 0 failures',
             ]);
 
-            $record = $evidence->{$method}(
+            $record = $evidence->upstreamVeryquickShardCurrentSourceShard(
+                $slice,
                 [
                     [
                         'unit' => 'suite-upstream-veryquick-shard-current-source-next' . $slice,
@@ -4169,7 +4169,6 @@ MD);
         $nextSource = '5165165165165165165165165165165165165165';
 
         foreach (range(501, 516) as $slice) {
-            $method = 'upstreamVeryquickShardCurrentSourceNext' . $slice;
             $focusedOutput = implode("\n", [
                 'Focused test run: 1 selected test files (root lock skipped)',
                 'PASS next' . $slice . ' veryquick-shard admits current-source mapped coverage',
@@ -4177,7 +4176,8 @@ MD);
                 '1 test files, 24 assertions, 0 failures',
             ]);
 
-            $record = $evidence->{$method}(
+            $record = $evidence->upstreamVeryquickShardCurrentSourceShard(
+                $slice,
                 [
                     [
                         'unit' => 'suite-upstream-veryquick-shard-current-source-next' . $slice,
@@ -4241,7 +4241,6 @@ MD);
         $nextSource = '5325325325325325325325325325325325325325';
 
         foreach (range(517, 532) as $slice) {
-            $method = 'upstreamVeryquickShardCurrentSourceNext' . $slice;
             $focusedOutput = implode("\n", [
                 'Focused test run: 1 selected test files (root lock skipped)',
                 'PASS next' . $slice . ' veryquick-shard admits current-source mapped coverage',
@@ -4249,7 +4248,8 @@ MD);
                 '1 test files, 24 assertions, 0 failures',
             ]);
 
-            $record = $evidence->{$method}(
+            $record = $evidence->upstreamVeryquickShardCurrentSourceShard(
+                $slice,
                 [
                     [
                         'unit' => 'suite-upstream-veryquick-shard-current-source-next' . $slice,
@@ -4313,7 +4313,6 @@ MD);
         $nextSource = '9009009009009009009009009009009009009009';
 
         foreach (range(885, 900) as $slice) {
-            $method = 'upstreamVeryquickShardCurrentSourceNext' . $slice;
             $focusedOutput = implode("\n", array_merge(
                 ['Focused test run: 1 selected test files (root lock skipped)'],
                 array_map(
@@ -4323,7 +4322,8 @@ MD);
                 ['1 test files, 97 assertions, 0 failures']
             ));
 
-            $record = $evidence->{$method}(
+            $record = $evidence->upstreamVeryquickShardCurrentSourceShard(
+                $slice,
                 [
                     [
                         'unit' => 'suite-upstream-veryquick-shard-current-source-next' . $slice,
@@ -4387,7 +4387,6 @@ MD);
         $nextSource = '9169169169169169169169169169169169169169';
 
         foreach (range(901, 916) as $slice) {
-            $method = 'upstreamVeryquickShardCurrentSourceNext' . $slice;
             $focusedOutput = implode("\n", array_merge(
                 ['Focused test run: 1 selected test files (root lock skipped)'],
                 array_map(
@@ -4397,7 +4396,8 @@ MD);
                 ['1 test files, 97 assertions, 0 failures']
             ));
 
-            $record = $evidence->{$method}(
+            $record = $evidence->upstreamVeryquickShardCurrentSourceShard(
+                $slice,
                 [
                     [
                         'unit' => 'suite-upstream-veryquick-shard-current-source-next' . $slice,

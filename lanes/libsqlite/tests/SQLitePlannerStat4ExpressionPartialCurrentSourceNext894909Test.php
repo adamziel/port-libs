@@ -101,7 +101,7 @@ $terms894909 = static fn (): array => [
     $like894909('option_name', 'plugin_%'),
 ];
 
-$plan894909 = static fn (?array $rows = null, ?array $samples = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext894909(
+$plan894909 = static fn (?array $rows = null, ?array $samples = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeLatePreparedHandoff(
     $prepared894909(),
     $current894909($rows, $samples),
     $terms894909(),
@@ -134,7 +134,7 @@ $tests = [
     'planner stat4 expression partial current source next894909 dependency closure' => static fn (TestRunner $t) => $t->contains('next894-909 preparation extends', $plan894909()['dependency_closure']),
     'planner stat4 expression partial current source next894909 non overlap' => static fn (TestRunner $t) => $t->contains('next878-893 handoff windows', $plan894909()['non_overlap']),
     'planner stat4 expression partial current source next894909 malformed needed column' => static function (TestRunner $t) use ($prepared894909, $current894909, $terms894909): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext894909($prepared894909(), $current894909(), $terms894909(), ['option_name', ''], 6));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeLatePreparedHandoff($prepared894909(), $current894909(), $terms894909(), ['option_name', ''], 6));
     },
 ];
 

@@ -35205,7 +35205,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext894909(
+    public static function materializeLatePreparedHandoff(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -35214,7 +35214,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializeNext878893($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceNext894909($base, $currentSource, $neededColumns);
+        $fence = self::handoffFenceLatePreparedHandoff($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next878-893-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -35234,7 +35234,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next894909Prepared" => $ready,
                 "next894909HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext894909($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::cursorProgramLatePreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next894-909-prep"],
@@ -35245,7 +35245,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceNext894909(array $base, array $currentSource, array $neededColumns): array
+    private static function handoffFenceLatePreparedHandoff(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next894-909 needs projected columns");
@@ -35320,7 +35320,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ];
     }
 
-    private static function cursorProgramNext894909(array $program, bool $ready, array $fence): array
+    private static function cursorProgramLatePreparedHandoff(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -35346,7 +35346,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext910925(
+    public static function materializeContinuationPreparedHandoff(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -35354,8 +35354,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext894909($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceNext910925($base, $currentSource, $neededColumns);
+        $base = self::materializeLatePreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $fence = self::handoffFenceContinuationPreparedHandoff($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next894-909-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -35375,7 +35375,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next910925Prepared" => $ready,
                 "next910925HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext910925($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::cursorProgramContinuationPreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next910-925-prep"],
@@ -35386,7 +35386,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceNext910925(array $base, array $currentSource, array $neededColumns): array
+    private static function handoffFenceContinuationPreparedHandoff(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next910-925 needs projected columns");
@@ -35461,7 +35461,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ];
     }
 
-    private static function cursorProgramNext910925(array $program, bool $ready, array $fence): array
+    private static function cursorProgramContinuationPreparedHandoff(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -35487,7 +35487,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext926941(
+    public static function materializeAdvancedPreparedHandoff(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -35495,8 +35495,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext910925($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceNext926941($base, $currentSource, $neededColumns);
+        $base = self::materializeContinuationPreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $fence = self::handoffFenceAdvancedPreparedHandoff($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next910-925-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -35516,7 +35516,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next926941Prepared" => $ready,
                 "next926941HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext926941($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::cursorProgramAdvancedPreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next926-941-prep"],
@@ -35527,7 +35527,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceNext926941(array $base, array $currentSource, array $neededColumns): array
+    private static function handoffFenceAdvancedPreparedHandoff(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next926-941 needs projected columns");
@@ -35602,7 +35602,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ];
     }
 
-    private static function cursorProgramNext926941(array $program, bool $ready, array $fence): array
+    private static function cursorProgramAdvancedPreparedHandoff(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -35628,7 +35628,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext942957(
+    public static function materializePenultimatePreparedHandoff(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -35636,8 +35636,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext926941($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceNext942957($base, $currentSource, $neededColumns);
+        $base = self::materializeAdvancedPreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $fence = self::handoffFencePenultimatePreparedHandoff($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next926-941-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -35657,7 +35657,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next942957Prepared" => $ready,
                 "next942957HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext942957($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::cursorProgramPenultimatePreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next942-957-prep"],
@@ -35668,7 +35668,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceNext942957(array $base, array $currentSource, array $neededColumns): array
+    private static function handoffFencePenultimatePreparedHandoff(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next942-957 needs projected columns");
@@ -35743,7 +35743,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ];
     }
 
-    private static function cursorProgramNext942957(array $program, bool $ready, array $fence): array
+    private static function cursorProgramPenultimatePreparedHandoff(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -35769,7 +35769,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext958973(
+    public static function materializeTerminalPreparedHandoff(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -35777,8 +35777,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext942957($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceNext958973($base, $currentSource, $neededColumns);
+        $base = self::materializePenultimatePreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $fence = self::handoffFenceTerminalPreparedHandoff($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next942-957-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -35798,7 +35798,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next958973Prepared" => $ready,
                 "next958973HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext958973($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::cursorProgramTerminalPreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next958-973-prep"],
@@ -35809,7 +35809,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceNext958973(array $base, array $currentSource, array $neededColumns): array
+    private static function handoffFenceTerminalPreparedHandoff(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next958-973 needs projected columns");
@@ -35884,7 +35884,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ];
     }
 
-    private static function cursorProgramNext958973(array $program, bool $ready, array $fence): array
+    private static function cursorProgramTerminalPreparedHandoff(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -35918,7 +35918,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext958973($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $base = self::materializeTerminalPreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
         $fence = self::handoffFenceFinalPreparedHandoff($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next958-973-prepared"
             && $fence["allSlicesPrepared"]

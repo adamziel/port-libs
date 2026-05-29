@@ -26,7 +26,7 @@ $triggers = [
     ],
 ];
 
-$plan = SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepointNext119(
+$plan = SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepoint(
     $parents,
     $children,
     [['match' => 10, 'set' => ['post_id' => 110, 'post_title' => 'Rekeyed parent']]],
@@ -42,7 +42,7 @@ if (in_array('--self-test', $argv, true)) {
     assert(array_column($plan['after_statement']['parent'], 'post_id') === [110, 20]);
     assert(array_column($plan['after_savepoint']['parent'], 'post_id') === [10, 20]);
     assert($plan['after_savepoint']['commit_status'] === 'ok-after-rollback-to-savepoint');
-    echo "wordpress-trigger-deferred-returning-savepoint-current-source-next119 self-test passed\n";
+    echo "wordpress-trigger-deferred-returning-savepoint self-test passed\n";
     return;
 }
 

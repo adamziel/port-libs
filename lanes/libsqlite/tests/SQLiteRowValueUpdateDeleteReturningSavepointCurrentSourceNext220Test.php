@@ -32,14 +32,14 @@ $preDeleteResult220 = static fn (): array => SQLiteUpdateDeleteReturningSql::exe
 $abortProbe220 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($abortUpdate220, $preDeleteResult220()['tables'], 'option_id', [], true);
 $retryUpdateResult220 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate220, $preDeleteResult220()['tables'], 'option_id', $unique220);
 $retryDeleteResult220 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete220, $retryUpdateResult220()['tables'], 'option_id', $unique220);
-$plan220 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext220(
+$plan220 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortConflictRetry(
     $tables220,
     [$preUpdate220, $preDelete220],
     $abortUpdate220,
     [$retryUpdate220, $retryDelete220],
     $unique220,
 );
-$customPlan220 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext220(
+$customPlan220 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortConflictRetry(
     $tables220,
     [$preUpdate220],
     $abortUpdate220,
@@ -130,13 +130,13 @@ $cases220 = [
     'custom savepoint' => [static fn (): mixed => $customPlan220()['savepoint'], 'wp_custom_abort220'],
     'custom pre count' => [static fn (): mixed => $customPlan220()['pre_abort_yielded_count'], 2],
     'custom retry count' => [static fn (): mixed => $customPlan220()['retry_yielded_count'], 2],
-    'malformed empty pre rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext220($tables220, [], $abortUpdate220, [$retryUpdate220], $unique220), InvalidArgumentException::class],
-    'malformed empty abort rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext220($tables220, [$preUpdate220], '', [$retryUpdate220], $unique220), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext220($tables220, [$preUpdate220], $abortUpdate220, [], $unique220), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext220($tables220, [$preUpdate220], $abortUpdate220, [$retryUpdate220], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext220($tables220, [$preUpdate220], $abortUpdate220, [$retryUpdate220], $unique220, 'bad-name'), InvalidArgumentException::class],
-    'malformed non abort action rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext220($tables220, [$preUpdate220], str_replace('OR ABORT', 'OR FAIL', $abortUpdate220), [$retryUpdate220], $unique220), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext220(['wp_options' => ['bad']], [$preUpdate220], $abortUpdate220, [$retryUpdate220], $unique220), InvalidArgumentException::class],
+    'malformed empty pre rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortConflictRetry($tables220, [], $abortUpdate220, [$retryUpdate220], $unique220), InvalidArgumentException::class],
+    'malformed empty abort rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortConflictRetry($tables220, [$preUpdate220], '', [$retryUpdate220], $unique220), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortConflictRetry($tables220, [$preUpdate220], $abortUpdate220, [], $unique220), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortConflictRetry($tables220, [$preUpdate220], $abortUpdate220, [$retryUpdate220], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortConflictRetry($tables220, [$preUpdate220], $abortUpdate220, [$retryUpdate220], $unique220, 'bad-name'), InvalidArgumentException::class],
+    'malformed non abort action rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortConflictRetry($tables220, [$preUpdate220], str_replace('OR ABORT', 'OR FAIL', $abortUpdate220), [$retryUpdate220], $unique220), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortConflictRetry(['wp_options' => ['bad']], [$preUpdate220], $abortUpdate220, [$retryUpdate220], $unique220), InvalidArgumentException::class],
 ];
 
 $tests = [];
