@@ -283,6 +283,46 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan
     /**
      * @param array<string, mixed> $deleteResult
      */
+    public static function tableLeafFromDeleteResultNext217(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext218(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteReceiptVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext219(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextReadbackVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext220(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCommitVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext223(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSourcePublicationVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
     public static function tableLeafFromDeleteResultNext166(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true): self
     {
         return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteAdmissionVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete));
@@ -18534,6 +18574,1657 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPageReceiptPubl
         }
 
         return 'overflow-payload-page';
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant
+{
+    /**
+     * @param list<array<string, mixed>> $writeRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan,
+        private readonly array $writeRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext212(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): self
+    {
+        $rows = self::buildWriteRows($basePlan);
+        $errors = self::writeErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next217 write plan failed: ' . implode('; ', $errors));
+        }
+
+        return new self($basePlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function writeRows(): array
+    {
+        return $this->writeRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function writeErrors(): array
+    {
+        return self::writeErrorsForRows($this->writeRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function writePages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['page_number'], $this->writeRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function uniqueWritePages(): array
+    {
+        return self::sortedIntKeys(array_fill_keys($this->writePages(), true));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapWritePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['write_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadWritePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['write_channel'] === 'payload');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function leafFreeblockWritePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['leaf_freeblock_receipt_carried'] === true);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function overflowWritePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['overflow_payload_write'] === true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function writeTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['write_token'], $this->writeRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function writeSummary(): array
+    {
+        $baseSummary = $this->basePlan->applySummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next217-ready',
+            'write_row_count' => count($this->writeRows),
+            'write_pages' => $this->writePages(),
+            'unique_write_pages' => $this->uniqueWritePages(),
+            'pointer_map_write_pages' => $this->pointerMapWritePages(),
+            'payload_write_pages' => $this->payloadWritePages(),
+            'leaf_freeblock_write_pages' => $this->leafFreeblockWritePages(),
+            'overflow_write_pages' => $this->overflowWritePages(),
+            'write_pages_match_apply_pages' => $this->uniqueWritePages() === $baseSummary['apply_pages'],
+            'pointer_map_writes_match_apply_pages' => self::sortedIntKeys(array_fill_keys($this->pointerMapWritePages(), true)) === $baseSummary['pointer_map_apply_pages'],
+            'payload_writes_match_apply_pages' => $this->payloadWritePages() === $baseSummary['payload_apply_pages'],
+            'all_pointer_maps_written_before_payload' => $this->pointerMapsBeforePayloadWrites(),
+            'all_source_apply_tokens_match' => !in_array(false, array_column($this->writeRows, 'source_apply_token_matches'), true),
+            'all_write_chains_valid' => !in_array(false, array_column($this->writeRows, 'write_chain_valid'), true),
+            'all_tail_pages_excluded' => !in_array(false, array_column($this->writeRows, 'tail_page_excluded_from_write'), true),
+            'all_freeblock_receipts_carried' => !in_array(false, array_column($this->writeRows, 'freeblock_receipt_carried'), true),
+            'all_write_offsets_contiguous' => !in_array(false, array_column($this->writeRows, 'write_offset_contiguous'), true),
+            'write_tokens' => $this->writeTokens(),
+            'write_signature' => self::signature($this->writeTokens()),
+            'current_source_next217_token' => self::signature(array_merge(
+                ['next217', $baseSummary['next_writer_apply_token']],
+                $this->writePages(),
+                $this->writeTokens(),
+            )),
+            'write_errors' => $this->writeErrors(),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next212',
+                'sqlite-current-source-next217',
+            ],
+            'dependency_closure' => 'no new support component needed; next217 reuses next212 current-source apply rows, pointer-map apply pages, leaf freeblock receipts, and fenced-tail guards',
+            'non_overlap' => 'adds page-write materialization for current-source next217 after next212 apply ordering; does not repeat next212 writer apply ordering, next209 source latching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next217',
+            'write_summary' => $this->writeSummary(),
+            'write_errors' => $this->writeErrors(),
+            'write_rows' => $this->writeRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->writeRows, $predicate),
+        ));
+    }
+
+    private function pointerMapsBeforePayloadWrites(): bool
+    {
+        $lastPointer = null;
+        $firstPayload = null;
+        foreach ($this->writeRows as $row) {
+            if ($row['write_channel'] === 'pointer-map') {
+                $lastPointer = (int) $row['write_ordinal'];
+            }
+            if ($row['write_channel'] === 'payload' && $firstPayload === null) {
+                $firstPayload = (int) $row['write_ordinal'];
+            }
+        }
+
+        return $lastPointer !== null && $firstPayload !== null && $lastPointer < $firstPayload;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildWriteRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): array
+    {
+        $applyRows = $basePlan->applyRows();
+        $applyTokens = $basePlan->applyTokens();
+        $orderedRows = array_merge(
+            array_values(array_filter($applyRows, static fn (array $row): bool => $row['apply_channel'] === 'pointer-map')),
+            array_values(array_filter($applyRows, static fn (array $row): bool => $row['apply_channel'] !== 'pointer-map')),
+        );
+
+        $rows = [];
+        $previousWriteToken = null;
+        $writtenPages = [];
+        $writeOrdinal = 1;
+
+        foreach ($orderedRows as $applyRow) {
+            $sourceToken = (string) $applyRow['apply_token'];
+            foreach ($applyRow['apply_pages'] as $pageNumber) {
+                $pageNumber = (int) $pageNumber;
+                $rewritesExistingPage = isset($writtenPages[$pageNumber]);
+                $writtenPages[$pageNumber] = true;
+                $expectedOffset = ($pageNumber - 1) * 512;
+                $token = self::signature(array_merge(
+                    ['next217', $writeOrdinal, $previousWriteToken ?? 'initial', $sourceToken],
+                    [$pageNumber, $expectedOffset, (string) $applyRow['apply_channel']],
+                    self::sortedIntKeys($writtenPages),
+                ));
+
+                $rows[] = [
+                    'write_ordinal' => $writeOrdinal,
+                    'source_apply_ordinal' => (int) $applyRow['apply_ordinal'],
+                    'page_number' => $pageNumber,
+                    'write_channel' => (string) $applyRow['apply_channel'],
+                    'byte_offset' => $expectedOffset,
+                    'byte_length' => 512,
+                    'written_visible_pages' => self::sortedIntKeys($writtenPages),
+                    'source_apply_token' => $sourceToken,
+                    'expected_apply_token' => $applyTokens[((int) $applyRow['apply_ordinal']) - 1] ?? null,
+                    'source_apply_token_matches' => ($applyTokens[((int) $applyRow['apply_ordinal']) - 1] ?? null) === $sourceToken,
+                    'previous_write_token' => $previousWriteToken,
+                    'write_chain_valid' => $previousWriteToken === null || is_string($previousWriteToken),
+                    'write_offset_contiguous' => $expectedOffset % 512 === 0,
+                    'rewrites_existing_page' => $rewritesExistingPage,
+                    'tail_page_excluded_from_write' => !in_array($pageNumber, [109, 110], true),
+                    'freeblock_receipt_carried' => $applyRow['freeblock_receipt_carried'] === true,
+                    'leaf_freeblock_receipt_carried' => $applyRow['freeblock_receipt_carried'] === true && $pageNumber === 3,
+                    'overflow_payload_write' => $applyRow['apply_channel'] === 'payload' && $pageNumber !== 3,
+                    'sync_group' => $applyRow['apply_channel'] === 'pointer-map' ? 'pointer-map-before-payload' : 'payload-after-pointer-map',
+                    'write_state' => 'current-source-page-write-ready',
+                    'write_token' => $token,
+                ];
+
+                $previousWriteToken = $token;
+                ++$writeOrdinal;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function writeErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+        $seenPayload = false;
+        $seenPages = [];
+
+        foreach ($rows as $row) {
+            if ($row['write_state'] !== 'current-source-page-write-ready') {
+                $errors[] = "write {$row['write_ordinal']} is not ready";
+            }
+            if ((int) $row['write_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "write {$row['write_ordinal']} skipped a write ordinal";
+            }
+            if ($row['source_apply_token_matches'] !== true) {
+                $errors[] = "write {$row['write_ordinal']} source apply token drifted";
+            }
+            if ($row['previous_write_token'] !== $previousToken) {
+                $errors[] = "write {$row['write_ordinal']} broke write token chaining";
+            }
+            if ($row['write_channel'] === 'pointer-map' && $seenPayload) {
+                $errors[] = "write {$row['write_ordinal']} placed pointer-map bytes after payload bytes";
+            }
+            if ($row['write_channel'] === 'payload') {
+                $seenPayload = true;
+            }
+            if ($row['tail_page_excluded_from_write'] !== true) {
+                $errors[] = "write {$row['write_ordinal']} exposed a fenced tail page";
+            }
+            if ($row['write_offset_contiguous'] !== true || (int) $row['byte_length'] !== 512) {
+                $errors[] = "write {$row['write_ordinal']} has an invalid page byte range";
+            }
+            if ($row['write_token'] === '') {
+                $errors[] = "write {$row['write_ordinal']} has an empty write token";
+            }
+
+            $seenPages[(int) $row['page_number']] = true;
+            $previousOrdinal = (int) $row['write_ordinal'];
+            $previousToken = (string) $row['write_token'];
+        }
+
+        if ($rows === []) {
+            $errors[] = 'write plan is empty';
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+
+class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteReceiptVariant
+{
+    /**
+     * @param list<array<string, mixed>> $writeRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan,
+        private readonly array $writeRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext212(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): self
+    {
+        $rows = self::buildWriteRows($basePlan);
+        $errors = self::writeErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next218 write receipts failed: ' . implode('; ', $errors));
+        }
+
+        return new self($basePlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function writeRows(): array
+    {
+        return $this->writeRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function writeErrors(): array
+    {
+        return self::writeErrorsForRows($this->writeRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function writePages(): array
+    {
+        $pages = [];
+        foreach ($this->writeRows as $row) {
+            $pages[(int) $row['page_number']] = true;
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapWritePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['write_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadWritePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['write_channel'] === 'payload');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function writeTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['write_token'], $this->writeRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function writeSummary(): array
+    {
+        $applySummary = $this->basePlan->applySummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next218-ready',
+            'write_row_count' => count($this->writeRows),
+            'write_pages' => $this->writePages(),
+            'pointer_map_write_pages' => $this->pointerMapWritePages(),
+            'payload_write_pages' => $this->payloadWritePages(),
+            'apply_pages' => $applySummary['apply_pages'],
+            'writes_match_apply_pages' => $this->writePages() === $applySummary['apply_pages'],
+            'write_tokens' => $this->writeTokens(),
+            'write_signature' => self::signature($this->writeTokens()),
+            'current_source_next218_token' => self::signature(array_merge(
+                ['next218', $applySummary['next_writer_apply_token']],
+                $this->writePages(),
+                $this->writeTokens(),
+            )),
+            'all_apply_tokens_match' => !in_array(false, array_column($this->writeRows, 'apply_token_matches'), true),
+            'all_pointer_maps_written_before_payload' => $this->pointerMapsWrittenBeforePayload(),
+            'all_freeblock_receipts_carried' => !in_array(false, array_column($this->writeRows, 'freeblock_receipt_carried'), true),
+            'all_tail_pages_fenced_for_write' => !in_array(false, array_column($this->writeRows, 'tail_pages_fenced_for_write'), true),
+            'all_write_chains_valid' => !in_array(false, array_column($this->writeRows, 'write_chain_valid'), true),
+            'write_errors' => $this->writeErrors(),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next212',
+                'sqlite-current-source-next218',
+            ],
+            'dependency_closure' => 'no new support component needed; next218 reuses next212 current-source apply rows and adds per-page write receipts only',
+            'non_overlap' => 'adds per-page current-source write receipts after next212 apply ordering; does not repeat next212 page apply ordering, next209 source latching, overflow freelist release, root collapse, page relocation, or accepted freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next218',
+            'write_summary' => $this->writeSummary(),
+            'write_errors' => $this->writeErrors(),
+            'write_rows' => $this->writeRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        $pages = [];
+        foreach ($this->writeRows as $row) {
+            if ($predicate($row)) {
+                $pages[(int) $row['page_number']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    private function pointerMapsWrittenBeforePayload(): bool
+    {
+        $byCursor = [];
+        foreach ($this->writeRows as $row) {
+            $cursor = (int) $row['cursor_index'];
+            $byCursor[$cursor] ??= ['pointer' => null, 'payload' => null];
+            if ($row['write_channel'] === 'pointer-map') {
+                $byCursor[$cursor]['pointer'] ??= (int) $row['write_ordinal'];
+            }
+            if ($row['write_channel'] === 'payload') {
+                $byCursor[$cursor]['payload'] ??= (int) $row['write_ordinal'];
+            }
+        }
+
+        foreach ($byCursor as $row) {
+            if ($row['payload'] !== null && ($row['pointer'] === null || $row['pointer'] > $row['payload'])) {
+                return false;
+            }
+        }
+
+        return $byCursor !== [];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildWriteRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): array
+    {
+        $applyRows = $basePlan->applyRows();
+        $applyTokens = $basePlan->applyTokens();
+        $rows = [];
+        $previousWriteToken = null;
+        $visiblePages = [];
+        $writeOrdinal = 0;
+
+        foreach ($applyRows as $applyIndex => $applyRow) {
+            $applyToken = (string) $applyRow['apply_token'];
+            $pages = array_values(array_map('intval', $applyRow['apply_pages']));
+            foreach ($pages as $pageNumber) {
+                $visiblePages[$pageNumber] = true;
+                ++$writeOrdinal;
+
+                $token = self::signature(array_merge(
+                    ['next218', $writeOrdinal, $previousWriteToken ?? 'initial', $applyToken],
+                    [$pageNumber, (int) $applyRow['apply_ordinal'], (int) $applyRow['cursor_index']],
+                    self::sortedIntKeys($visiblePages),
+                ));
+
+                $rows[] = [
+                    'write_ordinal' => $writeOrdinal,
+                    'apply_index' => $applyIndex,
+                    'apply_ordinal' => (int) $applyRow['apply_ordinal'],
+                    'cursor_index' => (int) $applyRow['cursor_index'],
+                    'batch_index' => (int) $applyRow['batch_index'],
+                    'write_channel' => (string) $applyRow['apply_channel'],
+                    'page_number' => $pageNumber,
+                    'written_visible_pages' => self::sortedIntKeys($visiblePages),
+                    'apply_token' => $applyToken,
+                    'expected_apply_token' => $applyTokens[$applyIndex] ?? null,
+                    'apply_token_matches' => ($applyTokens[$applyIndex] ?? null) === $applyToken,
+                    'previous_write_token' => $previousWriteToken,
+                    'freeblock_receipt_carried' => $applyRow['freeblock_receipt_carried'] === true,
+                    'tail_pages_fenced_for_write' => $applyRow['tail_pages_fenced_for_apply'] === true && !in_array($pageNumber, [109, 110], true),
+                    'write_chain_valid' => $applyRow['previous_apply_token'] === null || is_string($applyRow['previous_apply_token']),
+                    'high_water_page' => (int) $applyRow['high_water_page'],
+                    'write_state' => 'current-source-page-write-receipted',
+                    'write_token' => $token,
+                ];
+
+                $previousWriteToken = $token;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function writeErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+        $previousVisible = [];
+
+        foreach ($rows as $row) {
+            if ($row['write_state'] !== 'current-source-page-write-receipted') {
+                $errors[] = "write {$row['write_ordinal']} is not receipted";
+            }
+            if ((int) $row['write_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "write {$row['write_ordinal']} skipped a write ordinal";
+            }
+            if ($row['apply_token_matches'] !== true) {
+                $errors[] = "write {$row['write_ordinal']} apply token drifted";
+            }
+            if ($row['previous_write_token'] !== $previousToken) {
+                $errors[] = "write {$row['write_ordinal']} broke write token chaining";
+            }
+            if ($row['freeblock_receipt_carried'] !== true) {
+                $errors[] = "write {$row['write_ordinal']} lost the leaf freeblock receipt";
+            }
+            if ($row['tail_pages_fenced_for_write'] !== true) {
+                $errors[] = "write {$row['write_ordinal']} exposed fenced tail pages";
+            }
+            if ($row['write_chain_valid'] !== true) {
+                $errors[] = "write {$row['write_ordinal']} has an invalid apply chain";
+            }
+            if (count(array_diff(array_keys($previousVisible), $row['written_visible_pages'])) !== 0) {
+                $errors[] = "write {$row['write_ordinal']} lost an already-written page";
+            }
+            if ($row['write_token'] === '') {
+                $errors[] = "write {$row['write_ordinal']} has an empty write token";
+            }
+
+            $previousOrdinal = (int) $row['write_ordinal'];
+            $previousToken = (string) $row['write_token'];
+            $previousVisible = array_fill_keys(array_map('intval', $row['written_visible_pages']), true);
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+
+class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextReadbackVariant
+{
+    /**
+     * @param list<array<string, mixed>> $readRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant $basePlan,
+        private readonly array $readRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant $basePlan): self
+    {
+        $rows = self::buildReadRows($basePlan);
+        $errors = self::readErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next219 readback failed: ' . implode('; ', $errors));
+        }
+
+        return new self($basePlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function readRows(): array
+    {
+        return $this->readRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function readErrors(): array
+    {
+        return self::readErrorsForRows($this->readRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function readPages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['page_number'], $this->readRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function uniqueReadPages(): array
+    {
+        return self::sortedIntKeys(array_fill_keys($this->readPages(), true));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapReadPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['read_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadReadPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['read_channel'] === 'payload');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function readTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['read_token'], $this->readRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function readSummary(): array
+    {
+        $writeSummary = $this->basePlan->writeSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next219-ready',
+            'read_row_count' => count($this->readRows),
+            'read_pages' => $this->readPages(),
+            'unique_read_pages' => $this->uniqueReadPages(),
+            'pointer_map_read_pages' => $this->pointerMapReadPages(),
+            'payload_read_pages' => $this->payloadReadPages(),
+            'read_pages_match_write_pages' => $this->readPages() === $writeSummary['write_pages'],
+            'unique_read_pages_match_unique_write_pages' => $this->uniqueReadPages() === $writeSummary['unique_write_pages'],
+            'pointer_map_reads_match_writes' => $this->pointerMapReadPages() === $writeSummary['pointer_map_write_pages'],
+            'payload_reads_match_writes' => $this->payloadReadPages() === $writeSummary['payload_write_pages'],
+            'all_write_tokens_match' => !in_array(false, array_column($this->readRows, 'write_token_matches'), true),
+            'all_current_source_tokens_match' => !in_array(false, array_column($this->readRows, 'current_source_token_matches'), true),
+            'all_pointer_maps_read_before_payload' => $this->pointerMapsBeforePayloadReads(),
+            'all_duplicate_rewrites_preserved' => $this->duplicateRewritePages() === $this->duplicateRewriteReadPages(),
+            'all_tail_pages_excluded_from_read' => !in_array(false, array_column($this->readRows, 'tail_page_excluded_from_read'), true),
+            'all_read_offsets_contiguous' => !in_array(false, array_column($this->readRows, 'read_offset_contiguous'), true),
+            'duplicate_rewrite_pages' => $this->duplicateRewriteReadPages(),
+            'read_tokens' => $this->readTokens(),
+            'read_signature' => self::signature($this->readTokens()),
+            'current_source_next219_token' => self::signature(array_merge(
+                ['next219', $writeSummary['current_source_next217_token']],
+                $this->readPages(),
+                $this->readTokens(),
+            )),
+            'read_errors' => $this->readErrors(),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next217',
+                'sqlite-current-source-next219',
+            ],
+            'dependency_closure' => 'no new support component needed; next219 reuses next217 current-source write rows, write tokens, pointer-map-before-payload ordering, and fenced-tail guards',
+            'non_overlap' => 'adds post-write current-source readback verification after next217 page writes; does not repeat next217 page-write materialization, next212 apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next219',
+            'read_summary' => $this->readSummary(),
+            'read_errors' => $this->readErrors(),
+            'read_rows' => $this->readRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->readRows, $predicate),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function duplicateRewritePages(): array
+    {
+        $pages = [];
+        foreach ($this->basePlan->writeRows() as $row) {
+            if ($row['rewrites_existing_page'] === true) {
+                $pages[(int) $row['page_number']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function duplicateRewriteReadPages(): array
+    {
+        $pages = [];
+        foreach ($this->readRows as $row) {
+            if ($row['duplicate_rewrite_read'] === true) {
+                $pages[(int) $row['page_number']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    private function pointerMapsBeforePayloadReads(): bool
+    {
+        $lastPointer = null;
+        $firstPayload = null;
+        foreach ($this->readRows as $row) {
+            if ($row['read_channel'] === 'pointer-map') {
+                $lastPointer = (int) $row['read_ordinal'];
+            }
+            if ($row['read_channel'] === 'payload' && $firstPayload === null) {
+                $firstPayload = (int) $row['read_ordinal'];
+            }
+        }
+
+        return $lastPointer !== null && $firstPayload !== null && $lastPointer < $firstPayload;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildReadRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant $basePlan): array
+    {
+        $writeRows = $basePlan->writeRows();
+        $writeTokens = $basePlan->writeTokens();
+        $writeSummary = $basePlan->writeSummary();
+        $rows = [];
+        $previousReadToken = null;
+        $readPages = [];
+
+        foreach ($writeRows as $index => $writeRow) {
+            $pageNumber = (int) $writeRow['page_number'];
+            $readPages[$pageNumber] = true;
+            $readOrdinal = $index + 1;
+            $writeToken = (string) $writeRow['write_token'];
+            $token = self::signature(array_merge(
+                ['next219', $readOrdinal, $previousReadToken ?? 'initial', $writeToken],
+                [$pageNumber, (int) $writeRow['byte_offset'], (string) $writeRow['write_channel']],
+                self::sortedIntKeys($readPages),
+            ));
+
+            $rows[] = [
+                'read_ordinal' => $readOrdinal,
+                'source_write_ordinal' => (int) $writeRow['write_ordinal'],
+                'page_number' => $pageNumber,
+                'read_channel' => (string) $writeRow['write_channel'],
+                'byte_offset' => (int) $writeRow['byte_offset'],
+                'byte_length' => (int) $writeRow['byte_length'],
+                'read_visible_pages' => self::sortedIntKeys($readPages),
+                'source_write_token' => $writeToken,
+                'expected_write_token' => $writeTokens[$index] ?? null,
+                'write_token_matches' => ($writeTokens[$index] ?? null) === $writeToken,
+                'current_source_token' => $writeSummary['current_source_next217_token'],
+                'expected_current_source_token' => $writeSummary['current_source_next217_token'],
+                'current_source_token_matches' => $writeSummary['current_source_next217_token'] !== '',
+                'previous_read_token' => $previousReadToken,
+                'read_chain_valid' => $previousReadToken === null || is_string($previousReadToken),
+                'duplicate_rewrite_read' => $writeRow['rewrites_existing_page'] === true,
+                'tail_page_excluded_from_read' => !in_array($pageNumber, [109, 110], true),
+                'freeblock_receipt_confirmed' => $writeRow['freeblock_receipt_carried'] === true,
+                'leaf_freeblock_receipt_confirmed' => $writeRow['leaf_freeblock_receipt_carried'] === true,
+                'overflow_payload_read' => $writeRow['overflow_payload_write'] === true,
+                'read_offset_contiguous' => ((int) $writeRow['byte_offset']) % 512 === 0 && (int) $writeRow['byte_length'] === 512,
+                'read_state' => 'current-source-page-readback-ready',
+                'read_token' => $token,
+            ];
+
+            $previousReadToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function readErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+        $seenPayload = false;
+
+        foreach ($rows as $row) {
+            if ($row['read_state'] !== 'current-source-page-readback-ready') {
+                $errors[] = "read {$row['read_ordinal']} is not ready";
+            }
+            if ((int) $row['read_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "read {$row['read_ordinal']} skipped a read ordinal";
+            }
+            if ((int) $row['source_write_ordinal'] !== (int) $row['read_ordinal']) {
+                $errors[] = "read {$row['read_ordinal']} drifted from its source write ordinal";
+            }
+            if ($row['write_token_matches'] !== true) {
+                $errors[] = "read {$row['read_ordinal']} source write token drifted";
+            }
+            if ($row['current_source_token_matches'] !== true) {
+                $errors[] = "read {$row['read_ordinal']} current-source token drifted";
+            }
+            if ($row['previous_read_token'] !== $previousToken) {
+                $errors[] = "read {$row['read_ordinal']} broke read token chaining";
+            }
+            if ($row['read_channel'] === 'pointer-map' && $seenPayload) {
+                $errors[] = "read {$row['read_ordinal']} placed pointer-map readback after payload readback";
+            }
+            if ($row['read_channel'] === 'payload') {
+                $seenPayload = true;
+            }
+            if ($row['tail_page_excluded_from_read'] !== true) {
+                $errors[] = "read {$row['read_ordinal']} exposed a fenced tail page";
+            }
+            if ($row['read_offset_contiguous'] !== true) {
+                $errors[] = "read {$row['read_ordinal']} has an invalid page byte range";
+            }
+            if ($row['read_token'] === '') {
+                $errors[] = "read {$row['read_ordinal']} has an empty read token";
+            }
+
+            $previousOrdinal = (int) $row['read_ordinal'];
+            $previousToken = (string) $row['read_token'];
+        }
+
+        if ($rows === []) {
+            $errors[] = 'readback plan is empty';
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+
+class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCommitVariant
+{
+    /**
+     * @param list<array<string, mixed>> $commitRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant $writePlan,
+        private readonly array $commitRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromWritePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromWritePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant $writePlan): self
+    {
+        $rows = self::buildCommitRows($writePlan);
+        $errors = self::commitErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next220 commit failed: ' . implode('; ', $errors));
+        }
+
+        return new self($writePlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function commitRows(): array
+    {
+        return $this->commitRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function commitErrors(): array
+    {
+        return self::commitErrorsForRows($this->commitRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function commitPages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['page_number'], $this->commitRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function uniqueCommitPages(): array
+    {
+        return self::sortedIntKeys(array_fill_keys($this->commitPages(), true));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapCommitPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['commit_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadCommitPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['commit_channel'] === 'payload');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function commitTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['commit_token'], $this->commitRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function commitSummary(): array
+    {
+        $writeSummary = $this->writePlan->writeSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next220-ready',
+            'commit_row_count' => count($this->commitRows),
+            'commit_pages' => $this->commitPages(),
+            'unique_commit_pages' => $this->uniqueCommitPages(),
+            'pointer_map_commit_pages' => $this->pointerMapCommitPages(),
+            'payload_commit_pages' => $this->payloadCommitPages(),
+            'commit_pages_match_write_pages' => $this->commitPages() === $writeSummary['write_pages'],
+            'unique_commit_pages_match_write_pages' => $this->uniqueCommitPages() === $writeSummary['unique_write_pages'],
+            'pointer_map_commit_pages_match_write_pages' => $this->pointerMapCommitPages() === $writeSummary['pointer_map_write_pages'],
+            'payload_commit_pages_match_write_pages' => $this->payloadCommitPages() === $writeSummary['payload_write_pages'],
+            'all_pointer_maps_committed_before_payload' => $this->pointerMapsBeforePayloadCommits(),
+            'all_source_write_tokens_match' => !in_array(false, array_column($this->commitRows, 'source_write_token_matches'), true),
+            'all_commit_chains_valid' => !in_array(false, array_column($this->commitRows, 'commit_chain_valid'), true),
+            'all_tail_pages_excluded' => !in_array(false, array_column($this->commitRows, 'tail_page_excluded_from_commit'), true),
+            'all_freeblock_receipts_carried' => !in_array(false, array_column($this->commitRows, 'freeblock_receipt_carried'), true),
+            'all_commit_offsets_contiguous' => !in_array(false, array_column($this->commitRows, 'commit_offset_contiguous'), true),
+            'rewrite_commit_pages' => $this->rewriteCommitPages(),
+            'commit_groups' => array_values(array_unique(array_column($this->commitRows, 'commit_group'))),
+            'commit_tokens' => $this->commitTokens(),
+            'commit_signature' => self::signature($this->commitTokens()),
+            'current_source_next220_token' => self::signature(array_merge(
+                ['next220', $writeSummary['current_source_next217_token']],
+                $this->commitPages(),
+                $this->commitTokens(),
+            )),
+            'commit_errors' => $this->commitErrors(),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next217',
+                'sqlite-current-source-next220',
+            ],
+            'dependency_closure' => 'no new support component needed; next220 reuses next217 page-write rows, pointer-map-first ordering, duplicate pointer-map rewrite receipts, and fenced-tail guards',
+            'non_overlap' => 'adds commit-fenced current-source publication for next220 after next217 write materialization; does not repeat next217 write-row construction, next212 apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next220',
+            'commit_summary' => $this->commitSummary(),
+            'commit_errors' => $this->commitErrors(),
+            'commit_rows' => $this->commitRows,
+            'write_plan' => $this->writePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->commitRows, $predicate),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function rewriteCommitPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['rewrites_existing_page'] === true);
+    }
+
+    private function pointerMapsBeforePayloadCommits(): bool
+    {
+        $lastPointer = null;
+        $firstPayload = null;
+        foreach ($this->commitRows as $row) {
+            if ($row['commit_channel'] === 'pointer-map') {
+                $lastPointer = (int) $row['commit_ordinal'];
+            }
+            if ($row['commit_channel'] === 'payload' && $firstPayload === null) {
+                $firstPayload = (int) $row['commit_ordinal'];
+            }
+        }
+
+        return $lastPointer !== null && $firstPayload !== null && $lastPointer < $firstPayload;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildCommitRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant $writePlan): array
+    {
+        $writeRows = $writePlan->writeRows();
+        $writeTokens = $writePlan->writeTokens();
+        $rows = [];
+        $previousCommitToken = null;
+        $committedPages = [];
+        $commitOrdinal = 1;
+
+        foreach ($writeRows as $writeRow) {
+            $pageNumber = (int) $writeRow['page_number'];
+            $committedPages[$pageNumber] = true;
+            $sourceToken = (string) $writeRow['write_token'];
+            $expectedOffset = ($pageNumber - 1) * 512;
+            $token = self::signature(array_merge(
+                ['next220', $commitOrdinal, $previousCommitToken ?? 'initial', $sourceToken],
+                [$pageNumber, $expectedOffset, (string) $writeRow['write_channel']],
+                self::sortedIntKeys($committedPages),
+            ));
+
+            $rows[] = [
+                'commit_ordinal' => $commitOrdinal,
+                'source_write_ordinal' => (int) $writeRow['write_ordinal'],
+                'page_number' => $pageNumber,
+                'commit_channel' => (string) $writeRow['write_channel'],
+                'byte_offset' => $expectedOffset,
+                'byte_length' => 512,
+                'committed_visible_pages' => self::sortedIntKeys($committedPages),
+                'source_write_token' => $sourceToken,
+                'expected_write_token' => $writeTokens[((int) $writeRow['write_ordinal']) - 1] ?? null,
+                'source_write_token_matches' => ($writeTokens[((int) $writeRow['write_ordinal']) - 1] ?? null) === $sourceToken,
+                'previous_commit_token' => $previousCommitToken,
+                'commit_chain_valid' => $previousCommitToken === null || is_string($previousCommitToken),
+                'commit_offset_contiguous' => $expectedOffset % 512 === 0,
+                'rewrites_existing_page' => $writeRow['rewrites_existing_page'] === true,
+                'tail_page_excluded_from_commit' => $writeRow['tail_page_excluded_from_write'] === true,
+                'freeblock_receipt_carried' => $writeRow['freeblock_receipt_carried'] === true,
+                'leaf_freeblock_receipt_carried' => $writeRow['leaf_freeblock_receipt_carried'] === true,
+                'overflow_payload_commit' => $writeRow['overflow_payload_write'] === true,
+                'commit_group' => $writeRow['write_channel'] === 'pointer-map' ? 'commit-pointer-map-before-payload' : 'commit-payload-after-pointer-map',
+                'commit_state' => 'current-source-page-commit-ready',
+                'commit_token' => $token,
+            ];
+
+            $previousCommitToken = $token;
+            ++$commitOrdinal;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function commitErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+        $seenPayload = false;
+
+        foreach ($rows as $row) {
+            if ($row['commit_state'] !== 'current-source-page-commit-ready') {
+                $errors[] = "commit {$row['commit_ordinal']} is not ready";
+            }
+            if ((int) $row['commit_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "commit {$row['commit_ordinal']} skipped a commit ordinal";
+            }
+            if ($row['source_write_token_matches'] !== true) {
+                $errors[] = "commit {$row['commit_ordinal']} source write token drifted";
+            }
+            if ($row['previous_commit_token'] !== $previousToken) {
+                $errors[] = "commit {$row['commit_ordinal']} broke commit token chaining";
+            }
+            if ($row['commit_channel'] === 'pointer-map' && $seenPayload) {
+                $errors[] = "commit {$row['commit_ordinal']} placed pointer-map bytes after payload bytes";
+            }
+            if ($row['commit_channel'] === 'payload') {
+                $seenPayload = true;
+            }
+            if ($row['tail_page_excluded_from_commit'] !== true) {
+                $errors[] = "commit {$row['commit_ordinal']} exposed a fenced tail page";
+            }
+            if ($row['commit_offset_contiguous'] !== true || (int) $row['byte_length'] !== 512) {
+                $errors[] = "commit {$row['commit_ordinal']} has an invalid page byte range";
+            }
+            if ($row['commit_token'] === '') {
+                $errors[] = "commit {$row['commit_ordinal']} has an empty commit token";
+            }
+
+            $previousOrdinal = (int) $row['commit_ordinal'];
+            $previousToken = (string) $row['commit_token'];
+        }
+
+        if ($rows === []) {
+            $errors[] = 'commit plan is empty';
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+
+class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSourcePublicationVariant
+{
+    /**
+     * @param list<array<string, mixed>> $sourceRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteReceiptVariant $basePlan,
+        private readonly array $sourceRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteReceiptVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteReceiptVariant $basePlan): self
+    {
+        $rows = self::buildSourceRows($basePlan);
+        $errors = self::sourceErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next223 source publication failed: ' . implode('; ', $errors));
+        }
+
+        return new self($basePlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function sourceRows(): array
+    {
+        return $this->sourceRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function sourceErrors(): array
+    {
+        return self::sourceErrorsForRows($this->sourceRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function sourcePages(): array
+    {
+        $pages = [];
+        foreach ($this->sourceRows as $row) {
+            $pages[(int) $row['page_number']] = true;
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapSourcePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['source_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadSourcePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['source_channel'] === 'payload');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function sourceTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['source_token'], $this->sourceRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function sourceSummary(): array
+    {
+        $writeSummary = $this->basePlan->writeSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next223-ready',
+            'source_row_count' => count($this->sourceRows),
+            'source_pages' => $this->sourcePages(),
+            'pointer_map_source_pages' => $this->pointerMapSourcePages(),
+            'payload_source_pages' => $this->payloadSourcePages(),
+            'write_pages' => $writeSummary['write_pages'],
+            'source_matches_write_pages' => $this->sourcePages() === $writeSummary['write_pages'],
+            'source_tokens' => $this->sourceTokens(),
+            'source_signature' => self::signature($this->sourceTokens()),
+            'current_source_next223_token' => self::signature(array_merge(
+                ['next223', $writeSummary['current_source_next218_token']],
+                $this->sourcePages(),
+                $this->sourceTokens(),
+            )),
+            'all_write_tokens_match' => !in_array(false, array_column($this->sourceRows, 'write_token_matches'), true),
+            'all_pointer_maps_sourced_before_payload' => $this->pointerMapsSourcedBeforePayload(),
+            'all_freeblock_receipts_published' => !in_array(false, array_column($this->sourceRows, 'freeblock_receipt_published'), true),
+            'all_tail_pages_excluded_from_source' => !in_array(false, array_column($this->sourceRows, 'tail_pages_excluded_from_source'), true),
+            'all_source_chains_valid' => !in_array(false, array_column($this->sourceRows, 'source_chain_valid'), true),
+            'source_errors' => $this->sourceErrors(),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next218',
+                'sqlite-current-source-next223',
+            ],
+            'dependency_closure' => 'no new support component needed; next223 reuses next218 per-page write receipts and publishes a current-source source fence only',
+            'non_overlap' => 'adds current-source publication receipts after next218 per-page writes; does not repeat next218 write receipts, next212 apply ordering, overflow freelist release, root collapse, page relocation, or accepted freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next223',
+            'source_summary' => $this->sourceSummary(),
+            'source_errors' => $this->sourceErrors(),
+            'source_rows' => $this->sourceRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        $pages = [];
+        foreach ($this->sourceRows as $row) {
+            if ($predicate($row)) {
+                $pages[(int) $row['page_number']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    private function pointerMapsSourcedBeforePayload(): bool
+    {
+        $byCursor = [];
+        foreach ($this->sourceRows as $row) {
+            $cursor = (int) $row['cursor_index'];
+            $byCursor[$cursor] ??= ['pointer' => null, 'payload' => null];
+            if ($row['source_channel'] === 'pointer-map') {
+                $byCursor[$cursor]['pointer'] ??= (int) $row['source_ordinal'];
+            }
+            if ($row['source_channel'] === 'payload') {
+                $byCursor[$cursor]['payload'] ??= (int) $row['source_ordinal'];
+            }
+        }
+
+        foreach ($byCursor as $row) {
+            if ($row['payload'] !== null && ($row['pointer'] === null || $row['pointer'] > $row['payload'])) {
+                return false;
+            }
+        }
+
+        return $byCursor !== [];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildSourceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteReceiptVariant $basePlan): array
+    {
+        $writeRows = $basePlan->writeRows();
+        $writeTokens = $basePlan->writeTokens();
+        $rows = [];
+        $previousSourceToken = null;
+        $visibleSourcePages = [];
+
+        foreach ($writeRows as $index => $writeRow) {
+            $pageNumber = (int) $writeRow['page_number'];
+            $visibleSourcePages[$pageNumber] = true;
+            $writeToken = (string) $writeRow['write_token'];
+            $token = self::signature(array_merge(
+                ['next223', (int) $writeRow['write_ordinal'], $previousSourceToken ?? 'initial', $writeToken],
+                [$pageNumber, (int) $writeRow['apply_ordinal'], (int) $writeRow['cursor_index']],
+                self::sortedIntKeys($visibleSourcePages),
+                [(int) $writeRow['high_water_page']],
+            ));
+
+            $rows[] = [
+                'source_ordinal' => (int) $writeRow['write_ordinal'],
+                'write_index' => $index,
+                'write_ordinal' => (int) $writeRow['write_ordinal'],
+                'apply_ordinal' => (int) $writeRow['apply_ordinal'],
+                'cursor_index' => (int) $writeRow['cursor_index'],
+                'batch_index' => (int) $writeRow['batch_index'],
+                'source_channel' => (string) $writeRow['write_channel'],
+                'page_number' => $pageNumber,
+                'source_visible_pages' => self::sortedIntKeys($visibleSourcePages),
+                'write_token' => $writeToken,
+                'expected_write_token' => $writeTokens[$index] ?? null,
+                'write_token_matches' => ($writeTokens[$index] ?? null) === $writeToken,
+                'previous_source_token' => $previousSourceToken,
+                'freeblock_receipt_published' => $writeRow['freeblock_receipt_carried'] === true,
+                'tail_pages_excluded_from_source' => $writeRow['tail_pages_fenced_for_write'] === true && !in_array($pageNumber, [109, 110], true),
+                'source_chain_valid' => $writeRow['previous_write_token'] === null || is_string($writeRow['previous_write_token']),
+                'high_water_page' => (int) $writeRow['high_water_page'],
+                'source_state' => 'current-source-publication-receipted',
+                'source_token' => $token,
+            ];
+
+            $previousSourceToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function sourceErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+        $previousVisible = [];
+
+        foreach ($rows as $row) {
+            if ($row['source_state'] !== 'current-source-publication-receipted') {
+                $errors[] = "source {$row['source_ordinal']} is not receipted";
+            }
+            if ((int) $row['source_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "source {$row['source_ordinal']} skipped a source ordinal";
+            }
+            if ($row['write_token_matches'] !== true) {
+                $errors[] = "source {$row['source_ordinal']} write token drifted";
+            }
+            if ($row['previous_source_token'] !== $previousToken) {
+                $errors[] = "source {$row['source_ordinal']} broke source token chaining";
+            }
+            if ($row['freeblock_receipt_published'] !== true) {
+                $errors[] = "source {$row['source_ordinal']} lost the leaf freeblock receipt";
+            }
+            if ($row['tail_pages_excluded_from_source'] !== true) {
+                $errors[] = "source {$row['source_ordinal']} exposed fenced tail pages";
+            }
+            if ($row['source_chain_valid'] !== true) {
+                $errors[] = "source {$row['source_ordinal']} has an invalid write chain";
+            }
+            if (count(array_diff(array_keys($previousVisible), $row['source_visible_pages'])) !== 0) {
+                $errors[] = "source {$row['source_ordinal']} lost an already-sourced page";
+            }
+            if ($row['source_token'] === '') {
+                $errors[] = "source {$row['source_ordinal']} has an empty source token";
+            }
+
+            $previousOrdinal = (int) $row['source_ordinal'];
+            $previousToken = (string) $row['source_token'];
+            $previousVisible = array_fill_keys(array_map('intval', $row['source_visible_pages']), true);
+        }
+
+        return $errors;
     }
 
     /**
