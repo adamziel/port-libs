@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
-$database = '/srv/wp-content/database/wp-next606.sqlite';
+$database = '/srv/wp-content/database/wp-vdbe-transaction-virtual-branch-fence.sqlite';
 $journal = $database . '-journal';
 $master = $database . '-mj';
 $masterBytes = $journal . "\n";
@@ -136,7 +136,7 @@ $recovered = [1 => $formatPage('current schema'), 2 => $page('current options')]
 $tokens = [$journal => 'member-main-current-606'];
 $headers = [$journal => hash('sha256', 'main header next606')];
 $base = [
-    'source_id' => 'wordpress-pager-reader-cache-next606',
+    'source_id' => 'wordpress-pager-reader-cache-vdbe-transaction-virtual-branch-fence',
     'epoch' => 606,
     'format_signature' => hash('sha256', implode('|', [512, 4, 2, 606, 0])),
     'publication_generation' => 606,
@@ -159,7 +159,7 @@ $read = array_merge($base, [
     'member_journal_header_digest' => $mapDigest($headers),
     'reader_cache_stmt_vdbe_vrename_branch_token' => 'stmt-vdbe-vrename-branch-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext606(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeTransactionVirtualBranchFence(
     $database,
     $master,
     $masterBytes,
@@ -181,5 +181,5 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext606
 echo json_encode([
     'status' => $plan['status'],
     'reopen_reader_ids' => $plan['reopen_reader_ids'],
-    'next606_invalidated_pages' => $plan['reader_cache_stmt_vdbe_vrename_branch_invalidated_cache_page_numbers'],
+    'vdbe_transaction_virtual_branch_fence_invalidated_pages' => $plan['reader_cache_stmt_vdbe_vrename_branch_invalidated_cache_page_numbers'],
 ], JSON_PRETTY_PRINT) . PHP_EOL;

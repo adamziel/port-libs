@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -27,7 +27,7 @@ $meta = [
 $attempt = "UPDATE wp_options SET (status, option_value) = ('attempt231', option_value || ':attempt231') WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_primary' UNION SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_secondary') RETURNING option_id, option_name, status ORDER BY option_id";
 $retry = "UPDATE wp_options SET (status, option_value) = ('retry231', option_value || ':retry231') WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'retry_candidate' INTERSECT SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'retry_confirmed') RETURNING option_id, option_name, status ORDER BY option_id DESC";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeCompoundSubquerySavepointRollback(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeCompoundSubquerySavepointRollback(
     ['wp_options' => $options, 'wp_optionmeta' => $meta],
     [$attempt],
     [$retry],

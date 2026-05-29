@@ -33758,45 +33758,45 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             && $fence["previousFenceReady"];
 
         return array_replace_recursive($base, [
-            "status" => $ready ? "stat4-expression-partial-current-source-next734-749-prepared" : "requires-current-source-stat4-next734-749-prep",
-            "stat4Next734749PreparationFence" => $fence,
+            "status" => $ready ? "stat4-expression-partial-prepared-handoff-ready" : "requires-current-source-stat4-prepared-handoff",
+            "stat4PreparedHandoffPreparationFence" => $fence,
             "selectedPlan" => [
-                "next734749Prepared" => $ready,
-                "next734749SliceCount" => $fence["sliceCount"],
-                "next734749PreparedSlices" => $fence["preparedSlices"],
-                "next734749BlockedSlices" => $fence["blockedSlices"],
-                "next734749PriorHandoffSignature" => $fence["priorHandoffSignature"],
-                "next734749HandoffSignature" => $fence["handoffSignature"],
+                "preparedHandoffReady" => $ready,
+                "preparedHandoffSliceCount" => $fence["sliceCount"],
+                "preparedHandoffPreparedSlices" => $fence["preparedSlices"],
+                "preparedHandoffBlockedSlices" => $fence["blockedSlices"],
+                "preparedHandoffPriorSignature" => $fence["priorHandoffSignature"],
+                "preparedHandoffSignature" => $fence["handoffSignature"],
             ],
             "stat4Fence" => [
-                "next734749Prepared" => $ready,
-                "next734749HandoffSignature" => $fence["handoffSignature"],
+                "preparedHandoffReady" => $ready,
+                "preparedHandoffSignature" => $fence["handoffSignature"],
             ],
             "cursorProgram" => self::cursorProgramForPreparedHandoff($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
-                ["sqlite-sqlplanner-stat4-expression-partial-current-source-next734-749-prep"],
+                ["sqlite-sqlplanner-stat4-expression-partial-prepared-handoff"],
             ))),
-            "dependency_closure" => "no new support component needed; next734-749 preparation extends the accepted next718-733 current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares next734-749 current-source handoff slices only; avoids changing next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
-            "detail" => trim((string) ($base["detail"] ?? "") . " NEXT734-749 PREPARED HANDOFF"),
+            "dependency_closure" => "no new support component needed; prepared handoff extends the accepted next718-733 current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
+            "non_overlap" => "prepares final prepared current-source handoff window only; avoids changing next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "detail" => trim((string) ($base["detail"] ?? "") . " PREPARED HANDOFF FINAL WINDOW"),
         ]);
     }
 
     private static function handoffFenceForPreparedHandoff(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
-            throw new \InvalidArgumentException("SQLite next734-749 needs projected columns");
+            throw new \InvalidArgumentException("SQLite prepared handoff needs projected columns");
         }
 
         $prior = $base["stat4Next718733PreparationFence"] ?? null;
         if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next734-749 needs next718-733 handoff fence");
+            throw new \InvalidArgumentException("SQLite prepared handoff needs next718-733 handoff fence");
         }
 
         $priorWindows = $prior["handoffWindows"] ?? null;
         if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next734-749 needs next718-733 handoff windows");
+            throw new \InvalidArgumentException("SQLite prepared handoff needs next718-733 handoff windows");
         }
 
         $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
@@ -33808,7 +33808,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $ordinal = $slice - 734;
             $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
             if (!is_array($priorWindow)) {
-                throw new \InvalidArgumentException("SQLite next734-749 prior handoff windows must be arrays");
+                throw new \InvalidArgumentException("SQLite prepared handoff prior handoff windows must be arrays");
             }
 
             $rowid = self::intValueForPreparedHandoff($priorWindow["rowid"] ?? null, "prior rowid");
@@ -33861,13 +33861,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     private static function rowsByRowidForPreparedHandoff(array $source): array
     {
         if (!isset($source["rows"]) || !is_array($source["rows"])) {
-            throw new \InvalidArgumentException("SQLite next734-749 needs current rows");
+            throw new \InvalidArgumentException("SQLite prepared handoff needs current rows");
         }
 
         $rows = [];
         foreach ($source["rows"] as $row) {
             if (!is_array($row)) {
-                throw new \InvalidArgumentException("SQLite next734-749 current rows must be arrays");
+                throw new \InvalidArgumentException("SQLite prepared handoff current rows must be arrays");
             }
             $rowid = self::intValueForPreparedHandoff($row["rowid"] ?? null, "current rowid");
             $rows[$rowid] = $row;
@@ -33879,7 +33879,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     private static function intListForPreparedHandoff(mixed $value, string $label): array
     {
         if (!is_array($value)) {
-            throw new \InvalidArgumentException("SQLite next734-749 needs " . $label);
+            throw new \InvalidArgumentException("SQLite prepared handoff needs " . $label);
         }
 
         return array_values(array_map(static fn (mixed $rowid): int => self::intValueForPreparedHandoff($rowid, $label), $value));
@@ -33894,7 +33894,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return (int) $value;
         }
 
-        throw new \InvalidArgumentException("SQLite next734-749 " . $label . " must be an integer");
+        throw new \InvalidArgumentException("SQLite prepared handoff " . $label . " must be an integer");
     }
 
     private static function projectedColumnsForPreparedHandoff(array $row, array $neededColumns): array
@@ -33902,7 +33902,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         $projected = [];
         foreach ($neededColumns as $column) {
             if (!is_string($column) || $column === "") {
-                throw new \InvalidArgumentException("SQLite next734-749 projected column names must be non-empty");
+                throw new \InvalidArgumentException("SQLite prepared handoff projected column names must be non-empty");
             }
             $projected[$column] = $row[$column] ?? null;
         }
@@ -33917,8 +33917,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $program[] = [
-            "opcode" => "PrepareStat4ExpressionPartialNext734749Handoff",
-            "mode" => "next734-749-current-source-stat4-expression-partial-prep",
+            "opcode" => "PrepareStat4ExpressionPartialPreparedHandoff",
+            "mode" => "prepared-handoff-current-source-stat4-expression-partial-prep",
             "sliceRange" => $fence["sliceRange"],
             "priorSliceRange" => $fence["priorSliceRange"],
             "preparedSlices" => $fence["preparedSlices"],
@@ -33946,7 +33946,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     ): array {
         $base = self::materializePreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
         $fence = self::handoffFencePreparedHandoffFirstContinuation($base, $currentSource, $neededColumns);
-        $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next734-749-prepared"
+        $ready = ($base["status"] ?? null) === "stat4-expression-partial-prepared-handoff-ready"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
 
@@ -33970,8 +33970,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next750-765-prep"],
             ))),
-            "dependency_closure" => "no new support component needed; next750-765 preparation extends the accepted next734-749 current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares next750-765 current-source handoff slices only; avoids changing next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "dependency_closure" => "no new support component needed; next750-765 preparation extends the accepted prepared current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
+            "non_overlap" => "prepares next750-765 current-source handoff slices only; avoids changing prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " NEXT750-765 PREPARED HANDOFF"),
         ]);
     }
@@ -33982,14 +33982,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next750-765 needs projected columns");
         }
 
-        $prior = $base["stat4Next734749PreparationFence"] ?? null;
+        $prior = $base["stat4PreparedHandoffPreparationFence"] ?? null;
         if (!is_array($prior)) {
-            throw new \InvalidArgumentException("SQLite next750-765 needs next734-749 handoff fence");
+            throw new \InvalidArgumentException("SQLite next750-765 needs prepared handoff fence");
         }
 
         $priorWindows = $prior["handoffWindows"] ?? null;
         if (!is_array($priorWindows) || $priorWindows === []) {
-            throw new \InvalidArgumentException("SQLite next750-765 needs next734-749 handoff windows");
+            throw new \InvalidArgumentException("SQLite next750-765 needs prepared handoff windows");
         }
 
         $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
@@ -34112,7 +34112,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next766-781-prep"],
             ))),
             "dependency_closure" => "no new support component needed; next766-781 preparation extends the accepted next750-765 current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares next766-781 current-source handoff slices only; avoids changing next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares next766-781 current-source handoff slices only; avoids changing next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " NEXT766-781 PREPARED HANDOFF"),
         ]);
     }
@@ -34253,7 +34253,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next782-797-prep"],
             ))),
             "dependency_closure" => "no new support component needed; next782-797 preparation extends the accepted next766-781 current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares next782-797 current-source handoff slices only; avoids changing next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares next782-797 current-source handoff slices only; avoids changing next766-781 handoff windows, next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " NEXT782-797 PREPARED HANDOFF"),
         ]);
     }
@@ -34394,7 +34394,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next798-813-prep"],
             ))),
             "dependency_closure" => "no new support component needed; next798-813 preparation extends the accepted next782-797 current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares next798-813 current-source handoff slices only; avoids changing next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares next798-813 current-source handoff slices only; avoids changing next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " NEXT798-813 PREPARED HANDOFF"),
         ]);
     }
@@ -34535,7 +34535,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next814-829-prep"],
             ))),
             "dependency_closure" => "no new support component needed; next814-829 preparation extends the accepted next798-813 current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares next814-829 current-source handoff slices only; avoids changing next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares next814-829 current-source handoff slices only; avoids changing next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " NEXT814-829 PREPARED HANDOFF"),
         ]);
     }
@@ -34676,7 +34676,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-prepared-handoff-window"],
             ))),
             "dependency_closure" => "no new support component needed; prepared handoff window extends the accepted next814-829 current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares prepared handoff window slices only; avoids changing next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares prepared handoff window slices only; avoids changing next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " PREPARED HANDOFF WINDOW"),
         ]);
     }
@@ -34817,7 +34817,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-prepared-handoff-continuation-window"],
             ))),
             "dependency_closure" => "no new support component needed; prepared handoff continuation-window preparation extends the accepted prepared handoff window current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares prepared handoff continuation-window current-source handoff slices only; avoids changing prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares prepared handoff continuation-window current-source handoff slices only; avoids changing prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " PREPARED HANDOFF CONTINUATION WINDOW"),
         ]);
     }
@@ -34864,7 +34864,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-prepared-handoff-resume-window"],
             ))),
             "dependency_closure" => "no new support component needed; prepared handoff resume-window preparation extends the accepted prepared handoff continuation-window current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares prepared handoff resume-window current-source handoff slices only; avoids changing prepared handoff continuation-window handoff windows, prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares prepared handoff resume-window current-source handoff slices only; avoids changing prepared handoff continuation-window handoff windows, prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " PREPARED HANDOFF RESUME WINDOW"),
         ]);
     }
@@ -34911,7 +34911,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-prepared-handoff-validation-continuation"],
             ))),
             "dependency_closure" => "no new support component needed; prepared handoff validation-continuation preparation extends the accepted prepared handoff resume-window current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares prepared handoff validation-continuation current-source handoff slices only; avoids changing prepared handoff resume-window handoff windows, prepared handoff continuation-window handoff windows, prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares prepared handoff validation-continuation current-source handoff slices only; avoids changing prepared handoff resume-window handoff windows, prepared handoff continuation-window handoff windows, prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " PREPARED HANDOFF VALIDATION CONTINUATION"),
         ]);
     }
@@ -34958,7 +34958,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-late-prepared-handoff-continuation"],
             ))),
             "dependency_closure" => "no new support component needed; late prepared handoff continuation preparation extends the accepted prepared handoff validation-continuation current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares late prepared handoff continuation current-source handoff slices only; avoids changing prepared handoff validation-continuation handoff windows, prepared handoff resume-window handoff windows, prepared handoff continuation-window handoff windows, prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares late prepared handoff continuation current-source handoff slices only; avoids changing prepared handoff validation-continuation handoff windows, prepared handoff resume-window handoff windows, prepared handoff continuation-window handoff windows, prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " LATE PREPARED HANDOFF CONTINUATION"),
         ]);
     }
@@ -35005,7 +35005,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-final-prepared-handoff-continuation"],
             ))),
             "dependency_closure" => "no new support component needed; final prepared handoff continuation preparation extends the accepted late prepared handoff continuation current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares final prepared handoff continuation current-source handoff slices only; avoids changing late prepared handoff continuation handoff windows, prepared handoff validation-continuation handoff windows, prepared handoff resume-window handoff windows, prepared handoff continuation-window handoff windows, prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares final prepared handoff continuation current-source handoff slices only; avoids changing late prepared handoff continuation handoff windows, prepared handoff validation-continuation handoff windows, prepared handoff resume-window handoff windows, prepared handoff continuation-window handoff windows, prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " FINAL PREPARED HANDOFF CONTINUATION"),
         ]);
     }
@@ -35052,7 +35052,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-advanced-prepared-handoff-continuation"],
             ))),
             "dependency_closure" => "no new support component needed; advanced prepared handoff continuation preparation extends the accepted final prepared handoff continuation current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares advanced prepared handoff continuation current-source handoff slices only; avoids changing final prepared handoff continuation handoff windows, late prepared handoff continuation handoff windows, prepared handoff validation-continuation handoff windows, prepared handoff resume-window handoff windows, prepared handoff continuation-window handoff windows, prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, next734-749 handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares advanced prepared handoff continuation current-source handoff slices only; avoids changing final prepared handoff continuation handoff windows, late prepared handoff continuation handoff windows, prepared handoff validation-continuation handoff windows, prepared handoff resume-window handoff windows, prepared handoff continuation-window handoff windows, prepared handoff window handoff windows, next814-829 handoff windows, next798-813 handoff windows, next782-797 handoff windows, next766-781 handoff windows, next750-765 handoff windows, prepared handoff windows, next718-733 handoff windows, next702-717 handoff windows, next686-701 handoff windows, next638-653 handoff windows, next622-637 handoff windows, next606-621 handoff windows, next590-605 handoff windows, next574-589 handoff windows, prepared handoff windows, next542-557 handoff windows, next510-525 handoff windows, next494-509 handoff windows, next478-493 handoff windows, next462-477 handoff windows, next430-445 handoff windows, next414-429 handoff windows, next398-413 handoff windows, next382-397 handoff windows, next366-381 handoff windows, next334-349 handoff windows, next318-333 handoff windows, next302-317 handoff windows, next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " ADVANCED PREPARED HANDOFF CONTINUATION"),
         ]);
     }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'active_plugins', 'autoload' => 'yes', 'status' => null, 'bucket' => 'plugins', 'bytes' => 20, 'option_value' => 'a:0:{}'],
@@ -15,7 +15,7 @@ $rows = [
     ['option_id' => 6, 'blog_id' => 3, 'option_name' => 'pending_theme', 'autoload' => 'no', 'status' => 'pending', 'bucket' => null, 'bytes' => 7, 'option_value' => 'theme'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInPredicateRetrySavepointBatch(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInPredicateRetrySavepointBatch(
     ['wp_options' => $rows],
     [
         "UPDATE wp_options SET (option_name, status, option_value, bytes) = (option_name || ':stage181', status, option_value || ':stage181', bytes + 1) WHERE (blog_id, status, option_name) NOT IN ((1, NULL, 'active_plugins'), (2, NULL, 'rewrite_rules'), (4, 'queued', 'siteurl')) RETURNING option_id, option_name, status, (blog_id, status, option_name) NOT IN ((1, NULL, 'active_plugins'), (1, NULL, 'siteurl')) AS tuple_not_in ORDER BY option_id",

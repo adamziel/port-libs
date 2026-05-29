@@ -2661,3 +2661,27 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   and suite markers plus current BZ ready markers remain for the next triage
   pass, while deferred older overlaps are preserved for targeted rebase or
   retirement.
+
+## Supervisor Rolling Integration 2026-05-29T17:48Z Shell Sample
+
+- Preflighted remaining BY and BZ consolidation markers against dashboard head
+  `5d4d8cc`. Accepted a seven-handoff reduced subset: pager master-journal
+  reader-cache VDBE transaction/virtual branch fence cleanup, JSON table xNext
+  helper cleanup, planner STAT4 prepared-handoff final-window cleanup,
+  rowvalue UPDATE/DELETE RETURNING savepoint production class rename, rowvalue
+  returning-window final-continuation cleanup, upstream suite veryquick shard
+  evidence cleanup, and trigger recursive-view returning source-seal cleanup.
+- Deferred BY suite, BZ pager-master, and BZ WAL/VFS because their pager
+  current-source `next591-606` targets were removed by the accepted BY
+  pager-master handoff. Deferred BZ compound and BZ suffix because their
+  compound recursive-affinity targets were already renamed by the sixty-second
+  batch.
+- Validation for the sixty-third reduced consolidation follow-up passed: 170
+  changed PHP files linted, 83 changed tests with 15,458 assertions and 0
+  failures, 80 changed WordPress examples/self-tests, `git diff --check`,
+  exact user-named 150 suffix scan clean in src/tests/examples, production
+  numbered file/class audits at 0, numbered production helper methods reduced
+  to 1,911, and unique numbered production symbols reduced to 2,147.
+- Public libsqlite counts remain 154,019 pass / 0 fail and 830 / 1,589 mapped
+  coverage because this is a consolidation-only slice. The visible worker pool
+  continues on current-base CA consolidation lanes.

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -23,7 +23,7 @@ $meta = [
 $update = "UPDATE wp_options SET (status, option_value, bytes) = ('retry216', option_value || ':retry216', bytes + 2) WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch') RETURNING option_id, option_name, status, option_value ORDER BY option_id";
 $delete = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'network_drop') RETURNING option_id, option_name, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctSubquerySavepoint(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctSubquerySavepoint(
     ['wp_options' => $options, 'wp_optionmeta' => $meta],
     [$update],
     [$update, $delete],

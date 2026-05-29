@@ -14,7 +14,7 @@ Cleanup performed:
   - `compareRecursiveUnionSourceBoundary()`
 - Replaced direct numbered private helpers in the consolidated production class with descriptive unsuffixed helpers.
 - Renamed the two direct focused tests and WordPress examples so this family no longer exposes the worker-number suffixes in production callers.
-- Confirmed the exact user-named the explicitly banned user-named CurrentSource plus Next150 plus Plan suffix suffix is absent from the touched production/test/example family.
+- Confirmed the explicitly banned user-named numbered suffix is absent from the touched production/test/example family.
 
 Verification:
 

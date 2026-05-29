@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -37,7 +37,7 @@ $failProbe = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($fai
 $failPreserve = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failUpdate, $innerDeleteResult()['tables'], 'option_id', $unique, true);
 $retryUpdateResult = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate, $outerDeleteResult()['tables'], 'option_id', $unique);
 $retryDeleteResult = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete, $retryUpdateResult()['tables'], 'option_id', $unique);
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint(
     $tables,
     [$outerUpdate, $outerDelete],
     [$innerUpdate, $innerDelete],
@@ -45,7 +45,7 @@ $plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurre
     [$retryUpdate, $retryDelete],
     $unique,
 );
-$customPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint(
+$customPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint(
     $tables,
     [$outerUpdate],
     [$innerUpdate],
@@ -137,16 +137,16 @@ $cases = [
     'custom savepoints' => [static fn (): mixed => [$customPlan()['outer_savepoint'], $customPlan()['inner_savepoint']], ['outer_custom', 'inner_custom']],
     'custom suppressed count' => [static fn (): mixed => $customPlan()['total_suppressed_by_inner_rollback_count'], 4],
     'custom retry count' => [static fn (): mixed => $customPlan()['retry_returning_count'], 3],
-    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint($tables, [], [$innerUpdate], $failUpdate, [$retryUpdate], $unique), InvalidArgumentException::class],
-    'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [], $failUpdate, [$retryUpdate], $unique), InvalidArgumentException::class],
-    'malformed empty fail rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], '', [$retryUpdate], $unique), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], $failUpdate, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], $failUpdate, [$retryUpdate], []), InvalidArgumentException::class],
-    'malformed outer savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], $failUpdate, [$retryUpdate], $unique, 'bad-name'), InvalidArgumentException::class],
-    'malformed inner savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], $failUpdate, [$retryUpdate], $unique, 'outer_good', 'bad-name'), InvalidArgumentException::class],
-    'malformed same savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], $failUpdate, [$retryUpdate], $unique, 'same', 'same'), InvalidArgumentException::class],
-    'malformed fail action rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], str_replace('OR FAIL', 'OR ABORT', $failUpdate), [$retryUpdate], $unique), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInnerFailRollbackSavepoint(['wp_options' => ['bad']], [$outerUpdate], [$innerUpdate], $failUpdate, [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint($tables, [], [$innerUpdate], $failUpdate, [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [], $failUpdate, [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed empty fail rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], '', [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], $failUpdate, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], $failUpdate, [$retryUpdate], []), InvalidArgumentException::class],
+    'malformed outer savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], $failUpdate, [$retryUpdate], $unique, 'bad-name'), InvalidArgumentException::class],
+    'malformed inner savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], $failUpdate, [$retryUpdate], $unique, 'outer_good', 'bad-name'), InvalidArgumentException::class],
+    'malformed same savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], $failUpdate, [$retryUpdate], $unique, 'same', 'same'), InvalidArgumentException::class],
+    'malformed fail action rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint($tables, [$outerUpdate], [$innerUpdate], str_replace('OR FAIL', 'OR ABORT', $failUpdate), [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeInnerFailRollbackSavepoint(['wp_options' => ['bad']], [$outerUpdate], [$innerUpdate], $failUpdate, [$retryUpdate], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

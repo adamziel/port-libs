@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -27,9 +27,9 @@ $releaseSql = "UPDATE wp_options SET (blog_id, option_name, status, option_value
 
 $ignoreOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($ignoreSql, $tables, 'option_id', $unique);
 $replaceOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($replaceSql, $tables, 'option_id', $unique);
-$releasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldReturningSavepointBatch($tables, [$ignoreSql, $replaceSql, $deleteSql], $unique);
-$rollbackPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldReturningSavepointBatch($tables, [$releaseSql, $deleteSql], $unique, 'wp_options_retry', 'option_id', 1);
-$simpleReleasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldReturningSavepointBatch($tables, [$releaseSql, $deleteSql], $unique);
+$releasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldReturningSavepointBatch($tables, [$ignoreSql, $replaceSql, $deleteSql], $unique);
+$rollbackPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldReturningSavepointBatch($tables, [$releaseSql, $deleteSql], $unique, 'wp_options_retry', 'option_id', 1);
+$simpleReleasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldReturningSavepointBatch($tables, [$releaseSql, $deleteSql], $unique);
 
 $cases = [
     'parser records ignore conflict action' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($ignoreSql)['conflict_action'], 'ignore'],
@@ -106,10 +106,10 @@ $cases = [
     'rollback plan next source equals savepoint image' => [static fn (): mixed => $rollbackPlan()['next_source_tables'], $rollbackPlan()['savepoint_image_tables']],
     'rollback plan dependency records rollback discard' => [static fn (): mixed => in_array('sqlite-rollback-to-savepoint-discards-rowvalue-returning-streams', $rollbackPlan()['dependencies'], true), true],
 
-    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldReturningSavepointBatch($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldReturningSavepointBatch($tables, [$releaseSql], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldReturningSavepointBatch(['wp_options' => ['bad']], [$releaseSql], $unique), InvalidArgumentException::class],
-    'malformed negative rollback ordinal rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldReturningSavepointBatch($tables, [$releaseSql], $unique, 'bad', 'option_id', -1), InvalidArgumentException::class],
+    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldReturningSavepointBatch($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldReturningSavepointBatch($tables, [$releaseSql], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldReturningSavepointBatch(['wp_options' => ['bad']], [$releaseSql], $unique), InvalidArgumentException::class],
+    'malformed negative rollback ordinal rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldReturningSavepointBatch($tables, [$releaseSql], $unique, 'bad', 'option_id', -1), InvalidArgumentException::class],
 ];
 
 $tests = [];

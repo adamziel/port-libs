@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -24,7 +24,7 @@ $discardUpdateSql = "UPDATE wp_options SET (status, option_value, bytes) = ('dis
 $retryDeleteSql = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed'), (3, '_site_transient_update_plugins')) RETURNING option_id, blog_id, option_name, (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed'), (3, '_site_transient_update_plugins')) AS retry_delete_match ORDER BY option_id";
 $retryUpdateSql = "UPDATE wp_options SET (status, option_value, bytes) = ('retry', option_value || ':retry', bytes + 5) WHERE (blog_id, option_name) BETWEEN (2, 'active_plugins') AND (2, 'zzzz') RETURNING option_id, blog_id, option_name, status, option_value, bytes, (blog_id, option_name) BETWEEN (2, 'active_plugins') AND (2, 'zzzz') AS retry_range ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldCheckpointSavepointBatch(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldCheckpointSavepointBatch(
     ['wp_options' => $rows],
     [$yieldUpdateSql],
     [$discardDeleteSql, $discardUpdateSql],

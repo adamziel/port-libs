@@ -101,21 +101,21 @@ $summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurr
         'current_view_epoch_next218' => 'wp.returning.view.epoch.cursor.224',
         'current_trigger_epoch_next218' => 'wp.returning.trigger.epoch.cursor.224',
         'auto_ack_current_source_epochs_next218' => true,
-        'current_returning_source_token_next224' => 'wp.current.returning.source.224',
-        'current_returning_view_source_next224' => 'main@view-cookie-224-current',
-        'current_returning_trigger_source_next224' => 'main@trigger-cookie-224-current',
-        'auto_ack_current_returning_source_seals_next224' => true,
+        'current_returning_source_token_source_seal' => 'wp.current.returning.source.224',
+        'current_returning_view_source_source_seal' => 'main@view-cookie-224-current',
+        'current_returning_trigger_source_source_seal' => 'main@trigger-cookie-224-current',
+        'auto_ack_current_returning_source_seals_source_seal' => true,
     ],
 );
 
 if (
-    $summary['status_next224'] !== 'trigger-recursive-view-returning-current-source-next224-source-released'
-    || $summary['current_returning_source_plan_next224']['decision'] !== 'publish-next-source-after-current-returning-source-seal'
-    || array_column($summary['visible_returning_payloads_next224'], 'name') !== ['blogdescription_child', 'template_child', 'home', 'next_plugin']
-    || $summary['held_next_source_rows_next224'] !== []
+    $summary['status_source_seal'] !== 'trigger-recursive-view-returning-current-source-source_seal-source-released'
+    || $summary['current_returning_source_plan_source_seal']['decision'] !== 'publish-next-source-after-current-returning-source-seal'
+    || array_column($summary['visible_returning_payloads_source_seal'], 'name') !== ['blogdescription_child', 'template_child', 'home', 'next_plugin']
+    || $summary['held_next_source_rows_source_seal'] !== []
 ) {
-    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-next224 self-test failed\n");
+    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-source_seal self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-trigger-recursive-view-returning-current-source-next224 self-test passed\n";
+echo "wordpress-trigger-recursive-view-returning-current-source-source_seal self-test passed\n";

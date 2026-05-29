@@ -11,7 +11,7 @@ Validation:
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext766781Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next766-781.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext718733Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext734749Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext750765Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext766781Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext718733Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffFinalWindowTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext750765Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext766781Test.php`
 - `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next750-765.php --self-test`
 - `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next766-781.php --self-test`
 - `git diff --check`

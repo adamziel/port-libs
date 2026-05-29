@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -21,7 +21,7 @@ $innerDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_tr
 $innerUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('inner197', option_value || ':inner197', bytes + 4) WHERE (blog_id, option_name) IN ((3, 'orphaned_cache')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id";
 $retry = "UPDATE wp_options SET (status, option_value, bytes) = ('retry197', option_value || ':retry197', bytes + 5) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'orphaned_cache')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToInnerSavepointRetry(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeRollbackToInnerSavepointRetry(
     ['wp_options' => $rows],
     [$outer],
     [$innerDelete, $innerUpdate],

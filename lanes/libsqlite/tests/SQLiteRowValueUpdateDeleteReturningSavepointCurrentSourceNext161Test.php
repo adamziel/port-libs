@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -29,13 +29,13 @@ $cleanSql = "UPDATE OR FAIL wp_options SET (option_name, status) = (option_name 
 $parsedFail = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($failSql);
 $plainFail = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failSql, $tables, 'option_id', $unique);
 $preservedFail = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failSql, $tables, 'option_id', $unique, true);
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeConflictRetrySavepointBatch(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeConflictRetrySavepointBatch(
     $tables,
     [$failSql, $discardDeleteSql],
     [$retryUpdateSql, $retryDeleteSql],
     $unique,
 );
-$cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeConflictRetrySavepointBatch(
+$cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeConflictRetrySavepointBatch(
     $tables,
     [$cleanSql],
     [$retryUpdateSql],
@@ -110,10 +110,10 @@ $cases = [
     'clean plan final row seven retry not clean' => [static fn (): mixed => array_column($cleanPlan()['current_source_tables']['wp_options'], 'option_name', 'option_id')[7], 'pending_theme:retry'],
     'clean plan custom savepoint' => [static fn (): mixed => $cleanPlan()['savepoint'], 'wp_clean_retry'],
 
-    'malformed empty before statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeConflictRetrySavepointBatch($tables, [], [$retryUpdateSql], $unique), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeConflictRetrySavepointBatch($tables, [$failSql], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeConflictRetrySavepointBatch($tables, [$failSql], [$retryUpdateSql], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeConflictRetrySavepointBatch(['wp_options' => ['bad']], [$failSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty before statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeConflictRetrySavepointBatch($tables, [], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeConflictRetrySavepointBatch($tables, [$failSql], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeConflictRetrySavepointBatch($tables, [$failSql], [$retryUpdateSql], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeConflictRetrySavepointBatch(['wp_options' => ['bad']], [$failSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

@@ -29,7 +29,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source next232 savepoint must be an identifier');
         }
 
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSelectRetrySavepointRelease(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -848,7 +848,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_returning_window_next235',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -10450,6 +10450,66 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         }
 
         return $plans;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeStableFinalContinuationHandoff(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        ?string $savepoint = null,
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $plans = self::executeReadyPublicationRange(
+            958,
+            973,
+            $tables,
+            $yieldStatements,
+            $attemptStatements,
+            $retryStatements,
+            $uniqueConstraints,
+            $savepoint,
+            $rowIdColumn,
+        );
+
+        $candidateStatuses = array_map(static fn (array $plan): string => $plan['status'], $plans);
+        $handoffPlan = $plans[958];
+        $sourceAuditPlan = $plans[959];
+        $preflightPlan = $plans[960];
+        $firstSealPlan = $plans[961];
+        $secondHandoffPlan = $plans[962];
+        $penultimateSealPlan = $plans[969];
+        $finalSealPlan = $plans[973];
+
+        return [
+            'status' => 'rowvalue-update-delete-returning-window-final-continuation-handoff',
+            'candidate_statuses' => array_values($candidateStatuses),
+            'handoff_token' => $handoffPlan['next958_handoff']['next958_handoff'],
+            'handoff_after_ready_range' => $handoffPlan['next958_handoff']['after_ready_range'],
+            'handoff_consumes_previous_ready' => $handoffPlan['next958_handoff']['next957_ready'],
+            'source_audit_token' => $sourceAuditPlan['next959_source_audit']['next959_source_audit'],
+            'preserves_current_source' => $sourceAuditPlan['next959_source_audit']['retry_rows_preserve_current_source'],
+            'preflight_token' => $preflightPlan['next960_preflight']['next960_preflight'],
+            'keeps_throughput_high' => $preflightPlan['next960_preflight']['keeps_libsqlite_throughput_high'],
+            'first_seal_token' => $firstSealPlan['next961_final']['next961_final'],
+            'first_seal_ready' => $firstSealPlan['next961_ready'],
+            'second_handoff_token' => $secondHandoffPlan['next962_handoff']['next962_handoff'],
+            'second_handoff_after_ready_range' => $secondHandoffPlan['next962_handoff']['after_ready_range'],
+            'penultimate_seal_ready' => $penultimateSealPlan['next969_ready'],
+            'final_seal_token' => $finalSealPlan['next973_final']['next973_final'],
+            'final_seal_ready' => $finalSealPlan['next973_ready'],
+            'dependency_closure' => 'no new support component needed; final continuation handoff reuses the canonical row-value UPDATE/DELETE RETURNING window ready-publication range executor',
+            'non_overlap' => 'consolidates the final row-value RETURNING window handoff into stable aliases only; avoids changing DML execution, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and suite behavior',
+        ];
     }
 
     /**

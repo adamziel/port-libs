@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rowspreFailRetry = [
@@ -33,7 +33,7 @@ $preFailUpdateResultpreFailRetry = static fn (): array => SQLiteUpdateDeleteRetu
 $failResultpreFailRetry = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failUpdatepreFailRetry, $preFailUpdateResultpreFailRetry()['tables'], 'option_id', $uniquepreFailRetry, true);
 $retryDeleteResultpreFailRetry = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDeletepreFailRetry, $failResultpreFailRetry()['tables'], 'option_id', $uniquepreFailRetry);
 $retryUpdateResultpreFailRetry = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdatepreFailRetry, $retryDeleteResultpreFailRetry()['tables'], 'option_id', $uniquepreFailRetry);
-$planpreFailRetry = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executePreFailRollbackRetry(
+$planpreFailRetry = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executePreFailRollbackRetry(
     $tablespreFailRetry,
     [$outerUpdatepreFailRetry],
     [$preFailDeletepreFailRetry, $preFailUpdatepreFailRetry],
@@ -41,7 +41,7 @@ $planpreFailRetry = static fn (): array => SQLiteRowValueUpdateDeleteReturningSa
     [$retryDeletepreFailRetry, $retryUpdatepreFailRetry],
     $uniquepreFailRetry,
 );
-$customPlanpreFailRetry = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executePreFailRollbackRetry(
+$customPlanpreFailRetry = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executePreFailRollbackRetry(
     $tablespreFailRetry,
     [$outerUpdatepreFailRetry],
     [$preFailUpdatepreFailRetry],
@@ -123,13 +123,13 @@ $casespreFailRetry = [
     'plan dependency rollback' => [static fn (): mixed => in_array('sqlite-rollback-to-savepoint-discards-or-fail-returning-current-source-pre-fail-rollback-retry', $planpreFailRetry()['dependencies'], true), true],
     'custom savepoint' => [static fn (): mixed => $customPlanpreFailRetry()['savepoint'], 'wp_custom_failpreFailRetry'],
     'custom retry count' => [static fn (): mixed => $customPlanpreFailRetry()['retry_yielded_count_before_rollback'], 1],
-    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executePreFailRollbackRetry($tablespreFailRetry, [], [$preFailDeletepreFailRetry], $failUpdatepreFailRetry, [$retryDeletepreFailRetry], $uniquepreFailRetry), InvalidArgumentException::class],
-    'malformed empty pre fail rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executePreFailRollbackRetry($tablespreFailRetry, [$outerUpdatepreFailRetry], [], $failUpdatepreFailRetry, [$retryDeletepreFailRetry], $uniquepreFailRetry), InvalidArgumentException::class],
-    'malformed empty fail rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executePreFailRollbackRetry($tablespreFailRetry, [$outerUpdatepreFailRetry], [$preFailDeletepreFailRetry], '', [$retryDeletepreFailRetry], $uniquepreFailRetry), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executePreFailRollbackRetry($tablespreFailRetry, [$outerUpdatepreFailRetry], [$preFailDeletepreFailRetry], $failUpdatepreFailRetry, [], $uniquepreFailRetry), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executePreFailRollbackRetry($tablespreFailRetry, [$outerUpdatepreFailRetry], [$preFailDeletepreFailRetry], $failUpdatepreFailRetry, [$retryDeletepreFailRetry], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executePreFailRollbackRetry($tablespreFailRetry, [$outerUpdatepreFailRetry], [$preFailDeletepreFailRetry], $failUpdatepreFailRetry, [$retryDeletepreFailRetry], $uniquepreFailRetry, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executePreFailRollbackRetry(['wp_options' => ['bad']], [$outerUpdatepreFailRetry], [$preFailDeletepreFailRetry], $failUpdatepreFailRetry, [$retryDeletepreFailRetry], $uniquepreFailRetry), InvalidArgumentException::class],
+    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executePreFailRollbackRetry($tablespreFailRetry, [], [$preFailDeletepreFailRetry], $failUpdatepreFailRetry, [$retryDeletepreFailRetry], $uniquepreFailRetry), InvalidArgumentException::class],
+    'malformed empty pre fail rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executePreFailRollbackRetry($tablespreFailRetry, [$outerUpdatepreFailRetry], [], $failUpdatepreFailRetry, [$retryDeletepreFailRetry], $uniquepreFailRetry), InvalidArgumentException::class],
+    'malformed empty fail rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executePreFailRollbackRetry($tablespreFailRetry, [$outerUpdatepreFailRetry], [$preFailDeletepreFailRetry], '', [$retryDeletepreFailRetry], $uniquepreFailRetry), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executePreFailRollbackRetry($tablespreFailRetry, [$outerUpdatepreFailRetry], [$preFailDeletepreFailRetry], $failUpdatepreFailRetry, [], $uniquepreFailRetry), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executePreFailRollbackRetry($tablespreFailRetry, [$outerUpdatepreFailRetry], [$preFailDeletepreFailRetry], $failUpdatepreFailRetry, [$retryDeletepreFailRetry], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executePreFailRollbackRetry($tablespreFailRetry, [$outerUpdatepreFailRetry], [$preFailDeletepreFailRetry], $failUpdatepreFailRetry, [$retryDeletepreFailRetry], $uniquepreFailRetry, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executePreFailRollbackRetry(['wp_options' => ['bad']], [$outerUpdatepreFailRetry], [$preFailDeletepreFailRetry], $failUpdatepreFailRetry, [$retryDeletepreFailRetry], $uniquepreFailRetry), InvalidArgumentException::class],
 ];
 
 $tests = [];

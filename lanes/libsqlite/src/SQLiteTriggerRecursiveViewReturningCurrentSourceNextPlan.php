@@ -14295,12 +14295,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $currentRows = self::returningRowsForSourceSeal($base['current_source_rows_next218'] ?? [], 'current source rows');
         $nextRows = self::returningRowsForSourceSeal($base['attempted_next_source_rows_next218'] ?? [], 'attempted next source rows');
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_epoch_next218'] ?? false);
-        $sourceToken = self::tokenForSourceSeal((string) ($options['current_returning_source_token_next224'] ?? 'wp.current.returning.source.224'), 'current returning source token');
-        $expectedSourceToken = self::tokenForSourceSeal((string) ($options['expected_current_returning_source_token_next224'] ?? $sourceToken), 'expected current returning source token');
-        $viewSource = self::tokenForSourceSeal((string) ($options['current_returning_view_source_next224'] ?? ($currentView['source'] ?? 'main@view-cookie-224-current')), 'current returning view source');
-        $expectedViewSource = self::tokenForSourceSeal((string) ($options['expected_current_returning_view_source_next224'] ?? $viewSource), 'expected current returning view source');
-        $triggerSource = self::tokenForSourceSeal((string) ($options['current_returning_trigger_source_next224'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-224-current')), 'current returning trigger source');
-        $expectedTriggerSource = self::tokenForSourceSeal((string) ($options['expected_current_returning_trigger_source_next224'] ?? $triggerSource), 'expected current returning trigger source');
+        $sourceToken = self::tokenForSourceSeal((string) ($options['current_returning_source_token_source_seal'] ?? 'wp.current.returning.source.224'), 'current returning source token');
+        $expectedSourceToken = self::tokenForSourceSeal((string) ($options['expected_current_returning_source_token_source_seal'] ?? $sourceToken), 'expected current returning source token');
+        $viewSource = self::tokenForSourceSeal((string) ($options['current_returning_view_source_source_seal'] ?? ($currentView['source'] ?? 'main@view-cookie-224-current')), 'current returning view source');
+        $expectedViewSource = self::tokenForSourceSeal((string) ($options['expected_current_returning_view_source_source_seal'] ?? $viewSource), 'expected current returning view source');
+        $triggerSource = self::tokenForSourceSeal((string) ($options['current_returning_trigger_source_source_seal'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-224-current')), 'current returning trigger source');
+        $expectedTriggerSource = self::tokenForSourceSeal((string) ($options['expected_current_returning_trigger_source_source_seal'] ?? $triggerSource), 'expected current returning trigger source');
         $requiredSeals = self::currentReturningSourceSeals($currentRows, $sourceToken, $viewSource, $triggerSource);
         $acknowledgedSeals = self::acknowledgedCurrentReturningSourceSeals($options, $requiredSeals);
         $missingSeals = array_values(array_diff($requiredSeals, $acknowledgedSeals));
@@ -14329,45 +14329,45 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $nextRows = self::tagRowsForSourceSeal($nextRows, 'next', $nextVisible, [], $sourceToken, $viewSource, $triggerSource, $nextVisible ? [] : $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentRows, $nextRows),
-            static fn (array $row): bool => (bool) $row['visible_after_current_returning_source_next224'],
+            static fn (array $row): bool => (bool) $row['visible_after_current_returning_source_source_seal'],
         ));
         $heldRows = array_values(array_filter(
             $nextRows,
-            static fn (array $row): bool => !(bool) $row['visible_after_current_returning_source_next224'],
+            static fn (array $row): bool => !(bool) $row['visible_after_current_returning_source_source_seal'],
         ));
 
         return [
-            'status_next224' => self::statusForSourceSeal($nextVisible, $baseVisible, $sourceMatches, $viewMatches, $triggerMatches, $missingSeals, $unexpectedSeals),
+            'status_source_seal' => self::statusForSourceSeal($nextVisible, $baseVisible, $sourceMatches, $viewMatches, $triggerMatches, $missingSeals, $unexpectedSeals),
             'savepoint' => $base['savepoint'],
             'base' => $base,
-            'base_next_source_visible_next224' => $baseVisible,
-            'current_returning_source_token_next224' => $sourceToken,
-            'expected_current_returning_source_token_next224' => $expectedSourceToken,
-            'current_returning_source_matches_next224' => $sourceMatches,
-            'current_returning_view_source_next224' => $viewSource,
-            'expected_current_returning_view_source_next224' => $expectedViewSource,
-            'current_returning_view_source_matches_next224' => $viewMatches,
-            'current_returning_trigger_source_next224' => $triggerSource,
-            'expected_current_returning_trigger_source_next224' => $expectedTriggerSource,
-            'current_returning_trigger_source_matches_next224' => $triggerMatches,
-            'required_current_returning_source_seals_next224' => $requiredSeals,
-            'acknowledged_current_returning_source_seals_next224' => $acknowledgedSeals,
-            'missing_current_returning_source_seals_next224' => $missingSeals,
-            'unexpected_current_returning_source_seals_next224' => $unexpectedSeals,
-            'current_returning_source_complete_next224' => $sealComplete,
-            'next_source_visible_after_current_returning_source_next224' => $nextVisible,
-            'current_source_rows_next224' => $currentRows,
-            'attempted_next_source_rows_next224' => $nextRows,
-            'visible_returning_rows_next224' => $visibleRows,
-            'held_next_source_rows_next224' => $heldRows,
-            'visible_returning_payloads_next224' => array_column($visibleRows, 'returning'),
-            'held_next_returning_payloads_next224' => array_column($heldRows, 'returning'),
-            'current_source_row_count_next224' => count($currentRows),
-            'attempted_next_source_row_count_next224' => count($nextRows),
-            'visible_row_count_next224' => count($visibleRows),
-            'held_next_row_count_next224' => count($heldRows),
-            'blocked_reasons_next224' => $blockedReasons,
-            'current_returning_source_plan_next224' => [
+            'base_next_source_visible_source_seal' => $baseVisible,
+            'current_returning_source_token_source_seal' => $sourceToken,
+            'expected_current_returning_source_token_source_seal' => $expectedSourceToken,
+            'current_returning_source_matches_source_seal' => $sourceMatches,
+            'current_returning_view_source_source_seal' => $viewSource,
+            'expected_current_returning_view_source_source_seal' => $expectedViewSource,
+            'current_returning_view_source_matches_source_seal' => $viewMatches,
+            'current_returning_trigger_source_source_seal' => $triggerSource,
+            'expected_current_returning_trigger_source_source_seal' => $expectedTriggerSource,
+            'current_returning_trigger_source_matches_source_seal' => $triggerMatches,
+            'required_current_returning_source_seals_source_seal' => $requiredSeals,
+            'acknowledged_current_returning_source_seals_source_seal' => $acknowledgedSeals,
+            'missing_current_returning_source_seals_source_seal' => $missingSeals,
+            'unexpected_current_returning_source_seals_source_seal' => $unexpectedSeals,
+            'current_returning_source_complete_source_seal' => $sealComplete,
+            'next_source_visible_after_current_returning_source_source_seal' => $nextVisible,
+            'current_source_rows_source_seal' => $currentRows,
+            'attempted_next_source_rows_source_seal' => $nextRows,
+            'visible_returning_rows_source_seal' => $visibleRows,
+            'held_next_source_rows_source_seal' => $heldRows,
+            'visible_returning_payloads_source_seal' => array_column($visibleRows, 'returning'),
+            'held_next_returning_payloads_source_seal' => array_column($heldRows, 'returning'),
+            'current_source_row_count_source_seal' => count($currentRows),
+            'attempted_next_source_row_count_source_seal' => count($nextRows),
+            'visible_row_count_source_seal' => count($visibleRows),
+            'held_next_row_count_source_seal' => count($heldRows),
+            'blocked_reasons_source_seal' => $blockedReasons,
+            'current_returning_source_plan_source_seal' => [
                 'base_next_source_visible' => $baseVisible,
                 'source_matches' => $sourceMatches,
                 'view_source_matches' => $viewMatches,
@@ -14382,16 +14382,16 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                     ? 'publish-next-source-after-current-returning-source-seal'
                     : 'hold-next-source-until-current-returning-source-seal',
             ],
-            'yield_boundary_next224' => $nextVisible
-                ? 'recursive-view-returning-next224-current-source-sealed-then-next'
-                : 'recursive-view-returning-next224-current-source-seal-fences-next',
-            'dependency_closure_next224' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-epoch-and-adds-source-seal',
-            'dependencies_next224' => array_values(array_unique(array_merge($base['dependencies_next218'] ?? [], [
-                'sqlite-trigger-recursive-view-returning-current-source-next224',
+            'yield_boundary_source_seal' => $nextVisible
+                ? 'recursive-view-returning-source_seal-current-source-sealed-then-next'
+                : 'recursive-view-returning-source_seal-current-source-seal-fences-next',
+            'dependency_closure_source_seal' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-epoch-and-adds-source-seal',
+            'dependencies_source_seal' => array_values(array_unique(array_merge($base['dependencies_next218'] ?? [], [
+                'sqlite-trigger-recursive-view-returning-current-source-source_seal',
                 'sqlite-returning-current-source-seal',
-                'wordpress-recursive-view-returning-current-source-next224',
+                'wordpress-recursive-view-returning-current-source-source_seal',
             ]))),
-            'non_overlap_next224' => 'adds current returning source/view/trigger source seals after next218 epoch receipts; avoids accepted next208 cursor close, next212 yield receipts, next218 epoch receipts, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
+            'non_overlap_source_seal' => 'adds current returning source/view/trigger source seals after next218 epoch receipts; avoids accepted next208 cursor close, next212 yield receipts, next218 epoch receipts, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
     }
 
@@ -14425,11 +14425,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      */
     private static function acknowledgedCurrentReturningSourceSeals(array $options, array $required): array
     {
-        if (($options['auto_ack_current_returning_source_seals_next224'] ?? false) === true) {
+        if (($options['auto_ack_current_returning_source_seals_source_seal'] ?? false) === true) {
             return $required;
         }
 
-        return self::currentReturningSourceSealList($options['acknowledged_current_returning_source_seals_next224'] ?? [], 'acknowledged current returning source seals');
+        return self::currentReturningSourceSealList($options['acknowledged_current_returning_source_seals_source_seal'] ?? [], 'acknowledged current returning source seals');
     }
 
     /**
@@ -14439,11 +14439,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     private static function currentReturningSourceSealList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next224 {$label} must be a list");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source_seal {$label} must be a list");
         }
         foreach ($values as $value) {
             if (!is_string($value) || preg_match('/^[a-f0-9]{40}$/', $value) !== 1) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next224 {$label} contain a malformed source seal");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING source_seal {$label} contain a malformed source seal");
             }
         }
 
@@ -14457,11 +14457,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     private static function returningRowsForSourceSeal(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next224 {$label} must be a list");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source_seal {$label} must be a list");
         }
         foreach ($rows as $row) {
             if (!is_array($row) || !isset($row['returning']) || !is_array($row['returning'])) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next224 {$label} contain a malformed row");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING source_seal {$label} contain a malformed row");
             }
         }
 
@@ -14479,13 +14479,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $out = [];
         foreach ($rows as $index => $row) {
             $out[] = $row + [
-                'returning_source_phase_next224' => $phase,
-                'current_returning_source_token_next224' => $sourceToken,
-                'current_returning_view_source_next224' => $viewSource,
-                'current_returning_trigger_source_next224' => $triggerSource,
-                'current_returning_source_seal_next224' => $seals[$index] ?? null,
-                'visible_after_current_returning_source_next224' => $visible,
-                'held_by_current_returning_source_reasons_next224' => $visible ? [] : $reasons,
+                'returning_source_phase_source_seal' => $phase,
+                'current_returning_source_token_source_seal' => $sourceToken,
+                'current_returning_view_source_source_seal' => $viewSource,
+                'current_returning_trigger_source_source_seal' => $triggerSource,
+                'current_returning_source_seal_source_seal' => $seals[$index] ?? null,
+                'visible_after_current_returning_source_source_seal' => $visible,
+                'held_by_current_returning_source_reasons_source_seal' => $visible ? [] : $reasons,
             ];
         }
 
@@ -14501,7 +14501,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     private static function blockedReasonsForSourceSeal(mixed $baseReasons, bool $baseVisible, bool $sourceMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
-            throw new InvalidArgumentException('SQLite recursive view RETURNING next224 base blocked reasons are malformed');
+            throw new InvalidArgumentException('SQLite recursive view RETURNING source_seal base blocked reasons are malformed');
         }
         $reasons = array_map(static fn (mixed $reason): string => (string) $reason, $baseReasons);
         if (!$baseVisible && $reasons === []) {
@@ -14533,31 +14533,31 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     private static function statusForSourceSeal(bool $nextVisible, bool $baseVisible, bool $sourceMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected): string
     {
         if ($nextVisible) {
-            return 'trigger-recursive-view-returning-current-source-next224-source-released';
+            return 'trigger-recursive-view-returning-current-source-source_seal-source-released';
         }
         if (!$baseVisible) {
-            return 'trigger-recursive-view-returning-current-source-next224-base-held';
+            return 'trigger-recursive-view-returning-current-source-source_seal-base-held';
         }
         if (!$sourceMatches) {
-            return 'trigger-recursive-view-returning-current-source-next224-source-held';
+            return 'trigger-recursive-view-returning-current-source-source_seal-source-held';
         }
         if (!$viewMatches) {
-            return 'trigger-recursive-view-returning-current-source-next224-view-held';
+            return 'trigger-recursive-view-returning-current-source-source_seal-view-held';
         }
         if (!$triggerMatches) {
-            return 'trigger-recursive-view-returning-current-source-next224-trigger-held';
+            return 'trigger-recursive-view-returning-current-source-source_seal-trigger-held';
         }
         if ($missing !== [] || $unexpected !== []) {
-            return 'trigger-recursive-view-returning-current-source-next224-seal-held';
+            return 'trigger-recursive-view-returning-current-source-source_seal-seal-held';
         }
 
-        return 'trigger-recursive-view-returning-current-source-next224-held';
+        return 'trigger-recursive-view-returning-current-source-source_seal-held';
     }
 
     private static function tokenForSourceSeal(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next224 {$label} is malformed");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source_seal {$label} is malformed");
         }
 
         return $token;
@@ -15003,9 +15003,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentRows = self::returningSnapshotRows($base['current_source_rows_next224'] ?? [], 'current source rows');
-        $nextRows = self::returningSnapshotRows($base['attempted_next_source_rows_next224'] ?? [], 'attempted next source rows');
-        $baseVisible = (bool) ($base['next_source_visible_after_current_returning_source_next224'] ?? false);
+        $currentRows = self::returningSnapshotRows($base['current_source_rows_source_seal'] ?? [], 'current source rows');
+        $nextRows = self::returningSnapshotRows($base['attempted_next_source_rows_source_seal'] ?? [], 'attempted next source rows');
+        $baseVisible = (bool) ($base['next_source_visible_after_current_returning_source_source_seal'] ?? false);
         $snapshotToken = self::returningSnapshotToken((string) ($options['current_returning_snapshot_token_snapshot_ack'] ?? 'wp.current.returning.snapshot.228'), 'current returning snapshot token');
         $expectedSnapshotToken = self::returningSnapshotToken((string) ($options['expected_current_returning_snapshot_token_snapshot_ack'] ?? $snapshotToken), 'expected current returning snapshot token');
         $viewSource = self::returningSnapshotToken((string) ($options['current_returning_view_source_snapshot_ack'] ?? ($currentView['source'] ?? 'main@view-cookie-228-current')), 'current returning view source');
@@ -15097,12 +15097,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 ? 'recursive-view-returning-snapshot-ack-current-source-acked-then-next'
                 : 'recursive-view-returning-snapshot-ack-current-source-ack-fences-next',
             'dependency_closure_snapshot_ack' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-epoch-and-adds-source-ack',
-            'dependencies_snapshot_ack' => array_values(array_unique(array_merge($base['dependencies_next224'] ?? [], [
+            'dependencies_snapshot_ack' => array_values(array_unique(array_merge($base['dependencies_source_seal'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-source-snapshot-ack',
                 'sqlite-returning-current-source-snapshot-ack',
                 'wordpress-recursive-view-returning-current-source-snapshot-ack',
             ]))),
-            'non_overlap_snapshot_ack' => 'adds current returning snapshot acknowledgements after accepted next224 source seals; avoids accepted next222 ticket handoff, next224 source seal, next208 cursor close, next212 yield receipts, next218 epoch receipts, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
+            'non_overlap_snapshot_ack' => 'adds current returning snapshot acknowledgements after accepted source_seal source seals; avoids accepted next222 ticket handoff, source_seal source seal, next208 cursor close, next212 yield receipts, next218 epoch receipts, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
     }
 
@@ -15305,9 +15305,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentRows = self::currentReturningGenerationRows($base['current_source_rows_next224'] ?? [], 'current source rows');
-        $nextRows = self::currentReturningGenerationRows($base['attempted_next_source_rows_next224'] ?? [], 'attempted next source rows');
-        $baseVisible = (bool) ($base['next_source_visible_after_current_returning_source_next224'] ?? false);
+        $currentRows = self::currentReturningGenerationRows($base['current_source_rows_source_seal'] ?? [], 'current source rows');
+        $nextRows = self::currentReturningGenerationRows($base['attempted_next_source_rows_source_seal'] ?? [], 'attempted next source rows');
+        $baseVisible = (bool) ($base['next_source_visible_after_current_returning_source_source_seal'] ?? false);
         $sourceGeneration = self::currentReturningGenerationToken((string) ($options['current_returning_source_generation'] ?? 'wp.current.returning.source.generation.229'), 'current returning source generation');
         $expectedSourceGeneration = self::currentReturningGenerationToken((string) ($options['expected_current_returning_source_generation'] ?? $sourceGeneration), 'expected current returning source generation');
         $viewGeneration = self::currentReturningGenerationToken((string) ($options['current_returning_view_generation'] ?? ($currentView['source'] ?? 'main@view-generation-229-current')), 'current returning view generation');
@@ -15332,7 +15332,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             && $orderMatches;
         $nextVisible = $baseVisible && $sealComplete;
         $blockedReasons = self::currentReturningGenerationBlockedReasons(
-            $base['blocked_reasons_next224'] ?? [],
+            $base['blocked_reasons_source_seal'] ?? [],
             $baseVisible,
             $sourceMatches,
             $viewMatches,
@@ -15408,12 +15408,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 ? 'recursive-view-returning-current-source-generation-sealed-then-next'
                 : 'recursive-view-returning-current-source-generation-seal-fences-next',
             'dependency_closure_generation_seal' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-seal-and-adds-generation-seal',
-            'dependencies_generation_seal' => array_values(array_unique(array_merge($base['dependencies_next224'] ?? [], [
+            'dependencies_generation_seal' => array_values(array_unique(array_merge($base['dependencies_source_seal'] ?? [], [
                 'sqlite-trigger-recursive-view-returning-current-generation-seal',
                 'sqlite-returning-current-source-generation-seal',
                 'wordpress-recursive-view-returning-current-generation-seal',
             ]))),
-            'non_overlap_generation_seal' => 'adds ordered current returning source/view/trigger generation seals after next224 source seals; avoids accepted next208 cursor close, next212 yield receipts, next218 epoch receipts, next224 source seals, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
+            'non_overlap_generation_seal' => 'adds ordered current returning source/view/trigger generation seals after source_seal source seals; avoids accepted next208 cursor close, next212 yield receipts, next218 epoch receipts, source_seal source seals, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
     }
 
@@ -15429,7 +15429,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 $sourceGeneration,
                 $viewGeneration,
                 $triggerGeneration,
-                (string) ($row['current_returning_source_seal_next224'] ?? ''),
+                (string) ($row['current_returning_source_seal_source_seal'] ?? ''),
                 (string) ($row['returning_row_ordinal'] ?? $index),
                 (string) ($row['returning']['name'] ?? ''),
                 (string) ($row['returning']['trigger_source_alias'] ?? ''),
@@ -15527,7 +15527,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         }
         $reasons = array_map(static fn (mixed $reason): string => (string) $reason, $baseReasons);
         if (!$baseVisible && $reasons === []) {
-            $reasons[] = 'base-next224-current-returning-source-not-published';
+            $reasons[] = 'base-source_seal-current-returning-source-not-published';
         }
         if (!$sourceMatches) {
             $reasons[] = 'current-returning-source-generation-mismatch';

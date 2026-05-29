@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -34,14 +34,14 @@ $discardAfterYield = static function () use ($yieldUpdateSql, $discardDeleteSql,
 
     return SQLiteUpdateDeleteReturningSql::execute($discardUpdateSql, $deleted['tables'], 'option_id', $unique);
 };
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldCheckpointSavepointBatch(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldCheckpointSavepointBatch(
     $tables,
     [$yieldUpdateSql],
     [$discardDeleteSql, $discardUpdateSql],
     [$retryDeleteSql, $retryUpdateSql],
     $unique,
 );
-$customPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldCheckpointSavepointBatch(
+$customPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldCheckpointSavepointBatch(
     $tables,
     [$yieldUpdateSql],
     [$discardDeleteSql],
@@ -123,12 +123,12 @@ $cases = [
     'custom savepoint accepted' => [static fn (): mixed => $customPlan()['savepoint'], 'wp_custom_yield_retry_next172'],
     'custom plan yielded after retry count' => [static fn (): mixed => $customPlan()['yielded_after_retry_count'], 3],
     'custom plan final retains deleted transients without retry delete' => [static fn (): mixed => array_column($customPlan()['current_source_tables']['wp_options'], 'option_id'), [1, 2, 3, 4, 5, 6, 7, 8, 9]],
-    'malformed empty yielded statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldCheckpointSavepointBatch($tables, [], [$discardDeleteSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
-    'malformed empty discarded statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldCheckpointSavepointBatch($tables, [$yieldUpdateSql], [], [$retryUpdateSql], $unique), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldCheckpointSavepointBatch($tables, [$yieldUpdateSql], [$discardDeleteSql], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldCheckpointSavepointBatch($tables, [$yieldUpdateSql], [$discardDeleteSql], [$retryUpdateSql], []), InvalidArgumentException::class],
-    'malformed bad savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldCheckpointSavepointBatch($tables, [$yieldUpdateSql], [$discardDeleteSql], [$retryUpdateSql], $unique, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldCheckpointSavepointBatch(['wp_options' => ['bad']], [$yieldUpdateSql], [$discardDeleteSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty yielded statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldCheckpointSavepointBatch($tables, [], [$discardDeleteSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty discarded statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldCheckpointSavepointBatch($tables, [$yieldUpdateSql], [], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldCheckpointSavepointBatch($tables, [$yieldUpdateSql], [$discardDeleteSql], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldCheckpointSavepointBatch($tables, [$yieldUpdateSql], [$discardDeleteSql], [$retryUpdateSql], []), InvalidArgumentException::class],
+    'malformed bad savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldCheckpointSavepointBatch($tables, [$yieldUpdateSql], [$discardDeleteSql], [$retryUpdateSql], $unique, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeYieldCheckpointSavepointBatch(['wp_options' => ['bad']], [$yieldUpdateSql], [$discardDeleteSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

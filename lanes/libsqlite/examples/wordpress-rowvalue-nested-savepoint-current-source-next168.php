@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 
 $tables = [
     'wp_options' => [
@@ -17,7 +17,7 @@ $tables = [
     ],
 ];
 
-$summary = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedIgnoreRetrySavepointBatch(
+$summary = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNestedIgnoreRetrySavepointBatch(
     $tables,
     ["UPDATE wp_options SET (option_name, status, option_value, bytes) = (option_name || ':outer168', 'outer', option_value || ':outer168', bytes + 2) WHERE option_id IN (4, 5) RETURNING option_id, option_name, status ORDER BY option_id"],
     [
@@ -32,7 +32,7 @@ $summary = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::ex
 );
 
 if (
-    $summary['status'] !== 'outer-released-after-inner-rollback-to-retry-current-source-next168'
+    $summary['status'] !== 'outer-released-after-inner-rollback-to-retry-current-source-nested-ignore-retry'
     || $summary['discarded_inner_returning_count'] !== 3
     || $summary['yielded_inner_retry_returning_count'] !== 4
     || array_column($summary['current_source_tables']['wp_options'], 'option_id') !== [1, 4, 5, 6]

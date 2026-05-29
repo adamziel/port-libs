@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows202 = [
@@ -28,12 +28,12 @@ $attemptUpdateResult202 = static fn (): array => SQLiteUpdateDeleteReturningSql:
 $attemptDeleteResult202 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptDelete202, $attemptUpdateResult202()['tables']);
 $retryUpdateResult202 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate202, $tables202);
 $retryDeleteResult202 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete202, $retryUpdateResult202()['tables']);
-$plan202 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeParenthesizedRollbackRetrySavepoint(
+$plan202 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeParenthesizedRollbackRetrySavepoint(
     $tables202,
     [$attemptUpdate202, $attemptDelete202],
     [$retryUpdate202, $retryDelete202],
 );
-$customPlan202 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeParenthesizedRollbackRetrySavepoint(
+$customPlan202 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeParenthesizedRollbackRetrySavepoint(
     $tables202,
     [$attemptUpdate202],
     [$retryUpdate202],
@@ -101,10 +101,10 @@ $cases202 = [
     'custom plan savepoint' => [static fn (): mixed => $customPlan202()['savepoint'], 'wp_custom_parenthesized202'],
     'custom plan attempt count' => [static fn (): mixed => $customPlan202()['attempt_returning_count'], 2],
     'custom plan retry count' => [static fn (): mixed => $customPlan202()['yielded_after_retry_count'], 2],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeParenthesizedRollbackRetrySavepoint($tables202, [], [$retryUpdate202]), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeParenthesizedRollbackRetrySavepoint($tables202, [$attemptUpdate202], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeParenthesizedRollbackRetrySavepoint($tables202, [$attemptUpdate202], [$retryUpdate202], [], 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeParenthesizedRollbackRetrySavepoint(['wp_options' => ['bad']], [$attemptUpdate202], [$retryUpdate202]), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeParenthesizedRollbackRetrySavepoint($tables202, [], [$retryUpdate202]), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeParenthesizedRollbackRetrySavepoint($tables202, [$attemptUpdate202], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeParenthesizedRollbackRetrySavepoint($tables202, [$attemptUpdate202], [$retryUpdate202], [], 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeParenthesizedRollbackRetrySavepoint(['wp_options' => ['bad']], [$attemptUpdate202], [$retryUpdate202]), InvalidArgumentException::class],
 ];
 
 $tests = [];

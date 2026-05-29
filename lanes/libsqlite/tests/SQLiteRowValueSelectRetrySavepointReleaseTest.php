@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -47,14 +47,14 @@ $attemptUpdateResult = static fn (): array => SQLiteUpdateDeleteReturningSql::ex
 $attemptDeleteResult = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptDelete, $attemptUpdateResult()['tables'], 'option_id', $unique);
 $retryUpdateResult = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate, $tables, 'option_id', $unique);
 $retryDeleteResult = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete, $retryUpdateResult()['tables'], 'option_id', $unique);
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSelectRetrySavepointRelease(
     $tables,
     [$yieldUpdate, $yieldDelete],
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],
     $unique,
 );
-$customPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease(
+$customPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSelectRetrySavepointRelease(
     $tables,
     [$yieldUpdate],
     [$attemptUpdate],
@@ -141,12 +141,12 @@ $cases = [
     'custom yielded count' => [static fn (): mixed => $customPlan()['yielded_returning_count'], 2],
     'custom suppressed count' => [static fn (): mixed => $customPlan()['suppressed_returning_count'], 2],
     'custom retry count' => [static fn (): mixed => $customPlan()['retry_returning_count'], 3],
-    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease($tables, [], [$attemptUpdate], [$retryUpdate], $unique), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease($tables, [$yieldUpdate], [], [$retryUpdate], $unique), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease($tables, [$yieldUpdate], [$attemptUpdate], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease($tables, [$yieldUpdate], [$attemptUpdate], [$retryUpdate], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease($tables, [$yieldUpdate], [$attemptUpdate], [$retryUpdate], $unique, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease(['wp_options' => ['bad']], [$yieldUpdate], [$attemptUpdate], [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSelectRetrySavepointRelease($tables, [], [$attemptUpdate], [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSelectRetrySavepointRelease($tables, [$yieldUpdate], [], [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSelectRetrySavepointRelease($tables, [$yieldUpdate], [$attemptUpdate], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSelectRetrySavepointRelease($tables, [$yieldUpdate], [$attemptUpdate], [$retryUpdate], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSelectRetrySavepointRelease($tables, [$yieldUpdate], [$attemptUpdate], [$retryUpdate], $unique, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSelectRetrySavepointRelease(['wp_options' => ['bad']], [$yieldUpdate], [$attemptUpdate], [$retryUpdate], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

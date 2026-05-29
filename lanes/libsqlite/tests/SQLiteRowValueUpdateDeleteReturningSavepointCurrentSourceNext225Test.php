@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows225 = [
@@ -52,13 +52,13 @@ $attemptDeleteResult225 = static fn (): array => SQLiteUpdateDeleteReturningSql:
 $retryUpdateResult225 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate225, $tables225, 'option_id', $unique225);
 $retryDeleteResult225 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete225, $retryUpdateResult225()['tables'], 'option_id', $unique225);
 $plainDuplicateUpdate225 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute(str_replace('SELECT DISTINCT', 'SELECT', $attemptUpdate225), $tables225, 'option_id', $unique225);
-$plan225 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctSubquerySavepointRollback(
+$plan225 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctSubquerySavepointRollback(
     $tables225,
     [$attemptUpdate225, $attemptDelete225],
     [$retryUpdate225, $retryDelete225],
     $unique225,
 );
-$customPlan225 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctSubquerySavepointRollback(
+$customPlan225 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctSubquerySavepointRollback(
     $tables225,
     [$attemptUpdate225],
     [$retryUpdate225],
@@ -128,11 +128,11 @@ $cases225 = [
     'custom yielded count' => [static fn (): mixed => $customPlan225()['yielded_after_retry_count'], 2],
     'malformed missing subquery table rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($attemptUpdate225, ['wp_options' => $rows225], 'option_id', $unique225), InvalidArgumentException::class],
     'malformed bad order column rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute(str_replace('ORDER BY meta_option_id ASC', 'ORDER BY no_such_column ASC', $attemptUpdate225), $tables225, 'option_id', $unique225), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctSubquerySavepointRollback($tables225, [], [$retryUpdate225], $unique225), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctSubquerySavepointRollback($tables225, [$attemptUpdate225], [], $unique225), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctSubquerySavepointRollback($tables225, [$attemptUpdate225], [$retryUpdate225], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctSubquerySavepointRollback($tables225, [$attemptUpdate225], [$retryUpdate225], $unique225, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctSubquerySavepointRollback(['wp_options' => ['bad']], [$attemptUpdate225], [$retryUpdate225], $unique225), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctSubquerySavepointRollback($tables225, [], [$retryUpdate225], $unique225), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctSubquerySavepointRollback($tables225, [$attemptUpdate225], [], $unique225), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctSubquerySavepointRollback($tables225, [$attemptUpdate225], [$retryUpdate225], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctSubquerySavepointRollback($tables225, [$attemptUpdate225], [$retryUpdate225], $unique225, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctSubquerySavepointRollback(['wp_options' => ['bad']], [$attemptUpdate225], [$retryUpdate225], $unique225), InvalidArgumentException::class],
 ];
 
 $tests = [];

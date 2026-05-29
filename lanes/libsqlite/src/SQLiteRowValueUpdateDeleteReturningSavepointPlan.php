@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
+final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
 {
 
     /* Consolidated row-value savepoint variant. */
@@ -10786,7 +10786,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_order_limit_next213',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -11420,7 +11420,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_negative_limit_offset_next219',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -12058,7 +12058,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_distinct_subquery_next225',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -12119,7 +12119,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_distinct_subquery',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -13103,7 +13103,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_compound_subquery',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -15060,7 +15060,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_subquery_limit_next215',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
             $attemptStatements,
             $retryStatements,
@@ -15102,7 +15102,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_distinct_subquery',
         string $rowIdColumn = 'option_id',
     ): array {
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubquerySavepointRollbackRetry(
             $tables,
             $attemptStatements,
             $retryStatements,

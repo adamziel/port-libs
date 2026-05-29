@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -28,7 +28,7 @@ $abortUpdate = "UPDATE OR ABORT wp_options SET (blog_id, option_name, status) = 
 $retryUpdate = "UPDATE wp_options SET (status, option_value) = ('retry187', option_value || ':retry187') WHERE (blog_id, option_name) IN (VALUES (3, 'orphaned_cache')) RETURNING option_id, option_name, status, option_value";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (VALUES (2, '_transient_feed')) RETURNING option_id, blog_id, option_name";
 
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortSavepointRetry(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeAbortSavepointRetry(
     $tables,
     [$outerUpdate, $outerDelete],
     [$savepointDelete, $savepointUpdate, $abortUpdate],

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php';
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 2, 'option_name' => 'pending_theme', 'autoload' => 'no', 'status' => 'queued', 'bytes' => 7, 'option_value' => 'theme'],
@@ -24,7 +24,7 @@ $attempt = "UPDATE wp_options SET status = 'attempt219' WHERE (option_id, option
 $retry = "UPDATE wp_options SET status = 'retry219' WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY priority DESC LIMIT -1 OFFSET 1) RETURNING option_id, status ORDER BY option_id";
 $delete = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'network_drop' ORDER BY priority DESC LIMIT -1 OFFSET 0) RETURNING option_id, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNegativeLimitOffsetSubquerySavepointRetry(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNegativeLimitOffsetSubquerySavepointRetry(
     ['wp_options' => $rows, 'wp_optionmeta' => $meta],
     [$attempt],
     [$retry, $delete],

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows180 = [
@@ -35,7 +35,7 @@ $innerYieldUpdate180 = static fn (): array => SQLiteUpdateDeleteReturningSql::ex
 $innerDiscardDelete180 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($innerDiscardDeleteSql180, $innerYieldUpdate180()['tables'], 'option_id', $unique180);
 $innerDiscardReplace180 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($innerDiscardReplaceSql180, $innerDiscardDelete180()['tables'], 'option_id', $unique180);
 $innerRetry180 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($innerRetryUpdateSql180, $outer180()['tables'], 'option_id', $unique180);
-$plan180 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreNestedRetrySavepointBatch(
+$plan180 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeIgnoreNestedRetrySavepointBatch(
     $tables180,
     [$outerSql180],
     [$innerYieldSql180, $innerYieldUpdateSql180],
@@ -116,12 +116,12 @@ $cases180 = [
     'plan dependency preserves outer source' => [static fn (): mixed => in_array('sqlite-rollback-to-inner-savepoint-preserves-outer-current-source', $plan180()['dependencies'], true), true],
     'plan dependency retries from inner image' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-retry-starts-from-inner-image', $plan180()['dependencies'], true), true],
 
-    'malformed empty outer statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [], [$innerYieldSql180], [$innerDiscardDeleteSql180], [$innerRetryUpdateSql180], $unique180), InvalidArgumentException::class],
-    'malformed empty yielded statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [$outerSql180], [], [$innerDiscardDeleteSql180], [$innerRetryUpdateSql180], $unique180), InvalidArgumentException::class],
-    'malformed empty discarded statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [$outerSql180], [$innerYieldSql180], [], [$innerRetryUpdateSql180], $unique180), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [$outerSql180], [$innerYieldSql180], [$innerDiscardDeleteSql180], [], $unique180), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [$outerSql180], [$innerYieldSql180], [$innerDiscardDeleteSql180], [$innerRetryUpdateSql180], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreNestedRetrySavepointBatch(['wp_options' => ['bad']], [$outerSql180], [$innerYieldSql180], [$innerDiscardDeleteSql180], [$innerRetryUpdateSql180], $unique180), InvalidArgumentException::class],
+    'malformed empty outer statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [], [$innerYieldSql180], [$innerDiscardDeleteSql180], [$innerRetryUpdateSql180], $unique180), InvalidArgumentException::class],
+    'malformed empty yielded statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [$outerSql180], [], [$innerDiscardDeleteSql180], [$innerRetryUpdateSql180], $unique180), InvalidArgumentException::class],
+    'malformed empty discarded statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [$outerSql180], [$innerYieldSql180], [], [$innerRetryUpdateSql180], $unique180), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [$outerSql180], [$innerYieldSql180], [$innerDiscardDeleteSql180], [], $unique180), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [$outerSql180], [$innerYieldSql180], [$innerDiscardDeleteSql180], [$innerRetryUpdateSql180], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeIgnoreNestedRetrySavepointBatch(['wp_options' => ['bad']], [$outerSql180], [$innerYieldSql180], [$innerDiscardDeleteSql180], [$innerRetryUpdateSql180], $unique180), InvalidArgumentException::class],
 ];
 
 $tests = [];

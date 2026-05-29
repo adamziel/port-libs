@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 require_once dirname(__DIR__) . '/src/SQLiteUpdateDeleteLimitPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteDatabase.php';
 require_once dirname(__DIR__) . '/src/SQLiteSelectResult.php';
 require_once dirname(__DIR__) . '/src/SQLiteUpdateDeleteReturningSql.php';
-require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php';
 
 $rowstuple = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -49,13 +49,13 @@ $attemptUpdateResulttuple = static fn (): array => SQLiteUpdateDeleteReturningSq
 $attemptDeleteResulttuple = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptDeletetuple, $attemptUpdateResulttuple()['tables'], 'option_id', $uniquetuple);
 $retryUpdateResulttuple = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdatetuple, $tablestuple, 'option_id', $uniquetuple);
 $retryDeleteResulttuple = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDeletetuple, $retryUpdateResulttuple()['tables'], 'option_id', $uniquetuple);
-$plantuple = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback(
+$plantuple = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctTupleSavepointRollback(
     $tablestuple,
     [$attemptUpdatetuple, $attemptDeletetuple],
     [$retryUpdatetuple, $retryDeletetuple],
     $uniquetuple,
 );
-$customPlantuple = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback(
+$customPlantuple = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctTupleSavepointRollback(
     $tablestuple,
     [$attemptUpdatetuple],
     [$retryUpdatetuple],
@@ -127,11 +127,11 @@ $casestuple = [
     'custom savepoint' => [static fn (): mixed => $customPlantuple()['savepoint'], 'wp_custom_distinct_tuple_tuple'],
     'custom suppressed count' => [static fn (): mixed => $customPlantuple()['suppressed_returning_count'], 1],
     'custom retry count' => [static fn (): mixed => $customPlantuple()['retry_returning_count'], 2],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback($tablestuple, [], [$retryUpdatetuple], $uniquetuple), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback($tablestuple, [$attemptUpdatetuple], [], $uniquetuple), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback($tablestuple, [$attemptUpdatetuple], [$retryUpdatetuple], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback($tablestuple, [$attemptUpdatetuple], [$retryUpdatetuple], $uniquetuple, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback(['wp_options' => ['bad']], [$attemptUpdatetuple], [$retryUpdatetuple], $uniquetuple), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctTupleSavepointRollback($tablestuple, [], [$retryUpdatetuple], $uniquetuple), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctTupleSavepointRollback($tablestuple, [$attemptUpdatetuple], [], $uniquetuple), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctTupleSavepointRollback($tablestuple, [$attemptUpdatetuple], [$retryUpdatetuple], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctTupleSavepointRollback($tablestuple, [$attemptUpdatetuple], [$retryUpdatetuple], $uniquetuple, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctTupleSavepointRollback(['wp_options' => ['bad']], [$attemptUpdatetuple], [$retryUpdatetuple], $uniquetuple), InvalidArgumentException::class],
 ];
 
 $tests = [];

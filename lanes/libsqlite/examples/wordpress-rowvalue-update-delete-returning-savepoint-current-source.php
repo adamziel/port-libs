@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -15,7 +15,7 @@ $rows = [
     ['option_id' => 6, 'blog_id' => 3, 'option_name' => 'orphaned_cache', 'autoload' => 'no', 'status' => 'queued', 'bucket' => 'cache', 'bytes' => 7, 'option_value' => 'orphan'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeUpdateDeleteReturningSavepointBatch(
     ['wp_options' => $rows],
     ["UPDATE wp_options SET (status, option_value) = ('prepared', option_value || ':prepared') WHERE (blog_id, option_name) IN ((3, 'orphaned_cache')) RETURNING option_id, option_name, status, option_value ORDER BY option_id"],
     [

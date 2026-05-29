@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -35,7 +35,7 @@ $outerOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($out
 $ignoreAfterOuter = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($ignoreSql, $outerOnly()['tables'], 'option_id', $unique);
 $replaceAfterIgnore = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($replaceSql, $ignoreAfterOuter()['tables'], 'option_id', $unique);
 $deleteAfterReplace = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($deleteSql, $replaceAfterIgnore()['tables'], 'option_id', $unique);
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedIgnoreRetrySavepointBatch(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNestedIgnoreRetrySavepointBatch(
     $tables,
     [$outerSql],
     [$ignoreSql, $replaceSql, $deleteSql],
@@ -123,11 +123,11 @@ $cases = [
     'plan dependency inner stream discarded' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-discards-inner-rollback-stream-nested-ignore-retry', $plan()['dependencies'], true), true],
     'plan dependency retry reads image' => [static fn (): mixed => in_array('sqlite-rowvalue-retry-after-inner-rollback-reads-inner-savepoint-image-nested-ignore-retry', $plan()['dependencies'], true), true],
 
-    'malformed empty outer statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedIgnoreRetrySavepointBatch($tables, [], [$ignoreSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
-    'malformed empty inner attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedIgnoreRetrySavepointBatch($tables, [$outerSql], [], [$retryUpdateSql], $unique), InvalidArgumentException::class],
-    'malformed empty inner retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedIgnoreRetrySavepointBatch($tables, [$outerSql], [$ignoreSql], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedIgnoreRetrySavepointBatch($tables, [$outerSql], [$ignoreSql], [$retryUpdateSql], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedIgnoreRetrySavepointBatch(['wp_options' => ['bad']], [$outerSql], [$ignoreSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty outer statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNestedIgnoreRetrySavepointBatch($tables, [], [$ignoreSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty inner attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNestedIgnoreRetrySavepointBatch($tables, [$outerSql], [], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty inner retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNestedIgnoreRetrySavepointBatch($tables, [$outerSql], [$ignoreSql], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNestedIgnoreRetrySavepointBatch($tables, [$outerSql], [$ignoreSql], [$retryUpdateSql], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeNestedIgnoreRetrySavepointBatch(['wp_options' => ['bad']], [$outerSql], [$ignoreSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

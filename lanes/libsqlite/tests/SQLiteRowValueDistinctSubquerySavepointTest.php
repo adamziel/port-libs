@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rowsbounded = [
@@ -43,13 +43,13 @@ $attemptUpdateResultbounded = static fn (): array => SQLiteUpdateDeleteReturning
 $attemptDeleteResultbounded = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptDeletebounded, $attemptUpdateResultbounded()['tables'], 'option_id', $uniquebounded);
 $retryUpdateResultbounded = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdatebounded, $tablesbounded, 'option_id', $uniquebounded);
 $retryDeleteResultbounded = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDeletebounded, $retryUpdateResultbounded()['tables'], 'option_id', $uniquebounded);
-$planbounded = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBoundedDistinctSubquerySavepointRollback(
+$planbounded = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeBoundedDistinctSubquerySavepointRollback(
     $tablesbounded,
     [$attemptUpdatebounded, $attemptDeletebounded],
     [$retryUpdatebounded, $retryDeletebounded],
     $uniquebounded,
 );
-$customPlanbounded = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBoundedDistinctSubquerySavepointRollback(
+$customPlanbounded = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeBoundedDistinctSubquerySavepointRollback(
     $tablesbounded,
     [$attemptUpdatebounded],
     [$retryUpdatebounded],
@@ -116,11 +116,11 @@ $casesbounded = [
     'custom yielded count' => [static fn (): mixed => $customPlanbounded()['yielded_after_retry_count'], 2],
     'malformed missing subquery table rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($attemptUpdatebounded, ['wp_options' => $rowsbounded], 'option_id', $uniquebounded), InvalidArgumentException::class],
     'malformed bad order column rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute(str_replace('ORDER BY priority ASC', 'ORDER BY no_such_column ASC', $attemptUpdatebounded), $tablesbounded, 'option_id', $uniquebounded), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBoundedDistinctSubquerySavepointRollback($tablesbounded, [], [$retryUpdatebounded], $uniquebounded), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBoundedDistinctSubquerySavepointRollback($tablesbounded, [$attemptUpdatebounded], [], $uniquebounded), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBoundedDistinctSubquerySavepointRollback($tablesbounded, [$attemptUpdatebounded], [$retryUpdatebounded], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBoundedDistinctSubquerySavepointRollback($tablesbounded, [$attemptUpdatebounded], [$retryUpdatebounded], $uniquebounded, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBoundedDistinctSubquerySavepointRollback(['wp_options' => ['bad']], [$attemptUpdatebounded], [$retryUpdatebounded], $uniquebounded), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeBoundedDistinctSubquerySavepointRollback($tablesbounded, [], [$retryUpdatebounded], $uniquebounded), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeBoundedDistinctSubquerySavepointRollback($tablesbounded, [$attemptUpdatebounded], [], $uniquebounded), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeBoundedDistinctSubquerySavepointRollback($tablesbounded, [$attemptUpdatebounded], [$retryUpdatebounded], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeBoundedDistinctSubquerySavepointRollback($tablesbounded, [$attemptUpdatebounded], [$retryUpdatebounded], $uniquebounded, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeBoundedDistinctSubquerySavepointRollback(['wp_options' => ['bad']], [$attemptUpdatebounded], [$retryUpdatebounded], $uniquebounded), InvalidArgumentException::class],
 ];
 
 $tests = [];

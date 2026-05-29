@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $abortRows = [
@@ -36,13 +36,13 @@ $afterStageDelete = static function () use ($stageSql, $deleteSql, $abortTables,
 $abortOnly = static function () use ($abortSql, $afterStageDelete, $abortUnique): mixed {
     return SQLiteUpdateDeleteReturningSql::execute($abortSql, $afterStageDelete()['tables'], 'option_id', $abortUnique);
 };
-$abortPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortRollbackRetrySavepoint(
+$abortPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeAbortRollbackRetrySavepoint(
     $abortTables,
     [$stageSql, $deleteSql, $abortSql],
     [$retrySql, $cleanupSql],
     $abortUnique,
 );
-$cleanAbortPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortRollbackRetrySavepoint(
+$cleanAbortPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeAbortRollbackRetrySavepoint(
     $abortTables,
     [$cleanSql],
     [$deleteSql],
@@ -119,11 +119,11 @@ $abortCases = [
     'clean plan changes after retry one' => [static fn (): mixed => $cleanAbortPlan()['changes_after_retry'], 1],
     'clean plan final row seven clean' => [static fn (): mixed => array_column($cleanAbortPlan()['current_source_tables']['wp_options'], 'status', 'option_id')[7], 'clean'],
 
-    'malformed empty attempt statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortRollbackRetrySavepoint($abortTables, [], [$retrySql], $abortUnique), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortRollbackRetrySavepoint($abortTables, [$stageSql], [], $abortUnique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortRollbackRetrySavepoint($abortTables, [$stageSql], [$retrySql], []), InvalidArgumentException::class],
-    'malformed non abort conflict rethrows' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortRollbackRetrySavepoint($abortTables, [$stageSql, str_replace('OR ABORT', 'OR ROLLBACK', $abortSql)], [$retrySql], $abortUnique), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortRollbackRetrySavepoint(['wp_options' => ['bad']], [$stageSql], [$retrySql], $abortUnique), InvalidArgumentException::class],
+    'malformed empty attempt statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeAbortRollbackRetrySavepoint($abortTables, [], [$retrySql], $abortUnique), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeAbortRollbackRetrySavepoint($abortTables, [$stageSql], [], $abortUnique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeAbortRollbackRetrySavepoint($abortTables, [$stageSql], [$retrySql], []), InvalidArgumentException::class],
+    'malformed non abort conflict rethrows' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeAbortRollbackRetrySavepoint($abortTables, [$stageSql, str_replace('OR ABORT', 'OR ROLLBACK', $abortSql)], [$retrySql], $abortUnique), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeAbortRollbackRetrySavepoint(['wp_options' => ['bad']], [$stageSql], [$retrySql], $abortUnique), InvalidArgumentException::class],
 ];
 
 $tests = [];

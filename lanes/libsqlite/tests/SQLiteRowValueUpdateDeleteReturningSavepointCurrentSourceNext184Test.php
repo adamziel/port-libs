@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -31,7 +31,7 @@ $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (VALUES (
 
 $deleteOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($valuesDelete, $tables, 'option_id', $unique);
 $notInUpdate = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($valuesNotInUpdate, $tables, 'option_id', $unique);
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeValuesRetrySavepointBatch(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeValuesRetrySavepointBatch(
     $tables,
     [$outerDelete, $outerUpdate],
     [$savepointDelete, $rollbackUpdate],
