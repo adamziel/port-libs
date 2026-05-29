@@ -3104,3 +3104,17 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Updated both tests to assert the current production `source-token-fence`
   wording. Focused validation passes with 2 files / 671 assertions /
   0 failures.
+
+## Supervisor Rolling Integration 2026-05-29T21:55Z Root Gate Backlog
+
+- The next root dashboard gate passed the repaired compound next192/next194 and
+  rowvalue memory surfaces, but still failed before publication.
+- Remaining failures from `/tmp/port-libs-root-dashboard-20260529T214538Z.log`
+  are now concrete: attach temp WAL dependency wording, B-tree freelist action
+  wording, additional compound recursive non-overlap wording, compound VALUES
+  alias resolution, timediff fractional-second output, pager hot-journal
+  dependency wording, and pager master journal reader-cache dispatch/operation
+  expectations.
+- Generated `porting.html` / `porting-summary.json` remain uncommitted because
+  the gate is not clean. Continue with focused fixes and rerun the root gate
+  only after each verified batch.
