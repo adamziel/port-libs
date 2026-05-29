@@ -11324,7 +11324,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext209(
+    public static function executeCurrentSourceWatermarkDrain(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -11343,20 +11343,20 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $drainSource = self::tokenNext209((string) ($options['current_source_drain_token_next209'] ?? 'wp.current.source.drain.209'), 'current source drain token');
-        $viewCookie = self::tokenNext209((string) ($options['current_view_cookie_next209'] ?? (string) ($currentView['source'] ?? 'current-view-cookie-209')), 'current view cookie');
-        $triggerCookie = self::tokenNext209((string) ($options['current_trigger_cookie_next209'] ?? (string) ($currentView['trigger_source'] ?? 'current-trigger-cookie-209')), 'current trigger cookie');
-        $expectedViewCookie = self::tokenNext209((string) ($options['expected_current_view_cookie_next209'] ?? $viewCookie), 'expected current view cookie');
-        $expectedTriggerCookie = self::tokenNext209((string) ($options['expected_current_trigger_cookie_next209'] ?? $triggerCookie), 'expected current trigger cookie');
+        $drainSource = self::currentSourceWatermarkDrainToken((string) ($options['current_source_drain_token_next209'] ?? 'wp.current.source.drain.209'), 'current source drain token');
+        $viewCookie = self::currentSourceWatermarkDrainToken((string) ($options['current_view_cookie_next209'] ?? (string) ($currentView['source'] ?? 'current-view-cookie-209')), 'current view cookie');
+        $triggerCookie = self::currentSourceWatermarkDrainToken((string) ($options['current_trigger_cookie_next209'] ?? (string) ($currentView['trigger_source'] ?? 'current-trigger-cookie-209')), 'current trigger cookie');
+        $expectedViewCookie = self::currentSourceWatermarkDrainToken((string) ($options['expected_current_view_cookie_next209'] ?? $viewCookie), 'expected current view cookie');
+        $expectedTriggerCookie = self::currentSourceWatermarkDrainToken((string) ($options['expected_current_trigger_cookie_next209'] ?? $triggerCookie), 'expected current trigger cookie');
         $baseVisible = (bool) ($base['next_source_visible_after_current_generation_next203'] ?? false);
 
-        $requiredWatermarks = self::watermarksNext209(
-            self::rowsNext209($base['current_generation_rows_next203'] ?? [], 'current generation rows'),
+        $requiredWatermarks = self::currentSourceWatermarkDrainWatermarks(
+            self::currentSourceWatermarkDrainRows($base['current_generation_rows_next203'] ?? [], 'current generation rows'),
             $drainSource,
             $viewCookie,
             $triggerCookie,
         );
-        $acknowledgedWatermarks = self::acknowledgedWatermarksNext209($options, $requiredWatermarks);
+        $acknowledgedWatermarks = self::acknowledgedCurrentSourceWatermarkDrainWatermarks($options, $requiredWatermarks);
         $missingWatermarks = array_values(array_diff($requiredWatermarks, $acknowledgedWatermarks));
         $unexpectedWatermarks = array_values(array_diff($acknowledgedWatermarks, $requiredWatermarks));
         $viewCookieMatches = hash_equals($viewCookie, $expectedViewCookie);
@@ -11365,7 +11365,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             && $missingWatermarks === []
             && $unexpectedWatermarks === [];
         $nextVisible = $baseVisible && $drainComplete && $viewCookieMatches && $triggerCookieMatches;
-        $blockedReasons = self::blockedReasonsNext209(
+        $blockedReasons = self::currentSourceWatermarkDrainBlockedReasons(
             $base['blocked_reasons_next203'] ?? [],
             $baseVisible,
             $drainComplete,
@@ -11375,15 +11375,15 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $triggerCookieMatches,
         );
 
-        $currentRows = self::tagCurrentRowsNext209(
-            self::rowsNext209($base['current_generation_rows_next203'] ?? [], 'current generation rows'),
+        $currentRows = self::tagCurrentRowsForCurrentSourceWatermarkDrain(
+            self::currentSourceWatermarkDrainRows($base['current_generation_rows_next203'] ?? [], 'current generation rows'),
             $requiredWatermarks,
             $drainSource,
             $viewCookie,
             $triggerCookie,
         );
-        $nextRows = self::tagNextRowsNext209(
-            self::rowsNext209($base['attempted_next_generation_rows_next203'] ?? [], 'attempted next generation rows'),
+        $nextRows = self::tagAttemptedNextRowsForCurrentSourceWatermarkDrain(
+            self::currentSourceWatermarkDrainRows($base['attempted_next_generation_rows_next203'] ?? [], 'attempted next generation rows'),
             $nextVisible,
             $drainSource,
             $viewCookie,
@@ -11400,7 +11400,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ));
 
         return [
-            'status_next209' => self::statusNext209($baseVisible, $drainComplete, $viewCookieMatches, $triggerCookieMatches, $nextVisible),
+            'status_next209' => self::currentSourceWatermarkDrainStatus($baseVisible, $drainComplete, $viewCookieMatches, $triggerCookieMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next209' => $baseVisible,
@@ -11459,7 +11459,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function watermarksNext209(array $rows, string $drainSource, string $viewCookie, string $triggerCookie): array
+    private static function currentSourceWatermarkDrainWatermarks(array $rows, string $drainSource, string $viewCookie, string $triggerCookie): array
     {
         $watermarks = [];
         foreach ($rows as $index => $row) {
@@ -11482,20 +11482,20 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedWatermarksNext209(array $options, array $required): array
+    private static function acknowledgedCurrentSourceWatermarkDrainWatermarks(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_watermarks_next209'] ?? false) === true) {
             return $required;
         }
 
-        return self::watermarkListNext209($options['acknowledged_current_source_watermarks_next209'] ?? [], 'acknowledged current source watermarks');
+        return self::currentSourceWatermarkDrainWatermarkList($options['acknowledged_current_source_watermarks_next209'] ?? [], 'acknowledged current source watermarks');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function watermarkListNext209(mixed $values, string $label): array
+    private static function currentSourceWatermarkDrainWatermarkList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next209 {$label} must be a list");
@@ -11513,7 +11513,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext209(mixed $rows, string $label): array
+    private static function currentSourceWatermarkDrainRows(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next209 {$label} must be a list");
@@ -11532,7 +11532,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $watermarks
      * @return list<array<string,mixed>>
      */
-    private static function tagCurrentRowsNext209(array $rows, array $watermarks, string $drainSource, string $viewCookie, string $triggerCookie): array
+    private static function tagCurrentRowsForCurrentSourceWatermarkDrain(array $rows, array $watermarks, string $drainSource, string $viewCookie, string $triggerCookie): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -11555,7 +11555,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagNextRowsNext209(array $rows, bool $visible, string $drainSource, string $viewCookie, string $triggerCookie, array $reasons): array
+    private static function tagAttemptedNextRowsForCurrentSourceWatermarkDrain(array $rows, bool $visible, string $drainSource, string $viewCookie, string $triggerCookie, array $reasons): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -11579,7 +11579,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext209(
+    private static function currentSourceWatermarkDrainBlockedReasons(
         mixed $baseReasons,
         bool $baseVisible,
         bool $drainComplete,
@@ -11613,7 +11613,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext209(bool $baseVisible, bool $drainComplete, bool $viewCookieMatches, bool $triggerCookieMatches, bool $nextVisible): string
+    private static function currentSourceWatermarkDrainStatus(bool $baseVisible, bool $drainComplete, bool $viewCookieMatches, bool $triggerCookieMatches, bool $nextVisible): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-returning-current-source-next209-drain-released';
@@ -11634,7 +11634,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-next209-held';
     }
 
-    private static function tokenNext209(string $token, string $label): string
+    private static function currentSourceWatermarkDrainToken(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next209 {$label} is malformed");
@@ -11664,7 +11664,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext209(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceWatermarkDrain(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -12000,7 +12000,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext209(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceWatermarkDrain(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -12284,7 +12284,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext209(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceWatermarkDrain(
             $baseRows,
             $currentInput,
             $nextInput,

@@ -48,6 +48,18 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 13:16 UTC):
+  Twenty-fifth consolidation follow-up is validated in the rolling libsqlite
+  integration worktree. The batch accepted 2 AF-wave consolidation handoffs
+  after the twenty-fourth follow-up commit and superseded 6 stale/conflicting
+  handoffs. Verification passed: php-lint for `5` changed PHP files, focused
+  changed tests `1 test file / 85 assertions / 0 failures`, `2` changed
+  WordPress examples/self-tests, git diff --check, exact removed-suffix scan
+  clean, numbered production filename/class scans at `0`, and remaining
+  numbered production method-line audit down to `4340`. Public libsqlite PASS
+  and mapped totals remain `154019 / 0 fail` and `830 / 1589` because this is
+  consolidation, not new upstream behavior coverage.
+
 - 2026-05-29 supervisor continuation (shell samples 13:13 UTC):
   Twenty-fourth consolidation follow-up is validated in the rolling libsqlite
   integration worktree. The batch accepted 1 AC-wave B-tree consolidation

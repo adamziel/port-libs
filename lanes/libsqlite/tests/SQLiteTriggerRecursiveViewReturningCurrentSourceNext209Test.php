@@ -53,7 +53,7 @@ $returning209 = [
     ['expr' => 'spawn_child', 'as' => 'spawn_child'],
 ];
 
-$plan209 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext209(
+$plan209 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceWatermarkDrain(
     $rows209,
     $currentInput209,
     $nextInput209,
