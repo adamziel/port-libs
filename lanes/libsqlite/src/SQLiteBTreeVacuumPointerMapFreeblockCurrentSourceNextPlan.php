@@ -1517,6 +1517,70 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan
     /**
      * @param array<string, mixed> $deleteResult
      */
+    public static function tableLeafFromDeleteResultNext391(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(391, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext392(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(392, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext393(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(393, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext394(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(394, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext395(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(395, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext396(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(396, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext397(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(397, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext398(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(398, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
     public static function tableLeafFromDeleteResultNext156(
         SQLiteDatabase $database,
         int $leafPageNumber,
@@ -8992,8 +9056,8 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
 
     private static function assertFreelistSpliceSlice(int $sliceNumber): void
     {
-        if (($sliceNumber < 263 || $sliceNumber > 266) && ($sliceNumber < 295 || $sliceNumber > 390)) {
-            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock freelist splice slice must be next263 through next266 or next295 through next390');
+        if (($sliceNumber < 263 || $sliceNumber > 266) && ($sliceNumber < 295 || $sliceNumber > 398)) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock freelist splice slice must be next263 through next266 or next295 through next398');
         }
     }
 
