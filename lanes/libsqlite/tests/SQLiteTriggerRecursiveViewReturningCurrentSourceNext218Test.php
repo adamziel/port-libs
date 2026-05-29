@@ -53,7 +53,7 @@ $returning218 = [
     ['expr' => 'spawn_child', 'as' => 'spawn_child'],
 ];
 
-$plan218 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext218(
+$plan218 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceEpochFence(
     $rows218,
     $currentInput218,
     $nextInput218,

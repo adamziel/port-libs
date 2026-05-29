@@ -54,15 +54,15 @@ SELECT 2 AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext200($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRankLastValueUnionExcept($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-next200-ready');
+    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-rankLastValueUnionExcept-ready');
     assert($plan['compound']['operators'] === ['UNION ALL', 'UNION', 'EXCEPT']);
     assert($plan['distinctExceptBoundary']['currentAdmittedLabels'][0] === 'seed:2:3');
     assert(in_array('plugin_loaded', $plan['distinctExceptBoundary']['nextAdmittedLabels'], true));
     assert($plan['distinctExceptBoundary']['currentToken'] !== $plan['distinctExceptBoundary']['nextToken']);
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next200 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-rankLastValueUnionExcept self-test passed\n";
     return;
 }
 

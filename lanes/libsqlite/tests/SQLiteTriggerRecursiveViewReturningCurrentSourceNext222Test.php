@@ -44,7 +44,7 @@ $returning222 = [
     ['expr' => 'spawn_child', 'as' => 'spawn_child'],
 ];
 
-$plan222 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext222(
+$plan222 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceTicketFence(
     $rows222,
     $currentInput222,
     $nextInput222,

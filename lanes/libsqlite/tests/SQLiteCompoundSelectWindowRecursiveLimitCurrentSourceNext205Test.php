@@ -65,21 +65,21 @@ SELECT id,
  LIMIT 6 OFFSET 1
 SQL;
 
-$summary205 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext205($sql205, $currentTables205, $nextTables205, $cursor);
+$summary205 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRankDenseRankIntersect($sql205, $currentTables205, $nextTables205, $cursor);
 $tests = [];
 
-$tests['compound select window recursive limit current source next205 status dependencies'] = static function (TestRunner $t) use ($summary205): void {
+$tests['compound select window recursive limit current source rankDenseRankIntersect status dependencies'] = static function (TestRunner $t) use ($summary205): void {
     $plan = $summary205();
-    $t->same('compound-select-window-recursive-limit-current-source-next205-ready', $plan['status']);
+    $t->same('compound-select-window-recursive-limit-current-source-rankDenseRankIntersect-ready', $plan['status']);
     $t->same([
-        'sqlite-select-sql-recursive-queue-order-limit-next205',
-        'sqlite-select-sql-rank-dense-rank-window-next205',
-        'sqlite-current-source-token-fence-next205',
+        'sqlite-select-sql-recursive-queue-order-limit-rankDenseRankIntersect',
+        'sqlite-select-sql-rank-dense-rank-window-rankDenseRankIntersect',
+        'sqlite-current-source-token-fence-rankDenseRankIntersect',
     ], $plan['dependencies']);
     $t->contains('no new support component needed', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit current source next205 compound metadata'] = static function (TestRunner $t) use ($summary205): void {
+$tests['compound select window recursive limit current source rankDenseRankIntersect compound metadata'] = static function (TestRunner $t) use ($summary205): void {
     $compound = $summary205()['compound'];
     $t->same(['UNION ALL', 'INTERSECT'], $compound['operators']);
     $t->same([3, 3], [$compound['currentArms'], $compound['nextArms']]);
@@ -89,19 +89,19 @@ $tests['compound select window recursive limit current source next205 compound m
     $t->true($compound['hasIntersectTail']);
 };
 
-$tests['compound select window recursive limit current source next205 current row boundary'] = static function (TestRunner $t) use ($summary205): void {
+$tests['compound select window recursive limit current source rankDenseRankIntersect current row boundary'] = static function (TestRunner $t) use ($summary205): void {
     $rows = $summary205()['currentRows'];
     $t->same(['seed:2', 'home', 'seed:2:3', 'theme_mods', 'seed:2:3:4', 'seed:2:3:4:5'], array_column($rows, 'label'));
     $t->same([1, 1, 2, 2, 3, 4], array_column($rows, 'metric'));
 };
 
-$tests['compound select window recursive limit current source next205 next row boundary'] = static function (TestRunner $t) use ($summary205): void {
+$tests['compound select window recursive limit current source rankDenseRankIntersect next row boundary'] = static function (TestRunner $t) use ($summary205): void {
     $rows = $summary205()['nextRows'];
     $t->same(['seed:2', 'home', 'plugin_prime', 'seed:2:3', 'theme_mods', 'seed:2:3:4'], array_column($rows, 'label'));
     $t->same([1, 1, 1, 2, 2, 3], array_column($rows, 'metric'));
 };
 
-$tests['compound select window recursive limit current source next205 recursive queue trace'] = static function (TestRunner $t) use ($summary205): void {
+$tests['compound select window recursive limit current source rankDenseRankIntersect recursive queue trace'] = static function (TestRunner $t) use ($summary205): void {
     $queue = $summary205()['recursiveQueue'];
     $t->same('q', $queue['name']);
     $t->same(['id', 'label', 'score'], $queue['columns']);
@@ -113,7 +113,7 @@ $tests['compound select window recursive limit current source next205 recursive 
     $t->same([0, 0], [$queue['currentLimitRemaining'], $queue['currentOffsetRemaining']]);
 };
 
-$tests['compound select window recursive limit current source next205 window shape'] = static function (TestRunner $t) use ($summary205): void {
+$tests['compound select window recursive limit current source rankDenseRankIntersect window shape'] = static function (TestRunner $t) use ($summary205): void {
     $windows = $summary205()['windows'];
     $t->same(['rank', 'dense_rank'], $windows['functions']);
     $t->same(['rank', 'dense_rank'], $windows['rankingFunctions']);
@@ -123,7 +123,7 @@ $tests['compound select window recursive limit current source next205 window sha
     $t->same([1, 1], array_column($windows['current'], 'orderCount'));
 };
 
-$tests['compound select window recursive limit current source next205 token fence'] = static function (TestRunner $t) use ($summary205): void {
+$tests['compound select window recursive limit current source rankDenseRankIntersect token fence'] = static function (TestRunner $t) use ($summary205): void {
     $first = $summary205();
     $second = $summary205($first['cursor']);
     $t->same(64, strlen($first['sourceWindow']['currentToken']));
@@ -134,13 +134,13 @@ $tests['compound select window recursive limit current source next205 token fenc
     $t->same(['seed:2:3:4:5'], $first['sourceWindow']['currentOnlyAdmittedLabels']);
 };
 
-$tests['compound select window recursive limit current source next205 rejects stale cursor'] = static function (TestRunner $t) use ($summary205): void {
+$tests['compound select window recursive limit current source rankDenseRankIntersect rejects stale cursor'] = static function (TestRunner $t) use ($summary205): void {
     $cursor = $summary205()['cursor'];
     $cursor['currentToken'] = str_repeat('0', 64);
     $t->throws(InvalidArgumentException::class, static fn () => $summary205($cursor));
 };
 
-$tests['compound select window recursive limit current source next205 limit trace'] = static function (TestRunner $t) use ($summary205): void {
+$tests['compound select window recursive limit current source rankDenseRankIntersect limit trace'] = static function (TestRunner $t) use ($summary205): void {
     $trace = $summary205()['limitTrace'];
     $t->same(['siteurl'], array_column($trace['current']['skippedBeforeOffset'], 'label'));
     $t->same(['siteurl'], array_column($trace['next']['skippedBeforeOffset'], 'label'));
@@ -148,24 +148,24 @@ $tests['compound select window recursive limit current source next205 limit trac
     $t->same(['seed:2:3:4:5', 'seed:2:3:4:5:6'], array_slice(array_column($trace['next']['truncatedAfterLimit'], 'label'), 0, 2));
 };
 
-$tests['compound select window recursive limit current source next205 replan reasons'] = static function (TestRunner $t) use ($summary205): void {
+$tests['compound select window recursive limit current source rankDenseRankIntersect replan reasons'] = static function (TestRunner $t) use ($summary205): void {
     $plan = $summary205();
-    $t->contains('avoids accepted next203', $plan['non_overlap']);
-    $t->true(in_array('compound-rank-dense-rank-current-source-next205', $plan['replanReasons'], true));
-    $t->true(in_array('recursive-order-limit-offset-before-ranking-windows-next205', $plan['replanReasons'], true));
-    $t->true(in_array('intersect-after-window-output-next205', $plan['replanReasons'], true));
+    $t->contains('avoids accepted lagLastValueExcept', $plan['non_overlap']);
+    $t->true(in_array('compound-rank-dense-rank-current-source-rankDenseRankIntersect', $plan['replanReasons'], true));
+    $t->true(in_array('recursive-order-limit-offset-before-ranking-windows-rankDenseRankIntersect', $plan['replanReasons'], true));
+    $t->true(in_array('intersect-after-window-output-rankDenseRankIntersect', $plan['replanReasons'], true));
 };
 
-$tests['compound select window recursive limit current source next205 rejects missing dense rank'] = static function (TestRunner $t) use ($currentTables205): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext205(
+$tests['compound select window recursive limit current source rankDenseRankIntersect rejects missing dense rank'] = static function (TestRunner $t) use ($currentTables205): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRankDenseRankIntersect(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 140) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 8 ORDER BY score DESC LIMIT 6 OFFSET 1) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC) FROM wp_options INTERSECT SELECT id, label, metric FROM (SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q) ORDER BY metric ASC, id LIMIT 6 OFFSET 1",
         $currentTables205,
         $currentTables205,
     ));
 };
 
-$tests['compound select window recursive limit current source next205 rejects unordered recursive limit'] = static function (TestRunner $t) use ($currentTables205): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext205(
+$tests['compound select window recursive limit current source rankDenseRankIntersect rejects unordered recursive limit'] = static function (TestRunner $t) use ($currentTables205): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRankDenseRankIntersect(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 140) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id, option_name, dense_rank() OVER (ORDER BY score DESC) FROM wp_options INTERSECT SELECT id, label, metric FROM (SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q) ORDER BY metric ASC, id LIMIT 6 OFFSET 1",
         $currentTables205,
         $currentTables205,
@@ -173,7 +173,7 @@ $tests['compound select window recursive limit current source next205 rejects un
 };
 
 foreach (range(1, 48) as $case) {
-    $tests['compound select window recursive limit current source next205 generated rank intersect boundary ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit current source rankDenseRankIntersect generated rank intersect boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $finalLimit = 4 + ($case % 3);
         $tables = [
             'wp_options' => [
@@ -186,8 +186,8 @@ foreach (range(1, 48) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 120 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (140 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 ORDER BY score DESC LIMIT 6 OFFSET 1) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC) AS metric FROM wp_options WHERE autoload = 'yes' INTERSECT SELECT id, label, metric FROM (SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC) AS metric FROM wp_options WHERE autoload = 'yes') ORDER BY metric ASC, id LIMIT {$finalLimit} OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext205($sql, $tables, $nextTables);
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext205($sql, $tables, $nextTables, $plan['cursor']);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRankDenseRankIntersect($sql, $tables, $nextTables);
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRankDenseRankIntersect($sql, $tables, $nextTables, $plan['cursor']);
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $t->same($finalLimit, count($rows));

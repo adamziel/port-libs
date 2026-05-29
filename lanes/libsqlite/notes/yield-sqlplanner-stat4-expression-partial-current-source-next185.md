@@ -30,3 +30,8 @@ descending scans, next169 cost fences, expression ORDER BY, JSON, WAL, VFS,
 B-tree, trigger, and suite evidence clusters. This slice only rejects stale
 prepared STAT4 samples when current-source window rowids must be proven against
 current rows.
+
+Consolidation follow-up: the production-only private helper cluster that still
+used `Next185` method suffixes was renamed to stable descriptive helper names
+inside the canonical planner class. Public behavior, tests, examples, and
+assertion counts are unchanged.

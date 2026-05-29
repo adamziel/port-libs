@@ -52,21 +52,21 @@ SELECT id,
  LIMIT 7 OFFSET 2
 SQL;
 
-$summary202 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext202($sql202, $currentTables202, $nextTables202, $cursor);
+$summary202 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNtileFirstValueCursorReplay($sql202, $currentTables202, $nextTables202, $cursor);
 $tests = [];
 
-$tests['compound select window recursive limit current source next202 status dependencies'] = static function (TestRunner $t) use ($summary202): void {
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay status dependencies'] = static function (TestRunner $t) use ($summary202): void {
     $plan = $summary202();
-    $t->same('compound-select-window-recursive-limit-current-source-next202-ready', $plan['status']);
+    $t->same('compound-select-window-recursive-limit-current-source-ntileFirstValueCursorReplay-ready', $plan['status']);
     $t->same([
-        'sqlite-select-sql-recursive-queue-order-limit-next202',
-        'sqlite-select-sql-ntile-first-value-window-next202',
-        'sqlite-current-source-token-fence-next202',
+        'sqlite-select-sql-recursive-queue-order-limit-ntileFirstValueCursorReplay',
+        'sqlite-select-sql-ntile-first-value-window-ntileFirstValueCursorReplay',
+        'sqlite-current-source-token-fence-ntileFirstValueCursorReplay',
     ], $plan['dependencies']);
     $t->contains('no new support component needed', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit current source next202 compound metadata'] = static function (TestRunner $t) use ($summary202): void {
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay compound metadata'] = static function (TestRunner $t) use ($summary202): void {
     $compound = $summary202()['compound'];
     $t->same(['UNION ALL', 'UNION'], $compound['operators']);
     $t->same([3, 3], [$compound['currentArms'], $compound['nextArms']]);
@@ -76,19 +76,19 @@ $tests['compound select window recursive limit current source next202 compound m
     $t->true($compound['hasDistinctTail']);
 };
 
-$tests['compound select window recursive limit current source next202 current row boundary'] = static function (TestRunner $t) use ($summary202): void {
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay current row boundary'] = static function (TestRunner $t) use ($summary202): void {
     $rows = $summary202()['currentRows'];
     $t->same(['seed:2:3', 'seed:2:3:4', 'seed:2:3:4:5', 'home', 'seed:2:3:4:5:6', 'rewrite_rules', 'seed:2:3:4:5:6:7'], array_column($rows, 'label'));
     $t->same([116, 106, 96, 94, 86, 76, 76], array_column($rows, 'metric'));
 };
 
-$tests['compound select window recursive limit current source next202 next row boundary'] = static function (TestRunner $t) use ($summary202): void {
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay next row boundary'] = static function (TestRunner $t) use ($summary202): void {
     $rows = $summary202()['nextRows'];
     $t->same(['seed:2:3', 'plugin_prime', 'seed:2:3:4', 'seed:2:3:4:5', 'home', 'seed:2:3:4:5:6', 'theme_mods_next'], array_column($rows, 'label'));
     $t->same([116, 109, 106, 96, 94, 86, 82], array_column($rows, 'metric'));
 };
 
-$tests['compound select window recursive limit current source next202 recursive queue trace'] = static function (TestRunner $t) use ($summary202): void {
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay recursive queue trace'] = static function (TestRunner $t) use ($summary202): void {
     $queue = $summary202()['recursiveQueue'];
     $t->same('q', $queue['name']);
     $t->same(['id', 'label', 'score'], $queue['columns']);
@@ -100,7 +100,7 @@ $tests['compound select window recursive limit current source next202 recursive 
     $t->same([0, 0], [$queue['currentLimitRemaining'], $queue['currentOffsetRemaining']]);
 };
 
-$tests['compound select window recursive limit current source next202 window shape'] = static function (TestRunner $t) use ($summary202): void {
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay window shape'] = static function (TestRunner $t) use ($summary202): void {
     $windows = $summary202()['windows'];
     $t->same(['ntile', 'first_value'], $windows['functions']);
     $t->same(['first_value'], $windows['frameFunctions']);
@@ -109,7 +109,7 @@ $tests['compound select window recursive limit current source next202 window sha
     $t->same([0, 1], array_column($windows['current'], 'partitionCount'));
 };
 
-$tests['compound select window recursive limit current source next202 token fence'] = static function (TestRunner $t) use ($summary202): void {
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay token fence'] = static function (TestRunner $t) use ($summary202): void {
     $first = $summary202();
     $second = $summary202($first['cursor']);
     $t->same(64, strlen($first['sourceWindow']['currentToken']));
@@ -120,13 +120,13 @@ $tests['compound select window recursive limit current source next202 token fenc
     $t->same(['rewrite_rules', 'seed:2:3:4:5:6:7'], $first['sourceWindow']['currentOnlyAdmittedLabels']);
 };
 
-$tests['compound select window recursive limit current source next202 rejects stale cursor'] = static function (TestRunner $t) use ($summary202): void {
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay rejects stale cursor'] = static function (TestRunner $t) use ($summary202): void {
     $cursor = $summary202()['cursor'];
     $cursor['currentToken'] = str_repeat('0', 64);
     $t->throws(InvalidArgumentException::class, static fn () => $summary202($cursor));
 };
 
-$tests['compound select window recursive limit current source next202 limit trace'] = static function (TestRunner $t) use ($summary202): void {
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay limit trace'] = static function (TestRunner $t) use ($summary202): void {
     $trace = $summary202()['limitTrace'];
     $t->same(['seed:2', 'siteurl'], array_column($trace['current']['skippedBeforeOffset'], 'label'));
     $t->same(['seed:2', 'siteurl'], array_column($trace['next']['skippedBeforeOffset'], 'label'));
@@ -134,24 +134,24 @@ $tests['compound select window recursive limit current source next202 limit trac
     $t->same(['rewrite_rules', 'seed:2:3:4:5:6:7'], array_slice(array_column($trace['next']['truncatedAfterLimit'], 'label'), 0, 2));
 };
 
-$tests['compound select window recursive limit current source next202 replan reasons'] = static function (TestRunner $t) use ($summary202): void {
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay replan reasons'] = static function (TestRunner $t) use ($summary202): void {
     $plan = $summary202();
-    $t->contains('avoids accepted next196', $plan['non_overlap']);
-    $t->true(in_array('compound-ntile-first-value-current-source-next202', $plan['replanReasons'], true));
-    $t->true(in_array('recursive-order-limit-offset-before-frame-windows-next202', $plan['replanReasons'], true));
-    $t->true(in_array('union-distinct-after-window-frame-next202', $plan['replanReasons'], true));
+    $t->contains('avoids accepted ntileFirstValueUnionDistinct', $plan['non_overlap']);
+    $t->true(in_array('compound-ntile-first-value-current-source-ntileFirstValueCursorReplay', $plan['replanReasons'], true));
+    $t->true(in_array('recursive-order-limit-offset-before-frame-windows-ntileFirstValueCursorReplay', $plan['replanReasons'], true));
+    $t->true(in_array('union-distinct-after-window-frame-ntileFirstValueCursorReplay', $plan['replanReasons'], true));
 };
 
-$tests['compound select window recursive limit current source next202 rejects missing first value'] = static function (TestRunner $t) use ($currentTables202): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext202(
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay rejects missing first value'] = static function (TestRunner $t) use ($currentTables202): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNtileFirstValueCursorReplay(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 136) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 8 ORDER BY score DESC LIMIT 6 OFFSET 1) SELECT id, label, ntile(4) OVER (ORDER BY score DESC, id) AS metric FROM q UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC) FROM wp_options UNION SELECT id, label, score FROM q ORDER BY metric DESC, id LIMIT 7 OFFSET 2",
         $currentTables202,
         $currentTables202,
     ));
 };
 
-$tests['compound select window recursive limit current source next202 rejects unordered recursive limit'] = static function (TestRunner $t) use ($currentTables202): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext202(
+$tests['compound select window recursive limit current source ntileFirstValueCursorReplay rejects unordered recursive limit'] = static function (TestRunner $t) use ($currentTables202): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNtileFirstValueCursorReplay(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 136) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, ntile(4) OVER (ORDER BY score DESC, id) AS metric FROM q UNION ALL SELECT option_id, option_name, first_value(score) OVER (ORDER BY score DESC ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options UNION SELECT id, label, score FROM q ORDER BY metric DESC, id LIMIT 7 OFFSET 2",
         $currentTables202,
         $currentTables202,
@@ -159,7 +159,7 @@ $tests['compound select window recursive limit current source next202 rejects un
 };
 
 foreach (range(1, 56) as $case) {
-    $tests['compound select window recursive limit current source next202 generated frame bucket ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit current source ntileFirstValueCursorReplay generated frame bucket ' . $case] = static function (TestRunner $t) use ($case): void {
         $finalLimit = 4 + ($case % 4);
         $bucketCount = 2 + ($case % 4);
         $tables = [
@@ -173,8 +173,8 @@ foreach (range(1, 56) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 105 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (136 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 ORDER BY score DESC LIMIT 6 OFFSET 1) SELECT id, label, ntile({$bucketCount}) OVER (ORDER BY score DESC, id) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, first_value(score) OVER (PARTITION BY autoload ORDER BY score DESC, option_id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS metric FROM wp_options WHERE autoload = 'yes' UNION SELECT id, label, score AS metric FROM q ORDER BY metric DESC, id LIMIT {$finalLimit} OFFSET 2";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext202($sql, $tables, $nextTables);
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext202($sql, $tables, $nextTables, $plan['cursor']);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNtileFirstValueCursorReplay($sql, $tables, $nextTables);
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNtileFirstValueCursorReplay($sql, $tables, $nextTables, $plan['cursor']);
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $t->same($finalLimit, count($rows));

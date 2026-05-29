@@ -31,12 +31,12 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source-next216');
+    assert($plan['status'] === 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source');
     assert($plan['yielded_after_retry_count'] === 3);
     assert($plan['retry_statements'][0]['selected_ids'] === [7, 8]);
     assert($plan['retry_statements'][1]['selected_ids'] === [10]);
     assert(array_column($plan['current_source_tables']['wp_options'], 'option_id') === [7, 8]);
-    echo "wordpress rowvalue distinct subquery savepoint current-source next216 self-test passed\n";
+    echo "wordpress rowvalue distinct subquery savepoint current-source self-test passed\n";
     return;
 }
 

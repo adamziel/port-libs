@@ -44,7 +44,7 @@ $returning217 = [
     ['expr' => 'spawn_child', 'as' => 'spawn_child'],
 ];
 
-$plan217 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext217(
+$plan217 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceProvenanceFence(
     $rows217,
     $currentInput217,
     $nextInput217,
@@ -212,7 +212,7 @@ $cases217 = [
     'dependency includes next212' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next212', $released217()['dependencies_next217'], true), true],
     'non overlap mentions next212' => [static fn (): mixed => str_contains($released217()['non_overlap_next217'], 'next212 yield receipts'), true],
     'bad provenance token rejected' => [static fn (): mixed => $plan217(['current_source_provenance_token_next217' => 'bad token']), InvalidArgumentException::class],
-    'bad view source rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext217($rows217, $currentInput217, $nextInput217, array_replace($currentView217, ['source' => 'bad source']), $nextView217, $returning217), InvalidArgumentException::class],
+    'bad view source rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceProvenanceFence($rows217, $currentInput217, $nextInput217, array_replace($currentView217, ['source' => 'bad source']), $nextView217, $returning217), InvalidArgumentException::class],
     'bad ack list rejected' => [static fn (): mixed => $plan217(['acknowledged_current_source_provenance_next217' => ['x' => 'abcdefabcdefabcdefabcdefabcdefabcd']]), InvalidArgumentException::class],
     'bad short ack rejected' => [static fn (): mixed => $plan217(['acknowledged_current_source_provenance_next217' => ['abc']]), InvalidArgumentException::class],
     'bad non hex ack rejected' => [static fn (): mixed => $plan217(['acknowledged_current_source_provenance_next217' => ['zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz']]), InvalidArgumentException::class],

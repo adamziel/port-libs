@@ -50,14 +50,14 @@ SELECT id, label, metric
  LIMIT 6 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext205(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRankDenseRankIntersect(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],
 );
 
 $payload = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next205',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-rankDenseRankIntersect',
     'wordpressUse' => 'Copied wp_options preview queries can rank recursive dependency rows and dense-rank autoload rows, intersect only materialized window output, and reject stale current-source cursors before next-source rows alter the final LIMIT boundary.',
     'status' => $plan['status'],
     'windowFunctions' => $plan['windows']['functions'],
@@ -69,16 +69,16 @@ $payload = [
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next205-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next205 self-test failed\n");
+if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-rankDenseRankIntersect-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-rankDenseRankIntersect self-test failed\n");
     exit(1);
 }
 if ($payload['rankingFunctions'] !== ['rank', 'dense_rank']) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next205 window dispatch failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-rankDenseRankIntersect window dispatch failed\n");
     exit(1);
 }
 if ($payload['currentTokenLength'] !== 64 || $payload['nextTokenLength'] !== 64) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next205 token guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-rankDenseRankIntersect token guard failed\n");
     exit(1);
 }
 

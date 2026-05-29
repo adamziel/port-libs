@@ -45,14 +45,14 @@ SELECT id, label, score AS metric FROM q
  LIMIT 6 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext203(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareLagLastValueExcept(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],
 );
 
 $payload = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next203',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-lagLastValueExcept',
     'wordpressUse' => 'Copied wp_options preview queries can run recursive dependency queues, evaluate lag defaults and last_value frames before an EXCEPT tail and final LIMIT, and reject stale current-source resume cursors before next-source rows are admitted.',
     'status' => $plan['status'],
     'windowFunctions' => $plan['windows']['functions'],
@@ -64,16 +64,16 @@ $payload = [
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next203-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next203 self-test failed\n");
+if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-lagLastValueExcept-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-lagLastValueExcept self-test failed\n");
     exit(1);
 }
 if ($payload['windowFunctions'] !== ['lag', 'last_value']) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next203 window dispatch failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-lagLastValueExcept window dispatch failed\n");
     exit(1);
 }
 if ($payload['currentTokenLength'] !== 64 || $payload['nextTokenLength'] !== 64) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next203 token guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-lagLastValueExcept token guard failed\n");
     exit(1);
 }
 

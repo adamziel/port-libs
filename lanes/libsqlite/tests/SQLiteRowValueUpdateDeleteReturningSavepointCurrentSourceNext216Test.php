@@ -75,8 +75,8 @@ $cases216 = [
     'retry delete selected network row once' => [static fn (): mixed => $retryDeleteResult216()['plan']->selectedIds, [10]],
     'retry delete removes network row' => [static fn (): mixed => in_array(10, array_column($retryDeleteResult216()['tables']['wp_options'], 'option_id'), true), false],
 
-    'plan status' => [static fn (): mixed => $plan216()['status'], 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source-next216'],
-    'plan savepoint' => [static fn (): mixed => $plan216()['savepoint'], 'wp_options_rowvalue_distinct_subquery_next216'],
+    'plan status' => [static fn (): mixed => $plan216()['status'], 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source'],
+    'plan savepoint' => [static fn (): mixed => $plan216()['savepoint'], 'wp_options_rowvalue_distinct_subquery'],
     'plan distinct flag' => [static fn (): mixed => $plan216()['distinct_subquery_source'], true],
     'plan rollback flags' => [static fn (): mixed => [$plan216()['rolled_back_to_savepoint'], $plan216()['savepoint_preserved_after_rollback_to']], [true, true]],
     'plan retry release flags' => [static fn (): mixed => [$plan216()['retry_reads_savepoint_image'], $plan216()['savepoint_released_after_retry']], [true, true]],
@@ -97,9 +97,9 @@ $cases216 = [
     'plan retry changes count' => [static fn (): mixed => $plan216()['retry_changes_after_rollback'], 3],
     'plan row counts preserve metadata' => [static fn (): mixed => $plan216()['row_counts'], ['wp_optionmeta' => 9, 'wp_options' => 9]],
     'plan changed tables only options' => [static fn (): mixed => $plan216()['changed_tables_after_retry'], ['wp_options']],
-    'plan dependency update distinct' => [static fn (): mixed => in_array('sqlite-rowvalue-update-returning-in-select-distinct-subquery-next216', $plan216()['dependencies'], true), true],
-    'plan dependency delete distinct' => [static fn (): mixed => in_array('sqlite-rowvalue-delete-returning-in-select-distinct-subquery-next216', $plan216()['dependencies'], true), true],
-    'plan dependency closure note' => [static fn (): mixed => $plan216()['dependency_closure_next216'], 'no new support component needed; next216 reuses native PHP row-value UPDATE/DELETE RETURNING, SELECT subquery tuple materialization, and savepoint current-source retry images'],
+    'plan dependency update distinct' => [static fn (): mixed => in_array('sqlite-rowvalue-update-returning-in-select-distinct-subquery', $plan216()['dependencies'], true), true],
+    'plan dependency delete distinct' => [static fn (): mixed => in_array('sqlite-rowvalue-delete-returning-in-select-distinct-subquery', $plan216()['dependencies'], true), true],
+    'plan dependency closure note' => [static fn (): mixed => $plan216()['dependency_closure'], 'no new support component needed; reuses native PHP row-value UPDATE/DELETE RETURNING, SELECT subquery tuple materialization, and savepoint current-source retry images'],
     'custom savepoint' => [static fn (): mixed => $customPlan216()['savepoint'], 'wp_custom_rowvalue_distinct216'],
     'custom yielded count' => [static fn (): mixed => $customPlan216()['yielded_after_retry_count'], 2],
     'malformed missing distinct subquery table rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($attemptUpdate216, ['wp_options' => $rows216], 'option_id', $unique216), InvalidArgumentException::class],
@@ -112,7 +112,7 @@ $cases216 = [
 
 $tests = [];
 foreach ($cases216 as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next216 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue update delete returning distinct subquery savepoint current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

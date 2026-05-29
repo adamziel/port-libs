@@ -45,14 +45,14 @@ SELECT id, label, score AS metric FROM q
  LIMIT 6 OFFSET 2
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext196(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNtileFirstValueUnionDistinct(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],
 );
 
 $payload = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next196',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-ntileFirstValueUnionDistinct',
     'wordpressUse' => 'Copied wp_options preview queries can run recursive dependency queues, evaluate ntile and first_value windows before UNION distinct and final LIMIT, and reject stale current-source resume cursors before next-source rows are admitted.',
     'status' => $plan['status'],
     'windowFunctions' => $plan['windows']['functions'],
@@ -64,16 +64,16 @@ $payload = [
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next196-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next196 self-test failed\n");
+if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-ntileFirstValueUnionDistinct-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-ntileFirstValueUnionDistinct self-test failed\n");
     exit(1);
 }
 if ($payload['windowFunctions'] !== ['ntile', 'first_value']) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next196 window dispatch failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-ntileFirstValueUnionDistinct window dispatch failed\n");
     exit(1);
 }
 if ($payload['currentTokenLength'] !== 64 || $payload['nextTokenLength'] !== 64) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next196 token guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-ntileFirstValueUnionDistinct token guard failed\n");
     exit(1);
 }
 

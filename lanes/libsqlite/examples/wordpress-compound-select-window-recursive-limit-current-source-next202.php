@@ -45,14 +45,14 @@ SELECT id, label, score AS metric FROM q
  LIMIT 6 OFFSET 2
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext202(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNtileFirstValueCursorReplay(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],
 );
 
 $payload = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next202',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-ntileFirstValueCursorReplay',
     'wordpressUse' => 'Copied wp_options preview queries can run recursive dependency queues, evaluate ntile and first_value windows before UNION distinct and final LIMIT, and reject stale current-source resume cursors before next-source rows are admitted.',
     'status' => $plan['status'],
     'windowFunctions' => $plan['windows']['functions'],
@@ -64,16 +64,16 @@ $payload = [
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next202-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next202 self-test failed\n");
+if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-ntileFirstValueCursorReplay-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-ntileFirstValueCursorReplay self-test failed\n");
     exit(1);
 }
 if ($payload['windowFunctions'] !== ['ntile', 'first_value']) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next202 window dispatch failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-ntileFirstValueCursorReplay window dispatch failed\n");
     exit(1);
 }
 if ($payload['currentTokenLength'] !== 64 || $payload['nextTokenLength'] !== 64) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next202 token guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-ntileFirstValueCursorReplay token guard failed\n");
     exit(1);
 }
 
