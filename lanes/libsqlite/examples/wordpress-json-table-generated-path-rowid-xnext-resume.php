@@ -17,7 +17,7 @@ use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current = [
     'option_id' => 182,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next182',
+    'option_name' => 'wp_plugin_generated_path_rowid_xnext_resume',
     'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4},{"slug":"security","priority":9}],"meta":{"autoload":"yes"}}',
     'generated_path' => '$.rules',
     'scan_root' => '$.rules',
@@ -25,14 +25,14 @@ $current = [
 ];
 $next = [
     'option_id' => 182,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next182',
+    'option_name' => 'wp_plugin_generated_path_rowid_xnext_resume',
     'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"security","priority":9},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
     'generated_path' => '$.rules[1]',
     'scan_root' => '$.rules',
     'source_generation' => 22,
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext182(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidBatchedXNextPlan(
     'json_tree',
     $current,
     $next,
@@ -50,7 +50,7 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNex
 );
 
 $summary = [
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next182',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-xnext-resume',
     'wordpressUse' => 'Copied wp_options plugin-rule import previews can admit one batched xNext step from a pinned generated-path rowid cursor, while a changed next-source fence restarts xFilter before stale JSON rows are yielded.',
     'admissionState' => $plan['currentGeneratedPathRowidCurrentSourceXNext182']['admissionState'],
     'xNextOpcode' => $plan['currentGeneratedPathRowidCurrentSourceXNext182']['xNextOpcode'],
@@ -72,7 +72,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($summary['nextAdmissionState'] === 'restart-next-source-before-xnext');
     assert($summary['nextReaderPolicy'] === 'restart-next-json-table-generated-path-rowid-cost-current-source-next182-xfilter');
     assert(in_array('json-table-generated-path-rowid-xnext-source-fence-changed', $summary['replanReasons'], true));
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next182 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-xnext-resume self-test passed\n";
     return;
 }
 

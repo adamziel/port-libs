@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-194-b',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext194(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidPinnedSourcePlan(
     'json_tree',
     $current,
     $next,
@@ -42,7 +42,7 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNex
 );
 
 $payload = [
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next194',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-pinned-source',
     'wordpressUse' => 'Copied wp_options plugin-rule inspectors can pin an emitted json_tree generated-path rowid source only while the xColumn row, source generation, generated path, and final-cost fingerprints remain current.',
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
@@ -78,7 +78,7 @@ if (($argv[1] ?? '') === '--self-test') {
         exit(1);
     }
 
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next194 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-pinned-source self-test passed\n";
     return;
 }
 

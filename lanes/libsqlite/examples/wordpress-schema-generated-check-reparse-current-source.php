@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteSchemaGeneratedCheckReparsePlan;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord('table', 'wp_options', 'wp_options', 2, $sql, $rowId);
@@ -30,7 +30,7 @@ CREATE TABLE wp_options(
 )
 SQL;
 
-$plan = SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext(
+$plan = SQLiteSchemaGeneratedCheckReparsePlan::currentNext(
     [$record($current, 1)],
     [$record($next, 2)],
     'wp_options',

@@ -33,12 +33,12 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
 );
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['status'] === 'inner-ignore-rollback-to-retry-current-source-next180');
+    assert($plan['status'] === 'inner-ignore-rollback-to-retry-current-source');
     assert($plan['inner_yielded_before_rollback_count'] === 1);
     assert($plan['inner_suppressed_by_rollback_count'] === 3);
     assert(array_column($plan['inner_yielded_statements'][0]['ignored_rows'], 'option_id') === [7]);
     assert(array_column($plan['inner_yielded_after_retry_returning'][0]['rows'], 'option_id') === [7, 9]);
-    echo "wordpress-rowvalue-ignore-savepoint-current-source-next180 self-test passed\n";
+    echo "wordpress-rowvalue-ignore-nested-retry-savepoint self-test passed\n";
     return;
 }
 

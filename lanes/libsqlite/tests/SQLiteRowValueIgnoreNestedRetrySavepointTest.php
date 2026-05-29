@@ -69,9 +69,9 @@ $cases180 = [
     'inner discarded replace row seven key' => [static fn (): mixed => array_column($innerDiscardReplace180()['tables']['wp_options'], 'option_name', 'option_id')[7], 'siteurl'],
     'retry starts from inner image row seven outer value' => [static fn (): mixed => $innerRetry180()['returning'][0]['option_value'], 'theme:outer180:retry180'],
 
-    'plan status' => [static fn (): mixed => $plan180()['status'], 'inner-ignore-rollback-to-retry-current-source-next180'],
-    'plan outer savepoint' => [static fn (): mixed => $plan180()['outer_savepoint'], 'wp_options_outer_rowvalue_next180'],
-    'plan inner savepoint' => [static fn (): mixed => $plan180()['inner_savepoint'], 'wp_options_inner_rowvalue_next180'],
+    'plan status' => [static fn (): mixed => $plan180()['status'], 'inner-ignore-rollback-to-retry-current-source'],
+    'plan outer savepoint' => [static fn (): mixed => $plan180()['outer_savepoint'], 'wp_options_outer_rowvalue_ignore_retry'],
+    'plan inner savepoint' => [static fn (): mixed => $plan180()['inner_savepoint'], 'wp_options_inner_rowvalue_ignore_retry'],
     'plan rolled back to inner' => [static fn (): mixed => $plan180()['rolled_back_to_inner_savepoint'], true],
     'plan outer preserved after inner rollback' => [static fn (): mixed => $plan180()['outer_savepoint_preserved_after_inner_rollback_to'], true],
     'plan inner preserved after rollback' => [static fn (): mixed => $plan180()['inner_savepoint_preserved_after_rollback_to'], true],
@@ -112,9 +112,9 @@ $cases180 = [
     'plan next source equals current' => [static fn (): mixed => $plan180()['next_source_tables'], $plan180()['current_source_tables']],
     'plan row count after retry' => [static fn (): mixed => $plan180()['row_counts']['wp_options'], 8],
     'plan changed tables after retry' => [static fn (): mixed => $plan180()['changed_tables_after_inner_retry'], ['wp_options']],
-    'plan dependency ignore no returning' => [static fn (): mixed => in_array('sqlite-inner-savepoint-rowvalue-ignore-yields-no-returning-next180', $plan180()['dependencies'], true), true],
-    'plan dependency preserves outer source' => [static fn (): mixed => in_array('sqlite-rollback-to-inner-savepoint-preserves-outer-current-source-next180', $plan180()['dependencies'], true), true],
-    'plan dependency retries from inner image' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-retry-starts-from-inner-image-next180', $plan180()['dependencies'], true), true],
+    'plan dependency ignore no returning' => [static fn (): mixed => in_array('sqlite-inner-savepoint-rowvalue-ignore-yields-no-returning', $plan180()['dependencies'], true), true],
+    'plan dependency preserves outer source' => [static fn (): mixed => in_array('sqlite-rollback-to-inner-savepoint-preserves-outer-current-source', $plan180()['dependencies'], true), true],
+    'plan dependency retries from inner image' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-retry-starts-from-inner-image', $plan180()['dependencies'], true), true],
 
     'malformed empty outer statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [], [$innerYieldSql180], [$innerDiscardDeleteSql180], [$innerRetryUpdateSql180], $unique180), InvalidArgumentException::class],
     'malformed empty yielded statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreNestedRetrySavepointBatch($tables180, [$outerSql180], [], [$innerDiscardDeleteSql180], [$innerRetryUpdateSql180], $unique180), InvalidArgumentException::class],
@@ -126,7 +126,7 @@ $cases180 = [
 
 $tests = [];
 foreach ($cases180 as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next180 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue ignore nested retry savepoint ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

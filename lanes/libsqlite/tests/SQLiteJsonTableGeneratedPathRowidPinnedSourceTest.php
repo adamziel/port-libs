@@ -31,7 +31,7 @@ $plan194 = static fn (
     ?array $projection = null,
     ?int $yieldedRowid = 6,
     ?string $observedSourceGeneration = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext194(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidPinnedSourcePlan(
     'json_tree',
     $current ?? $current194,
     $next ?? $next194,
@@ -137,7 +137,7 @@ $tests = [
 ];
 
 foreach ($tests as $name => $case) {
-    $tests['json table generated path rowid cost current source next194 ' . $name] = $case;
+    $tests['json table generated path rowid pinned source ' . $name] = $case;
     unset($tests[$name]);
 }
 

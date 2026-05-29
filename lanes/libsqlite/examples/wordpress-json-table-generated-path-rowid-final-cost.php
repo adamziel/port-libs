@@ -7,23 +7,23 @@ use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $current = [
-    'option_id' => 42,
-    'option_name' => 'wp_plugin_generated_path_rowid_final_cost',
-    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4},{"slug":"security","priority":9}]}',
+    'option_id' => 184,
+    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next184',
+    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}]}',
     'generated_path' => '$.rules',
     'scan_root' => '$.rules',
-    'source_generation' => 'current-final-cost-a',
+    'source_generation' => 18401,
 ];
 $next = [
-    'option_id' => 42,
-    'option_name' => 'wp_plugin_generated_path_rowid_final_cost',
-    'option_value' => '{"rules":[{"slug":"seo","priority":3}]}',
-    'generated_path' => '$.rules[0]',
+    'option_id' => 184,
+    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next184',
+    'option_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}]}',
+    'generated_path' => '$.rules[2]',
     'scan_root' => '$.rules',
-    'source_generation' => 'next-final-cost-b',
+    'source_generation' => 18402,
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidFinalCost(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidFinalCostPlan(
     'json_tree',
     $current,
     $next,
@@ -31,53 +31,44 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidFinalCost(
     'generated_path',
     [
         ['column' => 'path', 'operator' => 'LIKE', 'value' => '$.rules%'],
-        ['column' => 'rowid', 'operator' => 'IN', 'value' => [5, 6, 7, 8, 9]],
+        ['column' => '_rowid_', 'operator' => 'IN', 'value' => [5, 6, 42]],
     ],
     'scan_root',
-    [['column' => 'rowid', 'direction' => 'DESC']],
-    5,
-    9,
-    2,
-    ['rowid', '_rowid_', 'oid', 'value', 'type', 'fullkey'],
+    [['column' => '_rowid_', 'direction' => 'DESC']],
+    null,
+    6,
+    ['id', 'fullkey', 'atom', 'value', 'type'],
 );
 
 $payload = [
     'scenario' => 'wordpress-json-table-generated-path-rowid-final-cost',
-    'wordpressUse' => 'Copied wp_options JSON diagnostics can reuse the bounded final-cost rowid tape for a generated-path json_tree cursor after ORDER BY/LIMIT, while a changed source forces reprepare.',
+    'wordpressUse' => 'Copied wp_options plugin-rule diagnostics can admit a final generated-path/rowid JSON table xColumn snapshot only when the current source, rowid aliases, projection, and cost profile are still covering; changed next sources force reprepare.',
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
-    'currentOpcode' => $plan['currentGeneratedPathRowidFinalCost']['finalCostOpcode'],
-    'currentFinalRowids' => $plan['currentGeneratedPathRowidFinalCost']['finalRowids'],
-    'currentEstimatedCost' => $plan['currentGeneratedPathRowidFinalCost']['estimatedCost'],
-    'nextOpcode' => $plan['nextGeneratedPathRowidFinalCost']['finalCostOpcode'],
-    'nextReusable' => $plan['nextGeneratedPathRowidFinalCost']['finalCostReusable'],
-    'replanReasons' => $plan['generatedPathRowidFinalCostReplanReasons'],
-    'dependencyClosure' => 'no new support component needed; reuses native JSON table generated-path rowid alias order and current-source planner metadata',
+    'currentCostClass' => $plan['currentGeneratedPathRowidFinalCost184']['costClass'],
+    'currentSelectedRowids' => $plan['currentGeneratedPathRowidFinalCost184']['selectedRowids'],
+    'currentDisposition' => $plan['currentGeneratedPathRowidFinalCost184']['cursorDisposition'],
+    'nextCostClass' => $plan['nextGeneratedPathRowidFinalCost184']['costClass'],
+    'nextDisposition' => $plan['nextGeneratedPathRowidFinalCost184']['cursorDisposition'],
+    'replanReasons' => $plan['next184ReplanReasons'],
+    'dependencyClosure' => 'no new support component needed; reuses native JSON table generated-path, rowid alias, xColumn snapshot, and current-source cost profiles',
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
-    if ($payload['currentOpcode'] !== 'OP_JsonTableGeneratedPathRowidFinalCostReuse') {
-        fwrite(STDERR, "unexpected final cost current opcode\n");
+    if ($payload['currentCostClass'] !== 'json-table-generated-path-rowid-final-cost-covering-point-next184') {
+        fwrite(STDERR, "unexpected next184 current cost class\n");
         exit(1);
     }
-    if ($payload['currentFinalRowids'] !== [9, 8, 7, 6, 5]) {
-        fwrite(STDERR, "unexpected final cost final rowids\n");
+    if ($payload['currentSelectedRowids'] !== [5]) {
+        fwrite(STDERR, "unexpected next184 current selected rowids\n");
         exit(1);
     }
-    if ($payload['currentEstimatedCost'] !== 5) {
-        fwrite(STDERR, "unexpected final cost estimated cost\n");
+    if ($payload['nextCostClass'] !== 'json-table-generated-path-rowid-final-cost-reprepare-next184') {
+        fwrite(STDERR, "unexpected next184 next cost class\n");
         exit(1);
     }
-    if ($payload['nextOpcode'] !== 'OP_JsonTableGeneratedPathRowidFinalCostReprepare') {
-        fwrite(STDERR, "unexpected final cost next opcode\n");
-        exit(1);
-    }
-    if ($payload['nextReusable'] !== false) {
-        fwrite(STDERR, "unexpected final cost next reusability\n");
-        exit(1);
-    }
-    if (!in_array('json-table-generated-path-rowid-final-cost-source-changed', $payload['replanReasons'], true)) {
-        fwrite(STDERR, "missing final cost source replan reason\n");
+    if (!in_array('json-table-generated-path-rowid-final-cost-admission-changed-next184', $payload['replanReasons'], true)) {
+        fwrite(STDERR, "missing next184 admission replan reason\n");
         exit(1);
     }
 

@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-187-b',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext187(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidYieldGuardPlan(
     'json_tree',
     $current,
     $next,
@@ -42,7 +42,7 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNex
 );
 
 $payload = [
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next187',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-yield-guard',
     'wordpressUse' => 'Copied wp_options plugin-rule diagnostics can continue a generated-path/rowid json_tree yield only when the observed source generation still matches the pinned current source; changed next sources force xBestIndex reprepare before more rows are yielded.',
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
@@ -73,7 +73,7 @@ if (($argv[1] ?? '') === '--self-test') {
         exit(1);
     }
 
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next187 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-yield-guard self-test passed\n";
     return;
 }
 

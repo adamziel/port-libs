@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas117 = [
+$baseSchemas = [
     'main' => [
         'schema_cookie' => 40,
         'wal_frames' => [
@@ -22,13 +22,13 @@ $schemas117 = [
     ],
 ];
 
-$statements117 = [
+$baseStatements = [
     ['name' => 'main-indexed-reader', 'sql' => 'SELECT option_value FROM main.wp_options INDEXED BY wp_options_autoload_name WHERE autoload = ?'],
     ['name' => 'future-index-reader', 'sql' => 'SELECT option_value FROM main.wp_options INDEXED BY wp_options_future_name WHERE option_name = ?'],
     ['name' => 'archive-indexed-reader', 'sql' => 'SELECT option_name FROM archive.wp_options INDEXED BY wp_archive_option_name WHERE option_name GLOB ?'],
 ];
 
-$events117 = [
+$baseEvents = [
     ['op' => 'drop_index', 'schema' => 'main', 'index' => 'wp_options_autoload_name'],
     ['op' => 'drop_index', 'schema' => 'main', 'index' => 'wp_options_autoload_name'],
     ['op' => 'create_index', 'schema' => 'main', 'index' => 'wp_options_future_name'],
@@ -37,16 +37,16 @@ $events117 = [
     ['op' => 'drop_index', 'schema' => 'archive', 'index' => 'wp_archive_option_name'],
 ];
 
-$plan117 = static fn (?array $events = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
-    $schemas117,
-    $statements117,
-    $events ?? $events117,
+$planFactory = static fn (?array $events = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
+    $baseSchemas,
+    $baseStatements,
+    $events ?? $baseEvents,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next117 duplicate index ddl advances cookies once'] = static function (TestRunner $t) use ($plan117): void {
-    $result = $plan117();
+$tests['attach temp wal schema cache ddl dedup duplicate index ddl advances cookies once'] = static function (TestRunner $t) use ($planFactory): void {
+    $result = $planFactory();
 
     $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
     $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
@@ -56,8 +56,8 @@ $tests['attach temp wal schema cache current source next117 duplicate index ddl 
     $t->same(['main-indexed-reader', 'future-index-reader', 'archive-indexed-reader'], $result['expired_statements']);
 };
 
-$tests['attach temp wal schema cache current source next117 duplicate schema write group expires once'] = static function (TestRunner $t) use ($plan117): void {
-    $result = $plan117([
+$tests['attach temp wal schema cache ddl dedup duplicate schema write group expires once'] = static function (TestRunner $t) use ($planFactory): void {
+    $result = $planFactory([
         ['op' => 'schema_write', 'schema' => 'main', 'table' => 'wp_plugin_state'],
         ['op' => 'schema_write', 'schema' => 'main', 'table' => 'wp_plugin_state'],
     ]);
@@ -67,8 +67,8 @@ $tests['attach temp wal schema cache current source next117 duplicate schema wri
     $t->same(true, $result['statements']['main-indexed-reader']['schema_transitions'][0]['schema_cookie_changed']);
 };
 
-$tests['attach temp wal schema cache current source next117 keeps distinct DDL events ordered'] = static function (TestRunner $t) use ($plan117): void {
-    $result = $plan117([
+$tests['attach temp wal schema cache ddl dedup keeps distinct DDL events ordered'] = static function (TestRunner $t) use ($planFactory): void {
+    $result = $planFactory([
         ['op' => 'drop_index', 'schema' => 'main', 'index' => 'wp_options_autoload_name'],
         ['op' => 'create_index', 'schema' => 'main', 'index' => 'wp_options_future_name'],
         ['op' => 'drop_table', 'schema' => 'main', 'table' => 'wp_options'],

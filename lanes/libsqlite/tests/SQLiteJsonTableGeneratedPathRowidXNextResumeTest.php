@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 $current182 = [
     'option_id' => 182,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next182',
+    'option_name' => 'wp_plugin_generated_path_rowid_xnext_resume',
     'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4},{"slug":"security","priority":9}],"meta":{"autoload":"yes"}}',
     'generated_path' => '$.rules',
     'scan_root' => '$.rules',
@@ -14,7 +14,7 @@ $current182 = [
 ];
 $next182 = [
     'option_id' => 182,
-    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next182',
+    'option_name' => 'wp_plugin_generated_path_rowid_xnext_resume',
     'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"security","priority":9},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
     'generated_path' => '$.rules[1]',
     'scan_root' => '$.rules',
@@ -29,7 +29,7 @@ $plan182 = static fn (
     ?int $limit = 4,
     ?int $lastYieldedRowid = 7,
     ?int $yieldBatchSize = 1,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext182(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidBatchedXNextPlan(
     'json_tree',
     $current ?? $current182,
     $next ?? $next182,
@@ -112,7 +112,7 @@ $tests = [
 ];
 
 foreach ($tests as $name => $case) {
-    $tests['json table generated path rowid cost current source next182 ' . $name] = $case;
+    $tests['json table generated path rowid batched xnext ' . $name] = $case;
     unset($tests[$name]);
 }
 

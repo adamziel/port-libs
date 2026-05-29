@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteSchemaGeneratedCheckReparsePlan;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
-$record116 = static fn (string $sql, int $version = 1): SQLiteSchemaRecord => new SQLiteSchemaRecord('table', 'wp_options', 'wp_options', 2, $sql, $version);
+$recordFactory = static fn (string $sql, int $version = 1): SQLiteSchemaRecord => new SQLiteSchemaRecord('table', 'wp_options', 'wp_options', 2, $sql, $version);
 
-$currentSql116 = <<<'SQL'
+$currentSql = <<<'SQL'
 CREATE TABLE wp_options(
   option_id INTEGER PRIMARY KEY,
   option_name TEXT NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE wp_options(
 )
 SQL;
 
-$nextSql116 = <<<'SQL'
+$nextSql = <<<'SQL'
 CREATE TABLE wp_options(
   option_id INTEGER PRIMARY KEY,
   option_name TEXT NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE wp_options(
 )
 SQL;
 
-$stableSql116 = <<<'SQL'
+$stableSql = <<<'SQL'
 CREATE TABLE wp_options(
   option_id INTEGER PRIMARY KEY,
   option_name TEXT,
@@ -43,7 +43,7 @@ CREATE TABLE wp_options(
 )
 SQL;
 
-$quotedSql116 = <<<'SQL'
+$quotedSql = <<<'SQL'
 CREATE TABLE "wp options"(
   "option name" TEXT,
   [option-key] TEXT AS (lower("option name")) VIRTUAL CHECK([option-key] <> ''),
@@ -51,28 +51,28 @@ CREATE TABLE "wp options"(
 )
 SQL;
 
-$plan116 = static fn (?string $current = null, ?string $next = null, array $options = []): array => SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext(
-    [$record116($current ?? $currentSql116)],
-    [$record116($next ?? $nextSql116, 2)],
+$planFactory = static fn (?string $current = null, ?string $next = null, array $options = []): array => SQLiteSchemaGeneratedCheckReparsePlan::currentNext(
+    [$recordFactory($current ?? $currentSql)],
+    [$recordFactory($next ?? $nextSql, 2)],
     'wp_options',
     $options + ['schema_version_before' => 116, 'schema_version_after' => 117],
 );
 
-$stable116 = static fn (): array => SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext(
-    [$record116($stableSql116)],
-    [$record116($stableSql116)],
+$stableFactory = static fn (): array => SQLiteSchemaGeneratedCheckReparsePlan::currentNext(
+    [$recordFactory($stableSql)],
+    [$recordFactory($stableSql)],
     'wp_options',
     ['schema_version_before' => 117, 'schema_version_after' => 117],
 );
 
-$quoted116 = static fn (): array => SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext(
-    [new SQLiteSchemaRecord('table', 'wp options', 'wp options', 2, $quotedSql116, 1)],
-    [new SQLiteSchemaRecord('table', 'wp options', 'wp options', 2, $quotedSql116, 2)],
+$quotedFactory = static fn (): array => SQLiteSchemaGeneratedCheckReparsePlan::currentNext(
+    [new SQLiteSchemaRecord('table', 'wp options', 'wp options', 2, $quotedSql, 1)],
+    [new SQLiteSchemaRecord('table', 'wp options', 'wp options', 2, $quotedSql, 2)],
     'wp options',
     ['schema_version_before' => 1, 'schema_version_after' => 2],
 );
 
-$value116 = static function (array $value, string $path): mixed {
+$valueAtPath = static function (array $value, string $path): mixed {
     foreach (explode('.', $path) as $part) {
         if ($part === 'count') {
             $value = count($value);
@@ -137,8 +137,8 @@ foreach ([
     'dependency generated catalog' => ['dependencies.1', 'sqlite-generated-column-catalog'],
     'dependency check catalog' => ['dependencies.2', 'sqlite-check-constraint-catalog'],
 ] as $name => [$path, $expected]) {
-    $tests['schema generated check reparse current source ' . $name] = static function (TestRunner $t) use ($plan116, $value116, $path, $expected): void {
-        $t->same($expected, $value116($plan116(), $path));
+    $tests['schema generated check reparse current source ' . $name] = static function (TestRunner $t) use ($planFactory, $valueAtPath, $path, $expected): void {
+        $t->same($expected, $valueAtPath($planFactory(), $path));
     };
 }
 
@@ -153,8 +153,8 @@ foreach ([
     'stable generated check removed empty' => ['generatedChecksRemoved', []],
     'stable changed fields empty' => ['changedFields', []],
 ] as $name => [$path, $expected]) {
-    $tests['schema generated check reparse current source ' . $name] = static function (TestRunner $t) use ($stable116, $value116, $path, $expected): void {
-        $t->same($expected, $value116($stable116(), $path));
+    $tests['schema generated check reparse current source ' . $name] = static function (TestRunner $t) use ($stableFactory, $valueAtPath, $path, $expected): void {
+        $t->same($expected, $valueAtPath($stableFactory(), $path));
     };
 }
 
@@ -166,21 +166,21 @@ foreach ([
     'quoted backtick check reference' => ['current.generatedChecks.1.references.0', 'option-len'],
     'quoted stored code' => ['current.generatedChecks.1.storage', 'STORED'],
 ] as $name => [$path, $expected]) {
-    $tests['schema generated check reparse current source ' . $name] = static function (TestRunner $t) use ($quoted116, $value116, $path, $expected): void {
-        $t->same($expected, $value116($quoted116(), $path));
+    $tests['schema generated check reparse current source ' . $name] = static function (TestRunner $t) use ($quotedFactory, $valueAtPath, $path, $expected): void {
+        $t->same($expected, $valueAtPath($quotedFactory(), $path));
     };
 }
 
-$tests['schema generated check reparse current source cookie unchanged keeps stable despite ddl diff'] = static function (TestRunner $t) use ($plan116): void {
-    $result = $plan116(null, null, ['schema_version_before' => 9, 'schema_version_after' => 9]);
+$tests['schema generated check reparse current source cookie unchanged keeps stable despite ddl diff'] = static function (TestRunner $t) use ($planFactory): void {
+    $result = $planFactory(null, null, ['schema_version_before' => 9, 'schema_version_after' => 9]);
     $t->same(true, $result['changed']);
     $t->same(false, $result['requiresReparse']);
     $t->same('stable', $result['status']);
 };
 
-$tests['schema generated check reparse current source rejects missing table'] = static function (TestRunner $t) use ($record116, $currentSql116): void {
+$tests['schema generated check reparse current source rejects missing table'] = static function (TestRunner $t) use ($recordFactory, $currentSql): void {
     try {
-        SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext([$record116($currentSql116)], [$record116($currentSql116)], 'missing');
+        SQLiteSchemaGeneratedCheckReparsePlan::currentNext([$recordFactory($currentSql)], [$recordFactory($currentSql)], 'missing');
     } catch (InvalidArgumentException) {
         $t->same('rejected', 'rejected');
         return;
@@ -190,7 +190,7 @@ $tests['schema generated check reparse current source rejects missing table'] = 
 
 $tests['schema generated check reparse current source rejects missing SQL'] = static function (TestRunner $t): void {
     try {
-        SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext([
+        SQLiteSchemaGeneratedCheckReparsePlan::currentNext([
             new SQLiteSchemaRecord('table', 'wp_options', 'wp_options', 2, null, 1),
         ], [
             new SQLiteSchemaRecord('table', 'wp_options', 'wp_options', 2, null, 2),
@@ -202,9 +202,9 @@ $tests['schema generated check reparse current source rejects missing SQL'] = st
     $t->same('rejected', 'missed');
 };
 
-$tests['schema generated check reparse current source rejects bad schema version'] = static function (TestRunner $t) use ($plan116): void {
+$tests['schema generated check reparse current source rejects bad schema version'] = static function (TestRunner $t) use ($planFactory): void {
     try {
-        $plan116(null, null, ['schema_version_before' => -1]);
+        $planFactory(null, null, ['schema_version_before' => -1]);
     } catch (InvalidArgumentException) {
         $t->same('rejected', 'rejected');
         return;

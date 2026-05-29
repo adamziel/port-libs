@@ -7,7 +7,7 @@ require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas = [
+$baseSchemas = [
     'main' => [
         'schema_cookie' => 40,
         'wal_frames' => [
@@ -32,21 +32,21 @@ $schemas = [
     ],
 ];
 
-$statements = [
+$baseStatements = [
     ['name' => 'main-indexed-reader', 'sql' => 'SELECT option_value FROM main.wp_options INDEXED BY wp_options_autoload_name WHERE autoload = ?'],
     ['name' => 'temp-indexed-writer', 'sql' => 'UPDATE temp.wp_options_stage INDEXED BY wp_options_stage_name SET option_value = ? WHERE option_name = ?'],
     ['name' => 'archive-indexed-reader', 'sql' => 'SELECT option_name FROM archive.wp_options AS ao INDEXED BY wp_archive_option_name WHERE option_name GLOB ?'],
     ['name' => 'future-main-index-reader', 'sql' => 'SELECT option_value FROM main.wp_options INDEXED BY wp_options_future_name WHERE option_name = ?'],
 ];
 
-$events = [
+$baseEvents = [
     ['op' => 'drop_index', 'schema' => 'main', 'index' => 'wp_options_autoload_name'],
     ['op' => 'create_index', 'schema' => 'main', 'index' => 'wp_options_future_name'],
     ['op' => 'drop_index', 'schema' => 'temp', 'index' => 'wp_options_stage_name'],
     ['op' => 'drop_index', 'schema' => 'archive', 'index' => 'wp_archive_option_name'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan($schemas, $statements, $events);
+$plan = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan($baseSchemas, $baseStatements, $baseEvents);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['operation'] === 'attach-wal-temp-schema-cache-consolidated');
@@ -63,7 +63,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['future-main-index-reader']['index_transitions'][0]['current_found'] === false);
     assert($plan['statements']['future-main-index-reader']['index_transitions'][0]['next_found'] === true);
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next116 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-indexed-by-expiry self-test passed\n";
     return;
 }
 

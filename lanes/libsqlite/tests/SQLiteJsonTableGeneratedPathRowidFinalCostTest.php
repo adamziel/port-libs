@@ -4,109 +4,122 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
-$currentFinal = [
-    'option_id' => 42,
-    'option_name' => 'wp_plugin_generated_path_rowid_final_cost',
-    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4},{"slug":"security","priority":9}],"meta":{"autoload":"yes"}}',
+$current184 = [
+    'option_id' => 184,
+    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next184',
+    'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
     'generated_path' => '$.rules',
     'scan_root' => '$.rules',
-    'source_generation' => 'current-final-cost-a',
+    'source_generation' => 18401,
 ];
-$nextFinal = [
-    'option_id' => 42,
-    'option_name' => 'wp_plugin_generated_path_rowid_final_cost',
-    'option_value' => '{"rules":[{"slug":"seo","priority":3}],"meta":{"autoload":"no"}}',
-    'generated_path' => '$.rules[0]',
+$next184 = [
+    'option_id' => 184,
+    'option_name' => 'wp_plugin_generated_path_rowid_cost_current_source_next184',
+    'option_value' => '{"rules":[{"slug":"security","priority":9},{"slug":"seo","priority":3},{"slug":"cache","priority":6},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
+    'generated_path' => '$.rules[2]',
     'scan_root' => '$.rules',
-    'source_generation' => 'next-final-cost-b',
+    'source_generation' => 18402,
 ];
 
-$planFinal = static fn (
+$plan184 = static fn (
     ?array $current = null,
     ?array $next = null,
     ?array $constraints = null,
     ?array $orderBy = null,
-    ?int $limit = 5,
-    ?int $lastYieldedRowid = 9,
-    ?int $yieldBatchSize = 2,
+    ?int $limit = null,
+    ?int $lastYieldedRowid = null,
     ?array $projection = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidFinalCost(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidFinalCostPlan(
     'json_tree',
-    $current ?? $currentFinal,
-    $next ?? $nextFinal,
+    $current ?? $current184,
+    $next ?? $next184,
     'option_value',
     'generated_path',
     $constraints ?? [
         ['column' => 'path', 'operator' => 'LIKE', 'value' => '$.rules%'],
-        ['column' => 'rowid', 'operator' => 'IN', 'value' => [5, 6, 7, 8, 9]],
+        ['column' => '_rowid_', 'operator' => 'IN', 'value' => [5, 6, 42]],
     ],
     'scan_root',
-    $orderBy ?? [['column' => 'rowid', 'direction' => 'DESC']],
+    $orderBy ?? [['column' => '_rowid_', 'direction' => 'DESC']],
     $limit,
     $lastYieldedRowid,
-    $yieldBatchSize,
-    $projection ?? ['rowid', '_rowid_', 'oid', 'value', 'type', 'fullkey'],
+    $projection ?? ['id', 'fullkey', 'atom', 'value', 'type'],
 );
 
-$stableFinal = static fn (?int $limit = 5): array => $planFinal($currentFinal, $currentFinal, null, null, $limit, 9, 2);
-$unlimitedFinal = static fn (): array => $planFinal($currentFinal, $currentFinal, null, null, null, 9, 2);
-$zeroLimitFinal = static fn (): array => $planFinal($currentFinal, $currentFinal, null, null, 0, 9, 2);
-$unsupportedFinal = static fn (): array => $planFinal($currentFinal, $currentFinal, null, [['column' => 'fullkey', 'direction' => 'ASC']], 5, 9, 2);
-$noOrderFinal = static fn (): array => $planFinal($currentFinal, $currentFinal, null, [], 5, 9, 2);
+$resume184 = static fn (): array => $plan184(null, null, null, null, null, 6);
+$stable184 = static fn (): array => $plan184($current184, $current184, null, null, null, 6);
+$first184 = static fn (): array => $plan184($current184, $current184);
+$point184 = static fn (): array => $plan184(
+    array_replace($current184, ['generated_path' => '$.rules[1]', 'source_generation' => 'same']),
+    array_replace($current184, ['generated_path' => '$.rules[1]', 'source_generation' => 'same']),
+    [
+        ['column' => 'path', 'operator' => '=', 'value' => '$.rules[1]'],
+        ['column' => 'rowid', 'operator' => '=', 'value' => 6],
+    ],
+    [['column' => 'id']],
+    null,
+    null,
+    ['id', 'fullkey', 'value'],
+);
+$missing184 = static fn (): array => $plan184($current184, $current184, null, null, null, 99);
 
 $tests = [
-    'records final cost dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-final-cost', $planFinal()['dependencies'], true)),
-    'preserves next206 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next206', $planFinal()['dependencies'], true)),
-    'current reader policy' => static fn (TestRunner $t) => $t->same('final-cost-current-json-table-generated-path-rowid', $planFinal()['currentReaderPolicy']),
-    'next reader policy reparses on source change' => static fn (TestRunner $t) => $t->same('reprepare-final-cost-next-json-table-generated-path-rowid', $planFinal()['nextReaderPolicy']),
-    'stable reader policy reuses' => static fn (TestRunner $t) => $t->same('reuse-final-cost-current-json-table-generated-path-rowid', $stableFinal()['nextReaderPolicy']),
-    'stable reasons empty' => static fn (TestRunner $t) => $t->same([], $stableFinal()['generatedPathRowidFinalCostReplanReasons']),
-    'current source generation recorded' => static fn (TestRunner $t) => $t->same('current-final-cost-a', $planFinal()['currentGeneratedPathRowidFinalCost']['sourceGeneration']),
-    'current generated path recorded' => static fn (TestRunner $t) => $t->same('$.rules', $planFinal()['currentGeneratedPathRowidFinalCost']['generatedPath']),
-    'current root recorded' => static fn (TestRunner $t) => $t->same('$.rules', $planFinal()['currentGeneratedPathRowidFinalCost']['root']),
-    'order term preserved' => static fn (TestRunner $t) => $t->same('rowid', $planFinal()['currentGeneratedPathRowidFinalCost']['orderTerms'][0]['column']),
-    'ordered rowids from next206' => static fn (TestRunner $t) => $t->same([9, 8, 7, 6, 5], $planFinal()['currentGeneratedPathRowidFinalCost']['orderedRowids']),
-    'limit recorded' => static fn (TestRunner $t) => $t->same(5, $planFinal()['currentGeneratedPathRowidFinalCost']['limit']),
-    'limit applied' => static fn (TestRunner $t) => $t->same(true, $planFinal()['currentGeneratedPathRowidFinalCost']['limitApplied']),
-    'final rowids limited' => static fn (TestRunner $t) => $t->same([9, 8, 7, 6, 5], $planFinal()['currentGeneratedPathRowidFinalCost']['finalRowids']),
-    'first final rowid' => static fn (TestRunner $t) => $t->same(9, $planFinal()['currentGeneratedPathRowidFinalCost']['firstFinalRowid']),
-    'last final rowid' => static fn (TestRunner $t) => $t->same(5, $planFinal()['currentGeneratedPathRowidFinalCost']['lastFinalRowid']),
-    'alias order reusable' => static fn (TestRunner $t) => $t->same(true, $planFinal()['currentGeneratedPathRowidFinalCost']['aliasOrderReusable']),
-    'order consumed' => static fn (TestRunner $t) => $t->same(true, $planFinal()['currentGeneratedPathRowidFinalCost']['orderByConsumed']),
-    'final cost reusable' => static fn (TestRunner $t) => $t->same(true, $planFinal()['currentGeneratedPathRowidFinalCost']['finalCostReusable']),
-    'estimated rows after limit' => static fn (TestRunner $t) => $t->same(5, $planFinal()['currentGeneratedPathRowidFinalCost']['estimatedRows']),
-    'estimated cost bounded by limit' => static fn (TestRunner $t) => $t->same(5, $planFinal()['currentGeneratedPathRowidFinalCost']['estimatedCost']),
-    'current opcode reuses final cost' => static fn (TestRunner $t) => $t->same('OP_JsonTableGeneratedPathRowidFinalCostReuse', $planFinal()['currentGeneratedPathRowidFinalCost']['finalCostOpcode']),
-    'current cost class limited' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-final-cost-limited', $planFinal()['currentGeneratedPathRowidFinalCost']['costClass']),
-    'fingerprint sha256' => static fn (TestRunner $t) => $t->same(64, strlen($planFinal()['currentGeneratedPathRowidFinalCost']['finalCostFingerprint'])),
-    'next final cost not reusable' => static fn (TestRunner $t) => $t->same(false, $planFinal()['nextGeneratedPathRowidFinalCost']['finalCostReusable']),
-    'next estimated rows zero' => static fn (TestRunner $t) => $t->same(0, $planFinal()['nextGeneratedPathRowidFinalCost']['estimatedRows']),
-    'next estimated cost sentinel' => static fn (TestRunner $t) => $t->same(1000000, $planFinal()['nextGeneratedPathRowidFinalCost']['estimatedCost']),
-    'next opcode reparses' => static fn (TestRunner $t) => $t->same('OP_JsonTableGeneratedPathRowidFinalCostReprepare', $planFinal()['nextGeneratedPathRowidFinalCost']['finalCostOpcode']),
-    'transition count' => static fn (TestRunner $t) => $t->same(20, count($planFinal()['generatedPathRowidFinalCostTransitions'])),
-    'reasons include source changed' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-final-cost-source-changed', $planFinal()['generatedPathRowidFinalCostReplanReasons'], true)),
-    'reasons include rowset changed' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-final-cost-rowset-changed', $planFinal()['generatedPathRowidFinalCostReplanReasons'], true)),
-    'reasons include admission changed' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-final-cost-admission-changed', $planFinal()['generatedPathRowidFinalCostReplanReasons'], true)),
-    'reasons include estimate changed' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-final-cost-estimate-changed', $planFinal()['generatedPathRowidFinalCostReplanReasons'], true)),
-    'preserves next206 reason' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-alias-order-source-changed-next206', $planFinal()['generatedPathRowidFinalCostReplanReasons'], true)),
-    'unlimited rowids preserve ordered range' => static fn (TestRunner $t) => $t->same([9, 8, 7, 6, 5], $unlimitedFinal()['currentGeneratedPathRowidFinalCost']['finalRowids']),
-    'unlimited limit not applied' => static fn (TestRunner $t) => $t->same(false, $unlimitedFinal()['currentGeneratedPathRowidFinalCost']['limitApplied']),
-    'unlimited cost class range' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-final-cost-range', $unlimitedFinal()['currentGeneratedPathRowidFinalCost']['costClass']),
-    'zero limit final eof rowids' => static fn (TestRunner $t) => $t->same([], $zeroLimitFinal()['currentGeneratedPathRowidFinalCost']['finalRowids']),
-    'zero limit eof opcode' => static fn (TestRunner $t) => $t->same('OP_JsonTableGeneratedPathRowidFinalCostEof', $zeroLimitFinal()['currentGeneratedPathRowidFinalCost']['finalCostOpcode']),
-    'zero limit eof class' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-final-cost-eof', $zeroLimitFinal()['currentGeneratedPathRowidFinalCost']['costClass']),
-    'unsupported order external sort opcode' => static fn (TestRunner $t) => $t->same('OP_JsonTableGeneratedPathRowidFinalCostExternalSort', $unsupportedFinal()['currentGeneratedPathRowidFinalCost']['finalCostOpcode']),
-    'unsupported order records column' => static fn (TestRunner $t) => $t->same(['fullkey'], $unsupportedFinal()['currentGeneratedPathRowidFinalCost']['unsupportedOrderColumns']),
-    'unsupported order not reusable' => static fn (TestRunner $t) => $t->same(false, $unsupportedFinal()['currentGeneratedPathRowidFinalCost']['finalCostReusable']),
-    'no order bypass opcode' => static fn (TestRunner $t) => $t->same('OP_JsonTableGeneratedPathRowidFinalCostBypass', $noOrderFinal()['currentGeneratedPathRowidFinalCost']['finalCostOpcode']),
-    'no order final cost not reusable' => static fn (TestRunner $t) => $t->same(false, $noOrderFinal()['currentGeneratedPathRowidFinalCost']['finalCostReusable']),
-    'malformed generated path rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $planFinal(array_replace($currentFinal, ['generated_path' => '$.rules[']), $currentFinal)),
-    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidFinalCost('json_bad', $currentFinal, $currentFinal, 'option_value', 'generated_path')),
-    'dependency closure' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
+    'records next184 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next184', $resume184()['dependencies'], true)),
+    'preserves xcolumn snapshot dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-xcolumn-snapshot', $resume184()['dependencies'], true)),
+    'current reader admits final cost' => static fn (TestRunner $t) => $t->same('admit-current-json-table-generated-path-rowid-final-cost-next184', $resume184()['currentReaderPolicy']),
+    'next changed source reparses final cost' => static fn (TestRunner $t) => $t->same('reprepare-next-json-table-generated-path-rowid-final-cost-next184', $resume184()['nextReaderPolicy']),
+    'stable reuses final cost' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-final-cost-next184', $stable184()['nextReaderPolicy']),
+    'stable reasons empty' => static fn (TestRunner $t) => $t->same([], $stable184()['next184ReplanReasons']),
+    'current generation pinned' => static fn (TestRunner $t) => $t->same('source_generation:18401', $resume184()['currentGeneratedPathRowidFinalCost184']['sourceGeneration']),
+    'next generation changed' => static fn (TestRunner $t) => $t->same('source_generation:18402', $resume184()['nextGeneratedPathRowidFinalCost184']['sourceGeneration']),
+    'cache key is sha256' => static fn (TestRunner $t) => $t->same(64, strlen($resume184()['currentGeneratedPathRowidFinalCost184']['cacheKey'])),
+    'cursor generation is sha256' => static fn (TestRunner $t) => $t->same(64, strlen($resume184()['currentGeneratedPathRowidFinalCost184']['cursorGeneration'])),
+    'snapshot fingerprint is sha256' => static fn (TestRunner $t) => $t->same(64, strlen($resume184()['currentGeneratedPathRowidFinalCost184']['snapshotFingerprint'])),
+    'final fingerprint is sha256' => static fn (TestRunner $t) => $t->same(64, strlen($resume184()['currentGeneratedPathRowidFinalCost184']['finalCostFingerprint'])),
+    'rowid aliases recorded' => static fn (TestRunner $t) => $t->same(['rowid', '_rowid_', 'oid', 'id'], $resume184()['currentGeneratedPathRowidFinalCost184']['rowidAliasColumns']),
+    'projection normalized' => static fn (TestRunner $t) => $t->same(['id', 'fullkey', 'atom', 'value', 'type'], $resume184()['currentGeneratedPathRowidFinalCost184']['projection']),
+    'resume selected rowid' => static fn (TestRunner $t) => $t->same([5], $resume184()['currentGeneratedPathRowidFinalCost184']['selectedRowids']),
+    'resume selected row count one' => static fn (TestRunner $t) => $t->same(1, $resume184()['currentGeneratedPathRowidFinalCost184']['selectedRowCount']),
+    'resume materialized row count one' => static fn (TestRunner $t) => $t->same(1, $resume184()['currentGeneratedPathRowidFinalCost184']['materializedRowCount']),
+    'resume missing rowids empty' => static fn (TestRunner $t) => $t->same([], $resume184()['currentGeneratedPathRowidFinalCost184']['missingRowids']),
+    'resume residual columns empty' => static fn (TestRunner $t) => $t->same([], $resume184()['currentGeneratedPathRowidFinalCost184']['residualConstraintColumns']),
+    'resume source pinned' => static fn (TestRunner $t) => $t->same(true, $resume184()['currentGeneratedPathRowidFinalCost184']['currentSourcePinned']),
+    'resume xcolumn reusable' => static fn (TestRunner $t) => $t->same(true, $resume184()['currentGeneratedPathRowidFinalCost184']['xColumnReusable']),
+    'resume not stale' => static fn (TestRunner $t) => $t->same(false, $resume184()['currentGeneratedPathRowidFinalCost184']['staleAfterNextSource']),
+    'resume covering snapshot true' => static fn (TestRunner $t) => $t->same(true, $resume184()['currentGeneratedPathRowidFinalCost184']['coveringSnapshot']),
+    'resume cursor disposition covering' => static fn (TestRunner $t) => $t->same('admit-covering-current-source-generated-path-rowid-snapshot', $resume184()['currentGeneratedPathRowidFinalCost184']['cursorDisposition']),
+    'resume estimated rows one' => static fn (TestRunner $t) => $t->same(1, $resume184()['currentGeneratedPathRowidFinalCost184']['estimatedRows']),
+    'resume estimated cost one' => static fn (TestRunner $t) => $t->same(1, $resume184()['currentGeneratedPathRowidFinalCost184']['estimatedCost']),
+    'resume cost class point' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-final-cost-covering-point-next184', $resume184()['currentGeneratedPathRowidFinalCost184']['costClass']),
+    'next stale after source' => static fn (TestRunner $t) => $t->same(true, $resume184()['nextGeneratedPathRowidFinalCost184']['staleAfterNextSource']),
+    'next not covering' => static fn (TestRunner $t) => $t->same(false, $resume184()['nextGeneratedPathRowidFinalCost184']['coveringSnapshot']),
+    'next disposition reprepare' => static fn (TestRunner $t) => $t->same('reprepare-stale-next-source-generated-path-rowid-snapshot', $resume184()['nextGeneratedPathRowidFinalCost184']['cursorDisposition']),
+    'next estimated rows zero' => static fn (TestRunner $t) => $t->same(0, $resume184()['nextGeneratedPathRowidFinalCost184']['estimatedRows']),
+    'next estimated cost sentinel' => static fn (TestRunner $t) => $t->same(1000000, $resume184()['nextGeneratedPathRowidFinalCost184']['estimatedCost']),
+    'next cost class reprepare' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-final-cost-reprepare-next184', $resume184()['nextGeneratedPathRowidFinalCost184']['costClass']),
+    'first selected rowids' => static fn (TestRunner $t) => $t->same([6, 5], $first184()['currentGeneratedPathRowidFinalCost184']['selectedRowids']),
+    'first cost class range' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-final-cost-covering-range-next184', $first184()['currentGeneratedPathRowidFinalCost184']['costClass']),
+    'point projection narrowed' => static fn (TestRunner $t) => $t->same(['id', 'fullkey', 'value'], $point184()['currentGeneratedPathRowidFinalCost184']['projection']),
+    'point selected rowid six' => static fn (TestRunner $t) => $t->same([6], $point184()['currentGeneratedPathRowidFinalCost184']['selectedRowids']),
+    'point cost class' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-final-cost-covering-point-next184', $point184()['currentGeneratedPathRowidFinalCost184']['costClass']),
+    'missing rowid not covering' => static fn (TestRunner $t) => $t->same(false, $missing184()['currentGeneratedPathRowidFinalCost184']['coveringSnapshot']),
+    'missing rowid disposition reseek' => static fn (TestRunner $t) => $t->same('reseek-missing-rowid-generated-path-rowid-snapshot', $missing184()['currentGeneratedPathRowidFinalCost184']['cursorDisposition']),
+    'missing rowid class' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-final-cost-missing-rowid-next184', $missing184()['currentGeneratedPathRowidFinalCost184']['costClass']),
+    'transition count records final cost state' => static fn (TestRunner $t) => $t->same(16, count($resume184()['generatedPathRowidFinalCost184Transitions'])),
+    'transition generation changes' => static fn (TestRunner $t) => $t->same(true, $resume184()['generatedPathRowidFinalCost184Transitions'][0]['changed']),
+    'transition selected rowids change' => static fn (TestRunner $t) => $t->same(true, $resume184()['generatedPathRowidFinalCost184Transitions'][6]['changed']),
+    'transition admission changes' => static fn (TestRunner $t) => $t->same(true, $resume184()['generatedPathRowidFinalCost184Transitions'][10]['changed']),
+    'transition cost changes' => static fn (TestRunner $t) => $t->same(true, $resume184()['generatedPathRowidFinalCost184Transitions'][13]['changed']),
+    'reasons include source snapshot' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-final-cost-source-snapshot-changed-next184', $resume184()['next184ReplanReasons'], true)),
+    'reasons include rowset' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-final-cost-rowset-changed-next184', $resume184()['next184ReplanReasons'], true)),
+    'reasons include admission' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-final-cost-admission-changed-next184', $resume184()['next184ReplanReasons'], true)),
+    'reasons include cost' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-final-cost-cost-changed-next184', $resume184()['next184ReplanReasons'], true)),
+    'bad projection rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan184(null, null, null, null, null, null, ['bad_column'])),
+    'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 
 foreach ($tests as $name => $case) {
-    $tests['json table generated path rowid cost final cost ' . $name] = $case;
+    $tests['json table generated path rowid final cost ' . $name] = $case;
     unset($tests[$name]);
 }
 

@@ -7,7 +7,7 @@ require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas = [
+$baseSchemas = [
     'main' => [
         'schema_cookie' => 40,
         'wal_frames' => [
@@ -23,13 +23,13 @@ $schemas = [
     ],
 ];
 
-$statements = [
+$baseStatements = [
     ['name' => 'main-indexed-reader', 'sql' => 'SELECT option_value FROM main.wp_options INDEXED BY wp_options_autoload_name WHERE autoload = ?'],
     ['name' => 'future-index-reader', 'sql' => 'SELECT option_value FROM main.wp_options INDEXED BY wp_options_future_name WHERE option_name = ?'],
     ['name' => 'archive-indexed-reader', 'sql' => 'SELECT option_name FROM archive.wp_options INDEXED BY wp_archive_option_name WHERE option_name GLOB ?'],
 ];
 
-$events = [
+$baseEvents = [
     ['op' => 'drop_index', 'schema' => 'main', 'index' => 'wp_options_autoload_name'],
     ['op' => 'drop_index', 'schema' => 'main', 'index' => 'wp_options_autoload_name'],
     ['op' => 'create_index', 'schema' => 'main', 'index' => 'wp_options_future_name'],
@@ -38,7 +38,7 @@ $events = [
     ['op' => 'drop_index', 'schema' => 'archive', 'index' => 'wp_archive_option_name'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan($schemas, $statements, $events);
+$plan = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan($baseSchemas, $baseStatements, $baseEvents);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['operation'] === 'attach-wal-temp-schema-cache-consolidated');
@@ -47,7 +47,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['schema_cookies_next']['archive'] === 10);
     assert($plan['expired_statements'] === ['main-indexed-reader', 'future-index-reader', 'archive-indexed-reader']);
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next117 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-ddl-dedup self-test passed\n";
     return;
 }
 

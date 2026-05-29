@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-active-plugins-next185',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext185(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidResumeCheckpointPlan(
     'json_tree',
     $current,
     $next,
@@ -47,12 +47,12 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentGeneratedPathRowidCurrentSourceResume185']['lastDeliveredRowid'] === 8);
     assert($plan['currentGeneratedPathRowidCurrentSourceResume185']['projectedRows'][0]['value'] === 'forms');
     assert($plan['nextGeneratedPathRowidCurrentSourceResume185']['costClass'] === 'json-table-generated-path-rowid-resume-restart-next-source-next185');
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next185 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-resume-checkpoint self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next185',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-resume-checkpoint',
     'wordpressUse' => 'Copied wp_options active_plugins diagnostics can checkpoint a generated-path rowid json_tree xNext batch, expose the last delivered rowid for resume, and restart safely when the next source changes.',
     'currentPolicy' => $plan['currentReaderPolicy'],
     'nextPolicy' => $plan['nextReaderPolicy'],

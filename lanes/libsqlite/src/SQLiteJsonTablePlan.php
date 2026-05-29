@@ -2744,7 +2744,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldBatchSize = null,
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext185(
+        $plan = self::currentSourceGeneratedPathRowidResumeCheckpointPlan(
             $function,
             $currentSource,
             $nextSource,
@@ -2966,7 +2966,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('xNext batch size must be at least 1');
         }
 
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext194(
+        $plan = self::currentSourceGeneratedPathRowidPinnedSourcePlan(
             $function,
             $currentSource,
             $nextSource,
@@ -3198,20 +3198,20 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeProfile211(
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeProfile(
             $plan['currentGeneratedPathRowidRangeConstraint209'],
             $plan['currentGeneratedPathRowidAliasOrder206'],
             $lastYieldedRowid,
             $yieldBatchSize,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeProfile211(
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeProfile(
             $plan['nextGeneratedPathRowidRangeConstraint209'],
             $plan['nextGeneratedPathRowidAliasOrder206'],
             $lastYieldedRowid,
             $yieldBatchSize,
         );
-        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceResumeTransitions211($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceResumeReasons211($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceResumeTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceResumeReasons($transitions);
 
         $plan['currentGeneratedPathRowidCurrentSourceResume211'] = $currentProfile;
         $plan['nextGeneratedPathRowidCurrentSourceResume211'] = $nextProfile;
@@ -3270,14 +3270,14 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeProfile213(
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointProfile(
             $plan['currentGeneratedPathRowidCurrentSourceResume211'],
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeProfile213(
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointProfile(
             $plan['nextGeneratedPathRowidCurrentSourceResume211'],
         );
-        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceResumeTransitions213($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceResumeReasons213($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointReasons($transitions);
 
         $plan['currentGeneratedPathRowidCurrentSourceResume213'] = $currentProfile;
         $plan['nextGeneratedPathRowidCurrentSourceResume213'] = $nextProfile;
@@ -4954,7 +4954,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldedRowid = null,
         ?string $observedSourceGeneration = null,
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext194(
+        $plan = self::currentSourceGeneratedPathRowidPinnedSourcePlan(
             $function,
             $currentSource,
             $nextSource,
@@ -5093,7 +5093,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext194(
+    public static function currentSourceGeneratedPathRowidPinnedSourcePlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -5108,7 +5108,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldedRowid = null,
         ?string $observedSourceGeneration = null,
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext190(
+        $plan = self::currentSourceGeneratedPathRowidXColumnYieldPlan(
             $function,
             $currentSource,
             $nextSource,
@@ -5169,7 +5169,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext190(
+    public static function currentSourceGeneratedPathRowidXColumnYieldPlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -5184,7 +5184,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldedRowid = null,
         ?string $observedSourceGeneration = null,
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext187(
+        $plan = self::currentSourceGeneratedPathRowidYieldGuardPlan(
             $function,
             $currentSource,
             $nextSource,
@@ -5241,7 +5241,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext187(
+    public static function currentSourceGeneratedPathRowidYieldGuardPlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -5256,7 +5256,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldedRowid = null,
         ?string $observedSourceGeneration = null,
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext184(
+        $plan = self::currentSourceGeneratedPathRowidFinalCostPlan(
             $function,
             $currentSource,
             $nextSource,
@@ -5311,7 +5311,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext185(
+    public static function currentSourceGeneratedPathRowidResumeCheckpointPlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -5325,7 +5325,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldBatchSize = null,
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext182(
+        $plan = self::currentSourceGeneratedPathRowidBatchedXNextPlan(
             $function,
             $currentSource,
             $nextSource,
@@ -5339,7 +5339,7 @@ final class SQLiteJsonTablePlan
             $yieldBatchSize,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpoint185(
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeBatchCheckpoint(
             $function,
             $currentSource,
             $jsonColumn,
@@ -5350,7 +5350,7 @@ final class SQLiteJsonTablePlan
             $projection,
             false,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpoint185(
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeBatchCheckpoint(
             $function,
             $nextSource,
             $jsonColumn,
@@ -5361,8 +5361,8 @@ final class SQLiteJsonTablePlan
             $projection,
             $plan['next182ReplanReasons'] !== [],
         );
-        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointTransitions185($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointReplanReasons185($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceResumeBatchCheckpointTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceResumeBatchCheckpointReplanReasons($transitions);
 
         $plan['currentGeneratedPathRowidCurrentSourceResume185'] = $currentProfile;
         $plan['nextGeneratedPathRowidCurrentSourceResume185'] = $nextProfile;
@@ -5392,7 +5392,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext184(
+    public static function currentSourceGeneratedPathRowidFinalCostPlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -5457,7 +5457,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext182(
+    public static function currentSourceGeneratedPathRowidBatchedXNextPlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -15236,7 +15236,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCheckpoint185(
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeBatchCheckpoint(
         string $function,
         array $source,
         string $jsonColumn,
@@ -15348,7 +15348,7 @@ final class SQLiteJsonTablePlan
             'eofAfterBatch' => (bool) ($xnext['eofAfterBatch'] ?? true),
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
-            'costClass' => self::jsonTableGeneratedPathRowidResumeCheckpointCostClass185(
+            'costClass' => self::jsonTableGeneratedPathRowidResumeCheckpointCostClass(
                 $checkpointReusable,
                 $staleAfterNextSource,
                 count($projectedRows),
@@ -15359,7 +15359,7 @@ final class SQLiteJsonTablePlan
         ];
     }
 
-    private static function jsonTableGeneratedPathRowidResumeCheckpointCostClass185(
+    private static function jsonTableGeneratedPathRowidResumeCheckpointCostClass(
         bool $checkpointReusable,
         bool $staleAfterNextSource,
         int $projectedCount,
@@ -15393,7 +15393,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointTransitions185(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeBatchCheckpointTransitions(array $current, array $next): array
     {
         $fields = [
             'jsonSourceKind',
@@ -15432,7 +15432,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointReplanReasons185(array $transitions): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeBatchCheckpointReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -17934,15 +17934,15 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $aliasOrder206
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeProfile211(
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeProfile(
         array $range209,
         array $aliasOrder206,
         ?int $lastYieldedRowid,
         ?int $yieldBatchSize,
     ): array {
         $acceptedRowids = array_values(array_map('intval', $range209['acceptedRangeRowids'] ?? []));
-        $direction = self::jsonTableGeneratedPathRowidCurrentSourceResumeDirection211($aliasOrder206);
-        $resumeRowids = self::jsonTableGeneratedPathRowidCurrentSourceResumeRowids211($acceptedRowids, $direction, $lastYieldedRowid);
+        $direction = self::jsonTableGeneratedPathRowidCurrentSourceResumeDirection($aliasOrder206);
+        $resumeRowids = self::jsonTableGeneratedPathRowidCurrentSourceResumeRowids($acceptedRowids, $direction, $lastYieldedRowid);
         $batchSize = $yieldBatchSize === null ? count($resumeRowids) : max(0, $yieldBatchSize);
         $yieldRowids = $batchSize === 0 ? [] : array_slice($resumeRowids, 0, $batchSize);
         $deferredRowids = array_slice($resumeRowids, count($yieldRowids));
@@ -17954,7 +17954,7 @@ final class SQLiteJsonTablePlan
         $estimatedCost = $resumeReusable
             ? max(1, min($baseCost + max(0, $resumePenalty), max(1, $estimatedRows + max(0, $resumePenalty))))
             : 1000000;
-        $opcode = self::jsonTableGeneratedPathRowidCurrentSourceResumeOpcode211(
+        $opcode = self::jsonTableGeneratedPathRowidCurrentSourceResumeOpcode(
             $rangeReusable,
             $resumeRowids,
             $yieldRowids,
@@ -17984,7 +17984,7 @@ final class SQLiteJsonTablePlan
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
             'resumeOpcode' => $opcode,
-            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceResumeCostClass211($opcode, count($yieldRowids), count($deferredRowids)),
+            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceResumeCostClass($opcode, count($yieldRowids), count($deferredRowids)),
             'resumeFingerprint' => hash('sha256', json_encode([
                 $range209['rangeFingerprint'] ?? null,
                 $direction,
@@ -17998,7 +17998,7 @@ final class SQLiteJsonTablePlan
         ];
     }
 
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeDirection211(array $aliasOrder206): string
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeDirection(array $aliasOrder206): string
     {
         $terms = is_array($aliasOrder206['orderTerms'] ?? null) ? $aliasOrder206['orderTerms'] : [];
         $first = $terms[0] ?? null;
@@ -18013,7 +18013,7 @@ final class SQLiteJsonTablePlan
      * @param list<int> $rowids
      * @return list<int>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeRowids211(array $rowids, string $direction, ?int $lastYieldedRowid): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeRowids(array $rowids, string $direction, ?int $lastYieldedRowid): array
     {
         if ($lastYieldedRowid === null) {
             return $rowids;
@@ -18029,7 +18029,7 @@ final class SQLiteJsonTablePlan
      * @param list<int> $resumeRowids
      * @param list<int> $yieldRowids
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeOpcode211(
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeOpcode(
         bool $rangeReusable,
         array $resumeRowids,
         array $yieldRowids,
@@ -18051,7 +18051,7 @@ final class SQLiteJsonTablePlan
         return 'OP_JsonTableCurrentSourceResumeAfterRowidNext211';
     }
 
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCostClass211(string $opcode, int $yieldCount, int $deferredCount): string
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCostClass(string $opcode, int $yieldCount, int $deferredCount): string
     {
         return match ($opcode) {
             'OP_JsonTableCurrentSourceResumeAfterRowidNext211' => $deferredCount > 0
@@ -18071,7 +18071,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeTransitions211(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeTransitions(array $current, array $next): array
     {
         $fields = [
             'root',
@@ -18114,7 +18114,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeReasons211(array $transitions): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -18139,7 +18139,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $profile211
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeProfile213(array $profile211): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointProfile(array $profile211): array
     {
         $profile = $profile211;
         foreach (['resumeOpcode', 'costClass'] as $field) {
@@ -18170,7 +18170,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeTransitions213(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointTransitions(array $current, array $next): array
     {
         $fields = [
             'root',
@@ -18216,7 +18216,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceResumeReasons213(array $transitions): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {

@@ -9254,7 +9254,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        if (!in_array($slice, [241, 335, 343, 348, 389, 390, 392, 393, 394, 395, 396, 397, 398, 399, 400, 401, 402, 403, 404, 421, 422, 423, 424, 425, 426, 427, 428, 429, 430, 431, 442, 444], true)) {
+        if (!in_array($slice, [241, 335, 343, 348, 388, 389, 390, 392, 393, 394, 395, 396, 397, 398, 399, 400, 401, 402, 403, 404, 421, 422, 423, 424, 425, 426, 427, 428, 429, 430, 431, 442, 444], true)) {
             throw new \InvalidArgumentException('SQLite veryquick shard evidence slice must be one of the consolidated upstream-suite slice ids');
         }
 
@@ -10809,61 +10809,6 @@ final class SQLiteUpstreamSuiteEvidence
 
         return $record;
     }
-    /**
-     * @param list<array<string, mixed>> $rows
-     * @return array<string, mixed>
-     */
-    public function upstreamVeryquickShardCurrentSourceNext388(
-        array $rows,
-        int $currentMapped,
-        int $currentPhpPass,
-        string $launcherBaseHead,
-        string $dashboardSourceHead,
-        string $statusSourceHead,
-        string $implementationSourceHead,
-        string $nextSourceHead,
-        string $focusedPath,
-        string $focusedTestOutput,
-        string $nonOverlapNote,
-        ?int $expectedPassDelta = null,
-        string $processSnapshot = ''
-    ): array {
-        $record = $this->upstreamRunnerFullSuiteCountability(
-            $rows,
-            $currentMapped,
-            $currentPhpPass,
-            $launcherBaseHead,
-            $dashboardSourceHead,
-            $statusSourceHead,
-            $implementationSourceHead,
-            $nextSourceHead,
-            $focusedPath,
-            $focusedTestOutput,
-            $nonOverlapNote,
-            $expectedPassDelta,
-            $processSnapshot
-        );
-
-        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next388-veryquick-shard', (string) $record['status']);
-        $record['counts_upstream_veryquick_shard_current_source_next388'] = $record['status'] !== 'blocked'
-            && ($record['admitted_count'] ?? 0) > 0;
-        foreach ([361, 358, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
-            $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
-        }
-        $record['counts_upstream_exact_shard_runner_current_source_exact shard baseline'] = false;
-        $record['counts_upstream_runner_full_suite_countability'] = false;
-        $record['counts_upstream_runner_rebase_gap'] = false;
-        $record['counts_release_parity'] = false;
-        $record['next_gate'] = match ($record['status']) {
-            'current-source-next388-veryquick-shard-advanced' => 'publish only the current-source next388 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
-            'current-source-next388-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick shard rows without mapped inflation',
-            default => 'repair current-source next388 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick shard row',
-        };
-        $record['dependency_closure'] = 'no new support component needed; current-source next388 veryquick shard admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, integration-source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
-
-        return $record;
-    }
-
     /**
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>

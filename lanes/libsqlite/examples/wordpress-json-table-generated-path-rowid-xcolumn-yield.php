@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-190-b',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext190(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXColumnYieldPlan(
     'json_tree',
     $current,
     $next,
@@ -42,7 +42,7 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNex
 );
 
 $payload = [
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next190',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-xcolumn-yield',
     'wordpressUse' => 'Copied wp_options plugin-rule inspectors can emit a json_tree xColumn row from a generated-path/rowid snapshot only when the pinned current-source generation and final-cost fingerprint still match the materialized row.',
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
@@ -78,7 +78,7 @@ if (($argv[1] ?? '') === '--self-test') {
         exit(1);
     }
 
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next190 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-xcolumn-yield self-test passed\n";
     return;
 }
 

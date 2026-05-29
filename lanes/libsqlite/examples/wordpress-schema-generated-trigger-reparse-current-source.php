@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteSchemaGeneratedTriggerReparsePlan;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $current = [
@@ -19,7 +19,7 @@ $next = [
     new SQLiteSchemaRecord('trigger', 'wp_options_audit_update', 'wp_options', 0, "CREATE TRIGGER wp_options_audit_update AFTER UPDATE ON wp_options BEGIN INSERT INTO wp_option_audit(option_id, option_slug, option_value_len, bucket) VALUES(new.option_id, new.option_slug, new.option_value_len, old.option_bucket); END", 3),
 ];
 
-$plan = SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan::currentNext($current, $next, 'wp_options_audit_update', [
+$plan = SQLiteSchemaGeneratedTriggerReparsePlan::currentNext($current, $next, 'wp_options_audit_update', [
     'schema_version_before' => 106,
     'schema_version_after' => 107,
 ]);

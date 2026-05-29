@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 use InvalidArgumentException;
 
-final class SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan
+final class SQLiteSchemaAlterTriggerGeneratedPlan
 {
     /**
      * @param list<SQLiteSchemaRecord> $records

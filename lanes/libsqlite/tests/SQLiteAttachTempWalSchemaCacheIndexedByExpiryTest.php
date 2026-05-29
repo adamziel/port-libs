@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas116 = [
+$baseSchemas = [
     'main' => [
         'schema_cookie' => 40,
         'wal_frames' => [
@@ -35,7 +35,7 @@ $schemas116 = [
     ],
 ];
 
-$statements116 = [
+$baseStatements = [
     ['name' => 'main-indexed-reader', 'sql' => 'SELECT option_value FROM main.wp_options INDEXED BY wp_options_autoload_name WHERE autoload = ?'],
     ['name' => 'temp-indexed-writer', 'sql' => 'UPDATE temp.wp_options_stage INDEXED BY wp_options_stage_name SET option_value = ? WHERE option_name = ?'],
     ['name' => 'archive-indexed-reader', 'sql' => 'SELECT option_name FROM archive.wp_options AS ao INDEXED BY wp_archive_option_name WHERE option_name GLOB ?'],
@@ -45,20 +45,20 @@ $statements116 = [
     ['name' => 'quoted-index-reader', 'sql' => 'SELECT option_value FROM [main].[wp_options] AS o INDEXED BY [wp_options_future_name] WHERE option_name = ?'],
 ];
 
-$events116 = [
+$baseEvents = [
     ['op' => 'drop_index', 'schema' => 'main', 'index' => 'wp_options_autoload_name'],
     ['op' => 'create_index', 'schema' => 'main', 'index' => 'wp_options_future_name'],
     ['op' => 'drop_index', 'schema' => 'temp', 'index' => 'wp_options_stage_name'],
     ['op' => 'drop_index', 'schema' => 'archive', 'index' => 'wp_archive_option_name'],
 ];
 
-$plan116 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
-    $schemas ?? $schemas116,
-    $statements ?? $statements116,
-    $events ?? $events116,
+$planFactory = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
+    $schemas ?? $baseSchemas,
+    $statements ?? $baseStatements,
+    $events ?? $baseEvents,
 );
 
-$value116 = static function (array $data, string $path): mixed {
+$valueAtPath = static function (array $data, string $path): mixed {
     $cursor = $data;
     foreach (explode('.', $path) as $part) {
         $cursor = is_numeric($part) ? $cursor[(int) $part] : $cursor[$part];
@@ -67,7 +67,7 @@ $value116 = static function (array $data, string $path): mixed {
     return $cursor;
 };
 
-$pathCases116 = [
+$pathCases = [
     'status expired' => ['status', 'schema_cache_expired'],
     'operation marker' => ['operation', 'attach-wal-temp-schema-cache-consolidated'],
     'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-cache-consolidated'],
@@ -111,14 +111,14 @@ $pathCases116 = [
 ];
 
 $tests = [];
-foreach ($pathCases116 as $name => [$path, $expected]) {
-    $tests['attach temp wal schema cache current source next116 ' . $name] = static function (TestRunner $t) use ($plan116, $value116, $path, $expected): void {
-        $t->same($expected, $value116($plan116(), $path));
+foreach ($pathCases as $name => [$path, $expected]) {
+    $tests['attach temp wal schema cache indexed-by expiry ' . $name] = static function (TestRunner $t) use ($planFactory, $valueAtPath, $path, $expected): void {
+        $t->same($expected, $valueAtPath($planFactory(), $path));
     };
 }
 
-$tests['attach temp wal schema cache current source next116 unrelated table ddl still expires indexed table through cookie'] = static function (TestRunner $t) use ($plan116): void {
-    $result = $plan116([
+$tests['attach temp wal schema cache indexed-by expiry unrelated table ddl still expires indexed table through cookie'] = static function (TestRunner $t) use ($planFactory): void {
+    $result = $planFactory([
         ['op' => 'schema_write', 'schema' => 'main', 'table' => 'wp_plugin_state'],
     ], [
         ['name' => 'reader', 'sql' => 'SELECT option_value FROM main.wp_options INDEXED BY wp_options_autoload_name'],
@@ -129,8 +129,8 @@ $tests['attach temp wal schema cache current source next116 unrelated table ddl 
     $t->same(true, $result['statements']['reader']['requires_reprepare']);
 };
 
-$tests['attach temp wal schema cache current source next116 stable indexed statement survives unrelated attached index ddl'] = static function (TestRunner $t) use ($plan116): void {
-    $result = $plan116([
+$tests['attach temp wal schema cache indexed-by expiry stable indexed statement survives unrelated attached index ddl'] = static function (TestRunner $t) use ($planFactory): void {
+    $result = $planFactory([
         ['op' => 'create_index', 'schema' => 'archive', 'index' => 'wp_archive_extra'],
     ], [
         ['name' => 'site-reader', 'sql' => 'SELECT option_value FROM site.wp_2_options INDEXED BY wp_2_options_name'],
@@ -141,7 +141,7 @@ $tests['attach temp wal schema cache current source next116 stable indexed state
     $t->same('reuse_prepared_statement_current_source', $result['statements']['site-reader']['next_step_action']);
 };
 
-$tests['attach temp wal schema cache current source next116 attach supplies indexed dependency'] = static function (TestRunner $t): void {
+$tests['attach temp wal schema cache indexed-by expiry attach supplies indexed dependency'] = static function (TestRunner $t): void {
     $result = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan([
         'main' => ['schema_cookie' => 1, 'tables' => []],
     ], [
@@ -155,8 +155,8 @@ $tests['attach temp wal schema cache current source next116 attach supplies inde
     $t->same(true, $result['statements']['future']['index_transitions'][0]['next_found']);
 };
 
-$tests['attach temp wal schema cache current source next116 rejects empty indexed by name'] = static function (TestRunner $t) use ($plan116): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan116([], [
+$tests['attach temp wal schema cache indexed-by expiry rejects empty indexed by name'] = static function (TestRunner $t) use ($planFactory): void {
+    $t->throws(InvalidArgumentException::class, static fn () => $planFactory([], [
         ['name' => 'bad', 'sql' => 'SELECT option_value FROM main.wp_options INDEXED BY []'],
     ]));
 };
