@@ -35413,7 +35413,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return array_replace_recursive($base, [
             "status" => $ready ? "stat4-expression-partial-final-prepared-handoff-prepared" : "requires-current-source-stat4-final-prepared-handoff-prep",
             "stat4FinalPreparedHandoffPreparationFence" => $fence,
+            "stat4Next958973PreparationFence" => $base["stat4TerminalPreparedHandoffPreparationFence"] ?? null,
             "selectedPlan" => [
+                "next958973Prepared" => ($base["selectedPlan"]["terminalPreparedHandoffPrepared"] ?? null) === true,
                 "finalPreparedHandoffPrepared" => $ready,
                 "finalPreparedHandoffSliceCount" => $fence["sliceCount"],
                 "finalPreparedHandoffPreparedSlices" => $fence["preparedSlices"],
@@ -35431,7 +35433,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 ["sqlite-sqlplanner-stat4-expression-partial-final-prepared-handoff-prep"],
             ))),
             "dependency_closure" => "no new support component needed; final prepared handoff preparation extends the accepted current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work",
-            "non_overlap" => "prepares final prepared current-source handoff slices only; avoids changing terminal prepared, penultimate prepared, advanced prepared, continuation, prepared, payload row-image validation, page anchor, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
+            "non_overlap" => "prepares final prepared current-source handoff slices only; avoids changing terminal prepared handoff windows, next958-973 handoff windows, penultimate prepared, advanced prepared, continuation, prepared, payload row-image validation, page anchor, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters",
             "detail" => trim((string) ($base["detail"] ?? "") . " FINAL PREPARED HANDOFF"),
         ]);
     }

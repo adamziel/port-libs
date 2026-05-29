@@ -40,7 +40,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeSubqueryLimitSa
 );
 
 $summary = [
-    'scenario' => 'wordpress-rowvalue-subquery-limit-savepoint-current-source-next215',
+    'scenario' => 'wordpress-rowvalue-subquery-limit-savepoint-retry',
     'wordpressUse' => 'Model copied wp_options cleanup where row-value UPDATE/DELETE RETURNING reads ordered and limited metadata subqueries, rolls the attempt back to a savepoint image, and retries against the restored current source.',
     'status' => $plan['status'],
     'savepoint' => $plan['savepoint'],
@@ -58,7 +58,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($summary['attemptSelectedIds'] === [[8, 9], [1, 2, 7, 8, 9, 10]]);
     assert($summary['retrySelectedIds'] === [[8, 9, 10], [10]]);
     assert($summary['finalOptionIds'] === [1, 2, 3, 4, 7, 8, 9]);
-    echo "wordpress-rowvalue-subquery-limit-savepoint-current-source-next215 self-test passed\n";
+    echo "wordpress-rowvalue-subquery-limit-savepoint-retry self-test passed\n";
     return;
 }
 

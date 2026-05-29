@@ -45,7 +45,7 @@ $rows = [
     ['rowid' => 51, 'option_name' => 'plugin_cache', 'autoload' => 'no', 'option_value' => 'cache-disabled', 'blog_id' => 3],
 ];
 
-$plan = SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan::materializeNext118(
+$plan = SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan::materialize(
     $prepared,
     $current,
     $predicate,

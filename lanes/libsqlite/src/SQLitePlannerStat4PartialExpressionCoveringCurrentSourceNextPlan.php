@@ -19,7 +19,7 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>
          */
-        public static function materializeNext118(
+        public static function materialize(
             array $preparedSource,
             array $currentSource,
             array $predicate,
@@ -28,16 +28,16 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
             array $neededColumns,
             array $neededExpressions = []
         ): array {
-            self::validateNeededColumnsNext118($neededColumns);
-            $preparedPlan = self::sourcePlanNext118($preparedSource, $predicate, $currentRows, $orderBy, $neededColumns, $neededExpressions);
-            $currentPlan = self::sourcePlanNext118($currentSource, $predicate, $currentRows, $orderBy, $neededColumns, $neededExpressions);
+            self::validateNeededColumns($neededColumns);
+            $preparedPlan = self::sourcePlan($preparedSource, $predicate, $currentRows, $orderBy, $neededColumns, $neededExpressions);
+            $currentPlan = self::sourcePlan($currentSource, $predicate, $currentRows, $orderBy, $neededColumns, $neededExpressions);
 
-            $preparedCookie = self::nonNegativeIntNext118($preparedSource, 'schemaCookie');
-            $currentCookie = self::nonNegativeIntNext118($currentSource, 'schemaCookie');
-            $preparedStat4 = self::nonNegativeIntNext118($preparedSource, 'stat4Generation');
-            $currentStat4 = self::nonNegativeIntNext118($currentSource, 'stat4Generation');
-            $preparedSignature = self::signatureNext118($preparedSource);
-            $currentSignature = self::signatureNext118($currentSource);
+            $preparedCookie = self::nonNegativeInt($preparedSource, 'schemaCookie');
+            $currentCookie = self::nonNegativeInt($currentSource, 'schemaCookie');
+            $preparedStat4 = self::nonNegativeInt($preparedSource, 'stat4Generation');
+            $currentStat4 = self::nonNegativeInt($currentSource, 'stat4Generation');
+            $preparedSignature = self::signature($preparedSource);
+            $currentSignature = self::signature($currentSource);
             $stale = $preparedCookie !== $currentCookie
                 || $preparedStat4 !== $currentStat4
                 || $preparedSignature !== $currentSignature;
@@ -56,8 +56,8 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
                 'schemaCookieChanged' => $preparedCookie !== $currentCookie,
                 'stat4GenerationChanged' => $preparedStat4 !== $currentStat4,
                 'indexSignatureChanged' => $preparedSignature !== $currentSignature,
-                'preparedSource' => self::summaryNext118($preparedSource, $preparedPlan, $preparedSignature),
-                'currentSource' => self::summaryNext118($currentSource, $currentPlan, $currentSignature),
+                'preparedSource' => self::summary($preparedSource, $preparedPlan, $preparedSignature),
+                'currentSource' => self::summary($currentSource, $currentPlan, $currentSignature),
                 'selectedPlan' => $selected,
                 'coveringPayloadColumns' => array_values($neededColumns),
                 'coveringExpressionCount' => count($neededExpressions),
@@ -72,7 +72,7 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
                     'values' => $selected['values'] ?? null,
                     'stat4MatchedCurrentNext' => $selected['stat4MatchedCurrentNext'] ?? [],
                     'currentNextRows' => $selected['currentNextRows'] ?? [],
-                    'opcodes' => self::opcodesNext118($ready, $selected, $neededColumns),
+                    'opcodes' => self::opcodes($ready, $selected, $neededColumns),
                 ],
                 'currentSourceFence' => [
                     'schemaCookie' => $currentCookie,
@@ -102,10 +102,10 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>
          */
-        private static function sourcePlanNext118(array $source, array $predicate, array $currentRows, array $orderBy, array $neededColumns, array $neededExpressions): array
+        private static function sourcePlan(array $source, array $predicate, array $currentRows, array $orderBy, array $neededColumns, array $neededExpressions): array
         {
             $plan = SQLiteSelectExpressionIndexPlan::stat4ExpressionCoveringCurrentSourcePlan(
-                self::indexesNext118($source),
+                self::indexes($source),
                 $predicate,
                 $currentRows,
                 $orderBy,
@@ -134,7 +134,7 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<array<string,mixed>>
          */
-        private static function indexesNext118(array $source): array
+        private static function indexes(array $source): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes) || $indexes === []) {
@@ -152,7 +152,7 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
         /**
          * @param list<string> $neededColumns
          */
-        private static function validateNeededColumnsNext118(array $neededColumns): void
+        private static function validateNeededColumns(array $neededColumns): void
         {
             if ($neededColumns === []) {
                 throw new \InvalidArgumentException('SQLite STAT4 partial expression covering plan needs at least one covering column');
@@ -167,7 +167,7 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function nonNegativeIntNext118(array $source, string $key): int
+        private static function nonNegativeInt(array $source, string $key): int
         {
             $value = $source[$key] ?? null;
             if (!is_int($value) || $value < 0) {
@@ -180,10 +180,10 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function signatureNext118(array $source): string
+        private static function signature(array $source): string
         {
             $parts = [];
-            foreach (self::indexesNext118($source) as $index) {
+            foreach (self::indexes($source) as $index) {
                 $parts[] = implode('|', [
                     (string) ($index['name'] ?? ''),
                     (string) ($index['rootPage'] ?? ''),
@@ -201,12 +201,12 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function summaryNext118(array $source, array $plan, string $signature): array
+        private static function summary(array $source, array $plan, string $signature): array
         {
             return [
                 'name' => (string) ($source['name'] ?? ''),
-                'schemaCookie' => self::nonNegativeIntNext118($source, 'schemaCookie'),
-                'stat4Generation' => self::nonNegativeIntNext118($source, 'stat4Generation'),
+                'schemaCookie' => self::nonNegativeInt($source, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeInt($source, 'stat4Generation'),
                 'indexSignature' => $signature,
                 'usable' => (bool) ($plan['usable'] ?? false),
                 'indexName' => $plan['name'] ?? null,
@@ -220,7 +220,7 @@ final class SQLitePlannerStat4PartialExpressionCoveringCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return list<array<string,mixed>>
          */
-        private static function opcodesNext118(bool $ready, array $selected, array $neededColumns): array
+        private static function opcodes(bool $ready, array $selected, array $neededColumns): array
         {
             if (!$ready) {
                 return [

@@ -11,7 +11,7 @@ UPDATE and DELETE streams are discarded by `ROLLBACK TO`, then retry statements
 read the restored savepoint image and release the current source.
 
 WordPress smoke:
-`wordpress-rowvalue-subquery-limit-savepoint-current-source-next215.php`
+`wordpress-rowvalue-subquery-limit-savepoint-retry.php`
 models copied `wp_options` cleanup driven by ordered migration metadata. It
 keeps only the current-source retry rows after rollback and deletes the network
 drop row selected by the ordered metadata subquery.
@@ -21,13 +21,13 @@ Verification:
 ```text
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
-php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext215Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-subquery-limit-savepoint-current-source-next215.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext215Test.php
+php -l lanes/libsqlite/tests/SQLiteRowValueSubqueryLimitSavepointRetryTest.php
+php -l lanes/libsqlite/examples/wordpress-rowvalue-subquery-limit-savepoint-retry.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueSubqueryLimitSavepointRetryTest.php
 1 test files, 52 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-subquery-limit-savepoint-current-source-next215.php --self-test
-wordpress-rowvalue-subquery-limit-savepoint-current-source-next215 self-test passed
+php lanes/libsqlite/examples/wordpress-rowvalue-subquery-limit-savepoint-retry.php --self-test
+wordpress-rowvalue-subquery-limit-savepoint-retry self-test passed
 ```
 
 Expected dashboard movement: `phpPass` +52 focused PASS lines

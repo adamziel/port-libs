@@ -16,7 +16,7 @@ and covers a WordPress-style copied `wp_options` savepoint flow where:
   `NOT IN` poisoning during cleanup.
 
 WordPress smoke:
-`wordpress-rowvalue-ordered-subquery-savepoint-current-source-next214.php`
+`wordpress-rowvalue-ordered-subquery-savepoint-retry.php`
 models plugin/import metadata selecting only the highest-priority copied
 options rows for retry and network cleanup.
 
@@ -25,11 +25,11 @@ Verification:
 ```sh
 php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php
 php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php
-php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext214Test.php
-php -l lanes/libsqlite/examples/wordpress-rowvalue-ordered-subquery-savepoint-current-source-next214.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext214Test.php
+php -l lanes/libsqlite/tests/SQLiteRowValueOrderedSubquerySavepointRetryTest.php
+php -l lanes/libsqlite/examples/wordpress-rowvalue-ordered-subquery-savepoint-retry.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueOrderedSubquerySavepointRetryTest.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Test.php
-php lanes/libsqlite/examples/wordpress-rowvalue-ordered-subquery-savepoint-current-source-next214.php
+php lanes/libsqlite/examples/wordpress-rowvalue-ordered-subquery-savepoint-retry.php
 git diff --check -- lanes/libsqlite
 ```
 
