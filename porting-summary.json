@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 15:37:13 UTC",
-    "sourceCommit": "f711a017cfc579db48662eb0d4fe3395cf8679ac",
-    "sourceCommitShort": "f711a017cfc5",
+    "generated": "2026-05-29 15:43:44 UTC",
+    "sourceCommit": "a73bd866cb972d548fd3e72593bccbe334022bfc",
+    "sourceCommitShort": "a73bd866cb97",
     "sourceBranch": "unknown",
-    "dashboardCommit": "f711a017cfc579db48662eb0d4fe3395cf8679ac",
-    "dashboardCommitShort": "f711a017cfc5",
+    "dashboardCommit": "a73bd866cb972d548fd3e72593bccbe334022bfc",
+    "dashboardCommitShort": "a73bd866cb97",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,9 +86,9 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted five clean late-BD consolidation...",
-            "currentWork": "Consolidated five late-BD numbered method/helper cleanup handoffs across pager-master fen...",
-            "nextTarget": "Rebase or discard deferred trigger BE, JSON BD, compound BC, pager-master BC, pager-maste...",
+            "audit": "Accepted four clean BE consolidation hand...",
+            "currentWork": "Consolidated four BE numbered method/helper cleanup handoffs across planner STAT4 sample-...",
+            "nextTarget": "Rebase or discard deferred trigger BE, compound BE, JSON BE, JSON BD, compound BC, pager-...",
             "blocker": "No blocker for the accepted reduced consolidation slice.",
             "commit": "forty-f"
         },
