@@ -25140,6 +25140,46 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $evidenceRows
+     * @return array<string, mixed>
+     */
+    public function suiteEvidenceSliceCurrentNext82(
+        array $evidenceRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $acceptedRepositoryHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->suiteEvidenceSliceCurrentNext81(
+            $evidenceRows,
+            $currentMapped,
+            $currentPhpPass,
+            $acceptedRepositoryHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $record['status'] = str_replace('current-next81', 'current-next82', (string) ($record['status'] ?? 'blocked'));
+        $record['countable'] = ($record['status'] ?? null) === 'current-next82-suite-evidence-countable';
+        $record['counts_suite_evidence_current_next81'] = false;
+        $record['counts_suite_evidence_current_next82'] = $record['countable'];
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $record['countable']
+            ? 'publish current-next82 as one bounded suite-evidence countability slice after integrated current-next77/current-next78/current-next79/current-next80/current-next81; release/all parity remains blocked until complete zero-error closure evidence is separately accepted'
+            : 'keep current-next82 suite evidence uncounted until accepted-head, lane-local artifact, zero-error runner, duplicate-runner, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-next82 suite evidence reuses the integrated current-next77/current-next78/current-next79/current-next80/current-next81 lane-local evidence validator with next82 identifiers only';
+
+        return $record;
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
