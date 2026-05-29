@@ -43,6 +43,24 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
      * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, file?:string|null, commit?:bool}> $events
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext117(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    {
+        return self::buildPlan($schemas, $statements, self::consolidateDuplicateEvents($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next117', [
+            'sqlite-attach-temp-wal-schema-cache-current-source-next117',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next116',
+            'sqlite-indexed-by-schema-cache-expiry',
+            'sqlite-attach-wal-temp-schema-cache-current-source-next92',
+            'sqlite-wal-page-one-schema-cookie-current-source',
+            'sqlite-temp-schema-shadow-cache-expiry',
+        ]);
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
+     * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
+     * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, file?:string|null, commit?:bool}> $events
      * @param list<string> $dependencies
      * @return array<string,mixed>
      */
@@ -545,6 +563,67 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
         });
 
         return [$next, $log];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $events
+     * @return list<array<string,mixed>>
+     */
+    private static function consolidateDuplicateEvents(array $events): array
+    {
+        $seen = [];
+        $consolidated = [];
+        foreach ($events as $event) {
+            $key = self::eventConsolidationKey($event);
+            if ($key !== null && isset($seen[$key])) {
+                continue;
+            }
+            if ($key !== null) {
+                $seen[$key] = true;
+            }
+            $consolidated[] = $event;
+        }
+
+        return $consolidated;
+    }
+
+    /**
+     * @param array<string,mixed> $event
+     */
+    private static function eventConsolidationKey(array $event): ?string
+    {
+        $op = strtolower(trim((string) ($event['op'] ?? '')));
+        if (!in_array($op, ['schema_write', 'wal_commit', 'create_index', 'drop_index', 'drop_table'], true)) {
+            return null;
+        }
+
+        $schema = self::name((string) ($event['schema'] ?? ''), 'SQLite schema event target');
+        $object = match ($op) {
+            'create_index', 'drop_index' => self::name((string) ($event['index'] ?? $event['object'] ?? ''), 'SQLite index event object'),
+            'drop_table' => self::name((string) ($event['table'] ?? $event['object'] ?? ''), 'SQLite table event object'),
+            default => self::schemaWriteObject($event),
+        };
+
+        return $op . ':' . $schema . ':' . $object;
+    }
+
+    /**
+     * @param array<string,mixed> $event
+     */
+    private static function schemaWriteObject(array $event): string
+    {
+        $object = $event['table'] ?? $event['object'] ?? null;
+        if (is_string($object) && trim($object) !== '') {
+            return self::name($object, 'SQLite schema write object');
+        }
+
+        $indexes = [];
+        foreach (($event['indexes'] ?? []) as $index) {
+            $indexes[] = self::name((string) $index, 'SQLite schema write index');
+        }
+        sort($indexes);
+
+        return implode(',', $indexes);
     }
 
     /**
