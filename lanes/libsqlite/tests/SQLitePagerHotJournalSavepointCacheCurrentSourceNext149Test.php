@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerHotJournalSavepointCacheCurrentSourceNext149Plan;
+use PortLibs\LibSqlite\SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -44,7 +44,7 @@ $plan = static fn (
     string $statement = 'retry-option-import',
     string $currentSource = 'journal-before-hot:41',
     string $recoveredSource = 'hot-recovered:42',
-): array => SQLitePagerHotJournalSavepointCacheCurrentSourceNext149Plan::currentSourceNext(
+): array => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext149(
     $pageSize,
     $savepoint,
     $statement,
@@ -131,7 +131,7 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'rejects bad page size' => static fn () => SQLitePagerHotJournalSavepointCacheCurrentSourceNext149Plan::currentSourceNext(0, 's', 'n', 'a', 'b', $cache, $hotPages, $savepointBefore, $nextWrites, $reads),
+    'rejects bad page size' => static fn () => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext149(0, 's', 'n', 'a', 'b', $cache, $hotPages, $savepointBefore, $nextWrites, $reads),
     'rejects empty savepoint' => static fn () => $plan(null, null, null, null, null, 41, ''),
     'rejects empty statement' => static fn () => $plan(null, null, null, null, null, 41, 's', ''),
     'rejects empty current source' => static fn () => $plan(null, null, null, null, null, 41, 's', 'n', ''),

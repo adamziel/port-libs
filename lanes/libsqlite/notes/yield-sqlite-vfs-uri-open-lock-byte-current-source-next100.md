@@ -2,7 +2,7 @@
 
 ## Delta
 
-- Added `SQLiteVfsUriOpenLockByteCurrentSourceNext100` for current-source
+- Added `SQLiteVfsUriOpenLockByteCurrentSourceNext` for current-source
   lifecycle behavior around decoded SQLite `file:` URI opens.
 - The slice tracks URI-normalized sources, alias groups for equivalent decoded
   paths, file-wide byte-lock conflicts across aliases, reopen reference counts,
@@ -15,7 +15,7 @@
 ## Verification
 
 ```bash
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsUriOpenLockByteCurrentSourceNext100Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsUriOpenLockByteCurrentSourceNextTest.php
 ```
 
 Expected focused result: `1 test files`, `70 assertions`, `0 failures`.

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `pager-hot-journal-savepoint-cache-current-source-next100`.
 
-This slice adds `SQLitePagerHotJournalSavepointCacheCurrentSourceNext100Plan`. It models the pager cache boundary after hot rollback-journal recovery changes the current source token, a savepoint writes recovered pages, `ROLLBACK TO` restores the hot-journal before-images, and `RELEASE` allows the next reads to reuse only pages whose cache epoch/source token match the recovered source.
+This slice adds `SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan`. It models the pager cache boundary after hot rollback-journal recovery changes the current source token, a savepoint writes recovered pages, `ROLLBACK TO` restores the hot-journal before-images, and `RELEASE` allows the next reads to reuse only pages whose cache epoch/source token match the recovered source.
 
 Focused behavior:
 
@@ -15,7 +15,7 @@ Focused behavior:
 Verification:
 
 ```bash
-php -l lanes/libsqlite/src/SQLitePagerHotJournalSavepointCacheCurrentSourceNext100Plan.php
+php -l lanes/libsqlite/src/SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext100Test.php
 php -l lanes/libsqlite/examples/wordpress-hot-journal-savepoint-cache-current-source-next100.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext100Test.php

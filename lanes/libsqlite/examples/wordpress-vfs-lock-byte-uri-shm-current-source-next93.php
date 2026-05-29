@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext93;
+use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
 $filename = 'file://localhost/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix';
-$plan = SQLiteVfsLockByteUriShmCurrentSourceNext93::plan([], [
+$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::plan([], [
     'main shared wp-reader 12',
     'shm read0 shared wp-reader',
     'main reserved wp-import 21',

@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `pager-master-journal-savepoint-cache-current-source-next138`.
 
-This slice adds `SQLitePagerMasterJournalSavepointCacheCurrentSourceNext138Plan`. It composes the accepted master-journal hot-cache current-source rebase with active savepoint behavior: savepoint before-images are captured from recovered current-source pages, a failed savepoint write rolls back to those recovered bytes, the retry statement captures its own before-images from the restored current source, and optional RELEASE merges the retry page set without reviving stale crashed cache entries.
+This slice adds `SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan`. It composes the accepted master-journal hot-cache current-source rebase with active savepoint behavior: savepoint before-images are captured from recovered current-source pages, a failed savepoint write rolls back to those recovered bytes, the retry statement captures its own before-images from the restored current source, and optional RELEASE merges the retry page set without reviving stale crashed cache entries.
 
 WordPress smoke: `wordpress-pager-master-journal-savepoint-cache-current-source-next138.php` models a copied `wp_options` import where the current master journal refreshes a clean stale options page, invalidates a dirty plugin-cache page, rolls back the failed savepoint write, and retries option/transient writes against recovered current-source bytes.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalSavepointCacheCurrentSourceNext138Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalSavepointCacheCurrentSourceNext138Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-savepoint-cache-current-source-next138.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalSavepointCacheCurrentSourceNext138Test.php`

@@ -6,11 +6,11 @@ require_once __DIR__ . '/../src/SQLiteBusyHandler.php';
 require_once __DIR__ . '/../src/SQLiteFileUri.php';
 require_once __DIR__ . '/../src/SQLiteOpenPlan.php';
 require_once __DIR__ . '/../src/SQLiteLockByteRangePlan.php';
-require_once __DIR__ . '/../src/SQLiteVfsUriOpenLockByteCurrentSourceNext100.php';
+require_once __DIR__ . '/../src/SQLiteVfsUriOpenLockByteCurrentSourceNext.php';
 
-use PortLibs\LibSqlite\SQLiteVfsUriOpenLockByteCurrentSourceNext100;
+use PortLibs\LibSqlite\SQLiteVfsUriOpenLockByteCurrentSourceNext;
 
-$plan = SQLiteVfsUriOpenLockByteCurrentSourceNext100::plan([
+$plan = SQLiteVfsUriOpenLockByteCurrentSourceNext::plan([
     ['kind' => 'open', 'source' => 'main', 'filename' => 'file://localhost/srv/www/wp-content/database/wp.sqlite?mode=rw&cache=shared&vfs=unix', 'connection' => 'wp-reader'],
     ['kind' => 'open', 'source' => 'import', 'filename' => 'file:/srv/www/wp-content/database/wp.sqlite?mode=rw&cache=private', 'connection' => 'wp-import'],
     ['kind' => 'lock', 'source' => 'main', 'level' => 'shared', 'connection' => 'wp-reader', 'shared_slot' => 4],

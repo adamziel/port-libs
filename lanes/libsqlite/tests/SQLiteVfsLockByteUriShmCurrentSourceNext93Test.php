@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext93;
+use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
 $uri = 'file://localhost/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix';
 $sameUri = 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=private';
 
-$run = static fn (array $current, array $ops, string $filename = null): array => SQLiteVfsLockByteUriShmCurrentSourceNext93::plan(
+$run = static fn (array $current, array $ops, string $filename = null): array => SQLiteVfsLockByteUriShmCurrentSourceNext::plan(
     $current,
     $ops,
     $filename ?? $uri,
@@ -120,7 +120,7 @@ $tests['vfs lock byte uri shm current source next93 second reserved blocked'] = 
 $tests['vfs lock byte uri shm current source next93 pending not blocked by shared'] = static fn (TestRunner $t) => $t->same([], $run([], ['main shared a 1', 'main pending b 2'])['events'][1]['blocking']);
 $tests['vfs lock byte uri shm current source next93 unlock shm idempotent'] = static fn (TestRunner $t) => $t->same('released', $run([], ['shm read3 unlock missing'])['events'][0]['status']);
 
-$tests['vfs lock byte uri shm current source next93 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext93::plan([], [], $uri));
+$tests['vfs lock byte uri shm current source next93 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::plan([], [], $uri));
 $tests['vfs lock byte uri shm current source next93 rejects unsupported op'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run([], ['checkpoint wp']));
 $tests['vfs lock byte uri shm current source next93 rejects bad uri authority'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run([], ['main shared wp 1'], 'file://example.com/srv/db.sqlite?mode=rw'));
 $tests['vfs lock byte uri shm current source next93 rejects bad percent'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run([], ['main shared wp 1'], 'file:/srv/db%2.sqlite?mode=rw'));

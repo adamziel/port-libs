@@ -1,6 +1,6 @@
 # vfs-lock-byte-uri-shm-current-source-next93
 
-This slice adds `SQLiteVfsLockByteUriShmCurrentSourceNext93`, a bounded native
+This slice adds `SQLiteVfsLockByteUriShmCurrentSourceNext`, a bounded native
 PHP planner for current-source VFS transitions that normalize SQLite `file:`
 URI database identity before coordinating main database lock bytes with the
 matching WAL `-shm` sidecar lock source.
@@ -22,10 +22,10 @@ Focused behavior:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteVfsLockByteUriShmCurrentSourceNext93.php`
-- `php -l lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNext93Test.php`
+- `php -l lanes/libsqlite/src/SQLiteVfsLockByteUriShmCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-vfs-lock-byte-uri-shm-current-source-next93.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNext93Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNextTest.php`
   - `1 test files, 64 assertions, 0 failures`
   - `64` PASS lines
 - `php lanes/libsqlite/examples/wordpress-vfs-lock-byte-uri-shm-current-source-next93.php --self-test`

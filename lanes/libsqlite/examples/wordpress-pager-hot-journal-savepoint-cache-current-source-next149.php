@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePagerHotJournalSavepointCacheCurrentSourceNext149Plan;
+use PortLibs\LibSqlite\SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan;
 
 $pageSize = 96;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
-$plan = SQLitePagerHotJournalSavepointCacheCurrentSourceNext149Plan::currentSourceNext(
+$plan = SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext149(
     $pageSize,
     'wp_option_import',
     'retry_active_plugins',

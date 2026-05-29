@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsUriOpenLockByteCurrentSourceNext100;
+use PortLibs\LibSqlite\SQLiteVfsUriOpenLockByteCurrentSourceNext;
 
-$run100 = static fn (array $operations, array $current = []): array => SQLiteVfsUriOpenLockByteCurrentSourceNext100::plan($operations, $current);
+$run100 = static fn (array $operations, array $current = []): array => SQLiteVfsUriOpenLockByteCurrentSourceNext::plan($operations, $current);
 
 $main100 = static fn (): array => $run100([
     ['kind' => 'open', 'source' => 'main', 'filename' => 'file://localhost/srv/www/wp-content/database/wp%20current.sqlite?mode=rw&cache=shared&vfs=unix&psow=1', 'connection' => 'wp-reader'],

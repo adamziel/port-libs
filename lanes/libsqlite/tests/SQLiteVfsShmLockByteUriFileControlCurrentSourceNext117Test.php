@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext97;
+use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
 $tests = [];
 
-$run117 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext97::currentSourceNext117($ops, $options + [
+$run117 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext117($ops, $options + [
     'filename' => 'file://localhost/srv/www/wp-content/database/wp%20refresh.sqlite?mode=rw&cache=shared',
 ]);
 
@@ -121,7 +121,7 @@ $tests['vfs shm lockbyte uri filecontrol current source next117 readonly refresh
 $tests['vfs shm lockbyte uri filecontrol current source next117 readonly refresh unchanged'] = static fn (TestRunner $t) => $t->same(false, $readonly()['events'][2]['changed']);
 $tests['vfs shm lockbyte uri filecontrol current source next117 readonly remains fresh'] = static fn (TestRunner $t) => $t->same(false, $readonly()['events'][3]['stale_current_source']);
 
-$tests['vfs shm lockbyte uri filecontrol current source next117 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext97::currentSourceNext117([]));
+$tests['vfs shm lockbyte uri filecontrol current source next117 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext117([]));
 $tests['vfs shm lockbyte uri filecontrol current source next117 rejects bad refresh handle'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run117(['file_control(data_version, refresh)']));
 
 return $tests;

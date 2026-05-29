@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext97;
+use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
 $tests = [];
 
-$run = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext97::plan($ops, $options);
+$run = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::plan($ops, $options);
 
 $wordpress = static function () use ($run): array {
     static $result = null;
@@ -176,7 +176,7 @@ $tests['vfs lock byte uri shm current source next97 shm shared blocked by exclus
 $tests['vfs lock byte uri shm current source next97 second reserved blocked'] = static fn (TestRunner $t) => $t->same(['a:reserved'], $run(['open(main)', 'lock reserved a 1', 'lock reserved b 2'])['events'][2]['blocking']);
 $tests['vfs lock byte uri shm current source next97 pending blocked by pending'] = static fn (TestRunner $t) => $t->same(['a:pending'], $run(['open(main)', 'lock pending a 1', 'lock pending b 2'])['events'][2]['blocking']);
 
-$tests['vfs lock byte uri shm current source next97 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext97::plan([]));
+$tests['vfs lock byte uri shm current source next97 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::plan([]));
 $tests['vfs lock byte uri shm current source next97 rejects lock before open'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run(['lock shared wp 1']));
 $tests['vfs lock byte uri shm current source next97 rejects remote authority'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run(['open(file://example.com/srv/db.sqlite-shm?mode=rw)']));
 $tests['vfs lock byte uri shm current source next97 rejects bad percent'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run(['open(file:/srv/db%2.sqlite-shm?mode=rw)']));

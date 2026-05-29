@@ -17,7 +17,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsShmFileControlOpenCurrentSourceNext91Test.php lanes/libsqlite/tests/SQLiteVfsUriShmFileControlCurrentSourceNext92Test.php lanes/libsqlite/tests/SQLiteVfsOpenLockFileControlCurrentSourceNext99Test.php lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNext97Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsShmFileControlOpenCurrentSourceNext91Test.php lanes/libsqlite/tests/SQLiteVfsUriShmFileControlCurrentSourceNext92Test.php lanes/libsqlite/tests/SQLiteVfsOpenLockFileControlCurrentSourceNext99Test.php lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNextTest.php
 Focused test run: 4 selected test files (root lock skipped)
 4 test files, 244 assertions, 0 failures
 ```

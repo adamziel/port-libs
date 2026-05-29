@@ -22,7 +22,7 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsShmLockByteFileControlCurrentSourceNext112Test.php
 1 test files, 60 assertions, 0 failures
 
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNext97Test.php lanes/libsqlite/tests/SQLiteVfsShmLockByteFileControlCurrentSourceNext112Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNextTest.php lanes/libsqlite/tests/SQLiteVfsShmLockByteFileControlCurrentSourceNext112Test.php
 2 test files, 137 assertions, 0 failures
 ```
 

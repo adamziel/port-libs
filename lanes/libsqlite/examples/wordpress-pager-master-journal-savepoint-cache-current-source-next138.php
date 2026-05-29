@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalSavepointCacheCurrentSourceNext138Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalHotCacheCurrentSourceNext136Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalSavepointCacheCurrentSourceNext138Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next138.sqlite';
@@ -25,7 +25,7 @@ $recovered = [
     4 => $page('wp next138 recovered transient overflow current source'),
 ];
 
-$plan = SQLitePagerMasterJournalSavepointCacheCurrentSourceNext138Plan::plan(
+$plan = SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::plan138(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n/old/site.sqlite-journal\n",

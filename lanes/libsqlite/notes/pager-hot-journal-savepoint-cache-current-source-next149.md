@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice adds `SQLitePagerHotJournalSavepointCacheCurrentSourceNext149Plan`, a bounded current-source model for the pager path where hot rollback-journal recovery is followed by `ROLLBACK TO` savepoint and a retrying next statement.
+This slice adds `SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan`, a bounded current-source model for the pager path where hot rollback-journal recovery is followed by `ROLLBACK TO` savepoint and a retrying next statement.
 
 The behavior is intentionally narrower than accepted cache-spill/master-journal work: it focuses on page-cache source-token validity after hot recovery and savepoint rollback, before the next statement captures before-images.
 

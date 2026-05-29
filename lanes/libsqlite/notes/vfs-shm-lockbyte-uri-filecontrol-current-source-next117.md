@@ -5,7 +5,7 @@ and refreshing database `data_version` after URI-routed file-control writes.
 
 Behavior covered:
 
-- Adds `SQLiteVfsLockByteUriShmCurrentSourceNext97::currentSourceNext117()` as
+- Adds `SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext117()` as
   the next dependency marker for URI, SHM, lock-byte, and file-control current
   source behavior.
 - Models `file_control(data_version, refresh)` as a bounded current-source

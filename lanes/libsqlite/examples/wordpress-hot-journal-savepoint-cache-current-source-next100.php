@@ -3,14 +3,14 @@
 declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
-require_once __DIR__ . '/../src/SQLitePagerHotJournalSavepointCacheCurrentSourceNext100Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerHotJournalSavepointCacheCurrentSourceNext100Plan;
+use PortLibs\LibSqlite\SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan;
 
 $pageSize = 64;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
-$plan = SQLitePagerHotJournalSavepointCacheCurrentSourceNext100Plan::currentSourceNext(
+$plan = SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext100(
     $pageSize,
     'wp_plugin_import',
     'wal-salt-23:journal-9',

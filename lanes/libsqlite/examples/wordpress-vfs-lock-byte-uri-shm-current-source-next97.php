@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext97;
+use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
-$plan = SQLiteVfsLockByteUriShmCurrentSourceNext97::plan([
+$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::plan([
     'open(file:/srv/www/wp-content/database/wp%20copy.sqlite-shm?mode=rw&cache=shared)',
     'shm read0 shared wp-reader',
     'open(file://localhost/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared)',

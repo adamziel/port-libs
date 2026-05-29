@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsUriOpenLockByteCurrentSourceNext84;
+use PortLibs\LibSqlite\SQLiteVfsUriOpenLockByteCurrentSourceNext;
 
-$vfsUriLock84Plan = static fn (): array => SQLiteVfsUriOpenLockByteCurrentSourceNext84::plan([
+$vfsUriLock84Plan = static fn (): array => SQLiteVfsUriOpenLockByteCurrentSourceNext::plan([
     [
         'name' => 'main',
         'filename' => 'file:/srv/www/wp-content/database/site.sqlite?mode=rw&cache=shared&vfs=unix&psow=1',
@@ -30,7 +30,7 @@ $vfsUriLock84Plan = static fn (): array => SQLiteVfsUriOpenLockByteCurrentSource
     ],
 ]);
 
-$vfsUriLock84Busy = static fn (): array => SQLiteVfsUriOpenLockByteCurrentSourceNext84::plan([
+$vfsUriLock84Busy = static fn (): array => SQLiteVfsUriOpenLockByteCurrentSourceNext::plan([
     [
         'name' => 'busy',
         'filename' => 'file:/srv/www/wp-content/database/site.sqlite?mode=rw&cache=shared',
@@ -93,9 +93,9 @@ return [
     'vfs uri open lock byte current source next84 busy preserves source snapshot' => static fn (TestRunner $t) => $t->same('busy', $vfsUriLock84Busy()['events'][0]['next_source']['name']),
     'vfs uri open lock byte current source next84 busy skips requested locks' => static fn (TestRunner $t) => $t->same([], $vfsUriLock84Busy()['next']['sources']['busy']['holders']),
     'vfs uri open lock byte current source next84 busy dependency includes busy handler' => static fn (TestRunner $t) => $t->same(true, in_array('busy-handler', $vfsUriLock84Busy()['dependencies'], true)),
-    'vfs uri open lock byte current source next84 rejects empty sources' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriOpenLockByteCurrentSourceNext84::plan([])),
-    'vfs uri open lock byte current source next84 rejects empty source name' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriOpenLockByteCurrentSourceNext84::plan([['name' => '', 'filename' => '/tmp/a.sqlite']])),
-    'vfs uri open lock byte current source next84 rejects missing filename' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriOpenLockByteCurrentSourceNext84::plan([['name' => 'main']])),
-    'vfs uri open lock byte current source next84 rejects malformed operation string' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriOpenLockByteCurrentSourceNext84::plan([['name' => 'main', 'filename' => '/tmp/a.sqlite', 'operations' => ['unlock wp']]])),
-    'vfs uri open lock byte current source next84 rejects bad shared slot type' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriOpenLockByteCurrentSourceNext84::plan([['name' => 'main', 'filename' => '/tmp/a.sqlite', 'operations' => [['connection' => 'wp', 'shared_slot' => '2']]]])),
+    'vfs uri open lock byte current source next84 rejects empty sources' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriOpenLockByteCurrentSourceNext::plan([])),
+    'vfs uri open lock byte current source next84 rejects empty source name' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriOpenLockByteCurrentSourceNext::plan([['name' => '', 'filename' => '/tmp/a.sqlite']])),
+    'vfs uri open lock byte current source next84 rejects missing filename' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriOpenLockByteCurrentSourceNext::plan([['name' => 'main']])),
+    'vfs uri open lock byte current source next84 rejects malformed operation string' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriOpenLockByteCurrentSourceNext::plan([['name' => 'main', 'filename' => '/tmp/a.sqlite', 'operations' => ['unlock wp']]])),
+    'vfs uri open lock byte current source next84 rejects bad shared slot type' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriOpenLockByteCurrentSourceNext::plan([['name' => 'main', 'filename' => '/tmp/a.sqlite', 'operations' => [['connection' => 'wp', 'shared_slot' => '2']]]])),
 ];

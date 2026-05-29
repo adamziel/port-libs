@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Added `SQLiteVfsUriOpenLockByteCurrentSourceNext84` to track each SQLite
+- Added `SQLiteVfsUriOpenLockByteCurrentSourceNext` to track each SQLite
   `file:` URI open as a named current source and derive byte-range lock plans
   from that source's decoded `SQLiteOpenPlan`.
 - The slice preserves URI input/path metadata, shared/private cache and VFS
@@ -18,7 +18,7 @@
 Focused command:
 
 ```bash
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsUriOpenLockByteCurrentSourceNext84Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsUriOpenLockByteCurrentSourceNextTest.php
 ```
 
 Result:
@@ -32,8 +32,8 @@ Focused test run: 1 selected test files (root lock skipped)
 Syntax/example checks:
 
 ```bash
-php -l lanes/libsqlite/src/SQLiteVfsUriOpenLockByteCurrentSourceNext84.php
-php -l lanes/libsqlite/tests/SQLiteVfsUriOpenLockByteCurrentSourceNext84Test.php
+php -l lanes/libsqlite/src/SQLiteVfsUriOpenLockByteCurrentSourceNext.php
+php -l lanes/libsqlite/tests/SQLiteVfsUriOpenLockByteCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-vfs-uri-open-lock-byte-current-source-next84.php
 php lanes/libsqlite/examples/wordpress-vfs-uri-open-lock-byte-current-source-next84.php
 ```

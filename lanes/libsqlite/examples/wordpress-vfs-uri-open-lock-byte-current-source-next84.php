@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsUriOpenLockByteCurrentSourceNext84;
+use PortLibs\LibSqlite\SQLiteVfsUriOpenLockByteCurrentSourceNext;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$plan = SQLiteVfsUriOpenLockByteCurrentSourceNext84::plan([
+$plan = SQLiteVfsUriOpenLockByteCurrentSourceNext::plan([
     [
         'name' => 'main',
         'filename' => 'file:/srv/www/wp-content/database/site.sqlite?mode=rw&cache=shared&vfs=unix&psow=1',

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteVfsUriOpenLockByteCurrentSourceNext100
+final class SQLiteVfsUriOpenLockByteCurrentSourceNext
 {
     /**
      * @param list<array<string,mixed>|string> $operations
@@ -13,6 +13,10 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext100
      */
     public static function plan(array $operations, array $current = []): array
     {
+        if (self::looksLikeSourceList($operations)) {
+            return self::legacy84Plan($operations);
+        }
+
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS URI open lock-byte current-source next100 requires operations');
         }
@@ -537,6 +541,253 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext100
      * @return list<string>
      */
     private static function dependencies(array ...$sets): array
+    {
+        return array_values(array_unique(array_merge(...$sets)));
+    }
+
+    /**
+     * @param list<array<string,mixed>|string> $operations
+     */
+    private static function looksLikeSourceList(array $operations): bool
+    {
+        if ($operations === []) {
+            return false;
+        }
+
+        $first = $operations[array_key_first($operations)];
+        if (is_string($first)) {
+            return !preg_match('/^(open|lock|close)\b/i', trim($first));
+        }
+
+        return is_array($first) && (array_key_exists('filename', $first) || array_key_exists('name', $first)) && !array_key_exists('kind', $first) && !array_key_exists('op', $first);
+    }
+
+/**
+     * @param list<array<string, mixed>> $sources
+     * @return array{status:string,count:int,current:array<string, mixed>,next:array<string, mixed>,events:list<array<string, mixed>>,dependencies:list<string>}
+     */
+    private static function legacy84Plan(array $sources): array
+    {
+        if ($sources === []) {
+            throw new \InvalidArgumentException('SQLite VFS URI open lock-byte current-source next84 requires sources');
+        }
+
+        $locks = new SQLiteVfsLockState();
+        $current = ['sources' => [], 'holders' => [], 'selected_source' => null];
+        $events = [];
+        $dependencies = ['vfs-uri-open-lock-byte-current-source-next84'];
+
+        foreach ($sources as $ordinal => $source) {
+            $name = self::legacy84SourceName($source['name'] ?? ('source' . $ordinal));
+            $filename = self::legacy84SourceString($source['filename'] ?? null, 'filename');
+            $open = SQLiteOpenPlan::forFilename(
+                $filename,
+                (bool) ($source['file_exists'] ?? true),
+                (bool) ($source['directory_writable'] ?? true),
+                (bool) ($source['lock_available'] ?? true),
+                isset($source['busy_timeout']) ? SQLiteBusyHandler::timeout(self::legacy84NonNegativeInt($source['busy_timeout'], 'busy_timeout')) : null
+            );
+            $operations = self::legacy84Operations($source['operations'] ?? []);
+            $sourceCurrent = self::legacy84SourceSnapshot($name, $open, $locks);
+            $dependencies = self::legacy84Dependencies($dependencies, $open['dependencies']);
+
+            if (($open['can_open'] ?? false) !== true) {
+                $next = $current;
+                $next['sources'][$name] = $sourceCurrent;
+                $events[] = [
+                    'ordinal' => $ordinal,
+                    'kind' => 'open',
+                    'source' => $name,
+                    'status' => 'blocked',
+                    'current_source' => null,
+                    'open' => $open,
+                    'next_source' => $sourceCurrent,
+                    'reason' => $open['reason'],
+                    'dependencies' => self::legacy84Dependencies(['vfs-uri-open-source'], $open['dependencies']),
+                ];
+                $current = $next;
+                continue;
+            }
+
+            $next = $current;
+            $next['sources'][$name] = $sourceCurrent;
+            $next['selected_source'] = $name;
+            $events[] = [
+                'ordinal' => $ordinal,
+                'kind' => 'open',
+                'source' => $name,
+                'status' => 'ready',
+                'current_source' => $current['sources'][$name] ?? null,
+                'open' => $open,
+                'next_source' => $sourceCurrent,
+                'reason' => null,
+                'dependencies' => self::legacy84Dependencies(['vfs-uri-open-source'], $open['dependencies']),
+            ];
+            $current = $next;
+
+            foreach ($operations as $operation) {
+                $before = self::legacy84SourceSnapshot($name, $open, $locks);
+                $lockPlan = SQLiteLockByteRangePlan::forOpenPlan(
+                    $open,
+                    $operation['level'],
+                    $operation['connection'],
+                    $operation['shared_slot']
+                );
+                $result = $locks->acquire($lockPlan);
+                $after = self::legacy84SourceSnapshot($name, $open, $locks);
+                $current['sources'][$name] = $after;
+                $current['holders'] = self::legacy84AllHolders($current['sources']);
+                $current['selected_source'] = $name;
+                $dependencies = self::legacy84Dependencies($dependencies, $lockPlan['dependencies'], $result['dependencies']);
+
+                $events[] = [
+                    'ordinal' => count($events),
+                    'kind' => 'lock',
+                    'source' => $name,
+                    'level' => $operation['level'],
+                    'connection' => $operation['connection'],
+                    'current_source' => $before,
+                    'plan' => $lockPlan,
+                    'result' => $result,
+                    'next_source' => $after,
+                    'dependencies' => self::legacy84Dependencies(['vfs-uri-open-lock-byte-current-source-next84'], $lockPlan['dependencies'], $result['dependencies']),
+                ];
+            }
+        }
+
+        return [
+            'status' => self::legacy84Status($events),
+            'count' => count($events),
+            'current' => ['sources' => [], 'holders' => [], 'selected_source' => null],
+            'next' => $current,
+            'events' => $events,
+            'dependencies' => array_values(array_unique($dependencies)),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $open
+     * @return array{name:string,path:string,input:string,is_uri:bool,mode:string,cache:string|null,vfs:string|null,nolock:bool,immutable:bool,can_open:bool,holders:array<string, string>,constants:array<string, int>,dependencies:list<string>}
+     */
+    private static function legacy84SourceSnapshot(string $name, array $open, SQLiteVfsLockState $locks): array
+    {
+        $path = (string) $open['path'];
+
+        return [
+            'name' => $name,
+            'path' => $path,
+            'input' => (string) ($open['uri']['input'] ?? $path),
+            'is_uri' => (bool) ($open['uri']['is_uri'] ?? false),
+            'mode' => (string) $open['mode'],
+            'cache' => $open['cache'],
+            'vfs' => $open['vfs'],
+            'nolock' => (bool) $open['nolock'],
+            'immutable' => (bool) $open['immutable'],
+            'can_open' => (bool) $open['can_open'],
+            'holders' => $locks->holders($path),
+            'constants' => SQLiteLockByteRangePlan::constants(),
+            'dependencies' => self::legacy84Dependencies(['vfs-current-source-open'], $open['dependencies']),
+        ];
+    }
+
+    /**
+     * @param mixed $operations
+     * @return list<array{level:string,connection:string,shared_slot:int}>
+     */
+    private static function legacy84Operations(mixed $operations): array
+    {
+        if (!is_array($operations)) {
+            throw new \InvalidArgumentException('SQLite VFS next84 source operations must be a list');
+        }
+
+        $normalized = [];
+        foreach ($operations as $operation) {
+            if (is_string($operation)) {
+                if (!preg_match('/^(?<level>shared|reserved|pending|exclusive)\s+(?<connection>[A-Za-z0-9_.:-]+)(?:\s+(?<slot>\d+))?$/i', trim($operation), $matches)) {
+                    throw new \InvalidArgumentException('SQLite VFS next84 lock operation is unsupported');
+                }
+                $normalized[] = [
+                    'level' => strtolower($matches['level']),
+                    'connection' => $matches['connection'],
+                    'shared_slot' => isset($matches['slot']) && $matches['slot'] !== '' ? (int) $matches['slot'] : 0,
+                ];
+                continue;
+            }
+
+            if (!is_array($operation)) {
+                throw new \InvalidArgumentException('SQLite VFS next84 lock operation must be a string or array');
+            }
+
+            $normalized[] = [
+                'level' => strtolower(self::legacy84SourceString($operation['level'] ?? 'shared', 'lock level')),
+                'connection' => self::legacy84SourceName($operation['connection'] ?? null),
+                'shared_slot' => self::legacy84NonNegativeInt($operation['shared_slot'] ?? 0, 'shared_slot'),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $sources
+     * @return array<string, array<string, string>>
+     */
+    private static function legacy84AllHolders(array $sources): array
+    {
+        $holders = [];
+        foreach ($sources as $name => $source) {
+            $holders[$name] = $source['holders'];
+        }
+
+        return $holders;
+    }
+
+    private static function legacy84Status(array $events): string
+    {
+        foreach (array_reverse($events) as $event) {
+            if (($event['kind'] ?? null) === 'lock') {
+                return (string) ($event['result']['status'] ?? 'planned');
+            }
+            if (($event['status'] ?? null) === 'blocked') {
+                return 'blocked';
+            }
+        }
+
+        return 'ready';
+    }
+
+    private static function legacy84SourceName(mixed $value): string
+    {
+        if (!is_string($value) || trim($value) === '') {
+            throw new \InvalidArgumentException('SQLite VFS next84 source name must not be empty');
+        }
+
+        return trim($value);
+    }
+
+    private static function legacy84SourceString(mixed $value, string $label): string
+    {
+        if (!is_string($value) || $value === '') {
+            throw new \InvalidArgumentException("SQLite VFS next84 {$label} must not be empty");
+        }
+
+        return $value;
+    }
+
+    private static function legacy84NonNegativeInt(mixed $value, string $label): int
+    {
+        if (!is_int($value) || $value < 0) {
+            throw new \InvalidArgumentException("SQLite VFS next84 {$label} must be a non-negative integer");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<string> ...$sets
+     * @return list<string>
+     */
+    private static function legacy84Dependencies(array ...$sets): array
     {
         return array_values(array_unique(array_merge(...$sets)));
     }

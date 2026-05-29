@@ -4,7 +4,7 @@ Slice: `pager-hot-journal-savepoint-cache-current-source-next83`
 
 ## Behavior
 
-Adds `SQLitePagerHotJournalSavepointCacheCurrentSourceNext83Plan`, a bounded pager recovery helper for the current-source boundary after hot rollback-journal recovery. When hot-journal recovery changes page images, stale pager-cache entries from the previous database/WAL source are invalidated before a savepoint captures before-images. Retry writes after `ROLLBACK TO` then capture from the recovered current source, or zero-fill for pages whose stale cache entry was discarded.
+Adds `SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan`, a bounded pager recovery helper for the current-source boundary after hot rollback-journal recovery. When hot-journal recovery changes page images, stale pager-cache entries from the previous database/WAL source are invalidated before a savepoint captures before-images. Retry writes after `ROLLBACK TO` then capture from the recovered current source, or zero-fill for pages whose stale cache entry was discarded.
 
 The WordPress smoke models copied `wp_options` plugin-import pages where `active_plugins` and plugin settings are restored by a hot journal, stale WAL/database cache pages are discarded, and the retry import writes against the recovered page source.
 
@@ -17,8 +17,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php -l lanes/libsqlite/src/SQLitePagerHotJournalSavepointCacheCurrentSourceNext83Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLitePagerHotJournalSavepointCacheCurrentSourceNext83Plan.php
+php -l lanes/libsqlite/src/SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan.php
 
 php -l lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext83Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerHotJournalSavepointCacheCurrentSourceNext83Test.php

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalSavepointCacheCurrentSourceNext125Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
@@ -44,7 +44,7 @@ $siteJournal = $makeJournal([1 => $siteClean1], 1, 0x12510002);
 $cachedMaster = $mainPath . "-journal\n";
 $currentMaster = $mainPath . "-journal\n" . $sitePath . "-journal\n";
 
-$plan = SQLitePagerMasterJournalSavepointCacheCurrentSourceNext125Plan::currentSourceNext(
+$plan = SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext125(
     $masterPath,
     $cachedMaster,
     $currentMaster,

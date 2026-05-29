@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePagerMasterJournalSavepointCacheCurrentSourceNext125Plan` for the
+Adds `SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan` for the
 pager edge where a cached master-journal recovery has to be refreshed from the
 current VFS source before savepoint retry pages are installed into the pager
 cache. The plan rejects stale/dirty cache entries, installs recovered
