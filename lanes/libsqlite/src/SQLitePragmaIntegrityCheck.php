@@ -11,6 +11,17 @@ final class SQLitePragmaIntegrityCheck
      */
     public static function execute(string $sql, string|SQLiteDatabase $database): array
     {
+        if (self::isTableScopedPragmaSql($sql)) {
+            $scoped = SQLitePragmaIntegrityTableScopeYield::collect($database, $sql);
+
+            return [
+                'pragma' => $scoped['pragma'],
+                'limit' => 100,
+                'rows' => $scoped['rows'],
+                'errors' => $scoped['errors'],
+            ];
+        }
+
         [$pragma, $limit] = self::parsePragmaSql($sql);
         $errors = self::check($database, $pragma === 'quick_check', $limit);
         $rows = $errors === []
@@ -88,6 +99,21 @@ final class SQLitePragmaIntegrityCheck
         }
 
         return [strtolower($matches[1]), max(1, $limit)];
+    }
+
+    private static function isTableScopedPragmaSql(string $sql): bool
+    {
+        $trimmed = trim(rtrim(trim($sql), ';'));
+        if (!preg_match('/^PRAGMA\s+(?:(?:main|temp|[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?:integrity_check|quick_check)\s*\(\s*(?<argument>.+)\s*\)$/i', $trimmed, $matches)) {
+            return false;
+        }
+
+        $argument = trim($matches['argument']);
+        if (preg_match('/^\d+$/', $argument) === 1) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

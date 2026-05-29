@@ -15165,6 +15165,54 @@ final class SQLiteUpstreamSuiteEvidence
     /** @return array<string, mixed> */
     public function upstreamVeryquickShardCurrentSourceNext948(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(948, ...$args); }
 
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext949(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(949, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext950(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(950, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext951(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(951, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext952(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(952, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext953(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(953, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext954(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(954, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext955(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(955, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext956(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(956, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext957(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(957, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext958(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(958, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext959(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(959, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext960(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(960, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext961(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(961, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext962(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(962, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext963(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(963, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext964(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(964, ...$args); }
+
 
     /**
      * @param list<array<string, mixed>> $rows

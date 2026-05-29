@@ -10,6 +10,9 @@ current-row imports:
 - supports `UPDATE wp_options AS current ...` and `UPDATE wp_options current ...`
   target aliases, including alias-qualified predicates and assignment
   expressions;
+- preserves top-level `ORDER BY`, `LIMIT`, comma-form `LIMIT offset,count`, and
+  `OFFSET` clauses when the bounded executor rewrites `UPDATE ... FROM` into
+  the internal row-selection SELECT;
 - keeps existing current-row behavior for duplicate source rows and `OR REPLACE`
   unique `option_name` conflicts.
 
@@ -28,7 +31,7 @@ Result:
 
 ```text
 Focused test run: 1 selected test files (root lock skipped)
-1 test files, 63 assertions, 0 failures
+1 test files, 82 assertions, 0 failures
 ```
 
 Example smoke:
@@ -37,14 +40,18 @@ Example smoke:
 php lanes/libsqlite/examples/wordpress-update-from-current-next25.php
 ```
 
+The smoke now includes an ordered/limited staged `wp_options` import and emits
+the preserved `ORDER BY ... LIMIT` tail.
+
 ## Non-overlap
 
 Avoids accepted batch23/current surfaces: duplicate-source current behavior,
 `UPDATE OR REPLACE` current unique-conflict deletion, derived-table materialized
 SELECT staging, grouped SELECT SQL text, SELECT subquery execution, JSON table
 SELECT sources/hidden/visible constraints, and VFS/WAL/B-tree accepted clusters.
-This patch is specifically parser preservation for leading CTEs and target
-aliases inside the existing bounded `UPDATE FROM` executor.
+This patch is specifically parser preservation for leading CTEs, target
+aliases, and top-level ordered/limited row selection inside the existing
+bounded `UPDATE FROM` executor.
 
 ## Dependency closure
 

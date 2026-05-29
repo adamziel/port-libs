@@ -3792,7 +3792,7 @@ final class SQLiteSelectSql
             $frame = self::windowFrameClause(trim(substr($windowSql, $frameOffset)));
         }
 
-        $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value', 'count', 'sum', 'avg', 'min', 'max', 'group_concat', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'];
+        $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value', 'count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'];
         if (!in_array($name, $supported, true)) {
             throw new \InvalidArgumentException("SQLite SELECT SQL window function {$name} is not supported");
         }

@@ -66,7 +66,7 @@ final class SQLiteUpdateFromSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param array<int|string,mixed> $parameters
-     * @return array{target:string,conflict_action:string,assignments:array<string,string>,select_sql:string,matched_rows:list<array<string,mixed>>,updates:list<array<string,mixed>>}
+     * @return array{target:string,conflict_action:string,assignments:array<string,string>,select_sql:string,order_limit_sql:string,matched_rows:list<array<string,mixed>>,updates:list<array<string,mixed>>}
      */
     public static function plan(string $sql, array $tables, array $parameters = []): array
     {
@@ -110,9 +110,10 @@ final class SQLiteUpdateFromSql
             throw new \InvalidArgumentException('SQLite UPDATE FROM SQL needs assignments and source');
         }
 
-        $whereOffset = self::keywordOffset($tail, 'WHERE');
-        $fromSql = $whereOffset === null ? $tail : trim(substr($tail, 0, $whereOffset));
-        $whereSql = $whereOffset === null ? null : trim(substr($tail, $whereOffset + 5));
+        $tailParts = self::fromTailParts($tail);
+        $fromSql = $tailParts['from'];
+        $whereSql = $tailParts['where'];
+        $orderLimitSql = $tailParts['order_limit'];
         if ($fromSql === '') {
             throw new \InvalidArgumentException('SQLite UPDATE FROM SQL needs source table');
         }
@@ -128,6 +129,9 @@ final class SQLiteUpdateFromSql
         $selectSql = ($withSql === '' ? '' : $withSql . ' ') . 'SELECT ' . implode(', ', $projection) . " FROM {$targetFromSql} CROSS JOIN {$fromSql}";
         if ($whereSql !== null && $whereSql !== '') {
             $selectSql .= " WHERE {$whereSql}";
+        }
+        if ($orderLimitSql !== '') {
+            $selectSql .= " {$orderLimitSql}";
         }
 
         $matchedRows = SQLiteSelectSql::execute($selectSql, $workingTables, $parameters);
@@ -146,8 +150,49 @@ final class SQLiteUpdateFromSql
             'conflict_action' => $conflictAction,
             'assignments' => $assignments,
             'select_sql' => $selectSql,
+            'order_limit_sql' => $orderLimitSql,
             'matched_rows' => $matchedRows,
             'updates' => array_values($updatesByIndex),
+        ];
+    }
+
+    /**
+     * @return array{from:string,where:?string,order_limit:string}
+     */
+    private static function fromTailParts(string $tail): array
+    {
+        $whereOffset = self::keywordOffset($tail, 'WHERE');
+        $orderOffset = self::keywordOffset($tail, 'ORDER BY');
+        $limitOffset = self::keywordOffset($tail, 'LIMIT');
+
+        $clauseOffsets = array_filter(
+            [$whereOffset, $orderOffset, $limitOffset],
+            static fn (?int $offset): bool => $offset !== null
+        );
+        $firstClauseOffset = $clauseOffsets === [] ? null : min($clauseOffsets);
+        $fromSql = $firstClauseOffset === null ? $tail : trim(substr($tail, 0, $firstClauseOffset));
+
+        $whereSql = null;
+        if ($whereOffset !== null) {
+            $whereEndCandidates = array_filter(
+                [$orderOffset, $limitOffset],
+                static fn (?int $offset): bool => $offset !== null && $offset > $whereOffset
+            );
+            $whereEnd = $whereEndCandidates === [] ? strlen($tail) : min($whereEndCandidates);
+            $whereSql = trim(substr($tail, $whereOffset + 5, $whereEnd - ($whereOffset + 5)));
+        }
+
+        $orderLimitOffsetCandidates = array_filter(
+            [$orderOffset, $limitOffset],
+            static fn (?int $offset): bool => $offset !== null
+        );
+        $orderLimitOffset = $orderLimitOffsetCandidates === [] ? null : min($orderLimitOffsetCandidates);
+        $orderLimitSql = $orderLimitOffset === null ? '' : trim(substr($tail, $orderLimitOffset));
+
+        return [
+            'from' => $fromSql,
+            'where' => $whereSql,
+            'order_limit' => $orderLimitSql,
         ];
     }
 

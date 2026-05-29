@@ -978,7 +978,7 @@ final class SQLitePragmaSchemaCatalog
         if (!isset($text[$offset])) {
             return null;
         }
-        if ($text[$offset] === '"' || $text[$offset] === '`') {
+        if ($text[$offset] === '"' || $text[$offset] === '`' || $text[$offset] === "'") {
             $end = self::skipQuoted($text, $offset, $text[$offset]);
             return [
                 'identifier' => self::unquoteIdentifier(substr($text, $offset, $end - $offset + 1)),

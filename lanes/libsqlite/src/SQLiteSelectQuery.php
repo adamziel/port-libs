@@ -237,7 +237,10 @@ final class SQLiteSelectQuery
         if (in_array($function, ['lag', 'lead', 'first_value', 'last_value', 'nth_value'], true) && $arguments === []) {
             throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs a value argument");
         }
-        if ($frame === null && in_array($function, ['json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'], true)) {
+        if (
+            $frame === null
+            && in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'], true)
+        ) {
             $frame = self::defaultAggregateWindowFrame($orderBy, count($orderedRows));
         }
         if ($frame !== null && in_array($function, ['json_group_array', 'jsonb_group_array'], true)) {
@@ -257,10 +260,7 @@ final class SQLiteSelectQuery
         if ($distinct) {
             throw new \InvalidArgumentException("SQLite SELECT query DISTINCT window aggregate is not supported for {$function}");
         }
-        if ($frame !== null && in_array($function, ['count', 'sum', 'avg', 'min', 'max', 'group_concat'], true)) {
-            if ($orderBy === []) {
-                throw new \InvalidArgumentException('SQLite SELECT query aggregate window frame needs ORDER BY');
-            }
+        if ($frame !== null && in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
             if ($function === 'count' && (($arguments[0]['type'] ?? null) === 'wildcard')) {
                 $values = array_fill(0, count($orderedRows), 1);
             } elseif ($arguments === []) {
@@ -334,7 +334,7 @@ final class SQLiteSelectQuery
     {
         return $orderBy === []
             ? ['unit' => 'ROWS', 'preceding' => $partitionSize, 'following' => $partitionSize, 'exclude' => 'NO OTHERS']
-            : ['unit' => 'RANGE', 'preceding' => INF, 'following' => 0.0, 'exclude' => 'NO OTHERS'];
+            : ['unit' => 'GROUPS', 'preceding' => $partitionSize, 'following' => 0, 'exclude' => 'NO OTHERS'];
     }
 
     /**
@@ -651,8 +651,16 @@ final class SQLiteSelectQuery
         $current = $rows[$position]['frameKey'];
         if (!is_int($current) && !is_float($current)) {
             $group = $groupByIndex[$position];
+            $startGroup = $group;
+            $endGroup = $group;
+            if (is_float($preceding) && is_infinite($preceding)) {
+                $startGroup = 0;
+            }
+            if (is_float($following) && is_infinite($following)) {
+                $endGroup = count($groups) - 1;
+            }
 
-            return [$groups[$group]['start'], $groups[$group]['end']];
+            return [$groups[$startGroup]['start'], $groups[$endGroup]['end']];
         }
         $lower = $current - $preceding;
         $upper = $current + $following;

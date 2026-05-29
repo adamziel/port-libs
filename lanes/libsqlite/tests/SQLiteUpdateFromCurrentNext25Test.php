@@ -255,6 +255,85 @@ $cases = [
         5,
         count($plan($cteSql)['matched_rows'])
     ),
+    'ordered update from keeps order limit tail in select' => static fn (TestRunner $t) => $t->same(
+        true,
+        str_ends_with(
+            $plan("WITH incoming(name,value) AS (VALUES ('siteurl','s'), ('home','h'), ('blogname','b')) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY current.option_id DESC LIMIT 2")['select_sql'],
+            'ORDER BY current.option_id DESC LIMIT 2'
+        )
+    ),
+    'ordered update from exposes order limit plan fragment' => static fn (TestRunner $t) => $t->same(
+        'ORDER BY current.option_id DESC LIMIT 2',
+        $plan("WITH incoming(name,value) AS (VALUES ('siteurl','s'), ('home','h'), ('blogname','b')) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY current.option_id DESC LIMIT 2")['order_limit_sql']
+    ),
+    'ordered update from applies limited descending target rows' => static fn (TestRunner $t) => $t->same(
+        ['blogname', 'home'],
+        array_column($execute("WITH incoming(name,value) AS (VALUES ('siteurl','s'), ('home','h'), ('blogname','b')) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY current.option_id DESC LIMIT 2")['updated_rows'], 'option_name')
+    ),
+    'ordered update from leaves first row outside descending limit unchanged' => static fn (TestRunner $t) => $t->same(
+        'https://old.example',
+        $afterByName($execute("WITH incoming(name,value) AS (VALUES ('siteurl','s'), ('home','h'), ('blogname','b')) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY current.option_id DESC LIMIT 2"))['siteurl']['option_value']
+    ),
+    'ordered update from changes highest matching row' => static fn (TestRunner $t) => $t->same(
+        'b',
+        $afterByName($execute("WITH incoming(name,value) AS (VALUES ('siteurl','s'), ('home','h'), ('blogname','b')) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY current.option_id DESC LIMIT 2"))['blogname']['option_value']
+    ),
+    'ordered update from changes second highest matching row' => static fn (TestRunner $t) => $t->same(
+        'h',
+        $afterByName($execute("WITH incoming(name,value) AS (VALUES ('siteurl','s'), ('home','h'), ('blogname','b')) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY current.option_id DESC LIMIT 2"))['home']['option_value']
+    ),
+    'ordered update from reports limited change count' => static fn (TestRunner $t) => $t->same(
+        2,
+        $execute("WITH incoming(name,value) AS (VALUES ('siteurl','s'), ('home','h'), ('blogname','b')) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY current.option_id DESC LIMIT 2")['changes']
+    ),
+    'ordered update from supports offset after limit' => static fn (TestRunner $t) => $t->same(
+        ['home'],
+        array_column($execute("WITH incoming(name,value) AS (VALUES ('siteurl','s'), ('home','h'), ('blogname','b')) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY current.option_id DESC LIMIT 1 OFFSET 1")['updated_rows'], 'option_name')
+    ),
+    'ordered update from supports comma limit form' => static fn (TestRunner $t) => $t->same(
+        ['home'],
+        array_column($execute("WITH incoming(name,value) AS (VALUES ('siteurl','s'), ('home','h'), ('blogname','b')) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY current.option_id DESC LIMIT 1, 1")['updated_rows'], 'option_name')
+    ),
+    'update from limit works without where clause' => static fn (TestRunner $t) => $t->same(
+        1,
+        $execute("UPDATE wp_options AS current SET autoload = 'limited' FROM import_stage AS stage ORDER BY current.option_id ASC LIMIT 1")['changes']
+    ),
+    'update from limit without where changes first target once despite cross join' => static fn (TestRunner $t) => $t->same(
+        'limited',
+        $execute("UPDATE wp_options AS current SET autoload = 'limited' FROM import_stage AS stage ORDER BY current.option_id ASC LIMIT 1")['after'][0]['autoload']
+    ),
+    'update from limit without where leaves later target unchanged' => static fn (TestRunner $t) => $t->same(
+        'yes',
+        $execute("UPDATE wp_options AS current SET autoload = 'limited' FROM import_stage AS stage ORDER BY current.option_id ASC LIMIT 1")['after'][1]['autoload']
+    ),
+    'update from order by can sort by source expression' => static fn (TestRunner $t) => $t->same(
+        ['rewrite_rules'],
+        array_column($execute("UPDATE wp_options AS current SET option_value = stage.new_value FROM import_stage AS stage WHERE stage.option_name = current.option_name AND stage.blog_id = 1 ORDER BY length(stage.new_value) DESC LIMIT 1")['updated_rows'], 'option_name')
+    ),
+    'update from order by source expression applies selected value' => static fn (TestRunner $t) => $t->same(
+        'a:2:{s:4:"post";s:7:"/%post%";}',
+        $afterByName($execute("UPDATE wp_options AS current SET option_value = stage.new_value FROM import_stage AS stage WHERE stage.option_name = current.option_name AND stage.blog_id = 1 ORDER BY length(stage.new_value) DESC LIMIT 1"))['rewrite_rules']['option_value']
+    ),
+    'update from order by duplicate source still keeps selected last source value' => static fn (TestRunner $t) => $t->same(
+        'last',
+        $afterByName($execute("WITH incoming(name,value,rank) AS (VALUES ('siteurl','first',1), ('siteurl','last',2), ('home','home',3)) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY incoming.rank ASC LIMIT 2"))['siteurl']['option_value']
+    ),
+    'update from order by duplicate source counts selected targets' => static fn (TestRunner $t) => $t->same(
+        1,
+        $execute("WITH incoming(name,value,rank) AS (VALUES ('siteurl','first',1), ('siteurl','last',2), ('home','home',3)) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY incoming.rank ASC LIMIT 2")['changes']
+    ),
+    'update from order by unique replace deletes conflict inside limited set' => static fn (TestRunner $t) => $t->same(
+        [2],
+        array_column($execute("WITH incoming(old_name,new_name,rank) AS (VALUES ('siteurl','home',1), ('blogname','blogname_imported',2)) UPDATE OR REPLACE wp_options AS current SET option_name = incoming.new_name FROM incoming WHERE incoming.old_name = current.option_name ORDER BY incoming.rank ASC LIMIT 1", null, [], [['option_name']])['deleted_rows'], 'option_id')
+    ),
+    'update from order by unique replace does not apply rows beyond limit' => static fn (TestRunner $t) => $t->same(
+        false,
+        isset($afterByName($execute("WITH incoming(old_name,new_name,rank) AS (VALUES ('siteurl','home',1), ('blogname','blogname_imported',2)) UPDATE OR REPLACE wp_options AS current SET option_name = incoming.new_name FROM incoming WHERE incoming.old_name = current.option_name ORDER BY incoming.rank ASC LIMIT 1", null, [], [['option_name']]))['blogname_imported'])
+    ),
+    'update from order by rejects malformed limit through select executor' => static fn (TestRunner $t) => $t->throws(
+        InvalidArgumentException::class,
+        static fn () => $execute("WITH incoming(name,value) AS (VALUES ('siteurl','s')) UPDATE wp_options AS current SET option_value = incoming.value FROM incoming WHERE incoming.name = current.option_name ORDER BY current.option_id LIMIT nope")
+    ),
 ];
 
 foreach ($cases as $name => $case) {

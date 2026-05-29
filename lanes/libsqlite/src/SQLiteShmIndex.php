@@ -93,9 +93,53 @@ final class SQLiteShmIndex
      */
     public function checkpointPlan(): array
     {
+        return $this->checkpointPlanForReadLocks($this->readLocks, []);
+    }
+
+    /**
+     * Re-evaluate WAL checkpoint readiness from live VFS SHM lock holders.
+     *
+     * SQLite's aReadMark[] values live in the -shm file, but the matching
+     * read locks are OS/VFS byte locks. This lets callers combine a parsed
+     * wal-index image with the current VFS lock table instead of trusting stale
+     * lock bytes copied from a fixture.
+     *
+     * @param array<string,mixed> $shmLocks
+     * @return array{status:string,checkpoint_can_finish:bool,reset_blocked:bool,headers_match:bool,mx_frame:int,backfilled_frame_count:int,backfill_attempted_frame_count:int,checkpoint_pinned_frame:int|null,reusable_slots:list<int>,read_locks:list<bool>,dependencies:list<string>,read_marks:list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,read_lock_held:bool,pins_checkpoint:bool,reason:string}>,lock_holders:array<string,list<string>>,lock_source:string}
+     */
+    public function checkpointPlanWithVfsLocks(array $shmLocks): array
+    {
+        $readLocks = [];
+        $holdersByLock = [];
+        for ($slot = 0; $slot < self::READER_COUNT; $slot++) {
+            $lock = 'read' . $slot;
+            $holders = self::lockHolders($shmLocks[$lock] ?? []);
+            $holdersByLock[$lock] = $holders;
+            $readLocks[] = $holders !== [];
+        }
+
+        return $this->checkpointPlanForReadLocks($readLocks, [
+            'lock_holders' => $holdersByLock,
+            'lock_source' => 'vfs-shm-lock-table',
+        ]);
+    }
+
+    /**
+     * @param list<bool> $readLocks
+     * @param array<string,mixed> $extra
+     * @return array<string,mixed>
+     */
+    private function checkpointPlanForReadLocks(array $readLocks, array $extra): array
+    {
+        $marks = [];
+        for ($slot = 0; $slot < self::READER_COUNT; $slot++) {
+            $frame = $this->readMarks[$slot]['frame'] ?? null;
+            $marks[] = self::readMarkFromFrame($slot, $frame, $this->header['mx_frame'], $this->backfilledFrameCount, $readLocks[$slot] ?? false);
+        }
+
         $pinned = null;
         $reusable = [];
-        foreach ($this->readMarks as $mark) {
+        foreach ($marks as $mark) {
             if ($mark['pins_checkpoint']) {
                 $pinned = $pinned === null ? $mark['frame'] : min($pinned, $mark['frame']);
             }
@@ -104,7 +148,7 @@ final class SQLiteShmIndex
             }
         }
 
-        return [
+        return $extra + [
             'status' => $this->headersMatch ? 'ready' : 'stale-header-copy',
             'checkpoint_can_finish' => $pinned === null,
             'reset_blocked' => $pinned !== null,
@@ -114,9 +158,12 @@ final class SQLiteShmIndex
             'backfill_attempted_frame_count' => $this->backfillAttemptedFrameCount,
             'checkpoint_pinned_frame' => $pinned,
             'reusable_slots' => $reusable,
-            'read_locks' => $this->readLocks,
-            'dependencies' => ['sqlite-shm-index', 'wal-index-read-marks', 'wal-index-read-locks', 'checkpoint-backfill-state'],
-            'read_marks' => $this->readMarks,
+            'read_locks' => $readLocks,
+            'dependencies' => array_values(array_unique(array_merge(
+                ['sqlite-shm-index', 'wal-index-read-marks', 'wal-index-read-locks', 'checkpoint-backfill-state'],
+                $extra === [] ? [] : ['vfs-wal-shm-lock-byte-current-source']
+            ))),
+            'read_marks' => $marks,
         ];
     }
 
@@ -255,6 +302,14 @@ final class SQLiteShmIndex
     private static function readMark(int $slot, int $rawFrame, int $mxFrame, int $backfilled, bool $readLockHeld): array
     {
         $frame = $rawFrame === 0xffffffff ? null : $rawFrame;
+        return self::readMarkFromFrame($slot, $frame, $mxFrame, $backfilled, $readLockHeld);
+    }
+
+    /**
+     * @return array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,read_lock_held:bool,pins_checkpoint:bool,reason:string}
+     */
+    private static function readMarkFromFrame(int $slot, ?int $frame, int $mxFrame, int $backfilled, bool $readLockHeld): array
+    {
         $active = $frame !== null;
         $valid = $frame === null || $frame <= $mxFrame;
         $stale = $valid && $frame !== null && $frame < $mxFrame;
@@ -280,6 +335,35 @@ final class SQLiteShmIndex
             'pins_checkpoint' => $pins,
             'reason' => $reason,
         ];
+    }
+
+    /**
+     * @param mixed $holders
+     * @return list<string>
+     */
+    private static function lockHolders(mixed $holders): array
+    {
+        if (is_string($holders) && trim($holders) !== '') {
+            return [trim($holders)];
+        }
+        if (!is_array($holders)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($holders as $key => $value) {
+            if (is_string($key) && $key !== '' && $value !== false && $value !== null) {
+                $out[] = $key;
+                continue;
+            }
+            if (is_string($value) && $value !== '') {
+                $out[] = $value;
+            }
+        }
+
+        $out = array_values(array_unique($out));
+        sort($out);
+        return $out;
     }
 
     private static function byteOrder(string $byteOrder): string
