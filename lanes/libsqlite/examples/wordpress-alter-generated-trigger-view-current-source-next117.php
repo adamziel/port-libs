@@ -2,15 +2,9 @@
 
 declare(strict_types=1);
 
-$autoload = dirname(__DIR__, 3) . '/vendor/autoload.php';
-if (is_file($autoload)) {
-    require $autoload;
-} else {
-    require dirname(__DIR__) . '/src/SQLiteSchemaRecord.php';
-    require dirname(__DIR__) . '/src/SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan.php';
-}
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan;
+use PortLibs\LibSqlite\SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -21,7 +15,7 @@ $records = [
     $record('trigger', 'wp_options_au', 'wp_options', 0, 'CREATE TRIGGER wp_options_au AFTER UPDATE OF option_value ON wp_options BEGIN INSERT INTO wp_option_audit(option_id, option_name, option_value_len) VALUES(new.option_id, new.option_name, new.option_value_len); END', 3),
 ];
 
-$plan = SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan::plan(
+$plan = SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan::plan(
     $records,
     'wp_options',
     'ALTER TABLE wp_options ADD COLUMN option_value_len INTEGER GENERATED ALWAYS AS (length(option_value)) VIRTUAL',

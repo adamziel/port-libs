@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -68,21 +68,21 @@ END
 SQL, 3),
 ];
 
-$plan = static fn (): array => SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext106Plan::currentNext(
+$plan = static fn (): array => SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan::currentNext(
     $currentRecords(),
     $nextRecords(),
     'wp_options_audit_update',
     ['schema_version_before' => 106, 'schema_version_after' => 107],
 );
 
-$stable = static fn (): array => SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext106Plan::currentNext(
+$stable = static fn (): array => SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan::currentNext(
     $stableRecords(),
     $stableRecords(),
     'wp_options_audit_update',
     ['schema_version_before' => 107, 'schema_version_after' => 107],
 );
 
-$deletePlan = static fn (): array => SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext106Plan::currentNext([
+$deletePlan = static fn (): array => SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan::currentNext([
     $record('table', 'wp_posts', 'wp_posts', 4, 'CREATE TABLE wp_posts(id INTEGER, title TEXT, title_key TEXT AS (lower(title)) STORED)', 1),
     $record('trigger', 'wp_posts_ad', 'wp_posts', 0, 'CREATE TRIGGER wp_posts_ad AFTER DELETE ON wp_posts BEGIN INSERT INTO wp_option_audit(option_slug) VALUES(old.title_key); END', 2),
 ], [
@@ -148,7 +148,7 @@ return [
 
     'schema generated trigger reparse current source next106 rejects missing trigger' => static function (TestRunner $t) use ($currentRecords, $nextRecords): void {
         try {
-            SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext106Plan::currentNext($currentRecords(), $nextRecords(), 'missing_trigger');
+            SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan::currentNext($currentRecords(), $nextRecords(), 'missing_trigger');
         } catch (InvalidArgumentException) {
             $t->same('rejected', 'rejected');
             return;
@@ -157,7 +157,7 @@ return [
     },
     'schema generated trigger reparse current source next106 rejects missing table' => static function (TestRunner $t) use ($record): void {
         try {
-            SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext106Plan::currentNext([
+            SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan::currentNext([
                 $record('trigger', 'bad_trigger', 'missing', 0, 'CREATE TRIGGER bad_trigger AFTER INSERT ON missing BEGIN SELECT new.id; END', 1),
             ], [
                 $record('trigger', 'bad_trigger', 'missing', 0, 'CREATE TRIGGER bad_trigger AFTER INSERT ON missing BEGIN SELECT new.id; END', 1),
@@ -170,7 +170,7 @@ return [
     },
     'schema generated trigger reparse current source next106 rejects bad schema version' => static function (TestRunner $t) use ($currentRecords, $nextRecords): void {
         try {
-            SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext106Plan::currentNext($currentRecords(), $nextRecords(), 'wp_options_audit_update', ['schema_version_before' => -1]);
+            SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan::currentNext($currentRecords(), $nextRecords(), 'wp_options_audit_update', ['schema_version_before' => -1]);
         } catch (InvalidArgumentException) {
             $t->same('rejected', 'rejected');
             return;

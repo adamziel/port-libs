@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan.php';
+require_once __DIR__ . '/../src/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => '_transient_feed', 'option_value' => 'cached', 'autoload' => 'no', 'revision' => 1],
@@ -13,7 +13,7 @@ $rows = [
     ['option_id' => 4, 'option_name' => 'home', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'revision' => 5],
 ];
 
-$plan = SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan::deleteRows(
+$plan = SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::deleteRows(
     'wp_current_import',
     $rows,
     static fn (array $row): bool => str_starts_with((string) $row['option_name'], '_transient') || $row['option_name'] === 'home',

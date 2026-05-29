@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteSchemaGeneratedCheckReparseCurrentSourceNext116Plan;
+use PortLibs\LibSqlite\SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record116 = static fn (string $sql, int $version = 1): SQLiteSchemaRecord => new SQLiteSchemaRecord('table', 'wp_options', 'wp_options', 2, $sql, $version);
@@ -51,21 +51,21 @@ CREATE TABLE "wp options"(
 )
 SQL;
 
-$plan116 = static fn (?string $current = null, ?string $next = null, array $options = []): array => SQLiteSchemaGeneratedCheckReparseCurrentSourceNext116Plan::currentNext(
+$plan116 = static fn (?string $current = null, ?string $next = null, array $options = []): array => SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext(
     [$record116($current ?? $currentSql116)],
     [$record116($next ?? $nextSql116, 2)],
     'wp_options',
     $options + ['schema_version_before' => 116, 'schema_version_after' => 117],
 );
 
-$stable116 = static fn (): array => SQLiteSchemaGeneratedCheckReparseCurrentSourceNext116Plan::currentNext(
+$stable116 = static fn (): array => SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext(
     [$record116($stableSql116)],
     [$record116($stableSql116)],
     'wp_options',
     ['schema_version_before' => 117, 'schema_version_after' => 117],
 );
 
-$quoted116 = static fn (): array => SQLiteSchemaGeneratedCheckReparseCurrentSourceNext116Plan::currentNext(
+$quoted116 = static fn (): array => SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext(
     [new SQLiteSchemaRecord('table', 'wp options', 'wp options', 2, $quotedSql116, 1)],
     [new SQLiteSchemaRecord('table', 'wp options', 'wp options', 2, $quotedSql116, 2)],
     'wp options',
@@ -180,7 +180,7 @@ $tests['schema generated check reparse current source next116 cookie unchanged k
 
 $tests['schema generated check reparse current source next116 rejects missing table'] = static function (TestRunner $t) use ($record116, $currentSql116): void {
     try {
-        SQLiteSchemaGeneratedCheckReparseCurrentSourceNext116Plan::currentNext([$record116($currentSql116)], [$record116($currentSql116)], 'missing');
+        SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext([$record116($currentSql116)], [$record116($currentSql116)], 'missing');
     } catch (InvalidArgumentException) {
         $t->same('rejected', 'rejected');
         return;
@@ -190,7 +190,7 @@ $tests['schema generated check reparse current source next116 rejects missing ta
 
 $tests['schema generated check reparse current source next116 rejects missing SQL'] = static function (TestRunner $t): void {
     try {
-        SQLiteSchemaGeneratedCheckReparseCurrentSourceNext116Plan::currentNext([
+        SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext([
             new SQLiteSchemaRecord('table', 'wp_options', 'wp_options', 2, null, 1),
         ], [
             new SQLiteSchemaRecord('table', 'wp_options', 'wp_options', 2, null, 2),

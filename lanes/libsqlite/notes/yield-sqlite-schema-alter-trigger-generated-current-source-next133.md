@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteSchemaAlterTriggerGeneratedCurrentSourceNext133Plan`, a focused current-source planner for `ALTER TABLE` generated-column changes that affect triggers. The slice composes the accepted `SQLiteSchemaDdlReparsePlan`, then reports trigger transitions across the schema-cookie change:
+Adds `SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan`, a focused current-source planner for `ALTER TABLE` generated-column changes that affect triggers. The slice composes the accepted `SQLiteSchemaDdlReparsePlan`, then reports trigger transitions across the schema-cookie change:
 
 - generated columns before/after the ALTER;
 - trigger `UPDATE OF`, `NEW`, and `OLD` references;
@@ -31,7 +31,7 @@ Result:
 Additional checks:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteSchemaAlterTriggerGeneratedCurrentSourceNext133Plan.php
+php -l lanes/libsqlite/src/SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteSchemaAlterTriggerGeneratedCurrentSourceNext133Test.php
 php -l lanes/libsqlite/examples/wordpress-schema-alter-trigger-generated-current-source-next133.php
 php lanes/libsqlite/examples/wordpress-schema-alter-trigger-generated-current-source-next133.php --self-test

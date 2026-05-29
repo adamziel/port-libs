@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 use InvalidArgumentException;
 
-final class SQLiteSchemaGeneratedCheckReparseCurrentSourceNext116Plan
+final class SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan
 {
     /**
      * @param list<SQLiteSchemaRecord> $currentRecords

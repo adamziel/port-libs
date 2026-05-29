@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan;
+use PortLibs\LibSqlite\SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record117 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -39,7 +39,7 @@ $prepared117 = static fn (): array => [
     ['name' => 'unrelated-post-view', 'sql' => 'SELECT post_title FROM wp_post_titles', 'columns' => ['post_title'], 'schema_version' => 116],
 ];
 
-$plan117 = static fn (): array => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan::plan(
+$plan117 = static fn (): array => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan::plan(
     $records117(),
     'wp_options',
     'ALTER TABLE wp_options ADD COLUMN option_value_len INTEGER GENERATED ALWAYS AS (length(option_value)) VIRTUAL',
@@ -47,7 +47,7 @@ $plan117 = static fn (): array => SQLiteSchemaAlterGeneratedTriggerViewCurrentSo
     ['schema_version_before' => 116, 'schema_version_after' => 117],
 );
 
-$stable117 = static fn (): array => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan::plan(
+$stable117 = static fn (): array => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan::plan(
     $records117(),
     'wp_options',
     'ALTER TABLE wp_options ADD COLUMN option_value_len INTEGER GENERATED ALWAYS AS (length(option_value)) VIRTUAL',
@@ -109,18 +109,18 @@ return [
     'schema alter generated trigger view current source next117 stable still reports dependent schema' => static fn (TestRunner $t) => $t->same('reparse-required', $stable117()['status']),
     'schema alter generated trigger view current source next117 stable no prepared invalidations' => static fn (TestRunner $t) => $t->same([], $stable117()['invalidatedStatements']),
     'schema alter generated trigger view current source next117 rejects missing table' => static function (TestRunner $t) use ($records117): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan::plan($records117(), 'missing', 'ALTER TABLE missing ADD COLUMN x TEXT AS (lower(y))'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan::plan($records117(), 'missing', 'ALTER TABLE missing ADD COLUMN x TEXT AS (lower(y))'));
     },
     'schema alter generated trigger view current source next117 rejects target mismatch' => static function (TestRunner $t) use ($records117): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan::plan($records117(), 'wp_options', 'ALTER TABLE wp_posts ADD COLUMN x TEXT AS (lower(y))'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan::plan($records117(), 'wp_options', 'ALTER TABLE wp_posts ADD COLUMN x TEXT AS (lower(y))'));
     },
     'schema alter generated trigger view current source next117 rejects ordinary add column' => static function (TestRunner $t) use ($records117): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan::plan($records117(), 'wp_options', 'ALTER TABLE wp_options ADD COLUMN x TEXT'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan::plan($records117(), 'wp_options', 'ALTER TABLE wp_options ADD COLUMN x TEXT'));
     },
     'schema alter generated trigger view current source next117 rejects duplicate column' => static function (TestRunner $t) use ($records117): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan::plan($records117(), 'wp_options', 'ALTER TABLE wp_options ADD COLUMN option_slug TEXT AS (lower(option_name))'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan::plan($records117(), 'wp_options', 'ALTER TABLE wp_options ADD COLUMN option_slug TEXT AS (lower(option_name))'));
     },
     'schema alter generated trigger view current source next117 rejects bad schema version' => static function (TestRunner $t) use ($records117): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan::plan($records117(), 'wp_options', 'ALTER TABLE wp_options ADD COLUMN x TEXT AS (lower(option_name))', [], ['schema_version_before' => -1]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan::plan($records117(), 'wp_options', 'ALTER TABLE wp_options ADD COLUMN x TEXT AS (lower(option_name))', [], ['schema_version_before' => -1]));
     },
 ];

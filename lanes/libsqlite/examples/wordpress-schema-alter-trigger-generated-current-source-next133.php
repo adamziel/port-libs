@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteSchemaAlterTriggerGeneratedCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -15,7 +15,7 @@ $records = [
     $record('trigger', 'wp_options_plain_ai', 'wp_options', 0, 'CREATE TRIGGER wp_options_plain_ai AFTER INSERT ON wp_options BEGIN SELECT new.option_name; END', 3),
 ];
 
-$plan = SQLiteSchemaAlterTriggerGeneratedCurrentSourceNext133Plan::plan(
+$plan = SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan::plan(
     $records,
     ['ALTER TABLE wp_options ADD COLUMN option_value_len INTEGER AS (length(option_value)) VIRTUAL CHECK(option_value_len > 0)'],
     133,

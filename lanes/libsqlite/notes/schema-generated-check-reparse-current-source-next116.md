@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for generated-column CHECK constraint schema reparse decisions.
 
-This slice adds `SQLiteSchemaGeneratedCheckReparseCurrentSourceNext116Plan::currentNext()`. It compares current and next `sqlite_schema` table records after DDL changes and marks prepared schema views for reparse when generated columns, generated-column CHECK constraints, table CHECK constraints, or generated CHECK references change across a schema-cookie boundary. The parser keeps `CHECK`, `UNIQUE`, and `PRIMARY KEY` text inside generated expressions as literal expression text, while extracting real top-level/table and column CHECK constraints.
+This slice adds `SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext()`. It compares current and next `sqlite_schema` table records after DDL changes and marks prepared schema views for reparse when generated columns, generated-column CHECK constraints, table CHECK constraints, or generated CHECK references change across a schema-cookie boundary. The parser keeps `CHECK`, `UNIQUE`, and `PRIMARY KEY` text inside generated expressions as literal expression text, while extracting real top-level/table and column CHECK constraints.
 
 WordPress path: `wordpress-schema-generated-check-reparse-current-source-next116.php` models copied `wp_options` metadata where generated slug/length columns gain CHECK constraints after an import or plugin migration. The smoke proves the prepared schema view expires after the cookie changes and reports the generated CHECK additions.
 

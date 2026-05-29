@@ -1,6 +1,6 @@
 # schema alter generated trigger/view current-source next117
 
-- Added `SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNext117Plan` for a bounded upstream SQLite DDL behavior: `ALTER TABLE ... ADD COLUMN` with a generated column changes the schema cookie and dependent trigger/view SQL must be reparsed against the current table definition.
+- Added `SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan` for a bounded upstream SQLite DDL behavior: `ALTER TABLE ... ADD COLUMN` with a generated column changes the schema cookie and dependent trigger/view SQL must be reparsed against the current table definition.
 - Focused behavior is disjoint from accepted next106 trigger-only generated-column reparse and next110 rename-column trigger/view rewriting. This slice covers ADD COLUMN generated-column admission plus simultaneous view, trigger, and prepared-statement invalidation.
 - WordPress smoke: `examples/wordpress-alter-generated-trigger-view-current-source-next117.php` previews a copied `wp_options` migration that adds `option_value_len` and resolves a dependent autoloaded-options view plus update trigger before invalidating option SELECT statements.
 - Dependency closure: no new support component is needed. The slice reuses lane-local `SQLiteSchemaRecord` and bounded schema SQL parsing; future native executor work can consume the reparse plan when applying real sqlite_schema writes.

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteSchemaAlterTriggerGeneratedCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record133 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -26,7 +26,7 @@ $prepared133 = [
     ['id' => 'fresh-generated-reader', 'schema_cookie' => 134, 'sql' => 'SELECT option_value_len FROM wp_options'],
 ];
 
-$plan133 = static fn (?array $ddl = null, ?array $records = null): array => SQLiteSchemaAlterTriggerGeneratedCurrentSourceNext133Plan::plan(
+$plan133 = static fn (?array $ddl = null, ?array $records = null): array => SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan::plan(
     $records ?? $records133(),
     $ddl ?? ['ALTER TABLE wp_options ADD COLUMN option_value_len INTEGER AS (length(option_value)) VIRTUAL CHECK(option_value_len > 0)'],
     133,
@@ -117,7 +117,7 @@ $tests['schema alter trigger generated current source next133 quoted update of g
 
 $tests['schema alter trigger generated current source next133 rejects missing table'] = static function (TestRunner $t) use ($record133): void {
     $records = [$record133('trigger', 'orphan', 'wp_options', 0, 'CREATE TRIGGER orphan AFTER INSERT ON wp_options BEGIN SELECT new.option_id; END', 1)];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterTriggerGeneratedCurrentSourceNext133Plan::plan($records, ['ALTER TABLE wp_options ADD COLUMN option_value_len INTEGER AS (length(option_value)) VIRTUAL']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan::plan($records, ['ALTER TABLE wp_options ADD COLUMN option_value_len INTEGER AS (length(option_value)) VIRTUAL']));
 };
 
 return $tests;

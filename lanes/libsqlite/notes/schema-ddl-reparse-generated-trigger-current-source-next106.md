@@ -1,6 +1,6 @@
 # schema-ddl-reparse-generated-trigger-current-source-next106
 
-Adds `SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext106Plan`, a bounded
+Adds `SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan`, a bounded
 current/next schema source comparison for triggers whose `NEW` / `OLD`
 references include generated columns after DDL reparse.
 

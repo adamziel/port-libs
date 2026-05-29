@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => '_transient_feed', 'option_value' => 'cached', 'autoload' => 'no', 'revision' => 1],
@@ -43,8 +43,8 @@ $deleteRollbackTriggers[] = [
 ];
 
 $deleteWhere = static fn (array $row): bool => str_starts_with((string) $row['option_name'], '_transient') || in_array($row['option_name'], ['siteurl', 'home'], true);
-$deleteCommit = static fn (): array => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan::deleteRows('wp_current_import', $rows, $deleteWhere, $deleteTriggers);
-$deleteRollback = static fn (): array => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan::deleteRows('wp_current_import', $rows, $deleteWhere, $deleteRollbackTriggers);
+$deleteCommit = static fn (): array => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::deleteRows('wp_current_import', $rows, $deleteWhere, $deleteTriggers);
+$deleteRollback = static fn (): array => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::deleteRows('wp_current_import', $rows, $deleteWhere, $deleteRollbackTriggers);
 
 $updateTriggers = [
     [
@@ -71,7 +71,7 @@ $assignments = [
     'option_value' => static fn (array $row): string => 'imported:' . $row['option_name'],
     'revision' => static fn (array $row): int => (int) $row['revision'] + 1,
 ];
-$updateRollback = static fn (): array => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan::updateRows(
+$updateRollback = static fn (): array => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::updateRows(
     'wp_current_import',
     $rows,
     $assignments,
@@ -137,11 +137,11 @@ $cases = [
     'dependencies include savepoint marker' => [static fn (): mixed => in_array('sqlite-savepoint-transaction-current-source-rollback', $deleteRollback()['dependencies'], true), true],
     'dependencies include wordpress marker' => [static fn (): mixed => in_array('sqlite-wordpress-trigger-rollback-import', $deleteRollback()['dependencies'], true), true],
 
-    'bad savepoint throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan::deleteRows('bad-name', $rows, static fn (): bool => true), InvalidArgumentException::class],
-    'bad raise action throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan::deleteRows('ok_name', $rows, static fn (): bool => true, [['timing' => 'before', 'event' => 'delete', 'action' => 'raise', 'raise' => 'abort']]), InvalidArgumentException::class],
-    'delete set new throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan::deleteRows('ok_name', $rows, static fn (): bool => true, [['timing' => 'before', 'event' => 'delete', 'action' => 'set-new', 'set' => ['x' => 1]]]), InvalidArgumentException::class],
-    'missing update assignments throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan::updateRows('ok_name', $rows, [], static fn (): bool => true), InvalidArgumentException::class],
-    'bad when operator throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan::deleteRows('ok_name', $rows, static fn (): bool => true, [['timing' => 'before', 'event' => 'delete', 'action' => 'audit', 'when' => ['old.option_name', 'like', 'x']]]), InvalidArgumentException::class],
+    'bad savepoint throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::deleteRows('bad-name', $rows, static fn (): bool => true), InvalidArgumentException::class],
+    'bad raise action throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::deleteRows('ok_name', $rows, static fn (): bool => true, [['timing' => 'before', 'event' => 'delete', 'action' => 'raise', 'raise' => 'abort']]), InvalidArgumentException::class],
+    'delete set new throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::deleteRows('ok_name', $rows, static fn (): bool => true, [['timing' => 'before', 'event' => 'delete', 'action' => 'set-new', 'set' => ['x' => 1]]]), InvalidArgumentException::class],
+    'missing update assignments throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::updateRows('ok_name', $rows, [], static fn (): bool => true), InvalidArgumentException::class],
+    'bad when operator throws' => [static fn (): mixed => SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan::deleteRows('ok_name', $rows, static fn (): bool => true, [['timing' => 'before', 'event' => 'delete', 'action' => 'audit', 'when' => ['old.option_name', 'like', 'x']]]), InvalidArgumentException::class],
 ];
 
 $tests = [];

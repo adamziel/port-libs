@@ -2,13 +2,13 @@
 
 Status: focused current-source PHP behavior growth for transaction savepoint trigger rollback.
 
-This slice adds `SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan` for SQLite trigger `RAISE(ROLLBACK)` behavior inside a transaction savepoint. It covers DELETE and UPDATE source-cursor diagnostics where the attempted next source sees partial row changes, while rollback restores the current source rows to the savepoint image and suppresses durable changes.
+This slice adds `SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan` for SQLite trigger `RAISE(ROLLBACK)` behavior inside a transaction savepoint. It covers DELETE and UPDATE source-cursor diagnostics where the attempted next source sees partial row changes, while rollback restores the current source rows to the savepoint image and suppresses durable changes.
 
 Verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan.php
+php -l lanes/libsqlite/src/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Test.php
 php -l lanes/libsqlite/examples/wordpress-transaction-savepoint-trigger-rollback-current-source-next106.php

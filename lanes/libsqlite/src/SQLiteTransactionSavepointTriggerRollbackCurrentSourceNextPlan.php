@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNext106Plan
+final class SQLiteTransactionSavepointTriggerRollbackCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $rows
