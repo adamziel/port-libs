@@ -4169,7 +4169,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextAdmissionVarian
      * @param list<array<string, mixed>> $admissionRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $sealPlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSealVariant $sealPlan,
         private readonly array $admissionRows,
     ) {
     }
@@ -4187,7 +4187,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextAdmissionVarian
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext248(
+        return self::fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSealVariant::tableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -4199,7 +4199,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextAdmissionVarian
         ));
     }
 
-    public static function fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $sealPlan): self
+    public static function fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSealVariant $sealPlan): self
     {
         $rows = self::buildAdmissionRows($sealPlan);
         $errors = self::admissionErrorsForRows($rows);
@@ -4336,7 +4336,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextAdmissionVarian
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildAdmissionRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $sealPlan): array
+    private static function buildAdmissionRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSealVariant $sealPlan): array
     {
         $sealRows = $sealPlan->sealRows();
         $sealTokens = $sealPlan->sealTokens();
@@ -4479,7 +4479,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextHandoffVariant
      * @param list<array<string, mixed>> $handoffRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $sealPlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSealVariant $sealPlan,
         private readonly array $handoffRows,
     ) {
     }
@@ -4497,7 +4497,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextHandoffVariant
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext248(
+        return self::fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSealVariant::tableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -4509,7 +4509,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextHandoffVariant
         ));
     }
 
-    public static function fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $sealPlan): self
+    public static function fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSealVariant $sealPlan): self
     {
         $rows = self::buildHandoffRows($sealPlan);
         $errors = self::handoffErrorsForRows($rows);
@@ -4645,7 +4645,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextHandoffVariant
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildHandoffRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $sealPlan): array
+    private static function buildHandoffRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSealVariant $sealPlan): array
     {
         $sealRows = $sealPlan->sealRows();
         $sealTokens = $sealPlan->sealTokens();
@@ -4783,7 +4783,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextApplyVariant
      * @param list<array<string, mixed>> $applyRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $nextSourcePlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextNextSourceAllocationVariant $nextSourcePlan,
         private readonly array $applyRows,
     ) {
     }
@@ -4801,7 +4801,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextApplyVariant
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromNextSourcePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext249(
+        return self::fromNextSourcePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextNextSourceAllocationVariant::tableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -4813,7 +4813,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextApplyVariant
         ));
     }
 
-    public static function fromNextSourcePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $nextSourcePlan): self
+    public static function fromNextSourcePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextNextSourceAllocationVariant $nextSourcePlan): self
     {
         $rows = self::buildApplyRows($nextSourcePlan);
         $errors = self::applyErrorsForRows($rows);
@@ -4969,7 +4969,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextApplyVariant
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildApplyRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $nextSourcePlan): array
+    private static function buildApplyRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextNextSourceAllocationVariant $nextSourcePlan): array
     {
         $sourceRows = $nextSourcePlan->nextSourceRows();
         $sourceTokens = $nextSourcePlan->nextSourceTokens();
@@ -5118,7 +5118,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCurrentSourceVa
      * @param list<array<string, mixed>> $currentSourceRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $nextSourcePlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextNextSourceAllocationVariant $nextSourcePlan,
         private readonly array $currentSourceRows,
     ) {
     }
@@ -5136,7 +5136,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCurrentSourceVa
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromNextSourcePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext249(
+        return self::fromNextSourcePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextNextSourceAllocationVariant::tableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -5148,7 +5148,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCurrentSourceVa
         ));
     }
 
-    public static function fromNextSourcePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $nextSourcePlan): self
+    public static function fromNextSourcePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextNextSourceAllocationVariant $nextSourcePlan): self
     {
         $rows = self::buildCurrentSourceRows($nextSourcePlan);
         $errors = self::currentSourceErrorsForRows($rows);
@@ -5287,7 +5287,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCurrentSourceVa
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildCurrentSourceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $nextSourcePlan): array
+    private static function buildCurrentSourceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextNextSourceAllocationVariant $nextSourcePlan): array
     {
         $nextRows = $nextSourcePlan->nextSourceRows();
         $nextTokens = $nextSourcePlan->nextSourceTokens();
