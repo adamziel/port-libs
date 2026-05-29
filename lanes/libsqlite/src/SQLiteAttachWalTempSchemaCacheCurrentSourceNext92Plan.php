@@ -25,6 +25,34 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
     /**
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
      * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
+     * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext169172(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    {
+        return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next169-172', [
+            'sqlite-attach-temp-wal-schema-cache-current-source-next169',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next170',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next171',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next172',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next165',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next166',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next167',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next168',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next161',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next162',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next163',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next164',
+            'sqlite-indexed-by-schema-cache-expiry',
+            'sqlite-attach-wal-temp-schema-cache-current-source-next92',
+            'sqlite-wal-page-one-schema-cookie-current-source',
+            'sqlite-temp-schema-shadow-cache-expiry',
+        ]);
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
+     * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, file?:string|null, commit?:bool}> $events
      * @return array<string,mixed>
      */
