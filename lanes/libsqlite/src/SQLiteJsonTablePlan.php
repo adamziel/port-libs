@@ -2707,7 +2707,7 @@ final class SQLiteJsonTablePlan
             $constraints,
             $rootColumn,
             $orderBy,
-            $limit,
+            null,
             $lastYieldedRowid,
             $yieldBatchSize,
             $projection,
@@ -2787,8 +2787,8 @@ final class SQLiteJsonTablePlan
             $rootColumn,
             $orderBy,
             $limit,
-            $lastYieldedRowid,
-            $yieldBatchSize,
+            null,
+            null,
             $projection,
         );
 
@@ -3057,6 +3057,78 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext211(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext209(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $projection,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeProfile211(
+            $plan['currentGeneratedPathRowidRangeConstraint209'],
+            $plan['currentGeneratedPathRowidAliasOrder206'],
+            $lastYieldedRowid,
+            $yieldBatchSize,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeProfile211(
+            $plan['nextGeneratedPathRowidRangeConstraint209'],
+            $plan['nextGeneratedPathRowidAliasOrder206'],
+            $lastYieldedRowid,
+            $yieldBatchSize,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceResumeTransitions211($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceResumeReasons211($transitions);
+
+        $plan['currentGeneratedPathRowidCurrentSourceResume211'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceResume211'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceResume211Transitions'] = $transitions;
+        $plan['next211ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next209ReplanReasons'] ?? [],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next211ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'resume-current-source-rowid-json-table-generated-path-rowid-next211';
+        $plan['nextReaderPolicy'] = $nextProfile['resumeReusable']
+            ? 'reuse-resume-current-source-rowid-json-table-generated-path-rowid-next211'
+            : 'reprepare-resume-next-source-rowid-json-table-generated-path-rowid-next211';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next211'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext208(
         string $function,
         array $currentSource,
@@ -3112,6 +3184,81 @@ final class SQLiteJsonTablePlan
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
             ['sqlite-json-table-generated-path-rowid-cost-current-source-next208'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext210(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+        int $offset = 0,
+    ): array {
+        if ($offset < 0) {
+            throw new \InvalidArgumentException('JSON table generated-path rowid OFFSET must be non-negative');
+        }
+
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext209(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $projection,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidOffsetCostProfile210(
+            $plan['currentGeneratedPathRowidRangeConstraint209'],
+            $limit,
+            $offset,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidOffsetCostProfile210(
+            $plan['nextGeneratedPathRowidRangeConstraint209'],
+            $limit,
+            $offset,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidOffsetCostTransitions210($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidOffsetCostReasons210($transitions);
+
+        $plan['currentGeneratedPathRowidOffsetCost210'] = $currentProfile;
+        $plan['nextGeneratedPathRowidOffsetCost210'] = $nextProfile;
+        $plan['generatedPathRowidOffsetCost210Transitions'] = $transitions;
+        $plan['next210ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next209ReplanReasons'] ?? [],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next210ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'offset-rowid-current-json-table-generated-path-rowid-next210';
+        $plan['nextReaderPolicy'] = $nextProfile['offsetReusable']
+            ? 'reuse-offset-rowid-current-json-table-generated-path-rowid-next210'
+            : 'reprepare-offset-rowid-next-json-table-generated-path-rowid-next210';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next210'],
         )));
 
         return $plan;
@@ -16353,6 +16500,179 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param array<string,mixed> $rangeProfile209
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidOffsetCostProfile210(
+        array $rangeProfile209,
+        ?int $limit,
+        int $offset,
+    ): array {
+        $rangeRowids = array_values(array_map('intval', $rangeProfile209['acceptedRangeRowids'] ?? []));
+        $skippedRowids = array_slice($rangeRowids, 0, $offset);
+        $remainingRowids = array_slice($rangeRowids, $offset);
+        $limitApplied = $limit !== null && $limit >= 0;
+        $yieldRowids = $limitApplied ? array_slice($remainingRowids, 0, $limit) : $remainingRowids;
+        $blockedRowids = $limitApplied ? array_slice($remainingRowids, $limit) : [];
+        $rangeReusable = (bool) ($rangeProfile209['rangeReusable'] ?? false);
+        $offsetReusable = $rangeReusable && ($offset === 0 || count($skippedRowids) === $offset) && $yieldRowids !== [];
+        $estimatedRows = $offsetReusable ? count($yieldRowids) : 0;
+        $baseCost = max(1, (int) ($rangeProfile209['estimatedCost'] ?? 1));
+        $skipCost = $offsetReusable ? count($skippedRowids) : 0;
+        $estimatedCost = $offsetReusable
+            ? max(1, $baseCost + $skipCost)
+            : 1000000;
+        $opcode = self::jsonTableGeneratedPathRowidOffsetCostOpcode210(
+            $rangeReusable,
+            $offset,
+            $skippedRowids,
+            $yieldRowids,
+        );
+
+        return [
+            'function' => (string) ($rangeProfile209['function'] ?? ''),
+            'root' => (string) ($rangeProfile209['root'] ?? '$'),
+            'generatedPath' => (string) ($rangeProfile209['generatedPath'] ?? ''),
+            'sourceGeneration' => (string) ($rangeProfile209['sourceGeneration'] ?? ''),
+            'rangeFingerprint' => (string) ($rangeProfile209['rangeFingerprint'] ?? ''),
+            'offset' => $offset,
+            'limit' => $limit,
+            'limitApplied' => $limitApplied,
+            'rangeRowidsBeforeOffset' => $rangeRowids,
+            'skippedOffsetRowids' => $skippedRowids,
+            'remainingRowidsAfterOffset' => $remainingRowids,
+            'yieldRowids' => $yieldRowids,
+            'blockedRowidsAfterLimit' => $blockedRowids,
+            'skipCount' => count($skippedRowids),
+            'yieldCount' => count($yieldRowids),
+            'rangeReusable' => $rangeReusable,
+            'offsetReusable' => $offsetReusable,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'offsetOpcode' => $opcode,
+            'costClass' => self::jsonTableGeneratedPathRowidOffsetCostClass210($opcode, count($yieldRowids), $offset),
+            'offsetFingerprint' => hash('sha256', json_encode([
+                $rangeProfile209['rangeFingerprint'] ?? null,
+                $offset,
+                $limit,
+                $rangeRowids,
+                $skippedRowids,
+                $yieldRowids,
+                $blockedRowids,
+                $offsetReusable,
+                $estimatedCost,
+            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<int> $skippedRowids
+     * @param list<int> $yieldRowids
+     */
+    private static function jsonTableGeneratedPathRowidOffsetCostOpcode210(
+        bool $rangeReusable,
+        int $offset,
+        array $skippedRowids,
+        array $yieldRowids,
+    ): string {
+        if (!$rangeReusable) {
+            return 'OP_JsonTableRowidOffsetReprepareNext210';
+        }
+        if ($offset > 0 && count($skippedRowids) < $offset) {
+            return 'OP_JsonTableRowidOffsetEofNext210';
+        }
+        if ($yieldRowids === []) {
+            return 'OP_JsonTableRowidOffsetEofNext210';
+        }
+        if ($offset === 0) {
+            return 'OP_JsonTableRowidOffsetBypassNext210';
+        }
+
+        return 'OP_JsonTableRowidOffsetSkipSeekNext210';
+    }
+
+    private static function jsonTableGeneratedPathRowidOffsetCostClass210(string $opcode, int $rowCount, int $offset): string
+    {
+        return match ($opcode) {
+            'OP_JsonTableRowidOffsetSkipSeekNext210' => $rowCount <= 1
+                ? 'json-table-generated-path-rowid-offset-point-next210'
+                : 'json-table-generated-path-rowid-offset-skip-seek-next210',
+            'OP_JsonTableRowidOffsetBypassNext210' => 'json-table-generated-path-rowid-offset-bypass-next210',
+            'OP_JsonTableRowidOffsetEofNext210' => 'json-table-generated-path-rowid-offset-eof-next210',
+            default => $offset > 0
+                ? 'json-table-generated-path-rowid-offset-reprepare-next210'
+                : 'json-table-generated-path-rowid-offset-range-reprepare-next210',
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidOffsetCostTransitions210(array $current, array $next): array
+    {
+        $fields = [
+            'root',
+            'generatedPath',
+            'sourceGeneration',
+            'rangeFingerprint',
+            'offset',
+            'limit',
+            'limitApplied',
+            'rangeRowidsBeforeOffset',
+            'skippedOffsetRowids',
+            'remainingRowidsAfterOffset',
+            'yieldRowids',
+            'blockedRowidsAfterLimit',
+            'skipCount',
+            'yieldCount',
+            'rangeReusable',
+            'offsetReusable',
+            'estimatedRows',
+            'estimatedCost',
+            'offsetOpcode',
+            'costClass',
+            'offsetFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidOffsetCostReasons210(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root', 'generatedPath', 'sourceGeneration', 'rangeFingerprint', 'offsetFingerprint' => 'json-table-generated-path-rowid-offset-source-changed-next210',
+                'offset', 'limit', 'limitApplied', 'skipCount', 'yieldCount' => 'json-table-generated-path-rowid-offset-frame-changed-next210',
+                'rangeRowidsBeforeOffset', 'skippedOffsetRowids', 'remainingRowidsAfterOffset', 'yieldRowids', 'blockedRowidsAfterLimit' => 'json-table-generated-path-rowid-offset-rowset-changed-next210',
+                'rangeReusable', 'offsetReusable' => 'json-table-generated-path-rowid-offset-admission-changed-next210',
+                'estimatedRows', 'estimatedCost', 'offsetOpcode', 'costClass' => 'json-table-generated-path-rowid-offset-cost-changed-next210',
+                default => 'json-table-generated-path-rowid-offset-state-changed-next210',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
      * @param array<string,mixed> $aliasOrder206
      * @return array<string,mixed>
      */
@@ -16719,6 +17039,212 @@ final class SQLiteJsonTablePlan
                 'orderByConsumed', 'aliasOrderReusable', 'limitConsumed', 'limitReusable' => 'json-table-generated-path-rowid-alias-limit-admission-changed-next207',
                 'estimatedRows', 'estimatedCost', 'limitOpcode', 'costClass' => 'json-table-generated-path-rowid-alias-limit-cost-changed-next207',
                 default => 'json-table-generated-path-rowid-alias-limit-state-changed-next207',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $range209
+     * @param array<string,mixed> $aliasOrder206
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeProfile211(
+        array $range209,
+        array $aliasOrder206,
+        ?int $lastYieldedRowid,
+        ?int $yieldBatchSize,
+    ): array {
+        $acceptedRowids = array_values(array_map('intval', $range209['acceptedRangeRowids'] ?? []));
+        $direction = self::jsonTableGeneratedPathRowidCurrentSourceResumeDirection211($aliasOrder206);
+        $resumeRowids = self::jsonTableGeneratedPathRowidCurrentSourceResumeRowids211($acceptedRowids, $direction, $lastYieldedRowid);
+        $batchSize = $yieldBatchSize === null ? count($resumeRowids) : max(0, $yieldBatchSize);
+        $yieldRowids = $batchSize === 0 ? [] : array_slice($resumeRowids, 0, $batchSize);
+        $deferredRowids = array_slice($resumeRowids, count($yieldRowids));
+        $rangeReusable = (bool) ($range209['rangeReusable'] ?? false);
+        $resumeReusable = $rangeReusable && $resumeRowids !== [];
+        $estimatedRows = $resumeReusable ? count($resumeRowids) : 0;
+        $baseCost = max(1, (int) ($range209['estimatedCost'] ?? 1));
+        $resumePenalty = $lastYieldedRowid === null ? 0 : count($acceptedRowids) - count($resumeRowids);
+        $estimatedCost = $resumeReusable
+            ? max(1, min($baseCost + max(0, $resumePenalty), max(1, $estimatedRows + max(0, $resumePenalty))))
+            : 1000000;
+        $opcode = self::jsonTableGeneratedPathRowidCurrentSourceResumeOpcode211(
+            $rangeReusable,
+            $resumeRowids,
+            $yieldRowids,
+            $lastYieldedRowid,
+        );
+
+        return [
+            'function' => (string) ($range209['function'] ?? ''),
+            'root' => (string) ($range209['root'] ?? '$'),
+            'generatedPath' => (string) ($range209['generatedPath'] ?? ''),
+            'sourceGeneration' => (string) ($range209['sourceGeneration'] ?? ''),
+            'rangeFingerprint' => (string) ($range209['rangeFingerprint'] ?? ''),
+            'orderDirection' => $direction,
+            'lastYieldedRowid' => $lastYieldedRowid,
+            'acceptedRangeRowids' => $acceptedRowids,
+            'resumeRowids' => $resumeRowids,
+            'yieldRowids' => $yieldRowids,
+            'deferredRowids' => $deferredRowids,
+            'firstResumeRowid' => $resumeRowids[0] ?? null,
+            'lastResumeRowid' => $resumeRowids === [] ? null : $resumeRowids[count($resumeRowids) - 1],
+            'batchSize' => $batchSize,
+            'rangeReusable' => $rangeReusable,
+            'resumeReusable' => $resumeReusable,
+            'eofAfterResume' => $rangeReusable && $resumeRowids === [],
+            'resumeSelectivity' => $acceptedRowids === [] ? 0.0 : count($resumeRowids) / count($acceptedRowids),
+            'skippedBeforeResume' => max(0, $resumePenalty),
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'resumeOpcode' => $opcode,
+            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceResumeCostClass211($opcode, count($yieldRowids), count($deferredRowids)),
+            'resumeFingerprint' => hash('sha256', json_encode([
+                $range209['rangeFingerprint'] ?? null,
+                $direction,
+                $lastYieldedRowid,
+                $acceptedRowids,
+                $resumeRowids,
+                $yieldRowids,
+                $deferredRowids,
+                $estimatedCost,
+            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeDirection211(array $aliasOrder206): string
+    {
+        $terms = is_array($aliasOrder206['orderTerms'] ?? null) ? $aliasOrder206['orderTerms'] : [];
+        $first = $terms[0] ?? null;
+        if (is_array($first) && strtoupper((string) ($first['direction'] ?? 'ASC')) === 'DESC') {
+            return 'DESC';
+        }
+
+        return 'ASC';
+    }
+
+    /**
+     * @param list<int> $rowids
+     * @return list<int>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeRowids211(array $rowids, string $direction, ?int $lastYieldedRowid): array
+    {
+        if ($lastYieldedRowid === null) {
+            return $rowids;
+        }
+
+        return array_values(array_filter(
+            $rowids,
+            static fn (int $rowid): bool => $direction === 'DESC' ? $rowid < $lastYieldedRowid : $rowid > $lastYieldedRowid,
+        ));
+    }
+
+    /**
+     * @param list<int> $resumeRowids
+     * @param list<int> $yieldRowids
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeOpcode211(
+        bool $rangeReusable,
+        array $resumeRowids,
+        array $yieldRowids,
+        ?int $lastYieldedRowid,
+    ): string {
+        if (!$rangeReusable) {
+            return 'OP_JsonTableCurrentSourceResumeReprepareNext211';
+        }
+        if ($resumeRowids === []) {
+            return 'OP_JsonTableCurrentSourceResumeEofNext211';
+        }
+        if ($lastYieldedRowid === null) {
+            return 'OP_JsonTableCurrentSourceResumeStartNext211';
+        }
+        if ($yieldRowids === []) {
+            return 'OP_JsonTableCurrentSourceResumeYieldBlockedNext211';
+        }
+
+        return 'OP_JsonTableCurrentSourceResumeAfterRowidNext211';
+    }
+
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCostClass211(string $opcode, int $yieldCount, int $deferredCount): string
+    {
+        return match ($opcode) {
+            'OP_JsonTableCurrentSourceResumeAfterRowidNext211' => $deferredCount > 0
+                ? 'json-table-generated-path-rowid-current-source-resume-window-next211'
+                : 'json-table-generated-path-rowid-current-source-resume-final-next211',
+            'OP_JsonTableCurrentSourceResumeStartNext211' => $yieldCount > 1
+                ? 'json-table-generated-path-rowid-current-source-resume-start-range-next211'
+                : 'json-table-generated-path-rowid-current-source-resume-start-point-next211',
+            'OP_JsonTableCurrentSourceResumeEofNext211' => 'json-table-generated-path-rowid-current-source-resume-eof-next211',
+            'OP_JsonTableCurrentSourceResumeYieldBlockedNext211' => 'json-table-generated-path-rowid-current-source-resume-yield-blocked-next211',
+            default => 'json-table-generated-path-rowid-current-source-resume-reprepare-next211',
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeTransitions211(array $current, array $next): array
+    {
+        $fields = [
+            'root',
+            'generatedPath',
+            'sourceGeneration',
+            'rangeFingerprint',
+            'orderDirection',
+            'lastYieldedRowid',
+            'acceptedRangeRowids',
+            'resumeRowids',
+            'yieldRowids',
+            'deferredRowids',
+            'firstResumeRowid',
+            'lastResumeRowid',
+            'batchSize',
+            'rangeReusable',
+            'resumeReusable',
+            'eofAfterResume',
+            'resumeSelectivity',
+            'skippedBeforeResume',
+            'estimatedRows',
+            'estimatedCost',
+            'resumeOpcode',
+            'costClass',
+            'resumeFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeReasons211(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root', 'generatedPath', 'sourceGeneration', 'rangeFingerprint', 'resumeFingerprint' => 'json-table-generated-path-rowid-current-source-resume-source-changed-next211',
+                'orderDirection', 'lastYieldedRowid', 'batchSize' => 'json-table-generated-path-rowid-current-source-resume-cursor-changed-next211',
+                'acceptedRangeRowids', 'resumeRowids', 'yieldRowids', 'deferredRowids', 'firstResumeRowid', 'lastResumeRowid' => 'json-table-generated-path-rowid-current-source-resume-rowset-changed-next211',
+                'rangeReusable', 'resumeReusable', 'eofAfterResume', 'resumeOpcode' => 'json-table-generated-path-rowid-current-source-resume-admission-changed-next211',
+                'resumeSelectivity', 'skippedBeforeResume', 'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-current-source-resume-cost-changed-next211',
+                default => 'json-table-generated-path-rowid-current-source-resume-state-changed-next211',
             };
         }
 
