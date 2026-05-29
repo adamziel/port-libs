@@ -1,0 +1,321 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\LibSqlite;
+
+use InvalidArgumentException;
+
+final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext188
+{
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param array<string,list<array<string,mixed>>> $currentTables
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array<string,list<array<string,mixed>>> $nextTables
+     * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
+     * @return array<string,mixed>
+     */
+    public static function currentNextPageFromCatalog(
+        array $currentRecords,
+        array $currentTables,
+        array $nextRecords,
+        array $nextTables,
+        string $indexXinfoSql,
+        int $offset = 0,
+        int $limit = 188,
+        ?array $cursor = null,
+        bool $tableValuedIndexXinfo = false,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next188 offset must be non-negative');
+        }
+        if ($limit <= 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next188 limit must be positive');
+        }
+
+        $base = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext185::currentNextPageFromCatalog(
+            $currentRecords,
+            $currentTables,
+            $nextRecords,
+            $nextTables,
+            $indexXinfoSql,
+            0,
+            PHP_INT_MAX,
+            null,
+            $tableValuedIndexXinfo,
+        );
+
+        $currentRows = self::partialParentKeyRows($currentRecords, 'current');
+        $nextRows = self::partialParentKeyRows($nextRecords, 'next');
+        $sourceId = self::stableHash([
+            'mode' => 'pragma-index-xinfo-foreignkey-current-source-next188',
+            'base' => $base['source_id'],
+            'current_partial_parent_keys' => self::rowSummary($currentRows),
+            'next_partial_parent_keys' => self::rowSummary($nextRows),
+        ]);
+        if ($cursor !== null) {
+            self::validateCursor($cursor, $sourceId, $offset);
+        }
+
+        $allRows = array_values(array_merge($base['rows'], $currentRows, $nextRows));
+        $total = count($allRows);
+        $rows = array_slice($allRows, $offset, $limit);
+        $nextOffset = $offset + count($rows);
+        $complete = $nextOffset >= $total;
+        $currentCounts = self::partialParentKeyCounts($currentRows);
+        $nextCounts = self::partialParentKeyCounts($nextRows);
+        $blocking = array_values(array_unique([
+            ...($base['next_state']['blocking'] ?? []),
+            ...($nextCounts['partial_unique_only'] > 0 ? ['foreign_key_parent_partial_unique_index'] : []),
+        ]));
+
+        return [
+            ...$base,
+            'status' => $blocking === [] ? 'ok' : 'blocked',
+            'source_id' => $sourceId,
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($rows),
+            'total' => $total,
+            'next_offset' => $complete ? null : $nextOffset,
+            'complete' => $complete,
+            'current_source' => [
+                ...$base['current_source'],
+                'foreign_key_parent_partial_source' => 'pragma_index_xinfo_parent_partial_unique_indexes',
+                'foreign_key_parent_partial_keys' => self::rowSummary($currentRows),
+            ],
+            'next_source' => [
+                ...$base['next_source'],
+                'foreign_key_parent_partial_source' => 'pragma_index_xinfo_parent_partial_unique_indexes',
+                'foreign_key_parent_partial_keys' => self::rowSummary($nextRows),
+            ],
+            'current' => [
+                ...$base['current'],
+                'foreign_key_parent_partial_rows' => count($currentRows),
+                'foreign_key_parent_partial' => $currentCounts,
+                'total_blockers' => (int) ($base['current']['total_blockers'] ?? 0) + $currentCounts['partial_unique_only'],
+            ],
+            'next_counts' => [
+                ...$base['next_counts'],
+                'foreign_key_parent_partial_rows' => count($nextRows),
+                'foreign_key_parent_partial' => $nextCounts,
+                'total_blockers' => (int) ($base['next_counts']['total_blockers'] ?? 0) + $nextCounts['partial_unique_only'],
+            ],
+            'delta' => [
+                ...$base['delta'],
+                'foreign_key_parent_partial_rows' => count($nextRows) - count($currentRows),
+                'foreign_key_parent_partial_changed' => self::rowSummary($currentRows, false) !== self::rowSummary($nextRows, false),
+                'foreign_key_parent_partial_blocker_delta' => $nextCounts['partial_unique_only'] - $currentCounts['partial_unique_only'],
+                'foreign_key_parent_partial_repaired' => $currentCounts['partial_unique_only'] > 0 && $nextCounts['partial_unique_only'] === 0,
+                'total_blockers' => ((int) ($base['delta']['total_blockers'] ?? 0)) + $nextCounts['partial_unique_only'] - $currentCounts['partial_unique_only'],
+                'cleared' => (($base['delta']['cleared'] ?? false) === true) && $nextCounts['partial_unique_only'] === 0,
+            ],
+            'next_state' => [
+                ...$base['next_state'],
+                'ready' => $blocking === [],
+                'blocking' => $blocking,
+            ],
+            'next' => $complete ? null : [
+                'source_id' => $sourceId,
+                'offset' => $nextOffset,
+            ],
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function partialParentKeyRows(array $records, string $side = 'current'): array
+    {
+        self::validateRecords($records);
+
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        $rows = [];
+        foreach (self::groupForeignKeyRows(SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext175::foreignKeyListRows($records, $side)) as $group) {
+            $table = (string) $group[0]['table'];
+            $parent = (string) $group[0]['parent'];
+            $parentColumns = array_map(static fn (array $row): string => (string) $row['to'], $group);
+            $candidate = self::parentIndexCandidate($catalog, $parent, $parentColumns);
+
+            foreach ($group as $row) {
+                $indexRow = $candidate['rows'][(int) $row['seq']] ?? null;
+                $rows[] = [
+                    'side' => $side,
+                    'kind' => 'foreign_key_parent_partial',
+                    'table' => $table,
+                    'fkid' => (int) $row['id'],
+                    'seq' => (int) $row['seq'],
+                    'parent' => $parent,
+                    'from' => (string) $row['from'],
+                    'to' => (string) $row['to'],
+                    'index' => $candidate['name'],
+                    'index_unique' => $candidate['unique'],
+                    'index_partial' => $candidate['partial'],
+                    'index_seqno' => $indexRow['seqno'] ?? null,
+                    'index_name' => $indexRow['name'] ?? null,
+                    'index_key' => $indexRow['key'] ?? null,
+                    'matched_key_columns' => $candidate['matched_key_columns'],
+                    'status' => $candidate['status'],
+                    'message' => $candidate['status'] === 'partial_unique_only'
+                        ? "foreign key {$table}->{$parent} parent columns are backed only by a partial UNIQUE index"
+                        : "foreign key {$table}->{$parent} parent columns have a full UNIQUE parent key",
+                ];
+            }
+        }
+
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => [$left['side'], $left['table'], $left['fkid'], $left['seq']]
+                <=> [$right['side'], $right['table'], $right['fkid'], $right['seq']],
+        );
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<list<array<string,mixed>>>
+     */
+    private static function groupForeignKeyRows(array $rows): array
+    {
+        $groups = [];
+        foreach ($rows as $row) {
+            $groups[strtolower((string) $row['table']) . '#' . (int) $row['id']][] = $row;
+        }
+        foreach ($groups as &$group) {
+            usort($group, static fn (array $left, array $right): int => (int) $left['seq'] <=> (int) $right['seq']);
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * @param list<string> $parentColumns
+     * @return array{name:string|null,unique:int|null,partial:int|null,rows:list<array<string,mixed>>,matched_key_columns:int,status:string}
+     */
+    private static function parentIndexCandidate(SQLitePragmaSchemaCatalog $catalog, string $parent, array $parentColumns): array
+    {
+        $partial = null;
+        foreach ($catalog->execute('PRAGMA index_list(' . self::pragmaArgumentLiteral($parent) . ')')['rows'] as $index) {
+            if ((int) $index['unique'] !== 1) {
+                continue;
+            }
+
+            $indexName = (string) $index['name'];
+            $xinfo = $catalog->execute('PRAGMA index_xinfo(' . self::pragmaArgumentLiteral($indexName) . ')')['rows'];
+            $keyRows = array_values(array_filter($xinfo, static fn (array $row): bool => (int) ($row['key'] ?? 0) === 1));
+            $indexColumns = array_map(static fn (array $row): string => strtolower((string) ($row['name'] ?? '')), $keyRows);
+            if ($indexColumns !== array_map('strtolower', $parentColumns)) {
+                continue;
+            }
+
+            $candidate = [
+                'name' => $indexName,
+                'unique' => 1,
+                'partial' => (int) $index['partial'],
+                'rows' => $keyRows,
+                'matched_key_columns' => count($keyRows),
+                'status' => (int) $index['partial'] === 1 ? 'partial_unique_only' : 'ok',
+            ];
+            if ((int) $index['partial'] === 0) {
+                return $candidate;
+            }
+            $partial ??= $candidate;
+        }
+
+        return $partial ?? [
+            'name' => null,
+            'unique' => null,
+            'partial' => null,
+            'rows' => [],
+            'matched_key_columns' => 0,
+            'status' => 'missing_parent_key',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{rows:int,ok:int,partial_unique_only:int,missing_parent_key:int,partial_index_rows:int,full_index_rows:int}
+     */
+    private static function partialParentKeyCounts(array $rows): array
+    {
+        $counts = [
+            'rows' => count($rows),
+            'ok' => 0,
+            'partial_unique_only' => 0,
+            'missing_parent_key' => 0,
+            'partial_index_rows' => 0,
+            'full_index_rows' => 0,
+        ];
+        foreach ($rows as $row) {
+            $status = (string) ($row['status'] ?? '');
+            if (isset($counts[$status])) {
+                $counts[$status]++;
+            }
+            if (($row['index_partial'] ?? null) === 1) {
+                $counts['partial_index_rows']++;
+            } elseif (($row['index_partial'] ?? null) === 0) {
+                $counts['full_index_rows']++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     */
+    private static function validateRecords(array $records): void
+    {
+        foreach ($records as $record) {
+            if (!$record instanceof SQLiteSchemaRecord) {
+                throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next188 records must be SQLiteSchemaRecord instances');
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function rowSummary(array $rows, bool $includeSide = true): array
+    {
+        $summary = array_map(
+            static fn (array $row): string => ($includeSide ? $row['side'] . ':' : '')
+                . $row['table'] . '#' . $row['fkid'] . '.' . $row['seq'] . ':' . $row['from'] . '->'
+                . $row['parent'] . '.' . $row['to'] . ':' . ($row['index'] ?? '') . ':partial='
+                . (string) ($row['index_partial'] ?? 'null') . ':' . ($row['status'] ?? ''),
+            $rows,
+        );
+        sort($summary);
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string,mixed> $cursor
+     */
+    private static function validateCursor(array $cursor, string $sourceId, int $offset): void
+    {
+        if (($cursor['source_id'] ?? null) !== $sourceId) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next188 cursor does not match the current source');
+        }
+        $cursorOffset = $cursor['next_offset'] ?? $cursor['offset'] ?? null;
+        if ($cursorOffset !== null && $cursorOffset !== $offset) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next188 cursor offset does not match the requested page offset');
+        }
+    }
+
+    private static function pragmaArgumentLiteral(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
+    }
+
+    private static function stableHash(mixed $value): string
+    {
+        return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
+}
