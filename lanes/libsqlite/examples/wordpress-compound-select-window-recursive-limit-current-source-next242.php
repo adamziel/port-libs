@@ -41,7 +41,7 @@ SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY au
  LIMIT 3 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext242($sql, $current, $next);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveLimitWindowCommitFence($sql, $current, $next);
 $fence = $plan['recursiveLimitWindowCommitFenceNext242'];
 
 if (($argv[1] ?? '') === '--self-test') {

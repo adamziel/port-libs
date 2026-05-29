@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
@@ -29,7 +30,7 @@ $attempt = "UPDATE wp_options SET status = 'attempt226' WHERE (option_id, option
 $retry = "UPDATE wp_options SET status = 'retry226' WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY priority DESC LIMIT 2) RETURNING option_id, status ORDER BY option_id DESC";
 $delete = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'network_retry' ORDER BY priority ASC LIMIT 1) RETURNING option_id, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext226(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBoundedDistinctSubquerySavepointRollback(
     ['wp_options' => $rows, 'wp_optionmeta' => $meta],
     [$attempt],
     [$retry, $delete],

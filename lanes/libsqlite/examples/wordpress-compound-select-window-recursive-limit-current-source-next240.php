@@ -64,7 +64,7 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext240($sql, $current, $next);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareFinalPageSpilloverDrain($sql, $current, $next);
 $spillover = $plan['compoundFinalPageSpilloverDrainNext240'];
 
 if (($argv[1] ?? '') === '--self-test') {

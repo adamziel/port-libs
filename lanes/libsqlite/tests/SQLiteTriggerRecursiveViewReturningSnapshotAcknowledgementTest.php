@@ -44,7 +44,7 @@ $returning228 = [
     ['expr' => 'spawn_child', 'as' => 'spawn_child'],
 ];
 
-$plan228 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext228(
+$plan228 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::currentReturningSnapshotAcknowledgement(
     $rows228,
     $currentInput228,
     $nextInput228,

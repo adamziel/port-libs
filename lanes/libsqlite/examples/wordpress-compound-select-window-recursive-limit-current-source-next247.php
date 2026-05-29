@@ -48,7 +48,7 @@ SELECT option_id AS id,
  LIMIT 3 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext247(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveOffsetYieldSeal(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],

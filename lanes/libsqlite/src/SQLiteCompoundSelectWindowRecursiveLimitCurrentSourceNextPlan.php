@@ -18122,7 +18122,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext237(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareCurrentSourceDequeue(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -18511,7 +18511,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext238(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareSourceGenerationSeal(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext235($sql, $currentTables, $nextTables, self::baseCursorNext238($cursor));
             $seal = self::sourceGenerationSealNext238($base);
@@ -18711,7 +18711,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext239(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareCompoundLimitResumeFence(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext235(
                 $sql,
@@ -18927,9 +18927,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext240(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareFinalPageSpilloverDrain(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext237($sql, $currentTables, $nextTables, self::baseCursorNext240($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCurrentSourceDequeue($sql, $currentTables, $nextTables, self::baseCursorNext240($cursor));
             $spillover = self::spilloverDrainNext240($base);
             self::validateCursorNext240($cursor, $spillover);
 
@@ -19109,9 +19109,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext241(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareResumeAdmissionReceipt(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext238($sql, $currentTables, $nextTables, self::baseCursorNext241($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareSourceGenerationSeal($sql, $currentTables, $nextTables, self::baseCursorNext241($cursor));
             $receipt = self::resumeReceiptNext241($base);
             self::validateCursorNext241($cursor, $receipt);
 
@@ -19328,9 +19328,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext242(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareRecursiveLimitWindowCommitFence(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext238($sql, $currentTables, $nextTables, self::baseCursorNext242($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareSourceGenerationSeal($sql, $currentTables, $nextTables, self::baseCursorNext242($cursor));
             $fence = self::commitFenceNext242($base);
             self::validateCursorNext242($cursor, $fence);
 
@@ -19575,9 +19575,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext243(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareCompoundWindowReplayFence(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext240($sql, $currentTables, $nextTables, self::baseCursorNext243($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareFinalPageSpilloverDrain($sql, $currentTables, $nextTables, self::baseCursorNext243($cursor));
             $replay = self::replayFenceNext243($base);
             self::validateCursorNext243($cursor, $replay);
 
@@ -19766,9 +19766,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext244(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareRecursiveLimitExhaustionFence(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext241($sql, $currentTables, $nextTables, self::baseCursorNext244($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareResumeAdmissionReceipt($sql, $currentTables, $nextTables, self::baseCursorNext244($cursor));
             $fence = self::recursiveLimitFenceNext244($base);
             self::validateCursorNext244($cursor, $fence);
 
@@ -19963,9 +19963,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext245(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareNextSourcePromotionSnapshot(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext243($sql, $currentTables, $nextTables, self::baseCursorNext245($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCompoundWindowReplayFence($sql, $currentTables, $nextTables, self::baseCursorNext245($cursor));
             $promotion = self::promotionSnapshotNext245($base);
             self::validateCursorNext245($cursor, $promotion);
 
@@ -20182,9 +20182,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext246(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareRecursiveLimitSourceHandoff(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext243($sql, $currentTables, $nextTables, self::baseCursorNext246($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCompoundWindowReplayFence($sql, $currentTables, $nextTables, self::baseCursorNext246($cursor));
             $handoff = self::sourceHandoffNext246($base);
             self::validateCursorNext246($cursor, $handoff);
 
@@ -20373,9 +20373,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext247(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareRecursiveOffsetYieldSeal(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext244($sql, $currentTables, $nextTables, self::baseCursorNext247($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveLimitExhaustionFence($sql, $currentTables, $nextTables, self::baseCursorNext247($cursor));
             $seal = self::offsetYieldSealNext247($base);
             self::validateCursorNext247($cursor, $seal);
 
@@ -20576,7 +20576,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         public static function compareNextSourcePromotionFence(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext243($sql, $currentTables, $nextTables, self::baseCursorNextSourcePromotionFence($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCompoundWindowReplayFence($sql, $currentTables, $nextTables, self::baseCursorNextSourcePromotionFence($cursor));
             $promotion = self::nextPromotionNextSourcePromotionFence($base);
             self::validateCursorNextSourcePromotionFence($cursor, $promotion);
 
@@ -20794,7 +20794,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         public static function compareRecursiveWindowPromotionEpoch(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext245($sql, $currentTables, $nextTables, self::baseCursorRecursiveWindowPromotionEpoch($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNextSourcePromotionSnapshot($sql, $currentTables, $nextTables, self::baseCursorRecursiveWindowPromotionEpoch($cursor));
             $epoch = self::promotionEpochRecursiveWindowPromotionEpoch($base);
             self::validateCursorRecursiveWindowPromotionEpoch($cursor, $epoch);
 
@@ -20994,7 +20994,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         public static function compareNextPageAdmission(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext246($sql, $currentTables, $nextTables, self::baseCursorNextPageAdmission($cursor));
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveLimitSourceHandoff($sql, $currentTables, $nextTables, self::baseCursorNextPageAdmission($cursor));
             $admission = self::nextPageAdmissionNextPageAdmission($base);
             self::validateCursorNextPageAdmission($cursor, $admission);
 

@@ -48,7 +48,7 @@ SELECT option_id AS id,
  LIMIT 3 OFFSET 1
 SQL;
 
-$summary241 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext241($sql241, $currentTables241, $nextTables241, $cursor);
+$summary241 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareResumeAdmissionReceipt($sql241, $currentTables241, $nextTables241, $cursor);
 $tests = [];
 
 $tests['compound select window recursive limit current source next241 status dependencies'] = static function (TestRunner $t) use ($summary241): void {
@@ -160,13 +160,13 @@ foreach (range(1, 64) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 95 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (140 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT 5 OFFSET 2) SELECT id, label, dense_rank() OVER (ORDER BY score DESC) AS rn FROM q UNION SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC) AS rn FROM wp_options WHERE autoload = 'yes' EXCEPT SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC) AS rn FROM wp_options WHERE option_name IN ('siteurl_{$case}') ORDER BY rn, label LIMIT 3 OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext241($sql, $tables, $nextTables);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareResumeAdmissionReceipt($sql, $tables, $nextTables);
         $cursor = $plan['cursor'];
         $cursor['acknowledgedCurrentAcksNext232'] = $cursor['requiredCurrentAcksNext232'];
         $cursor['acknowledgedPromotionAcksNext235'] = $cursor['requiredPromotionAcksNext235'];
         $cursor['acknowledgedSourceGenerationAcksNext238'] = $cursor['requiredSourceGenerationAcksNext238'];
         $cursor['acknowledgedResumeAdmissionAcksNext241'] = $cursor['requiredResumeAdmissionAcksNext241'];
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext241($sql, $tables, $nextTables, $cursor);
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareResumeAdmissionReceipt($sql, $tables, $nextTables, $cursor);
         $receipt = $plan['resumeAdmissionReceiptNext241'];
 
         $t->same(['plugin_' . $case, 'seed_' . $case . ':2:3:4', 'home_' . $case], $receipt['nextLabels']);

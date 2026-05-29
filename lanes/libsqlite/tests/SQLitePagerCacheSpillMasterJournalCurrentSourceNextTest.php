@@ -7,20 +7,20 @@ use PortLibs\LibSqlite\SQLitePagerCacheSpillMasterJournalCurrentSourceNextPlan;
 $tests = [];
 
 $pageSize = 512;
-$databasePath = '/srv/wp-content/database/wp-next150.sqlite';
+$databasePath = '/srv/wp-content/database/wp-current-source.sqlite';
 $journalPath = $databasePath . '-journal';
-$masterPath = '/srv/wp-content/database/wp-next150-master-journal';
-$otherJournal = '/srv/wp-content/database/site-next150.sqlite-journal';
-$sourceId = 'wp-next150-master-current-source';
+$masterPath = '/srv/wp-content/database/wp-current-source-master-journal';
+$otherJournal = '/srv/wp-content/database/site-current-source.sqlite-journal';
+$sourceId = 'wp-current-source-master-current-source';
 $page = static fn (string $label, string $pad = '.'): string => str_pad($label, $pageSize, $pad, STR_PAD_RIGHT);
 
 $databasePages = [
-    1 => $page('next150 current schema root before spill'),
-    2 => $page('next150 current wp_options root before spill'),
-    3 => $page('next150 current autoload index before spill'),
-    4 => $page('next150 current plugin settings before spill'),
-    5 => $page('next150 current transient cache before spill'),
-    6 => $page('next150 current comments cache before spill'),
+    1 => $page('current schema root before spill'),
+    2 => $page('current wp_options root before spill'),
+    3 => $page('current autoload index before spill'),
+    4 => $page('current plugin settings before spill'),
+    5 => $page('current transient cache before spill'),
+    6 => $page('current comments cache before spill'),
 ];
 $databaseBytes = implode('', $databasePages);
 $cachedMaster = $otherJournal . "\n" . $journalPath . "\n";
@@ -28,12 +28,12 @@ $currentMaster = $journalPath . "\n" . $otherJournal . "\n";
 $nextMaster = $journalPath . "\n" . $otherJournal . "\n";
 
 $cache = [
-    1 => ['image' => $page('next150 dirty schema root cache page'), 'before_image' => $databasePages[1], 'master_member' => $journalPath, 'source_id' => $sourceId, 'epoch' => 6, 'journaled' => true, 'bytes' => $pageSize, 'walFrame' => 21],
-    2 => ['image' => $page('next150 dirty options root cache page'), 'before_image' => $databasePages[2], 'master_member' => $journalPath, 'source_id' => $sourceId, 'epoch' => 6, 'journaled' => true, 'bytes' => $pageSize, 'walFrame' => 22],
-    3 => ['image' => $page('next150 dirty stale before image'), 'before_image' => $page('next150 stale options before image'), 'master_member' => $journalPath, 'source_id' => $sourceId, 'epoch' => 6, 'journaled' => true, 'bytes' => $pageSize, 'walFrame' => 23],
-    4 => ['image' => $page('next150 dirty wrong member cache page'), 'before_image' => $databasePages[4], 'master_member' => $otherJournal, 'source_id' => $sourceId, 'epoch' => 6, 'journaled' => true, 'bytes' => $pageSize, 'walFrame' => 24],
-    5 => ['image' => $page('next150 dirty pinned transient cache page'), 'before_image' => $databasePages[5], 'master_member' => $journalPath, 'source_id' => $sourceId, 'epoch' => 6, 'journaled' => true, 'pinned' => true, 'bytes' => $pageSize, 'walFrame' => 25],
-    6 => ['image' => $page('next150 clean comments cache page'), 'before_image' => $databasePages[6], 'master_member' => $journalPath, 'source_id' => $sourceId, 'epoch' => 6, 'dirty' => false, 'journaled' => true, 'bytes' => $pageSize, 'walFrame' => 26],
+    1 => ['image' => $page('dirty schema root cache page'), 'before_image' => $databasePages[1], 'master_member' => $journalPath, 'source_id' => $sourceId, 'epoch' => 6, 'journaled' => true, 'bytes' => $pageSize, 'walFrame' => 21],
+    2 => ['image' => $page('dirty options root cache page'), 'before_image' => $databasePages[2], 'master_member' => $journalPath, 'source_id' => $sourceId, 'epoch' => 6, 'journaled' => true, 'bytes' => $pageSize, 'walFrame' => 22],
+    3 => ['image' => $page('dirty stale before image'), 'before_image' => $page('stale options before image'), 'master_member' => $journalPath, 'source_id' => $sourceId, 'epoch' => 6, 'journaled' => true, 'bytes' => $pageSize, 'walFrame' => 23],
+    4 => ['image' => $page('dirty wrong member cache page'), 'before_image' => $databasePages[4], 'master_member' => $otherJournal, 'source_id' => $sourceId, 'epoch' => 6, 'journaled' => true, 'bytes' => $pageSize, 'walFrame' => 24],
+    5 => ['image' => $page('dirty pinned transient cache page'), 'before_image' => $databasePages[5], 'master_member' => $journalPath, 'source_id' => $sourceId, 'epoch' => 6, 'journaled' => true, 'pinned' => true, 'bytes' => $pageSize, 'walFrame' => 25],
+    6 => ['image' => $page('clean comments cache page'), 'before_image' => $databasePages[6], 'master_member' => $journalPath, 'source_id' => $sourceId, 'epoch' => 6, 'dirty' => false, 'journaled' => true, 'bytes' => $pageSize, 'walFrame' => 26],
 ];
 
 $plan = static fn (
@@ -83,7 +83,7 @@ $deferredPlan = static fn (): array => $plan([
 ]);
 
 $cases = [
-    'status' => [static fn (): mixed => $plan()['status'], 'pager_cache_spill_master_journal_current_source_next150'],
+    'status' => [static fn (): mixed => $plan()['status'], 'pager_cache_spill_master_journal_current_source'],
     'reason' => [static fn (): mixed => $plan()['reason'], 'cache_spill_pages_admitted_from_current_master_journal_source'],
     'database path' => [static fn (): mixed => $plan()['database_path'], $databasePath],
     'journal path' => [static fn (): mixed => $plan()['journal_path'], $journalPath],
@@ -101,7 +101,7 @@ $cases = [
     'admitted pages' => [static fn (): mixed => $plan()['admitted_page_numbers'], [1, 2]],
     'rejected pages' => [static fn (): mixed => $plan()['rejected_page_numbers'], [3, 4, 5, 6]],
     'page one admitted' => [static fn (): mixed => $plan()['source_checks_by_page'][1]['admitted'], true],
-    'page one before prefix' => [static fn (): mixed => $plan()['source_checks_by_page'][1]['before_prefix'], 'next150 current schema root before spill'],
+    'page one before prefix' => [static fn (): mixed => $plan()['source_checks_by_page'][1]['before_prefix'], 'current schema root before spill'],
     'page one current match' => [static fn (): mixed => $plan()['source_checks_by_page'][1]['matches_current_database'], true],
     'page two master member' => [static fn (): mixed => $plan()['source_checks_by_page'][2]['master_member'], $journalPath],
     'page three stale rejected' => [static fn (): mixed => $plan()['rejected_pages'][3], ['before_image_mismatch_current_database']],
@@ -130,20 +130,20 @@ $cases = [
     'operation writes page one' => [static fn (): mixed => $plan()['operations'][9]['page'], 1],
     'operation writes page two' => [static fn (): mixed => $plan()['operations'][11]['page'], 2],
     'digest length' => [static fn (): mixed => strlen($plan()['source_digest']), 64],
-    'dependency next150' => [static fn (): mixed => in_array('sqlite-pager-cache-spill-master-journal-current-source-next150', $plan()['dependencies'], true), true],
+    'dependency current-source' => [static fn (): mixed => in_array('sqlite-pager-cache-spill-master-journal-current-source', $plan()['dependencies'], true), true],
     'dependency recheck' => [static fn (): mixed => in_array('sqlite-master-journal-current-source-recheck', $plan()['dependencies'], true), true],
     'dependency spill next107' => [static fn (): mixed => in_array('sqlite-pager-cache-spill-journalmode-current-source-next107', $plan()['dependencies'], true), true],
-    'wal status' => [static fn (): mixed => $walPlan()['status'], 'pager_cache_spill_master_journal_current_source_next150'],
+    'wal status' => [static fn (): mixed => $walPlan()['status'], 'pager_cache_spill_master_journal_current_source'],
     'wal target' => [static fn (): mixed => $walPlan()['spill']['spill_target'], 'wal_frames'],
     'wal frame pages' => [static fn (): mixed => $walPlan()['wal_frame_pages'], [1, 2]],
     'wal database unchanged' => [static fn (): mixed => $walPlan()['spill']['next']['database_image'], 'unchanged_until_checkpoint'],
     'wal first operation appends frame' => [static fn (): mixed => $walPlan()['spill']['operations'][0]['op'], 'append_wal_frame'],
     'max one still admits two' => [static fn (): mixed => $plan(null, 'delete', true, 'reserved', true, 1)['admitted_page_numbers'], [1, 2]],
     'max one spills one' => [static fn (): mixed => $plan(null, 'delete', true, 'reserved', true, 1)['spilled_page_numbers'], [1]],
-    'unsynced defers' => [static fn (): mixed => $plan(null, 'delete', false)['status'], 'pager_cache_spill_master_journal_current_source_deferred_next150'],
+    'unsynced defers' => [static fn (): mixed => $plan(null, 'delete', false)['status'], 'pager_cache_spill_master_journal_current_source_deferred'],
     'unsynced reason' => [static fn (): mixed => $plan(null, 'delete', false)['spill']['blocked_reasons'], ['journal_not_synced']],
-    'disabled defers' => [static fn (): mixed => $plan(null, 'delete', true, 'reserved', false)['status'], 'pager_cache_spill_master_journal_current_source_deferred_next150'],
-    'all rejected defers' => [static fn (): mixed => $deferredPlan()['status'], 'pager_cache_spill_master_journal_current_source_deferred_next150'],
+    'disabled defers' => [static fn (): mixed => $plan(null, 'delete', true, 'reserved', false)['status'], 'pager_cache_spill_master_journal_current_source_deferred'],
+    'all rejected defers' => [static fn (): mixed => $deferredPlan()['status'], 'pager_cache_spill_master_journal_current_source_deferred'],
     'all rejected no admitted' => [static fn (): mixed => $deferredPlan()['admitted_page_numbers'], []],
     'all rejected no eligible' => [static fn (): mixed => $deferredPlan()['spill']['blocked_reasons'], ['no_journaled_unpinned_dirty_pages']],
     'removed next member defers page one' => [static fn (): mixed => $removedPlan()['rejected_pages'][1], ['journal_removed_from_next_master_source']],
@@ -156,7 +156,7 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['pager cache spill master journal current source next150 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['pager cache spill master journal current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
@@ -187,7 +187,7 @@ $throws = [
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['pager cache spill master journal current source next150 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['pager cache spill master journal current source ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(Throwable::class, $callback);
     };
 }

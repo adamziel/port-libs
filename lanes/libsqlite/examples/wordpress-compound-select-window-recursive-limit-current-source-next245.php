@@ -62,7 +62,7 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext245($sql, $current, $next);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNextSourcePromotionSnapshot($sql, $current, $next);
 $promotion = $plan['compoundNextSourcePromotionSnapshotNext245'];
 
 echo json_encode([

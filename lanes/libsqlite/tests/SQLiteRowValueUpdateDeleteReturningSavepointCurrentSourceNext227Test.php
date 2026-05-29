@@ -49,13 +49,13 @@ $attemptUpdateResult227 = static fn (): array => SQLiteUpdateDeleteReturningSql:
 $attemptDeleteResult227 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptDelete227, $attemptUpdateResult227()['tables'], 'option_id', $unique227);
 $retryUpdateResult227 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate227, $tables227, 'option_id', $unique227);
 $retryDeleteResult227 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete227, $retryUpdateResult227()['tables'], 'option_id', $unique227);
-$plan227 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext227(
+$plan227 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback(
     $tables227,
     [$attemptUpdate227, $attemptDelete227],
     [$retryUpdate227, $retryDelete227],
     $unique227,
 );
-$customPlan227 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext227(
+$customPlan227 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback(
     $tables227,
     [$attemptUpdate227],
     [$retryUpdate227],
@@ -127,11 +127,11 @@ $cases227 = [
     'custom savepoint' => [static fn (): mixed => $customPlan227()['savepoint'], 'wp_custom_distinct_tuple_227'],
     'custom suppressed count' => [static fn (): mixed => $customPlan227()['suppressed_returning_count'], 1],
     'custom retry count' => [static fn (): mixed => $customPlan227()['retry_returning_count'], 2],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext227($tables227, [], [$retryUpdate227], $unique227), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext227($tables227, [$attemptUpdate227], [], $unique227), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext227($tables227, [$attemptUpdate227], [$retryUpdate227], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext227($tables227, [$attemptUpdate227], [$retryUpdate227], $unique227, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext227(['wp_options' => ['bad']], [$attemptUpdate227], [$retryUpdate227], $unique227), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback($tables227, [], [$retryUpdate227], $unique227), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback($tables227, [$attemptUpdate227], [], $unique227), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback($tables227, [$attemptUpdate227], [$retryUpdate227], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback($tables227, [$attemptUpdate227], [$retryUpdate227], $unique227, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback(['wp_options' => ['bad']], [$attemptUpdate227], [$retryUpdate227], $unique227), InvalidArgumentException::class],
 ];
 
 $tests = [];

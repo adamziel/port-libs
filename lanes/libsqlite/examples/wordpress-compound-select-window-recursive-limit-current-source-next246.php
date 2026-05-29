@@ -64,7 +64,7 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext246($sql, $current, $next);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveLimitSourceHandoff($sql, $current, $next);
 $handoff = $plan['compoundRecursiveLimitSourceHandoffNext246'];
 
 if (($argv[1] ?? '') === '--self-test') {

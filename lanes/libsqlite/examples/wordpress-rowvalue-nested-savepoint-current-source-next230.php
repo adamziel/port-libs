@@ -25,7 +25,7 @@ $tables = [
     ],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext230(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedReleaseOuterRollbackSavepoint(
     $tables,
     ["UPDATE wp_options SET (status, option_value, bytes) = ('pre230', option_value || ':pre230', bytes + 1) WHERE (blog_id, option_name) IN (VALUES (1, 'siteurl'), (1, 'home')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id"],
     [

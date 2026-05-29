@@ -7,6 +7,7 @@ use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSource
 require_once dirname(__DIR__, 3) . '/tools/TestRunner.php';
 require_once dirname(__DIR__) . '/src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once dirname(__DIR__) . '/src/SQLiteUpdateDeleteLimitPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteUpdateDeleteReturningSql.php';
@@ -39,7 +40,7 @@ $attemptDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (SELECT
 $retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry227', option_value || ':retry227', bytes + 1) WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'import_touch' ORDER BY priority) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'retry_touch' ORDER BY priority) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext227(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback(
     $tables,
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],

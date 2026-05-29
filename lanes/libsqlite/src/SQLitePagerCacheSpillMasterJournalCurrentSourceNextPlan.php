@@ -31,28 +31,28 @@ final class SQLitePagerCacheSpillMasterJournalCurrentSourceNextPlan
         int $currentSourceEpoch = 1,
     ): array {
         if ($databasePath === '' || $journalPath === '' || $masterJournalPath === '') {
-            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal next150 requires database, journal, and master journal paths');
+            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal current-source requires database, journal, and master journal paths');
         }
         if ($currentMasterJournalBytes === null || trim($currentMasterJournalBytes) === '') {
-            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal next150 requires current master journal bytes');
+            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal current-source requires current master journal bytes');
         }
         if ($databaseBytes === '') {
-            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal next150 requires database bytes');
+            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal current-source requires database bytes');
         }
         if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
-            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal next150 page size must be a power of two at least 512');
+            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal current-source page size must be a power of two at least 512');
         }
         if (strlen($databaseBytes) % $pageSize !== 0) {
-            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal next150 database bytes must be page-size aligned');
+            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal current-source database bytes must be page-size aligned');
         }
         if ($cachePages === []) {
-            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal next150 requires cache pages');
+            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal current-source requires cache pages');
         }
         if ($currentSourceId === '') {
-            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal next150 requires a current source id');
+            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal current-source requires a current source id');
         }
         if ($currentSourceEpoch < 1) {
-            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal next150 source epoch must be positive');
+            throw new \InvalidArgumentException('SQLite pager cache-spill master-journal current-source source epoch must be positive');
         }
 
         $cachedMembers = self::members($cachedMasterJournalBytes);
@@ -61,7 +61,7 @@ final class SQLitePagerCacheSpillMasterJournalCurrentSourceNextPlan
         $currentMember = in_array($journalPath, $currentMembers, true);
         $nextMember = $nextMembers === [] || in_array($journalPath, $nextMembers, true);
         if (!$currentMember) {
-            throw new \RuntimeException('SQLite pager cache-spill master-journal next150 current master journal does not reference the rollback journal');
+            throw new \RuntimeException('SQLite pager cache-spill master-journal current master journal does not reference the rollback journal');
         }
 
         $pageCount = (int) (strlen($databaseBytes) / $pageSize);
@@ -74,7 +74,7 @@ final class SQLitePagerCacheSpillMasterJournalCurrentSourceNextPlan
             $operations[] = [
                 'op' => 'discard_cached_master_journal_before_cache_spill',
                 'path' => $masterJournalPath,
-                'reason' => 'cached_master_journal_members_do_not_match_current_source_next150',
+                'reason' => 'cached_master_journal_members_do_not_match_current_source',
             ];
         }
         $operations[] = [
@@ -177,8 +177,8 @@ final class SQLitePagerCacheSpillMasterJournalCurrentSourceNextPlan
 
         return [
             'status' => $spilledPages === []
-                ? 'pager_cache_spill_master_journal_current_source_deferred_next150'
-                : 'pager_cache_spill_master_journal_current_source_next150',
+                ? 'pager_cache_spill_master_journal_current_source_deferred'
+                : 'pager_cache_spill_master_journal_current_source',
             'reason' => $spilledPages === []
                 ? 'cache_spill_deferred_after_master_journal_current_source_filter'
                 : 'cache_spill_pages_admitted_from_current_master_journal_source',
@@ -210,7 +210,7 @@ final class SQLitePagerCacheSpillMasterJournalCurrentSourceNextPlan
             'dependencies' => array_values(array_unique(array_merge(
                 $spill['dependencies'] ?? [],
                 [
-                    'sqlite-pager-cache-spill-master-journal-current-source-next150',
+                    'sqlite-pager-cache-spill-master-journal-current-source',
                     'sqlite-master-journal-current-source-recheck',
                     'sqlite-pager-cache-spill-journalmode-current-source-next107',
                 ]
@@ -261,36 +261,36 @@ final class SQLitePagerCacheSpillMasterJournalCurrentSourceNextPlan
         $normalized = [];
         foreach ($cachePages as $pageNumber => $entry) {
             if (!is_int($pageNumber) || $pageNumber < 1) {
-                throw new \InvalidArgumentException('SQLite pager cache-spill master-journal next150 cache page numbers must be one-based integers');
+                throw new \InvalidArgumentException('SQLite pager cache-spill master-journal current-source cache page numbers must be one-based integers');
             }
             if ($pageNumber > $pageCount) {
-                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal next150 cache page {$pageNumber} is outside the database image");
+                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal current-source cache page {$pageNumber} is outside the database image");
             }
             $image = $entry['image'] ?? null;
             if (!is_string($image) || strlen($image) !== $pageSize) {
-                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal next150 cache page {$pageNumber} image must match page size");
+                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal current-source cache page {$pageNumber} image must match page size");
             }
             if (isset($entry['before_image']) && (!is_string($entry['before_image']) || strlen($entry['before_image']) !== $pageSize)) {
-                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal next150 before image for page {$pageNumber} must match page size");
+                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal current-source before image for page {$pageNumber} must match page size");
             }
             $masterMember = $entry['master_member'] ?? null;
             if (!is_string($masterMember) || $masterMember === '') {
-                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal next150 cache page {$pageNumber} master member must be non-empty");
+                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal current-source cache page {$pageNumber} master member must be non-empty");
             }
             $sourceId = $entry['source_id'] ?? 'master-journal-current-source';
             if (!is_string($sourceId) || $sourceId === '') {
-                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal next150 cache page {$pageNumber} source id must be non-empty");
+                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal current-source cache page {$pageNumber} source id must be non-empty");
             }
             $epoch = $entry['epoch'] ?? 1;
             if (!is_int($epoch) || $epoch < 1) {
-                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal next150 cache page {$pageNumber} epoch must be positive");
+                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal current-source cache page {$pageNumber} epoch must be positive");
             }
             $bytes = $entry['bytes'] ?? $pageSize;
             if (!is_int($bytes) || $bytes < 0) {
-                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal next150 cache page {$pageNumber} bytes must be non-negative");
+                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal current-source cache page {$pageNumber} bytes must be non-negative");
             }
             if (isset($entry['walFrame']) && (!is_int($entry['walFrame']) || $entry['walFrame'] < 1)) {
-                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal next150 cache page {$pageNumber} WAL frame must be positive");
+                throw new \InvalidArgumentException("SQLite pager cache-spill master-journal current-source cache page {$pageNumber} WAL frame must be positive");
             }
 
             $normalized[$pageNumber] = [

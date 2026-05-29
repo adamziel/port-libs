@@ -21,6 +21,7 @@ $plan = SQLiteVfsCurrentSourceNextPlan::run([
     'lock(exclusive, wp-import)',
     'source(main)',
 ], [
+    'slice' => 'close-reopen-current-source',
     'current' => [
         'current_source' => 'main',
         'owner_generations' => [
@@ -45,9 +46,9 @@ $plan = SQLiteVfsCurrentSourceNextPlan::run([
 ]);
 
 $summary = [
-    'scenario' => 'wordpress-vfs-current-source-next150-153',
+    'scenario' => 'wordpress-vfs-close-reopen-current-source',
     'wordpressUse' => 'Continue hydrated WordPress SQLite VFS current-source state through WAL sidecar staleness, full sync, close/reopen, and readonly archive lock blocking.',
-    'dependency' => 'vfs-current-source-close-reopen-next150-153',
+    'dependency' => 'vfs-current-source-close-reopen',
     'initialWalStale' => $plan['events'][1]['stale_current_source'],
     'mainOwnerGeneration' => $plan['events'][3]['owner_generation'],
     'syncs' => $plan['next']['sources']['main']['syncs'],
@@ -63,11 +64,11 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($summary['mainOwnerGeneration'] === 8);
     assert($summary['syncs'] === ['normal', 'full']);
     assert($summary['closedWal'] === true);
-    assert($summary['shmHandle'] === 'vfs150153-3');
+    assert($summary['shmHandle'] === 'vfs-close-reopen-3');
     assert($summary['archiveWriterLock'] === 'blocked');
     assert($summary['finalSource'] === 'main');
     assert($summary['openSourceCount'] === 3);
-    echo "wordpress-vfs-current-source-next150-153 self-test passed\n";
+    echo "wordpress-vfs-close-reopen-current-source self-test passed\n";
     return;
 }
 

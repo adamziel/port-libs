@@ -63,7 +63,7 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary237 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext237($sql237, $currentTables237, $nextTables237, $cursor);
+$summary237 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCurrentSourceDequeue($sql237, $currentTables237, $nextTables237, $cursor);
 $tests = [];
 
 $tests['compound select window recursive limit current source next237 status dependencies'] = static function (TestRunner $t) use ($summary237): void {
@@ -179,7 +179,7 @@ $tests['compound select window recursive limit current source next237 replan rea
 };
 
 $tests['compound select window recursive limit current source next237 rejects missing intersect'] = static function (TestRunner $t) use ($currentTables237): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext237(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCurrentSourceDequeue(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 130) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC) FROM wp_options EXCEPT SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC) FROM wp_options ORDER BY metric, label LIMIT 4 OFFSET 1",
         $currentTables237,
         $currentTables237,
@@ -187,7 +187,7 @@ $tests['compound select window recursive limit current source next237 rejects mi
 };
 
 $tests['compound select window recursive limit current source next237 rejects missing row number'] = static function (TestRunner $t) use ($currentTables237): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext237(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCurrentSourceDequeue(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 130) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id, option_name, rank() OVER (ORDER BY score DESC) FROM wp_options INTERSECT SELECT id, label, metric FROM (SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id, option_name, rank() OVER (ORDER BY score DESC) FROM wp_options) EXCEPT SELECT option_id, option_name, rank() OVER (ORDER BY score DESC) FROM wp_options ORDER BY metric, label LIMIT 4 OFFSET 1",
         $currentTables237,
         $currentTables237,
@@ -207,10 +207,10 @@ foreach (range(1, 58) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 95 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (130 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes' INTERSECT SELECT id, label, metric FROM (SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes') EXCEPT SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE option_name IN ('siteurl_{$case}') ORDER BY metric, label LIMIT 4 OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext237($sql, $tables, $nextTables);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCurrentSourceDequeue($sql, $tables, $nextTables);
         $cursor = $plan['cursor'];
         $cursor['acknowledgedCurrentDequeueAcksNext237'] = $plan['currentSourceDequeueNext237']['requiredCurrentDequeueAcks'];
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext237($sql, $tables, $nextTables, $cursor);
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCurrentSourceDequeue($sql, $tables, $nextTables, $cursor);
 
         $t->same(['home_' . $case, 'seed_' . $case . ':2:3', 'rewrite_' . $case, 'seed_' . $case . ':2:3:4'], array_column($plan['currentRows'], 'label'));
         $t->same(['plugin_' . $case, 'seed_' . $case . ':2:3', 'home_' . $case, 'seed_' . $case . ':2:3:4'], array_column($plan['nextRows'], 'label'));

@@ -16,7 +16,7 @@ final class SQLiteVfsCurrentSourceNextPlan
         $slice = self::slice($operations, $options);
         return match ($slice) {
             'next146-149' => self::run146149($operations, $options),
-            'next150-153' => self::run150153($operations, $options),
+            'close-reopen-current-source' => self::runCloseReopenCurrentSource($operations, $options),
             'next158-161' => self::run158161($operations, $options),
             'next162-165' => self::run162165($operations, $options),
             'next166-169' => self::run166169($operations, $options),
@@ -78,7 +78,7 @@ final class SQLiteVfsCurrentSourceNextPlan
     {
         if (isset($options['slice'])) {
             $slice = strtolower(trim((string) $options['slice']));
-            if (preg_match('/^next\d+-\d+$/', $slice) !== 1) {
+            if ($slice !== 'close-reopen-current-source' && preg_match('/^next\d+-\d+$/', $slice) !== 1) {
                 throw new \InvalidArgumentException('SQLite VFS current-source slice is unsupported');
             }
             return $slice;
@@ -87,13 +87,13 @@ final class SQLiteVfsCurrentSourceNextPlan
             $file = isset($frame['file']) ? (string) $frame['file'] : '';
             if (preg_match('/current-source-next(?<start>\d+)-(?<end>\d+)/i', $file, $matches) === 1) {
                 $candidate = 'next' . $matches['start'] . '-' . $matches['end'];
-                if (in_array($candidate, ['next146-149', 'next150-153', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next206-209', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625', 'next626-641'], true)) {
+                if (in_array($candidate, ['next146-149', 'close-reopen-current-source', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next206-209', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625', 'next626-641'], true)) {
                     return $candidate;
                 }
             }
             if (preg_match('/SQLiteVfsCurrentSourceNext(?<start>\d+)(?<end>\d{3})Test\.php$/', $file, $matches) === 1) {
                 $candidate = 'next' . $matches['start'] . '-' . $matches['end'];
-                if (in_array($candidate, ['next146-149', 'next150-153', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next206-209', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625', 'next626-641'], true)) {
+                if (in_array($candidate, ['next146-149', 'close-reopen-current-source', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next206-209', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625', 'next626-641'], true)) {
                     return $candidate;
                 }
             }
@@ -105,7 +105,7 @@ final class SQLiteVfsCurrentSourceNextPlan
                 $end = (int) $matches['end'];
                 return match (true) {
                     $end >= 146 && $end <= 149 => 'next146-149',
-                    $end >= 150 && $end <= 153 => 'next150-153',
+                    $end >= 150 && $end <= 153 => 'close-reopen-current-source',
                     $end >= 158 && $end <= 161 => 'next158-161',
                     $end >= 162 && $end <= 165 => 'next162-165',
                     $end >= 166 && $end <= 169 => 'next166-169',
@@ -428,29 +428,29 @@ private static function run146149(array $operations, array $options = []): array
         return ['op' => $op, 'status' => $status, 'source' => $source, 'current' => $current, 'next' => $next] + $extra;
     }
 
-    // Consolidated behavior from next150-153.
-private static function run150153(array $operations, array $options = []): array
+    // Consolidated behavior from close-reopen-current-source.
+private static function runCloseReopenCurrentSource(array $operations, array $options = []): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next150-153 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS current-source close-reopen-current-source requires operations');
         }
 
-        $state = self::hydrate150153($options['current'] ?? []);
-        $current = self::summary150153($state);
+        $state = self::hydrateCloseReopenCurrentSource($options['current'] ?? []);
+        $current = self::summaryCloseReopenCurrentSource($state);
         $events = [];
 
         foreach ($operations as $operation) {
-            $op = self::operation150153($operation);
-            $before = self::snapshot150153($state);
+            $op = self::operationCloseReopenCurrentSource($operation);
+            $before = self::snapshotCloseReopenCurrentSource($state);
 
             if ($op['kind'] === 'source') {
-                $source = self::sourceName150153((string) $op['source']);
+                $source = self::sourceNameCloseReopenCurrentSource((string) $op['source']);
                 if (!isset($state['sources'][$source])) {
-                    $events[] = self::event150153('source', 'missing-source', $source, $before, self::snapshot150153($state), []);
+                    $events[] = self::eventCloseReopenCurrentSource('source', 'missing-source', $source, $before, self::snapshotCloseReopenCurrentSource($state), []);
                     continue;
                 }
                 $state['current_source'] = $source;
-                $events[] = self::event150153('source', 'ok', $source, $before, self::snapshot150153($state), [
+                $events[] = self::eventCloseReopenCurrentSource('source', 'ok', $source, $before, self::snapshotCloseReopenCurrentSource($state), [
                     'handle' => $state['sources'][$source]['handle'],
                     'generation' => $state['sources'][$source]['generation'],
                 ]);
@@ -458,11 +458,11 @@ private static function run150153(array $operations, array $options = []): array
             }
 
             if ($op['kind'] === 'open') {
-                $source = self::sourceName150153((string) $op['source']);
-                $path = self::pathName150153((string) ($op['path'] ?? ''));
+                $source = self::sourceNameCloseReopenCurrentSource((string) $op['source']);
+                $path = self::pathNameCloseReopenCurrentSource((string) ($op['path'] ?? ''));
                 if (isset($state['sources'][$source])) {
                     $state['current_source'] = $source;
-                    $events[] = self::event150153('open', 'reused-current-source', $source, $before, self::snapshot150153($state), [
+                    $events[] = self::eventCloseReopenCurrentSource('open', 'reused-current-source', $source, $before, self::snapshotCloseReopenCurrentSource($state), [
                         'handle' => $state['sources'][$source]['handle'],
                         'owner' => $state['sources'][$source]['owner'],
                         'generation' => $state['sources'][$source]['generation'],
@@ -471,10 +471,10 @@ private static function run150153(array $operations, array $options = []): array
                 }
 
                 $state['sequence']++;
-                $owner = self::owner150153($path);
+                $owner = self::ownerCloseReopenCurrentSource($path);
                 $state['owner_generations'][$owner] = (int) ($state['owner_generations'][$owner] ?? 0) + 1;
                 $state['sources'][$source] = [
-                    'handle' => 'vfs150153-' . $state['sequence'],
+                    'handle' => 'vfs-close-reopen-' . $state['sequence'],
                     'owner' => $owner,
                     'path' => $path,
                     'readonly' => (bool) ($op['readonly'] ?? false),
@@ -485,23 +485,23 @@ private static function run150153(array $operations, array $options = []): array
                     'closed' => false,
                 ];
                 $state['current_source'] = $source;
-                $events[] = self::event150153('open', 'open', $source, $before, self::snapshot150153($state), $state['sources'][$source]);
+                $events[] = self::eventCloseReopenCurrentSource('open', 'open', $source, $before, self::snapshotCloseReopenCurrentSource($state), $state['sources'][$source]);
                 continue;
             }
 
-            $source = self::sourceFor150153($state, $op['source'] ?? null);
+            $source = self::sourceForCloseReopenCurrentSource($state, $op['source'] ?? null);
             if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                $events[] = self::event150153($op['kind'], 'missing-source', $source, $before, self::snapshot150153($state), []);
+                $events[] = self::eventCloseReopenCurrentSource($op['kind'], 'missing-source', $source, $before, self::snapshotCloseReopenCurrentSource($state), []);
                 continue;
             }
 
             if ($op['kind'] === 'filecontrol') {
-                $control = self::controlName150153((string) $op['control']);
+                $control = self::controlNameCloseReopenCurrentSource((string) $op['control']);
                 $owner = $state['sources'][$source]['owner'];
                 if ($control === 'data_version') {
                     $opened = (int) $state['sources'][$source]['generation'];
                     $currentGeneration = (int) ($state['owner_generations'][$owner] ?? $opened);
-                    $events[] = self::event150153('file_control', 'ok', $source, $before, self::snapshot150153($state), [
+                    $events[] = self::eventCloseReopenCurrentSource('file_control', 'ok', $source, $before, self::snapshotCloseReopenCurrentSource($state), [
                         'file_control' => $control,
                         'value' => $currentGeneration,
                         'opened_generation' => $opened,
@@ -514,7 +514,7 @@ private static function run150153(array $operations, array $options = []): array
                 if (in_array($control, ['persist_wal', 'checkpoint_fullfsync', 'powersafe_overwrite'], true)) {
                     $state['owner_generations'][$owner] = (int) ($state['owner_generations'][$owner] ?? 0) + 1;
                 }
-                $events[] = self::event150153('file_control', 'ok', $source, $before, self::snapshot150153($state), [
+                $events[] = self::eventCloseReopenCurrentSource('file_control', 'ok', $source, $before, self::snapshotCloseReopenCurrentSource($state), [
                     'file_control' => $control,
                     'value' => $op['value'],
                     'owner_generation' => $state['owner_generations'][$owner] ?? null,
@@ -523,10 +523,10 @@ private static function run150153(array $operations, array $options = []): array
             }
 
             if ($op['kind'] === 'lock') {
-                $level = self::lockLevel150153((string) $op['level']);
-                $connection = self::connectionName150153($op['connection'] ?? null);
+                $level = self::lockLevelCloseReopenCurrentSource((string) $op['level']);
+                $connection = self::connectionNameCloseReopenCurrentSource($op['connection'] ?? null);
                 if ($state['sources'][$source]['readonly'] && in_array($level, ['reserved', 'pending', 'exclusive'], true)) {
-                    $events[] = self::event150153('lock', 'blocked', $source, $before, self::snapshot150153($state), [
+                    $events[] = self::eventCloseReopenCurrentSource('lock', 'blocked', $source, $before, self::snapshotCloseReopenCurrentSource($state), [
                         'level' => $level,
                         'connection' => $connection,
                         'reason' => 'readonly current-source cannot take writer lock',
@@ -534,7 +534,7 @@ private static function run150153(array $operations, array $options = []): array
                     continue;
                 }
                 $state['sources'][$source]['locks'][$level] = $connection;
-                $events[] = self::event150153('lock', 'ok', $source, $before, self::snapshot150153($state), [
+                $events[] = self::eventCloseReopenCurrentSource('lock', 'ok', $source, $before, self::snapshotCloseReopenCurrentSource($state), [
                     'level' => $level,
                     'connection' => $connection,
                     'owner' => $state['sources'][$source]['owner'],
@@ -543,9 +543,9 @@ private static function run150153(array $operations, array $options = []): array
             }
 
             if ($op['kind'] === 'sync') {
-                $mode = self::syncMode150153((string) ($op['mode'] ?? 'normal'));
+                $mode = self::syncModeCloseReopenCurrentSource((string) ($op['mode'] ?? 'normal'));
                 $state['sources'][$source]['syncs'][] = $mode;
-                $events[] = self::event150153('sync', 'ok', $source, $before, self::snapshot150153($state), [
+                $events[] = self::eventCloseReopenCurrentSource('sync', 'ok', $source, $before, self::snapshotCloseReopenCurrentSource($state), [
                     'mode' => $mode,
                     'sync_count' => count($state['sources'][$source]['syncs']),
                 ]);
@@ -558,9 +558,9 @@ private static function run150153(array $operations, array $options = []): array
                 $state['sources'][$source]['closed'] = true;
                 $state['owner_generations'][$owner] = (int) ($state['owner_generations'][$owner] ?? 0) + 1;
                 if ($state['current_source'] === $source) {
-                    $state['current_source'] = self::firstOpenSource150153($state);
+                    $state['current_source'] = self::firstOpenCloseReopenCurrentSource($state);
                 }
-                $events[] = self::event150153('close', 'closed', $source, $before, self::snapshot150153($state), [
+                $events[] = self::eventCloseReopenCurrentSource('close', 'closed', $source, $before, self::snapshotCloseReopenCurrentSource($state), [
                     'owner' => $owner,
                     'owner_generation' => $state['owner_generations'][$owner],
                     'released_locks' => true,
@@ -568,23 +568,23 @@ private static function run150153(array $operations, array $options = []): array
                 continue;
             }
 
-            throw new \InvalidArgumentException('SQLite VFS current-source next150-153 operation is unsupported');
+            throw new \InvalidArgumentException('SQLite VFS current-source close-reopen-current-source operation is unsupported');
         }
 
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => $current,
-            'next' => self::summary150153($state),
+            'next' => self::summaryCloseReopenCurrentSource($state),
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-next146-149',
                 'vfs-current-source-generation',
-                'vfs-current-source-close-reopen-next150-153',
+                'vfs-current-source-close-reopen',
             ],
         ];
     }
 
-    private static function hydrate150153(mixed $current): array
+    private static function hydrateCloseReopenCurrentSource(mixed $current): array
     {
         $state = ['sequence' => 0, 'current_source' => null, 'owner_generations' => [], 'sources' => []];
         if (!is_array($current)) {
@@ -592,20 +592,20 @@ private static function run150153(array $operations, array $options = []): array
         }
 
         foreach (is_array($current['owner_generations'] ?? null) ? $current['owner_generations'] : [] as $owner => $generation) {
-            $state['owner_generations'][self::pathName150153((string) $owner)] = self::generation150153($generation);
+            $state['owner_generations'][self::pathNameCloseReopenCurrentSource((string) $owner)] = self::generationCloseReopenCurrentSource($generation);
         }
 
         foreach (is_array($current['sources'] ?? null) ? $current['sources'] : [] as $name => $source) {
             if (!is_array($source)) {
                 continue;
             }
-            $sourceName = self::sourceName150153((string) $name);
-            $path = self::pathName150153((string) ($source['path'] ?? ''));
-            $owner = self::owner150153($path);
-            $generation = self::generation150153($source['generation'] ?? ($state['owner_generations'][$owner] ?? 1));
+            $sourceName = self::sourceNameCloseReopenCurrentSource((string) $name);
+            $path = self::pathNameCloseReopenCurrentSource((string) ($source['path'] ?? ''));
+            $owner = self::ownerCloseReopenCurrentSource($path);
+            $generation = self::generationCloseReopenCurrentSource($source['generation'] ?? ($state['owner_generations'][$owner] ?? 1));
             $state['owner_generations'][$owner] = max((int) ($state['owner_generations'][$owner] ?? 0), $generation);
             $state['sources'][$sourceName] = [
-                'handle' => self::handleName150153((string) ($source['handle'] ?? '')),
+                'handle' => self::handleNameCloseReopenCurrentSource((string) ($source['handle'] ?? '')),
                 'owner' => $owner,
                 'path' => $path,
                 'readonly' => (bool) ($source['readonly'] ?? false),
@@ -618,7 +618,7 @@ private static function run150153(array $operations, array $options = []): array
         }
 
         if (isset($current['current_source'])) {
-            $currentSource = self::sourceName150153((string) $current['current_source']);
+            $currentSource = self::sourceNameCloseReopenCurrentSource((string) $current['current_source']);
             if (!isset($state['sources'][$currentSource])) {
                 throw new \InvalidArgumentException('SQLite VFS hydrated current source has no handle');
             }
@@ -629,7 +629,7 @@ private static function run150153(array $operations, array $options = []): array
         return $state;
     }
 
-    private static function operation150153(string|array $operation): array
+    private static function operationCloseReopenCurrentSource(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -666,21 +666,21 @@ private static function run150153(array $operations, array $options = []): array
             return ['kind' => 'close', 'source' => $matches['source']];
         }
 
-        throw new \InvalidArgumentException('SQLite VFS current-source next150-153 operation is unsupported');
+        throw new \InvalidArgumentException('SQLite VFS current-source close-reopen-current-source operation is unsupported');
     }
 
-    private static function sourceFor150153(array $state, mixed $source): string
+    private static function sourceForCloseReopenCurrentSource(array $state, mixed $source): string
     {
         if ($source !== null && $source !== '') {
-            return self::sourceName150153((string) $source);
+            return self::sourceNameCloseReopenCurrentSource((string) $source);
         }
         if (!is_string($state['current_source'])) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next150-153 has no selected source');
+            throw new \InvalidArgumentException('SQLite VFS current-source close-reopen-current-source has no selected source');
         }
         return $state['current_source'];
     }
 
-    private static function sourceName150153(string $source): string
+    private static function sourceNameCloseReopenCurrentSource(string $source): string
     {
         $source = strtolower(trim($source));
         if ($source === '' || preg_match('/^[a-z0-9_.:-]+$/', $source) !== 1) {
@@ -689,7 +689,7 @@ private static function run150153(array $operations, array $options = []): array
         return $source;
     }
 
-    private static function pathName150153(string $path): string
+    private static function pathNameCloseReopenCurrentSource(string $path): string
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
@@ -698,12 +698,12 @@ private static function run150153(array $operations, array $options = []): array
         return $path;
     }
 
-    private static function owner150153(string $path): string
+    private static function ownerCloseReopenCurrentSource(string $path): string
     {
         return preg_replace('/-(?:wal|shm|journal)$/', '', $path) ?? $path;
     }
 
-    private static function handleName150153(string $handle): string
+    private static function handleNameCloseReopenCurrentSource(string $handle): string
     {
         $handle = trim($handle);
         if ($handle === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $handle) !== 1) {
@@ -712,7 +712,7 @@ private static function run150153(array $operations, array $options = []): array
         return $handle;
     }
 
-    private static function controlName150153(string $control): string
+    private static function controlNameCloseReopenCurrentSource(string $control): string
     {
         $control = strtolower(str_replace('-', '_', trim($control)));
         if ($control === '') {
@@ -721,7 +721,7 @@ private static function run150153(array $operations, array $options = []): array
         return $control;
     }
 
-    private static function lockLevel150153(string $level): string
+    private static function lockLevelCloseReopenCurrentSource(string $level): string
     {
         $level = strtolower(trim($level));
         if (!in_array($level, ['shared', 'reserved', 'pending', 'exclusive'], true)) {
@@ -730,7 +730,7 @@ private static function run150153(array $operations, array $options = []): array
         return $level;
     }
 
-    private static function syncMode150153(string $mode): string
+    private static function syncModeCloseReopenCurrentSource(string $mode): string
     {
         $mode = strtolower(trim($mode));
         if (!in_array($mode, ['normal', 'full', 'dataonly'], true)) {
@@ -739,7 +739,7 @@ private static function run150153(array $operations, array $options = []): array
         return $mode;
     }
 
-    private static function connectionName150153(mixed $connection): string
+    private static function connectionNameCloseReopenCurrentSource(mixed $connection): string
     {
         $connection = $connection === null || $connection === '' ? 'default' : trim((string) $connection);
         if ($connection === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $connection) !== 1) {
@@ -748,7 +748,7 @@ private static function run150153(array $operations, array $options = []): array
         return $connection;
     }
 
-    private static function generation150153(mixed $generation): int
+    private static function generationCloseReopenCurrentSource(mixed $generation): int
     {
         $generation = filter_var($generation, FILTER_VALIDATE_INT);
         if (!is_int($generation) || $generation < 1) {
@@ -757,7 +757,7 @@ private static function run150153(array $operations, array $options = []): array
         return $generation;
     }
 
-    private static function firstOpenSource150153(array $state): ?string
+    private static function firstOpenCloseReopenCurrentSource(array $state): ?string
     {
         foreach ($state['sources'] as $source => $sourceState) {
             if ($sourceState['closed'] !== true) {
@@ -767,7 +767,7 @@ private static function run150153(array $operations, array $options = []): array
         return null;
     }
 
-    private static function summary150153(array $state): array
+    private static function summaryCloseReopenCurrentSource(array $state): array
     {
         return [
             'current_source' => $state['current_source'],
@@ -778,14 +778,14 @@ private static function run150153(array $operations, array $options = []): array
         ];
     }
 
-    private static function snapshot150153(array $state): array
+    private static function snapshotCloseReopenCurrentSource(array $state): array
     {
         ksort($state['sources']);
         ksort($state['owner_generations']);
         return $state;
     }
 
-    private static function event150153(string $op, string $status, string $source, array $current, array $next, array $extra): array
+    private static function eventCloseReopenCurrentSource(string $op, string $status, string $source, array $current, array $next, array $extra): array
     {
         return ['op' => $op, 'status' => $status, 'source' => $source, 'current' => $current, 'next' => $next] + $extra;
     }
@@ -1372,7 +1372,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary162165($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-close-reopen-next150-153',
+                'vfs-current-source-close-reopen',
                 'vfs-current-source-io-methods-next154-157',
                 'vfs-current-source-mmap-shm-next158-161',
                 'vfs-current-source-environment-next162-165',
@@ -1760,7 +1760,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary166169($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-close-reopen-next150-153',
+                'vfs-current-source-close-reopen',
                 'vfs-current-source-io-methods-next154-157',
                 'vfs-current-source-mmap-shm-next158-161',
                 'vfs-current-source-environment-next162-165',
@@ -2145,7 +2145,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary170173($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-close-reopen-next150-153',
+                'vfs-current-source-close-reopen',
                 'vfs-current-source-io-methods-next154-157',
                 'vfs-current-source-mmap-shm-next158-161',
                 'vfs-current-source-environment-next162-165',
@@ -2503,7 +2503,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary174177($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-close-reopen-next150-153',
+                'vfs-current-source-close-reopen',
                 'vfs-current-source-io-methods-next154-157',
                 'vfs-current-source-mmap-shm-next158-161',
                 'vfs-current-source-environment-next162-165',
@@ -2857,7 +2857,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary178181($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-close-reopen-next150-153',
+                'vfs-current-source-close-reopen',
                 'vfs-current-source-io-methods-next154-157',
                 'vfs-current-source-mmap-shm-next158-161',
                 'vfs-current-source-environment-next162-165',
@@ -3231,7 +3231,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary182185($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-close-reopen-next150-153',
+                'vfs-current-source-close-reopen',
                 'vfs-current-source-mmap-shm-next158-161',
                 'vfs-current-source-access-delete-random-sleep-next174-177',
                 'vfs-current-source-sync-truncate-size-reserve-next178-181',
@@ -3590,7 +3590,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary186189($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-close-reopen-next150-153',
+                'vfs-current-source-close-reopen',
                 'vfs-current-source-mmap-shm-next158-161',
                 'vfs-current-source-sync-truncate-size-reserve-next178-181',
                 'vfs-current-source-temp-dir-readonly-next182-185',
@@ -4079,7 +4079,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary190193($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-close-reopen-next150-153',
+                'vfs-current-source-close-reopen',
                 'vfs-current-source-mmap-shm-next158-161',
                 'vfs-current-source-sync-truncate-size-reserve-next178-181',
                 'vfs-current-source-temp-dir-readonly-next182-185',

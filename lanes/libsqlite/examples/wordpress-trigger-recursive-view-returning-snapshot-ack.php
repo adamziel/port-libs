@@ -38,7 +38,7 @@ $followingView = $view;
 $followingView['source'] = 'main@view-cookie-228-following';
 $followingView['trigger_source'] = 'main@trigger-cookie-228-following';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext228(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::currentReturningSnapshotAcknowledgement(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
@@ -119,8 +119,8 @@ if (
     || array_column($summary['visible_returning_payloads_next228'], 'name') !== ['blogdescription_child', 'template_child', 'home', 'next_plugin']
     || $summary['held_next_source_rows_next228'] !== []
 ) {
-    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-next228 self-test failed\n");
+    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-snapshot-ack self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-trigger-recursive-view-returning-current-source-next228 self-test passed\n";
+echo "wordpress-trigger-recursive-view-returning-snapshot-ack self-test passed\n";
