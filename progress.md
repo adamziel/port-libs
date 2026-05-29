@@ -2685,3 +2685,26 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Public libsqlite counts remain 154,019 pass / 0 fail and 830 / 1,589 mapped
   coverage because this is a consolidation-only slice. The visible worker pool
   continues on current-base CA consolidation lanes.
+
+## Supervisor Rolling Integration 2026-05-29T17:53Z Shell Sample
+
+- After refilling with CB workers, preflighted the nine CA ready markers
+  against dashboard head `d5981559`. Accepted four clean non-overlapping CA
+  handoffs: compound UNION limit-affinity current-source cleanup, JSON
+  generated path rowid cost current-source selection cleanup, planner STAT4
+  expression-partial range current-source cleanup, and planner STAT4 covering
+  skipscan current-source cleanup.
+- Deferred CA pager-master and CA WAL/VFS because their pager current-source
+  `next591-606` targets were removed by the sixty-third batch; deferred CA
+  rowvalue-save because the savepoint production class was renamed by the
+  sixty-third batch; deferred CA rowvalue-window and CA trigger because their
+  direct numbered files were already renamed by the sixty-third batch.
+- Validation for the sixty-fourth reduced consolidation follow-up passed: 11
+  changed PHP files linted, 4 changed tests with 338 assertions and 0
+  failures, 4 changed WordPress examples/self-tests, `git diff --check`,
+  exact user-named 150 suffix scan clean in src/tests/examples, production
+  numbered file/class audits at 0, numbered production helper methods reduced
+  to 1,873, and unique numbered production symbols reduced to 2,108.
+- Public libsqlite counts remain 154,019 pass / 0 fail and 830 / 1,589 mapped
+  coverage because this is a consolidation-only slice. The visible worker pool
+  continues on current-base CB consolidation lanes.

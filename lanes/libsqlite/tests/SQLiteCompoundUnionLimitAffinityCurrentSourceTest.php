@@ -42,13 +42,13 @@ SELECT rank_value AS rank_value, payload AS payload
  ORDER BY rank_value ASC, payload ASC
  LIMIT 4 OFFSET 1
 SQL;
-$summary = static fn (): array => SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareNext145($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareUnionLimitAffinity($sql, $currentTables, $nextTables);
 
 $tests = [];
 
-$tests['compound union limit affinity current source next145 status dependencies'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound union limit affinity current source union-limit-affinity status dependencies'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
-    $t->same('compound-union-limit-affinity-current-source-next145-ready', $plan['status']);
+    $t->same('compound-union-limit-affinity-current-source-ready', $plan['status']);
     $t->same([
         'sqlite-compound-union-affinity-row-key',
         'sqlite-compound-union-final-limit-boundary',
@@ -56,7 +56,7 @@ $tests['compound union limit affinity current source next145 status dependencies
     ], $plan['dependencies']);
 };
 
-$tests['compound union limit affinity current source next145 compound metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound union limit affinity current source union-limit-affinity compound metadata'] = static function (TestRunner $t) use ($summary): void {
     $compound = $summary()['compound'];
     $t->same(['UNION'], $compound['operators']);
     $t->same(['rank_value', 'payload'], $compound['orderColumns']);
@@ -66,19 +66,19 @@ $tests['compound union limit affinity current source next145 compound metadata']
     $t->same(2, $compound['nextArms']);
 };
 
-$tests['compound union limit affinity current source next145 current union keeps text affinities distinct'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound union limit affinity current source union-limit-affinity current union keeps text affinities distinct'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentDistinctRows'];
     $t->same([1, 2, '1', '2'], array_column($rows, 'rank_value'));
     $t->same(['core', 'plugins', 'core', 'theme'], array_column($rows, 'payload'));
 };
 
-$tests['compound union limit affinity current source next145 next union admits numeric and text boundary rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound union limit affinity current source union-limit-affinity next union admits numeric and text boundary rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextDistinctRows'];
     $t->same([1, 2, 3, '1', '2', '3'], array_column($rows, 'rank_value'));
     $t->same(['core', 'plugins', 'new', 'core', 'theme', 'new'], array_column($rows, 'payload'));
 };
 
-$tests['compound union limit affinity current source next145 duplicate rows use numeric equality only'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound union limit affinity current source union-limit-affinity duplicate rows use numeric equality only'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
     $t->same([[1.0, 'core'], [2.0, 'plugins'], ['1', 'core'], ['2', 'theme']], array_map(static fn (array $entry): array => array_values($entry['row']), $plan['affinity']['currentSkippedDuplicates']));
     $t->same([[1.0, 'core'], [2.0, 'plugins'], [3.0, 'new'], ['1', 'core'], ['2', 'theme']], array_map(static fn (array $entry): array => array_values($entry['row']), $plan['affinity']['nextSkippedDuplicates']));
@@ -86,7 +86,7 @@ $tests['compound union limit affinity current source next145 duplicate rows use 
     $t->same(['numeric:3', 'string:new'], $plan['affinity']['nextSkippedDuplicates'][2]['classes']);
 };
 
-$tests['compound union limit affinity current source next145 final limit current boundary'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound union limit affinity current source union-limit-affinity final limit current boundary'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentRows'];
     $t->same([2, '1', '2'], array_column($rows, 'rank_value'));
     $t->same(['plugins', 'core', 'theme'], array_column($rows, 'payload'));
@@ -97,7 +97,7 @@ $tests['compound union limit affinity current source next145 final limit current
     $t->same([], $trace['truncatedAfterLimit']);
 };
 
-$tests['compound union limit affinity current source next145 final limit next boundary'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound union limit affinity current source union-limit-affinity final limit next boundary'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same([2, 3, '1', '2'], array_column($rows, 'rank_value'));
     $t->same(['plugins', 'new', 'core', 'theme'], array_column($rows, 'payload'));
@@ -108,7 +108,7 @@ $tests['compound union limit affinity current source next145 final limit next bo
     $t->same([['3', 'new']], array_map(static fn (array $row): array => array_values($row), $trace['truncatedAfterLimit']));
 };
 
-$tests['compound union limit affinity current source next145 class diagnostics and replan reasons'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound union limit affinity current source union-limit-affinity class diagnostics and replan reasons'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
     $t->same(['numeric:2', 'string:plugins'], $plan['affinity']['currentBoundaryClasses']['first']);
     $t->same(['string:2', 'string:theme'], $plan['affinity']['currentBoundaryClasses']['last']);
@@ -119,23 +119,23 @@ $tests['compound union limit affinity current source next145 class diagnostics a
     $t->true(in_array('compound-union-limit-after-affinity-distinct', $plan['replanReasons'], true));
 };
 
-$tests['compound union limit affinity current source next145 changed signatures name boundary'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound union limit affinity current source union-limit-affinity changed signatures name boundary'] = static function (TestRunner $t) use ($summary): void {
     $changed = implode("\n", $summary()['changedSignatures']);
     $t->true(str_contains($changed, '"rank_value":3'));
     $t->true(str_contains($changed, '"payload":"new"'));
     $t->same(false, str_contains($changed, 'late_stage'));
 };
 
-$tests['compound union limit affinity current source next145 rejects union all'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareNext145(
+$tests['compound union limit affinity current source union-limit-affinity rejects union all'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareUnionLimitAffinity(
         "SELECT rank_value, payload FROM wp_options UNION ALL SELECT rank_value, payload FROM wp_option_stage ORDER BY rank_value LIMIT 3",
         $currentTables,
         $currentTables,
     ));
 };
 
-$tests['compound union limit affinity current source next145 rejects no limit'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareNext145(
+$tests['compound union limit affinity current source union-limit-affinity rejects no limit'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareUnionLimitAffinity(
         "SELECT rank_value, payload FROM wp_options UNION SELECT rank_value, payload FROM wp_option_stage ORDER BY rank_value",
         $currentTables,
         $currentTables,
@@ -143,7 +143,7 @@ $tests['compound union limit affinity current source next145 rejects no limit'] 
 };
 
 foreach (range(1, 42) as $case) {
-    $tests['compound union limit affinity current source next145 generated duplicate boundary ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound union limit affinity current source union-limit-affinity generated duplicate boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $tables = [
             'wp_options' => [
                 ['rank_value' => 1, 'payload' => 'same_' . $case, 'autoload' => 'yes'],

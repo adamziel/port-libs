@@ -1,9 +1,9 @@
-# sqlplanner-stat4-covering-skipscan-current-source-next147
+# sqlplanner-stat4-covering-skipscan-current-source
 
-Status: focused current-source planner behavior growth for STAT4 covering
+Status: consolidated current-source planner behavior for STAT4 covering
 skip-scan plans.
 
-This slice adds `SQLitePlannerStat4CoveringSkipScanCurrentSourceNextPlan`.
+This consolidation keeps `SQLitePlannerStat4CoveringSkipScanCurrentSourceNextPlan`.
 It reuses the accepted expression skip-scan range/current-source planner and
 adds a STAT4 covering fence for stale prepared statements whose current
 `sqlite_stat4` sample payload, sample count, prefix order, or covering payload
@@ -13,12 +13,12 @@ with `ReprepareIfStat4FenceStale`, `SeekScan`, `Stat4SampleGate`, and covering
 
 WordPress smoke:
 
-- `php lanes/libsqlite/examples/wordpress-planner-stat4-covering-skipscan-current-source-next147.php --self-test`
-  - `wordpress-planner-stat4-covering-skipscan-current-source-next147 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-planner-stat4-covering-skipscan-current-source.php --self-test`
+  - `wordpress-planner-stat4-covering-skipscan-current-source self-test passed`
 
 Focused verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4CoveringSkipScanCurrentSourceNext147Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4CoveringSkipScanCurrentSourceTest.php`
   - `PASS ...` 65 lines
   - `Test files: 1`
   - `Assertions: 65`

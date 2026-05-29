@@ -2987,7 +2987,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext165(
+        public static function materializePartialRangeCurrentSource(
             array $preparedSource,
             array $currentSource,
             array $queryTerms,
@@ -3002,13 +3002,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $ready = ($plan['status'] ?? null) === 'stat4-expression-partial-reprepare-ready';
 
             $plan['status'] = $ready
-                ? 'stat4-expression-partial-range-current-source-next165-ready'
+                ? 'stat4-expression-partial-range-current-source-ready'
                 : 'requires-next-stage';
-            $plan['rangeConstraintOperators'] = self::rangeConstraintOperatorsNext165($queryTerms);
-            $plan['partialRangePredicateOperators'] = self::partialRangeOperatorsNext165($plan['selectedPlan']['partialPredicateTerms'] ?? []);
-            $plan['detail'] = str_replace('STAT4 EXPRESSION PARTIAL REPREPARE', 'NEXT165 RANGE', (string) ($plan['detail'] ?? ''));
-            $plan['dependencies'] = ['sqlite-sqlplanner-stat4-expression-partial-range-current-source-next165'];
-            $plan['dependency_closure'] = 'no new support component needed; next165 reuses lane-local STAT4 expression row streams and adds bounded one-sided range implication for partial predicates';
+            $plan['rangeConstraintOperators'] = self::rangeConstraintOperatorsPartialRangeCurrentSource($queryTerms);
+            $plan['partialRangePredicateOperators'] = self::partialRangeOperatorsCurrentSource($plan['selectedPlan']['partialPredicateTerms'] ?? []);
+            $plan['detail'] = str_replace('STAT4 EXPRESSION PARTIAL REPREPARE', 'STAT4 PARTIAL RANGE', (string) ($plan['detail'] ?? ''));
+            $plan['dependencies'] = ['sqlite-sqlplanner-stat4-expression-partial-range-current-source'];
+            $plan['dependency_closure'] = 'no new support component needed; partial-range reuses lane-local STAT4 expression row streams and adds bounded one-sided range implication for partial predicates';
             $plan['non_overlap'] = 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, expression partial covering, expression ORDER BY, range-cost ranking, JSON, VFS/WAL, and B-tree clusters by testing one-sided range constraints proving a partial expression index from the current STAT4 source';
 
             return $plan;
@@ -3018,7 +3018,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $queryTerms
          * @return list<string>
          */
-        private static function rangeConstraintOperatorsNext165(array $queryTerms): array
+        private static function rangeConstraintOperatorsPartialRangeCurrentSource(array $queryTerms): array
         {
             $operators = [];
             foreach ($queryTerms as $term) {
@@ -3038,7 +3038,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param mixed $partialTerms
          * @return list<string>
          */
-        private static function partialRangeOperatorsNext165(mixed $partialTerms): array
+        private static function partialRangeOperatorsCurrentSource(mixed $partialTerms): array
         {
             if (!is_array($partialTerms)) {
                 return [];
@@ -4359,7 +4359,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     . (string) ($selected['name'] ?? 'NO INDEX'),
                 'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next169'],
                 'dependency_closure' => 'no new support component needed; next169 reuses current-source STAT4 range admission and adds lane-local cost fencing between partial and full expression indexes',
-                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, rangeFence stale-row range windows, or-split-partial-expression OR-split probes, stat4-current-range range implication, next165 partial-range planning, and expression-index range-cost ranking by proving current-source STAT4 re-costing prefers a partial expression index over a competing full expression index',
+                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, rangeFence stale-row range windows, or-split-partial-expression OR-split probes, stat4-current-range range implication, partial-range partial-range planning, and expression-index range-cost ranking by proving current-source STAT4 re-costing prefers a partial expression index over a competing full expression index',
             ]);
         }
 

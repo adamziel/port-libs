@@ -14,14 +14,14 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext145(string $sql, array $currentTables, array $nextTables): array
+        public static function compareUnionLimitAffinity(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedPlanNext145($currentPlan, $nextPlan);
+            self::assertSupportedUnionLimitPlan($currentPlan, $nextPlan);
 
-            $allSql = self::withoutFinalLimitNext145(self::unionAllSqlNext145($sql));
-            $unlimitedSql = self::withoutFinalLimitNext145($sql);
+            $allSql = self::withoutFinalLimit(self::unionAllSql($sql));
+            $unlimitedSql = self::withoutFinalLimit($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentAllRows = SQLiteSelectSql::execute($allSql, $currentTables);
@@ -30,7 +30,7 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
             $nextDistinctRows = SQLiteSelectSql::execute($unlimitedSql, $nextTables);
 
             return [
-                'status' => 'compound-union-limit-affinity-current-source-next145-ready',
+                'status' => 'compound-union-limit-affinity-current-source-ready',
                 'dependencies' => [
                     'sqlite-compound-union-affinity-row-key',
                     'sqlite-compound-union-final-limit-boundary',
@@ -38,7 +38,7 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
                 ],
                 'compound' => [
                     'operators' => array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? [])),
-                    'orderColumns' => self::orderColumnsNext145($currentPlan),
+                    'orderColumns' => self::orderColumns($currentPlan),
                     'limit' => $currentPlan['compound']['limit'],
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
@@ -51,19 +51,19 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
                 'currentDistinctRows' => $currentDistinctRows,
                 'nextDistinctRows' => $nextDistinctRows,
                 'affinity' => [
-                    'currentSkippedDuplicates' => self::skippedDuplicateRowsNext145($currentAllRows, $currentDistinctRows),
-                    'nextSkippedDuplicates' => self::skippedDuplicateRowsNext145($nextAllRows, $nextDistinctRows),
-                    'currentStorageClasses' => self::storageClassesNext145($currentDistinctRows),
-                    'nextStorageClasses' => self::storageClassesNext145($nextDistinctRows),
-                    'currentBoundaryClasses' => self::boundaryClassesNext145($currentRows),
-                    'nextBoundaryClasses' => self::boundaryClassesNext145($nextRows),
+                    'currentSkippedDuplicates' => self::skippedDuplicateRows($currentAllRows, $currentDistinctRows),
+                    'nextSkippedDuplicates' => self::skippedDuplicateRows($nextAllRows, $nextDistinctRows),
+                    'currentStorageClasses' => self::storageClasses($currentDistinctRows),
+                    'nextStorageClasses' => self::storageClasses($nextDistinctRows),
+                    'currentBoundaryClasses' => self::boundaryClasses($currentRows),
+                    'nextBoundaryClasses' => self::boundaryClasses($nextRows),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext145($currentDistinctRows, $currentRows, $currentPlan),
-                    'next' => self::limitTraceNext145($nextDistinctRows, $nextRows, $nextPlan),
+                    'current' => self::limitTrace($currentDistinctRows, $currentRows, $currentPlan),
+                    'next' => self::limitTrace($nextDistinctRows, $nextRows, $nextPlan),
                 ],
-                'changedSignatures' => self::changedSignaturesNext145($currentRows, $nextRows),
-                'replanReasons' => self::replanReasonsNext145($currentRows, $nextRows, $currentDistinctRows, $nextDistinctRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentDistinctRows, $nextDistinctRows),
             ];
         }
 
@@ -71,37 +71,37 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @param array<string,mixed> $nextPlan
          */
-        private static function assertSupportedPlanNext145(array $currentPlan, array $nextPlan): void
+        private static function assertSupportedUnionLimitPlan(array $currentPlan, array $nextPlan): void
         {
             if (!isset($currentPlan['compound'], $nextPlan['compound']) || !is_array($currentPlan['compound']) || !is_array($nextPlan['compound'])) {
-                throw new \InvalidArgumentException('SQLite compound UNION LIMIT affinity current-source next145 needs a compound SELECT');
+                throw new \InvalidArgumentException('SQLite compound UNION LIMIT affinity current-source union-limit-affinity needs a compound SELECT');
             }
             $operators = array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? []));
             if ($operators !== ['UNION']) {
-                throw new \InvalidArgumentException('SQLite compound UNION LIMIT affinity current-source next145 needs a single UNION operator');
+                throw new \InvalidArgumentException('SQLite compound UNION LIMIT affinity current-source union-limit-affinity needs a single UNION operator');
             }
             if (($currentPlan['compound']['limit'] ?? null) === null) {
-                throw new \InvalidArgumentException('SQLite compound UNION LIMIT affinity current-source next145 needs a final LIMIT');
+                throw new \InvalidArgumentException('SQLite compound UNION LIMIT affinity current-source union-limit-affinity needs a final LIMIT');
             }
         }
 
-        private static function unionAllSqlNext145(string $sql): string
+        private static function unionAllSql(string $sql): string
         {
             $trimmed = trim(rtrim(trim($sql), ';'));
             $rewritten = preg_replace('/\bUNION\b(?!\s+ALL\b)/i', 'UNION ALL', $trimmed, 1);
             if (!is_string($rewritten) || $rewritten === $trimmed) {
-                throw new \InvalidArgumentException('SQLite compound UNION LIMIT affinity current-source next145 cannot isolate UNION');
+                throw new \InvalidArgumentException('SQLite compound UNION LIMIT affinity current-source union-limit-affinity cannot isolate UNION');
             }
 
             return $rewritten;
         }
 
-        private static function withoutFinalLimitNext145(string $sql): string
+        private static function withoutFinalLimit(string $sql): string
         {
             $trimmed = trim(rtrim(trim($sql), ';'));
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?\s*$/i', '', $trimmed);
             if (!is_string($without) || $without === $trimmed) {
-                throw new \InvalidArgumentException('SQLite compound UNION LIMIT affinity current-source next145 cannot isolate final LIMIT');
+                throw new \InvalidArgumentException('SQLite compound UNION LIMIT affinity current-source union-limit-affinity cannot isolate final LIMIT');
             }
 
             return $without;
@@ -111,7 +111,7 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext145(array $plan): array
+        private static function orderColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -126,16 +126,16 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $distinctRows
          * @return list<array{row:array<string,mixed>,key:string,classes:list<string>}>
          */
-        private static function skippedDuplicateRowsNext145(array $allRows, array $distinctRows): array
+        private static function skippedDuplicateRows(array $allRows, array $distinctRows): array
         {
             $remaining = [];
             foreach ($distinctRows as $row) {
-                $remaining[self::rowKeyNext145($row)] = ($remaining[self::rowKeyNext145($row)] ?? 0) + 1;
+                $remaining[self::rowKey($row)] = ($remaining[self::rowKey($row)] ?? 0) + 1;
             }
 
             $skipped = [];
             foreach ($allRows as $row) {
-                $key = self::rowKeyNext145($row);
+                $key = self::rowKey($row);
                 if (($remaining[$key] ?? 0) > 0) {
                     --$remaining[$key];
                     continue;
@@ -143,7 +143,7 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
                 $skipped[] = [
                     'row' => $row,
                     'key' => $key,
-                    'classes' => self::rowClassesNext145($row),
+                    'classes' => self::rowClasses($row),
                 ];
             }
 
@@ -156,7 +156,7 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function limitTraceNext145(array $preLimitRows, array $limitedRows, array $plan): array
+        private static function limitTrace(array $preLimitRows, array $limitedRows, array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $offset = isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0;
@@ -177,11 +177,11 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function storageClassesNext145(array $rows): array
+        private static function storageClasses(array $rows): array
         {
             $classes = [];
             foreach ($rows as $row) {
-                foreach (self::rowClassesNext145($row) as $class) {
+                foreach (self::rowClasses($row) as $class) {
                     $classes[$class] = true;
                 }
             }
@@ -193,11 +193,11 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return array{first:list<string>|null,last:list<string>|null}
          */
-        private static function boundaryClassesNext145(array $rows): array
+        private static function boundaryClasses(array $rows): array
         {
             return [
-                'first' => $rows === [] ? null : self::rowClassesNext145($rows[0]),
-                'last' => $rows === [] ? null : self::rowClassesNext145($rows[count($rows) - 1]),
+                'first' => $rows === [] ? null : self::rowClasses($rows[0]),
+                'last' => $rows === [] ? null : self::rowClasses($rows[count($rows) - 1]),
             ];
         }
 
@@ -205,17 +205,17 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @return list<string>
          */
-        private static function rowClassesNext145(array $row): array
+        private static function rowClasses(array $row): array
         {
-            return array_values(array_map(static fn (mixed $value): string => self::sqliteValueClassNext145($value), array_values($row)));
+            return array_values(array_map(static fn (mixed $value): string => self::sqliteValueClass($value), array_values($row)));
         }
 
-        private static function rowKeyNext145(array $row): string
+        private static function rowKey(array $row): string
         {
             return SQLiteSelectCompound::rowValueKey(array_values($row));
         }
 
-        private static function sqliteValueClassNext145(mixed $value): string
+        private static function sqliteValueClass(mixed $value): string
         {
             if ($value === null) {
                 return 'null';
@@ -235,10 +235,10 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext145(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext145($currentRows);
-            $next = self::rowSignaturesNext145($nextRows);
+            $current = self::rowSignatures($currentRows);
+            $next = self::rowSignatures($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -247,7 +247,7 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext145(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -259,16 +259,16 @@ final class SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextDistinctRows
          * @return list<string>
          */
-        private static function replanReasonsNext145(array $currentRows, array $nextRows, array $currentDistinctRows, array $nextDistinctRows): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentDistinctRows, array $nextDistinctRows): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext145($currentDistinctRows) !== self::rowSignaturesNext145($nextDistinctRows)) {
+            if (self::rowSignatures($currentDistinctRows) !== self::rowSignatures($nextDistinctRows)) {
                 $reasons[] = 'union-distinct-rowset-changed';
             }
-            if (self::rowSignaturesNext145($currentRows) !== self::rowSignaturesNext145($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'limited-union-boundary-changed';
             }
-            if (self::storageClassesNext145($currentDistinctRows) !== self::storageClassesNext145($nextDistinctRows)) {
+            if (self::storageClasses($currentDistinctRows) !== self::storageClasses($nextDistinctRows)) {
                 $reasons[] = 'union-affinity-storage-classes-changed';
             }
             $reasons[] = 'compound-union-limit-after-affinity-distinct';

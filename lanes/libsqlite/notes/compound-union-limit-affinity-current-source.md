@@ -1,8 +1,8 @@
-# compound-union-limit-affinity-current-source-next145
+# compound-union-limit-affinity-current-source
 
 Status: focused PHP behavior growth for parser-level compound `UNION` duplicate elimination before final `ORDER BY` / `LIMIT` / `OFFSET` at a WordPress copied `wp_options` current/next boundary.
 
-This slice adds `SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan`.
+This slice now uses the canonical `SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan::compareUnionLimitAffinity()` entry point. The old worker-numbered public method and private helper names were consolidated into stable descriptive names, and the direct test/example filenames were renamed to remove the numeric suffix.
 
 - `UNION` removes duplicate rows using SQLite compound row keys: integer `1` and real `1.0` compare as the same numeric value.
 - Text values such as `'1'` stay distinct from numeric `1`; no column-affinity coercion is applied to compound duplicate checks.
@@ -12,7 +12,7 @@ This slice adds `SQLiteCompoundUnionLimitAffinityCurrentSourceNextPlan`.
 Focused verification:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundUnionLimitAffinityCurrentSourceNext145Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundUnionLimitAffinityCurrentSourceTest.php
 ```
 
 Expected dashboard movement: `phpPass +53` from the new focused test file. `benchmarkDenominator.mapped` remains unchanged; this reuses already mapped compound SELECT, affinity, ORDER BY, LIMIT/OFFSET, and current-source inventory rather than claiming a fresh upstream manifest row.
@@ -20,7 +20,7 @@ Expected dashboard movement: `phpPass +53` from the new focused test file. `benc
 WordPress smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-compound-union-limit-affinity-current-source-next145.php
+php lanes/libsqlite/examples/wordpress-compound-union-limit-affinity-current-source.php
 ```
 
 Non-overlap: avoids accepted compound row composition, compound ORDER/LIMIT next110, recursive LIMIT next117, recursive affinity next120, compound values/name-resolution next121/123/127, correlated/window compound next124/126/128/129/131/132/133/134/135/136/137/138/139/140/141/142, SELECT SQL text/JOIN/GROUP/subquery/expression ORDER/comma LIMIT, JSON table source/cursor/constraint work, VFS/WAL/B-tree clusters, and encoding-only LIKE/GLOB/collation work. The narrower surface is non-recursive `UNION` numeric-vs-text duplicate affinity feeding a post-compound LIMIT/OFFSET current/next boundary.

@@ -13,15 +13,15 @@ $partial = new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, [
 ]);
 
 $prepared = [
-    'name' => 'prepared-main.wp_options@cookie1470',
-    'schemaCookie' => 1470,
+    'name' => 'prepared-main.wp_options@cookie-prepared',
+    'schemaCookie' => 170,
     'stat4Generation' => 77,
-    'indexName' => 'idx_wp_options_autoload_lower_name_covering_next147',
-    'rootPage' => 14701,
+    'indexName' => 'idx_wp_options_autoload_lower_name_covering',
+    'rootPage' => 701,
     'skippedColumn' => 'autoload',
     'rangeColumn' => 'option_name',
     'rangeExpression' => 'lower(option_name)',
-    'rangeExpressionColumn' => '__expr_lower_option_name_next147',
+    'rangeExpressionColumn' => '__expr_lower_option_name',
     'lowerInclusive' => 'plugin_',
     'upperBound' => 'plugin_zeta',
     'upperInclusive' => true,
@@ -39,7 +39,7 @@ $prepared = [
     ],
 ];
 $current = $prepared;
-$current['name'] = 'current-main.wp_options@cookie1471';
+$current['name'] = 'current-main.wp_options@cookie-current';
 $current['schemaCookie'] = 1471;
 $current['stat4Generation'] = 78;
 $current['rootPage'] = 14709;
@@ -51,7 +51,7 @@ $current['rows'][] = ['rowid' => 5, 'autoload' => 'no', 'option_name' => 'PLUGIN
 $current['stat4Samples'][] = ['prefix' => 'auto', 'suffix' => 'plugin_delta', 'nEq' => 1, 'nLt' => 1, 'nDLt' => 1];
 $current['stat4Samples'][] = ['prefix' => 'no', 'suffix' => 'plugin_zip', 'nEq' => 1, 'nLt' => 1, 'nDLt' => 1];
 
-$plan = SQLitePlannerStat4CoveringSkipScanCurrentSourceNextPlan::materializeNext147(
+$plan = SQLitePlannerStat4CoveringSkipScanCurrentSourceNextPlan::materialize(
     $prepared,
     $current,
     $partial,
@@ -77,13 +77,13 @@ $summary = [
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($summary['status'] === 'stat4-covering-skipscan-current-source-next147-ready');
+    assert($summary['status'] === 'stat4-covering-skipscan-current-source-ready');
     assert($summary['selectedSource'] === 'current');
     assert($summary['stat4SignatureChanged'] === true);
     assert($summary['addedStat4Samples'] === ['plugin_delta', 'plugin_zip']);
     assert($summary['currentRowids'] === [4, 2, 3, 5]);
-    assert($summary['coveringColumns'] === ['option_name', 'option_value', 'kind', 'autoload', '__expr_lower_option_name_next147']);
-    echo "wordpress-planner-stat4-covering-skipscan-current-source-next147 self-test passed\n";
+    assert($summary['coveringColumns'] === ['option_name', 'option_value', 'kind', 'autoload', '__expr_lower_option_name']);
+    echo "wordpress-planner-stat4-covering-skipscan-current-source self-test passed\n";
     return;
 }
 
