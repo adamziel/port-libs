@@ -61,6 +61,27 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
      * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, file?:string|null, commit?:bool}> $events
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext118120(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    {
+        return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next118-120', [
+            'sqlite-attach-temp-wal-schema-cache-current-source-next118',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next119',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next120',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next117',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next116',
+            'sqlite-indexed-by-schema-cache-expiry',
+            'sqlite-attach-wal-temp-schema-cache-current-source-next92',
+            'sqlite-wal-page-one-schema-cookie-current-source',
+            'sqlite-temp-schema-shadow-cache-expiry',
+        ]);
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
+     * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
+     * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, file?:string|null, commit?:bool}> $events
      * @param list<string> $dependencies
      * @return array<string,mixed>
      */
@@ -585,6 +606,24 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
         }
 
         return $consolidated;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $events
+     * @return list<array<string,mixed>>
+     */
+    private static function currentSourceNext118120Events(array $events): array
+    {
+        $committed = [];
+        foreach ($events as $event) {
+            $op = strtolower(trim((string) ($event['op'] ?? '')));
+            if (($op === 'schema_write' || $op === 'wal_commit') && ($event['commit'] ?? true) !== true) {
+                continue;
+            }
+            $committed[] = $event;
+        }
+
+        return self::consolidateDuplicateEvents($committed);
     }
 
     /**
