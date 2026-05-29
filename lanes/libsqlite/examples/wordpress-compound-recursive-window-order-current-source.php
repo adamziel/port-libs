@@ -50,14 +50,14 @@ SELECT option_id AS id,
  LIMIT 7
 SQL;
 
-$summary = SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan::compareNext144(
+$summary = SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan::compare(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],
 );
 
 $result = [
-    'scenario' => 'wordpress-compound-recursive-window-order-current-source-next144',
+    'scenario' => 'wordpress-compound-recursive-window-order-current-source',
     'wordpressUse' => 'Copied wp_options dependency trees can be walked with recursive queue ORDER BY, ranked in each compound arm with window functions, and then sorted by the final compound ORDER BY before import diagnostics are shown.',
     'currentLabels' => array_column($summary['currentRows'], 'label'),
     'nextLabels' => array_column($summary['nextRows'], 'label'),
@@ -67,11 +67,11 @@ $result = [
 
 if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
     if (($result['nextLabels'][1] ?? null) !== 'plugin_rules') {
-        fwrite(STDERR, "wordpress-compound-recursive-window-order-current-source-next144 self-test failed\n");
+        fwrite(STDERR, "wordpress-compound-recursive-window-order-current-source self-test failed\n");
         exit(1);
     }
 
-    echo "wordpress-compound-recursive-window-order-current-source-next144 self-test passed\n";
+    echo "wordpress-compound-recursive-window-order-current-source self-test passed\n";
 }
 
 return $result;

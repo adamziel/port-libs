@@ -67,6 +67,6 @@ $events = [
 ];
 
 echo json_encode(
-    SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100($schemas, $statements, $events),
+    SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan($schemas, $statements, $events),
     JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
 ) . PHP_EOL;

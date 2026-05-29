@@ -59,6 +59,6 @@ $cache = [
 ];
 
 echo json_encode(
-    SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext103($schemas, $statements, $events, $cache),
+    SQLiteAttachSchemaCookieRepreparePlan::sharedCacheRepreparePlan($schemas, $statements, $events, $cache),
     JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
 ) . PHP_EOL;
