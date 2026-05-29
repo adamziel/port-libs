@@ -17,7 +17,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
      */
     public static function plan(mixed ...$args): array
     {
-        return self::variantNext261(...$args);
+        return self::variantNext270(...$args);
     }
 
     /** @return array<string,mixed> */
@@ -26512,5 +26512,62 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
                     return $values;
                 }
         })->plan($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, $readerCache, $nextReads, $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken);
+    }
+
+    /** @param mixed ...$args @return array<string,mixed> */
+    public static function variantNext267(mixed ...$args): array
+    {
+        return self::restampVariantNext261(267, self::variantNext261(...$args));
+    }
+
+    /** @param mixed ...$args @return array<string,mixed> */
+    public static function variantNext268(mixed ...$args): array
+    {
+        return self::restampVariantNext261(268, self::variantNext261(...$args));
+    }
+
+    /** @param mixed ...$args @return array<string,mixed> */
+    public static function variantNext269(mixed ...$args): array
+    {
+        return self::restampVariantNext261(269, self::variantNext261(...$args));
+    }
+
+    /** @param mixed ...$args @return array<string,mixed> */
+    public static function variantNext270(mixed ...$args): array
+    {
+        return self::restampVariantNext261(270, self::variantNext261(...$args));
+    }
+
+    /** @param array<string,mixed> $plan @return array<string,mixed> */
+    private static function restampVariantNext261(int $next, array $plan): array
+    {
+        $from = 'next261';
+        $to = 'next' . $next;
+        $replace = static fn (string $value): string => str_replace($from, $to, $value);
+
+        $plan['status'] = 'pager-master-journal-reader-cache-current-source-' . $to;
+        $plan['dependencies'][] = 'sqlite-pager-master-journal-reader-cache-current-source-' . $to;
+        $plan['non_overlap'] = $replace((string) $plan['non_overlap']);
+
+        foreach ($plan['operations'] as &$operation) {
+            if (isset($operation['op']) && is_string($operation['op'])) {
+                $operation['op'] = $replace($operation['op']);
+            }
+            if (isset($operation['source']) && is_string($operation['source'])) {
+                $operation['source'] = $replace($operation['source']);
+            }
+        }
+        unset($operation);
+
+        foreach ($plan['next_reads'] as &$read) {
+            if (isset($read['source']) && is_string($read['source'])) {
+                $read['source'] = $replace($read['source']);
+            }
+        }
+        unset($read);
+
+        $plan['source_digest'] = hash('sha256', $plan['source_digest'] . '|restamp|' . $to);
+
+        return $plan;
     }
 }
