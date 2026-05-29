@@ -337,6 +337,11 @@ final class SQLiteAttachTempViewTriggerYieldPlan
      */
     private static function resolveBodyTable(SQLiteAttachedSchemaCatalog $catalog, array $name, string $triggerSchema, bool $tempTrigger): array
     {
+        $schemaAlias = self::resolveSchemaAliasBodyTable($catalog, $name);
+        if ($schemaAlias !== null) {
+            return $schemaAlias;
+        }
+
         $schemas = $name['schema'] !== null ? [$name['schema']] : ($tempTrigger ? $catalog->searchOrder() : [$triggerSchema]);
         foreach ($schemas as $schema) {
             foreach ($catalog->schemaRecords($schema) as $record) {
@@ -347,6 +352,26 @@ final class SQLiteAttachTempViewTriggerYieldPlan
         }
 
         throw new InvalidArgumentException("SQLite trigger body table does not resolve: {$name['name']}");
+    }
+
+    /**
+     * @param array{schema:?string,name:string} $name
+     * @return array{schema:string,record:SQLiteSchemaRecord}|null
+     */
+    private static function resolveSchemaAliasBodyTable(SQLiteAttachedSchemaCatalog $catalog, array $name): ?array
+    {
+        $table = strtolower($name['name']);
+        $schema = $name['schema'];
+
+        if ($schema === null && ($table === 'sqlite_temp_schema' || $table === 'sqlite_temp_master')) {
+            return $catalog->resolveTable($table);
+        }
+
+        if ($schema !== null && ($table === 'sqlite_schema' || $table === 'sqlite_master')) {
+            return $catalog->resolveTable($schema . '.' . $table);
+        }
+
+        return null;
     }
 
     /**
