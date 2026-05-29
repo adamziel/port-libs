@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 20:24 UTC):
+  Eightieth safe consolidation follow-up is integrated and pushed as
+  `9837198e0`. The batch accepts 3 clean `cw` handoffs while excluding stale
+  worker status edits: STAT4 prepared-handoff bridge helper cleanup, trigger
+  RETURNING compatibility-alias helper cleanup, and rowvalue RETURNING window
+  after-ready publication wrapper consolidation. Validation passed PHP lint for
+  6 changed PHP files, `git diff --check`, direct combined tests `8 files /
+  345 assertions / 0 failures`, changed rowvalue WordPress examples `3
+  passed`, STAT4 expression-partial family `133 files / 7537 assertions / 0
+  failures`, trigger RETURNING family `61 files / 4571 assertions / 0
+  failures`, rowvalue RETURNING window family `94 files / 2938 assertions / 0
+  failures`, exact user-named 150 suffix scan clean in
+  `src`/`tests`/`examples`/`notes`, production numbered file/class audits at
+  `0`, numbered production helper-method audit down to `1661`, and unique
+  numbered production symbol audit down to `1893`. Public pass/mapped counters
+  remain `154019 pass / 0 fail` and `830 / 1589` because this is
+  consolidation-only. JSON `cw` was deferred because it no longer applied after
+  the accepted JSON helper cleanup; upstream-suite `cw` was deferred because
+  its own broad sweep reported existing unrelated failures; duplicate
+  rowvalue-save `cw` was skipped in favor of the rowvalue-window handoff.
+
 - 2026-05-29 supervisor continuation (shell samples 20:18 UTC):
   Seventy-ninth safe consolidation follow-up is integrated and pushed as
   `961d4422b`. The batch accepts 5 clean `cv` handoffs while excluding stale
