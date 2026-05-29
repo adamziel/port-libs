@@ -9,21 +9,21 @@ require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSou
 $tests = [];
 
 $digest = static fn (string $value): string => hash('sha256', $value);
-$databaseDigest = $digest('next214 checkpoint database');
-$walDigest = $digest('next214 retained wal');
-$writerDigest = $digest('next214 writer generation');
-$oldDatabaseDigest = $digest('next214 old database');
-$oldWalDigest = $digest('next214 old wal');
-$oldWriterDigest = $digest('next214 old writer');
-$saltBefore = $digest('next214 wal salt before');
-$saltAfter = $digest('next214 wal salt after');
-$hotJournalDigest = $digest('next214 hot journal');
+$databaseDigest = $digest('restartReaderRelease checkpoint database');
+$walDigest = $digest('restartReaderRelease retained wal');
+$writerDigest = $digest('restartReaderRelease writer generation');
+$oldDatabaseDigest = $digest('restartReaderRelease old database');
+$oldWalDigest = $digest('restartReaderRelease old wal');
+$oldWriterDigest = $digest('restartReaderRelease old writer');
+$saltBefore = $digest('restartReaderRelease wal salt before');
+$saltAfter = $digest('restartReaderRelease wal salt after');
+$hotJournalDigest = $digest('restartReaderRelease hot journal');
 
 $base = [
     'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next212',
-    'database_path' => '/srv/www/wp-content/database/wp-next214.sqlite',
-    'journal_path' => '/srv/www/wp-content/database/wp-next214.sqlite-journal',
-    'wal_path' => '/srv/www/wp-content/database/wp-next214.sqlite-wal',
+    'database_path' => '/srv/www/wp-content/database/wp-restart-reader-release.sqlite',
+    'journal_path' => '/srv/www/wp-content/database/wp-restart-reader-release.sqlite-journal',
+    'wal_path' => '/srv/www/wp-content/database/wp-restart-reader-release.sqlite-wal',
     'page_size' => 512,
     'requested_checkpoint_frame' => 214,
     'checkpointed_frame' => 214,
@@ -124,30 +124,30 @@ $readers = [
     ],
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, $readers, $options);
-$blockedCurrentReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, $readers, $options);
+$blockedCurrentReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease(
     $base,
     [array_merge($readers[0], ['released' => false])],
     $options
 );
-$blockedPassive = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint(
+$blockedPassive = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease(
     array_merge($base, ['checkpointed_frame' => 213, 'busy' => true]),
     $readers,
     $options
 );
-$blockedNoStale = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint(
+$blockedNoStale = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease(
     $base,
     [$readers[0], $readers[1]],
     $options
 );
 
 $cases = [
-    'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next214'],
+    'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-restart-reader-release'],
     'reason' => [static fn (): mixed => $plan()['reason'], 'restart_checkpoint_resets_wal_after_current_source_readers_release'],
     'base status' => [static fn (): mixed => $plan()['base_status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next212'],
-    'database path' => [static fn (): mixed => $plan()['database_path'], '/srv/www/wp-content/database/wp-next214.sqlite'],
-    'journal path' => [static fn (): mixed => $plan()['journal_path'], '/srv/www/wp-content/database/wp-next214.sqlite-journal'],
-    'wal path' => [static fn (): mixed => $plan()['wal_path'], '/srv/www/wp-content/database/wp-next214.sqlite-wal'],
+    'database path' => [static fn (): mixed => $plan()['database_path'], '/srv/www/wp-content/database/wp-restart-reader-release.sqlite'],
+    'journal path' => [static fn (): mixed => $plan()['journal_path'], '/srv/www/wp-content/database/wp-restart-reader-release.sqlite-journal'],
+    'wal path' => [static fn (): mixed => $plan()['wal_path'], '/srv/www/wp-content/database/wp-restart-reader-release.sqlite-wal'],
     'page size' => [static fn (): mixed => $plan()['page_size'], 512],
     'requested checkpoint frame' => [static fn (): mixed => $plan()['requested_checkpoint_frame'], 214],
     'checkpointed frame' => [static fn (): mixed => $plan()['checkpointed_frame'], 214],
@@ -184,53 +184,53 @@ $cases = [
     'blocked guards empty' => [static fn (): mixed => $plan()['blocked_guard_names'], []],
     'sync sequence' => [static fn (): mixed => $plan()['sync_sequence'], ['database', 'wal-header', 'directory', 'hot-journal-delete']],
     'operation inherited' => [static fn (): mixed => $plan()['operation_names'][0], 'verify_passive_checkpoint_reader_pin_current_source_next212'],
-    'operation verify present' => [static fn (): mixed => in_array('verify_restart_checkpoint_reader_release_current_source_next214', $plan()['operation_names'], true), true],
-    'operation restart present' => [static fn (): mixed => in_array('restart_wal_after_hot_journal_savepoint_checkpoint_next214', $plan()['operation_names'], true), true],
+    'operation verify present' => [static fn (): mixed => in_array('verify_restart_checkpoint_reader_release_current_source_restart_reader_release', $plan()['operation_names'], true), true],
+    'operation restart present' => [static fn (): mixed => in_array('restart_wal_after_hot_journal_savepoint_checkpoint_restart_reader_release', $plan()['operation_names'], true), true],
     'restart digest length' => [static fn (): mixed => strlen($plan()['restart_digest']), 64],
-    'dependency next214' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next214', $plan()['dependencies'], true), true],
+    'dependency restartReaderRelease' => [static fn (): mixed => in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source-restart-reader-release', $plan()['dependencies'], true), true],
     'dependency reader release' => [static fn (): mixed => in_array('sqlite-restart-checkpoint-current-source-reader-release', $plan()['dependencies'], true), true],
     'dependency wordpress' => [static fn (): mixed => in_array('wordpress-import-restart-checkpoint-deletes-hot-journal-after-wal-reset', $plan()['dependencies'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat next212 PASSIVE reader pins'), true],
-    'blocked current reader status' => [static fn (): mixed => $blockedCurrentReader()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next214'],
+    'blocked current reader status' => [static fn (): mixed => $blockedCurrentReader()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-restart-reader-release'],
     'blocked current reader guard' => [static fn (): mixed => $blockedCurrentReader()['blocked_guard_names'], ['all_current_readers_released', 'stale_readers_reopened']],
     'blocked current reader action' => [static fn (): mixed => $blockedCurrentReader()['reader_rows'][0]['reader_action'], 'preserve_wal_for_reader'],
     'blocked current reader name' => [static fn (): mixed => $blockedCurrentReader()['current_reader_names'], ['wp-options-released-reader']],
     'blocked passive guards' => [static fn (): mixed => $blockedPassive()['blocked_guard_names'], ['passive_checkpoint_complete']],
     'blocked no stale guard' => [static fn (): mixed => $blockedNoStale()['blocked_guard_names'], ['stale_readers_reopened']],
-    'blocked no sync guards' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, $readers, array_merge($options, ['database_synced' => false, 'wal_header_synced' => false, 'directory_synced' => false]))['blocked_guard_names'], ['database_synced', 'wal_header_synced', 'directory_synced']],
-    'blocked same salt guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, $readers, array_merge($options, ['wal_salt_after' => $saltBefore]))['blocked_guard_names'], ['wal_salt_rotated']],
-    'blocked zero hot journal guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, $readers, array_merge($options, ['hot_journal_digest' => str_repeat('0', 64)]))['blocked_guard_names'], ['hot_journal_digest_verified']],
-    'blocked missing delete guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, $readers, array_merge($options, ['delete_hot_journal_after_reset' => false]))['blocked_guard_names'], ['delete_hot_journal_after_reset']],
-    'blocked missing lock guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, $readers, array_merge($options, ['exclusive_checkpoint_lock' => false]))['blocked_guard_names'], ['exclusive_checkpoint_lock']],
-    'blocked open savepoint guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, $readers, array_merge($options, ['savepoint_closed' => false]))['blocked_guard_names'], ['savepoint_closed']],
+    'blocked no sync guards' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, $readers, array_merge($options, ['database_synced' => false, 'wal_header_synced' => false, 'directory_synced' => false]))['blocked_guard_names'], ['database_synced', 'wal_header_synced', 'directory_synced']],
+    'blocked same salt guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, $readers, array_merge($options, ['wal_salt_after' => $saltBefore]))['blocked_guard_names'], ['wal_salt_rotated']],
+    'blocked zero hot journal guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, $readers, array_merge($options, ['hot_journal_digest' => str_repeat('0', 64)]))['blocked_guard_names'], ['hot_journal_digest_verified']],
+    'blocked missing delete guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, $readers, array_merge($options, ['delete_hot_journal_after_reset' => false]))['blocked_guard_names'], ['delete_hot_journal_after_reset']],
+    'blocked missing lock guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, $readers, array_merge($options, ['exclusive_checkpoint_lock' => false]))['blocked_guard_names'], ['exclusive_checkpoint_lock']],
+    'blocked open savepoint guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, $readers, array_merge($options, ['savepoint_closed' => false]))['blocked_guard_names'], ['savepoint_closed']],
     'blocked wal action preserve' => [static fn (): mixed => $blockedCurrentReader()['wal_action'], 'preserve_wal'],
     'blocked journal action preserve' => [static fn (): mixed => $blockedCurrentReader()['journal_action'], 'preserve_hot_journal'],
     'blocked sync sequence pending' => [static fn (): mixed => $blockedCurrentReader()['sync_sequence'], ['database', 'wal-header-pending']],
-    'blocked operation preserve present' => [static fn (): mixed => in_array('preserve_wal_until_restart_checkpoint_safe_next214', $blockedCurrentReader()['operation_names'], true), true],
+    'blocked operation preserve present' => [static fn (): mixed => in_array('preserve_wal_until_restart_checkpoint_safe_restart_reader_release', $blockedCurrentReader()['operation_names'], true), true],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['wal hot journal savepoint checkpoint current source next214 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['wal hot journal savepoint checkpoint current source restart-reader-release ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
 $throws = [
-    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint(['status' => 'bad'], $readers, $options),
-    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, [], $options),
-    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint(array_merge($base, ['requested_checkpoint_frame' => 0]), $readers, $options),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint(array_merge($base, ['database_digest' => 'short']), $readers, $options),
-    'bad writer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint(array_merge($base, ['next_writer_generation' => 0]), $readers, $options),
-    'bad salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, $readers, array_merge($options, ['wal_salt_before' => 'short'])),
-    'missing reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, [array_merge($readers[0], ['name' => ''])], $options),
-    'bad reader released rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, [array_merge($readers[0], ['released' => 'yes'])], $options),
-    'bad reader frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, [array_merge($readers[0], ['reader_end_frame' => 0])], $options),
-    'bad reader digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint($base, [array_merge($readers[0], ['observed_writer_digest' => 'short'])], $options),
+    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease(['status' => 'bad'], $readers, $options),
+    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, [], $options),
+    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease(array_merge($base, ['requested_checkpoint_frame' => 0]), $readers, $options),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease(array_merge($base, ['database_digest' => 'short']), $readers, $options),
+    'bad writer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease(array_merge($base, ['next_writer_generation' => 0]), $readers, $options),
+    'bad salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, $readers, array_merge($options, ['wal_salt_before' => 'short'])),
+    'missing reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, [array_merge($readers[0], ['name' => ''])], $options),
+    'bad reader released rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, [array_merge($readers[0], ['released' => 'yes'])], $options),
+    'bad reader frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, [array_merge($readers[0], ['reader_end_frame' => 0])], $options),
+    'bad reader digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease($base, [array_merge($readers[0], ['observed_writer_digest' => 'short'])], $options),
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['wal hot journal savepoint checkpoint current source next214 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['wal hot journal savepoint checkpoint current source restart-reader-release ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(Throwable::class, $callback);
     };
 }

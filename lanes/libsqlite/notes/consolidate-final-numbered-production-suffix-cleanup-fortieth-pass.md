@@ -12,7 +12,7 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundWindowRecursiveLimitCurrentSourceTest.php` -> `1 test files, 202 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-compound-window-recursive-limit-current-source.php --self-test` -> self-test passed
 - `git diff --check -- lanes/libsqlite`
-- Banned source-next150 token scan across `src`, `tests`, `examples`, `notes`, and `fixtures` -> no matches
+- Banned user-named removed suffix token scan across `src`, `tests`, `examples`, `notes`, and `fixtures` -> no matches
 
 Dependency closure:
 - No new support component is needed; this is a production suffix consolidation only.

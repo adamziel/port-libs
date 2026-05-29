@@ -7844,23 +7844,23 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $nextRows = self::rowsNext192($base['next_source_rows_next189'] ?? [], 'next source rows');
+        $nextRows = self::followingCurrentRowsList($base['next_source_rows_next189'] ?? [], 'next source rows');
         $requiredOrdinals = array_column($nextRows, 'returning_row_ordinal');
-        $acknowledgedOrdinals = self::ordinalsNext192($options['next_acknowledged_ordinals'] ?? []);
-        $nextRowsAcknowledged = $nextRows !== [] && self::sameOrdinalsNext192($requiredOrdinals, $acknowledgedOrdinals);
-        $nextCursor = self::tokenNext192((string) ($options['next_cursor'] ?? ($base['next_cursor_next189'] ?? 'wp.returning.next.cursor.192')), 'next cursor');
-        $closeCursor = self::tokenNext192((string) ($options['close_next_cursor'] ?? $nextCursor), 'close next cursor');
+        $acknowledgedOrdinals = self::followingCurrentAcknowledgedOrdinals($options['next_acknowledged_ordinals'] ?? []);
+        $nextRowsAcknowledged = $nextRows !== [] && self::sameFollowingCurrentOrdinals($requiredOrdinals, $acknowledgedOrdinals);
+        $nextCursor = self::followingCurrentCursorToken((string) ($options['next_cursor'] ?? ($base['next_cursor_next189'] ?? 'wp.returning.next.cursor.192')), 'next cursor');
+        $closeCursor = self::followingCurrentCursorToken((string) ($options['close_next_cursor'] ?? $nextCursor), 'close next cursor');
         $cursorMatches = hash_equals($nextCursor, $closeCursor);
-        $followingToken = self::tokenNext192((string) ($options['following_current_source_token'] ?? 'wp.current.source.following.192'), 'following current source token');
-        $expectedFollowingToken = self::tokenNext192((string) ($options['expected_following_current_source_token'] ?? $followingToken), 'expected following current source token');
+        $followingToken = self::followingCurrentCursorToken((string) ($options['following_current_source_token'] ?? 'wp.current.source.following.192'), 'following current source token');
+        $expectedFollowingToken = self::followingCurrentCursorToken((string) ($options['expected_following_current_source_token'] ?? $followingToken), 'expected following current source token');
         $followingTokenMatches = hash_equals($followingToken, $expectedFollowingToken);
-        $followingCursor = self::tokenNext192((string) ($options['following_cursor'] ?? 'wp.returning.following.cursor.192'), 'following cursor');
+        $followingCursor = self::followingCurrentCursorToken((string) ($options['following_cursor'] ?? 'wp.returning.following.cursor.192'), 'following cursor');
         $baseAdmittedNext = ($base['status_next189'] ?? '') === 'trigger-recursive-view-returning-current-source-next189-next-source-visible';
         $canAdmitFollowing = $baseAdmittedNext && $nextRowsAcknowledged && $cursorMatches && $followingTokenMatches;
         $followingRows = $canAdmitFollowing
-            ? self::followingRowsNext192(
-                self::rowsNext192($options['following_current_input'] ?? [], 'following current input'),
-                self::viewNext192($options['following_current_view'] ?? $currentView),
+            ? self::followingCurrentRows(
+                self::followingCurrentRowsList($options['following_current_input'] ?? [], 'following current input'),
+                self::followingCurrentView($options['following_current_view'] ?? $currentView),
                 $returning,
                 $followingToken,
                 $followingCursor,
@@ -7869,7 +7869,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             : [];
 
         return [
-            'status_next192' => self::statusNext192($canAdmitFollowing, $baseAdmittedNext, $nextRowsAcknowledged, $cursorMatches, $followingTokenMatches),
+            'status_next192' => self::followingCurrentStatus($canAdmitFollowing, $baseAdmittedNext, $nextRowsAcknowledged, $cursorMatches, $followingTokenMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'next_required_ordinals_next192' => $requiredOrdinals,
@@ -7885,13 +7885,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'following_current_rows_next192' => $followingRows,
             'following_current_payloads_next192' => array_column($followingRows, 'returning'),
             'following_current_row_count_next192' => count($followingRows),
-            'blocked_reasons_next192' => self::blockedReasonsNext192($base, $baseAdmittedNext, $nextRowsAcknowledged, $cursorMatches, $followingTokenMatches),
+            'blocked_reasons_next192' => self::followingCurrentBlockedReasons($base, $baseAdmittedNext, $nextRowsAcknowledged, $cursorMatches, $followingTokenMatches),
             'cursor_close_plan_next192' => [
                 'next_rows_required' => count($nextRows),
                 'next_rows_acknowledged' => count(array_intersect($requiredOrdinals, $acknowledgedOrdinals)),
                 'next_cursor_matches_close_token' => $cursorMatches,
                 'following_rows_visible' => count($followingRows),
-                'decision' => self::decisionNext192($canAdmitFollowing, $baseAdmittedNext, $nextRowsAcknowledged, $cursorMatches, $followingTokenMatches),
+                'decision' => self::followingCurrentDecision($canAdmitFollowing, $baseAdmittedNext, $nextRowsAcknowledged, $cursorMatches, $followingTokenMatches),
                 'resume_after_next_ordinal' => $nextRows === [] ? null : max($requiredOrdinals),
                 'following_cursor' => $followingCursor,
             ],
@@ -7912,7 +7912,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<int> $required
      * @param list<int> $acknowledged
      */
-    private static function sameOrdinalsNext192(array $required, array $acknowledged): bool
+    private static function sameFollowingCurrentOrdinals(array $required, array $acknowledged): bool
     {
         sort($required);
         sort($acknowledged);
@@ -7925,21 +7925,21 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      * @return list<array<string,mixed>>
      */
-    private static function followingRowsNext192(array $input, array $view, array $returning, string $token, string $cursor, string $generation): array
+    private static function followingCurrentRows(array $input, array $view, array $returning, string $token, string $cursor, string $generation): array
     {
-        $mapping = self::mappingNext192($view['mapping'] ?? []);
+        $mapping = self::followingCurrentMapping($view['mapping'] ?? []);
         $out = [];
         foreach ($input as $ordinal => $row) {
-            $new = self::mappedRowNext192($row, $mapping);
+            $new = self::followingCurrentMappedRow($row, $mapping);
             $out[] = [
                 'statement_source' => 'following-current',
                 'returning_row_ordinal' => $ordinal,
-                'returning' => self::returningPayloadNext192($returning, $new, $view, $ordinal),
+                'returning' => self::followingCurrentReturningPayload($returning, $new, $view, $ordinal),
                 'returning_option_name' => (string) ($new['option_name'] ?? $new['name'] ?? ''),
                 'following_current_source_token_next192' => $token,
                 'following_cursor_next192' => $cursor,
                 'following_generation_next192' => $generation,
-                'source_signature_next192' => self::signatureNext192($view, $returning),
+                'source_signature_next192' => self::followingCurrentSignature($view, $returning),
             ];
         }
 
@@ -7950,7 +7950,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      * @return array<string,mixed>
      */
-    private static function returningPayloadNext192(array $returning, array $new, array $view, int $ordinal): array
+    private static function followingCurrentReturningPayload(array $returning, array $new, array $view, int $ordinal): array
     {
         $payload = [];
         foreach ($returning as $term) {
@@ -7979,7 +7979,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return array<string,mixed>
      */
-    private static function mappedRowNext192(array $row, array $mapping): array
+    private static function followingCurrentMappedRow(array $row, array $mapping): array
     {
         $mapped = $row;
         foreach ($mapping as $source => $target) {
@@ -7994,7 +7994,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return array<string,string>
      */
-    private static function mappingNext192(mixed $mapping): array
+    private static function followingCurrentMapping(mixed $mapping): array
     {
         if (!is_array($mapping)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next192 view mapping is malformed');
@@ -8013,12 +8013,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return array<string,mixed>
      */
-    private static function viewNext192(mixed $view): array
+    private static function followingCurrentView(mixed $view): array
     {
         if (!is_array($view)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next192 following view is malformed');
         }
-        self::mappingNext192($view['mapping'] ?? []);
+        self::followingCurrentMapping($view['mapping'] ?? []);
 
         return $view;
     }
@@ -8026,7 +8026,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext192(mixed $rows, string $label): array
+    private static function followingCurrentRowsList(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next192 {$label} must be a list");
@@ -8043,7 +8043,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<int>
      */
-    private static function ordinalsNext192(mixed $ordinals): array
+    private static function followingCurrentAcknowledgedOrdinals(mixed $ordinals): array
     {
         if (!is_array($ordinals) || !array_is_list($ordinals)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next192 acknowledged ordinals must be a list');
@@ -8062,7 +8062,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      */
-    private static function signatureNext192(array $view, array $returning): string
+    private static function followingCurrentSignature(array $view, array $returning): string
     {
         $aliases = [];
         foreach ($returning as $index => $term) {
@@ -8082,7 +8082,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function blockedReasonsNext192(array $base, bool $baseAdmittedNext, bool $nextRowsAcknowledged, bool $cursorMatches, bool $followingTokenMatches): array
+    private static function followingCurrentBlockedReasons(array $base, bool $baseAdmittedNext, bool $nextRowsAcknowledged, bool $cursorMatches, bool $followingTokenMatches): array
     {
         $reasons = [];
         if (!$baseAdmittedNext) {
@@ -8101,7 +8101,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function decisionNext192(bool $canAdmitFollowing, bool $baseAdmittedNext, bool $nextRowsAcknowledged, bool $cursorMatches, bool $followingTokenMatches): string
+    private static function followingCurrentDecision(bool $canAdmitFollowing, bool $baseAdmittedNext, bool $nextRowsAcknowledged, bool $cursorMatches, bool $followingTokenMatches): string
     {
         if ($canAdmitFollowing) {
             return 'admit-following-current-after-next-cursor-close';
@@ -8122,7 +8122,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'hold-following-current';
     }
 
-    private static function statusNext192(bool $canAdmitFollowing, bool $baseAdmittedNext, bool $nextRowsAcknowledged, bool $cursorMatches, bool $followingTokenMatches): string
+    private static function followingCurrentStatus(bool $canAdmitFollowing, bool $baseAdmittedNext, bool $nextRowsAcknowledged, bool $cursorMatches, bool $followingTokenMatches): string
     {
         if ($canAdmitFollowing) {
             return 'trigger-recursive-view-returning-current-source-next192-following-current-visible';
@@ -8143,7 +8143,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-next192-held';
     }
 
-    private static function tokenNext192(string $token, string $label): string
+    private static function followingCurrentCursorToken(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next192 {$label} is malformed");

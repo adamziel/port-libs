@@ -13753,7 +13753,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-intersect-current-source-token-fence-next217',
                 ],
                 'dependency_closure' => 'no new support component needed; next217 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, rank and dense_rank window dispatch, INTERSECT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next212 group_concat/row_number EXCEPT fencing, next210 row_number/last_value INTERSECT+EXCEPT fencing, next209 sum/count aggregate windows, lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, and JSON/WAL/B-tree/VFS clusters; this slice fences rank/dense_rank window output through INTERSECT before final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted group_concat/row_number EXCEPT fencing, row_number/last_value INTERSECT+EXCEPT fencing, sum/count aggregate windows, and lead/nth_value INTERSECT fencing, and JSON/WAL/B-tree/VFS clusters; this slice fences rank/dense_rank window output through INTERSECT before final compound LIMIT over current and next wp_options sources',
             ];
         }
 
@@ -14723,40 +14723,40 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext221($sql, $currentPlan, $nextPlan);
+            self::assertSupportedMaxSumIntersectLimit($sql, $currentPlan, $nextPlan);
 
-            $preLimitSql = self::withoutFinalLimitNext221($sql);
-            $traceSql = self::recursiveTraceSqlNext221($sql);
+            $preLimitSql = self::withoutFinalLimitMaxSumIntersectLimit($sql);
+            $traceSql = self::recursiveTraceSqlMaxSumIntersectLimit($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $currentTables);
             $nextPreLimitRows = SQLiteSelectSql::execute($preLimitSql, $nextTables);
             $currentRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $currentTables);
             $nextRecursive = SQLiteSelectSql::recursiveCteCycleTrace($traceSql, $nextTables);
-            $currentToken = self::sourceTokenNext221($currentRows, $currentPreLimitRows, $currentRecursive['trace']);
-            $nextToken = self::sourceTokenNext221($nextRows, $nextPreLimitRows, $nextRecursive['trace']);
-            self::validateCursorNext221($cursor, $currentToken);
+            $currentToken = self::sourceTokenMaxSumIntersectLimit($currentRows, $currentPreLimitRows, $currentRecursive['trace']);
+            $nextToken = self::sourceTokenMaxSumIntersectLimit($nextRows, $nextPreLimitRows, $nextRecursive['trace']);
+            self::validateCursorMaxSumIntersectLimit($cursor, $currentToken);
 
-            $currentWindows = self::windowTermsNext221($currentPlan);
+            $currentWindows = self::windowTermsMaxSumIntersectLimit($currentPlan);
             $functions = array_values(array_unique(array_column($currentWindows, 'function')));
-            $offset = self::offsetNext221($currentPlan);
-            $limit = self::limitNext221($currentPlan);
+            $offset = self::offsetMaxSumIntersectLimit($currentPlan);
+            $limit = self::limitMaxSumIntersectLimit($currentPlan);
 
             return [
-                'status' => 'compound-select-window-recursive-limit-current-source-next221-ready',
+                'status' => 'compound-select-window-recursive-limit-current-source-max-sum-intersect-limit-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
                 'currentPreLimitRows' => $currentPreLimitRows,
                 'nextPreLimitRows' => $nextPreLimitRows,
                 'compound' => [
-                    'operators' => self::operatorsNext221($currentPlan),
+                    'operators' => self::operatorsMaxSumIntersectLimit($currentPlan),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext221($currentPlan),
+                    'orderColumns' => self::orderColumnsMaxSumIntersectLimit($currentPlan),
                     'limit' => $limit,
                     'offset' => $offset,
-                    'hasUnionAllHead' => (self::operatorsNext221($currentPlan)[0] ?? null) === 'UNION ALL',
-                    'hasIntersectTail' => in_array('INTERSECT', self::operatorsNext221($currentPlan), true),
+                    'hasUnionAllHead' => (self::operatorsMaxSumIntersectLimit($currentPlan)[0] ?? null) === 'UNION ALL',
+                    'hasIntersectTail' => in_array('INTERSECT', self::operatorsMaxSumIntersectLimit($currentPlan), true),
                 ],
                 'recursiveQueue' => [
                     'name' => $currentRecursive['name'],
@@ -14764,37 +14764,37 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'operator' => $currentRecursive['operator'],
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
-                    'currentSkippedLabels' => self::traceLabelsNext221($currentRecursive['trace'], false),
-                    'nextSkippedLabels' => self::traceLabelsNext221($nextRecursive['trace'], false),
-                    'currentEmittedLabels' => self::traceLabelsNext221($currentRecursive['trace'], true),
-                    'nextEmittedLabels' => self::traceLabelsNext221($nextRecursive['trace'], true),
-                    'currentLimitRemaining' => self::lastTraceValueNext221($currentRecursive['trace'], 'limit_remaining'),
-                    'nextLimitRemaining' => self::lastTraceValueNext221($nextRecursive['trace'], 'limit_remaining'),
-                    'currentOffsetRemaining' => self::lastTraceValueNext221($currentRecursive['trace'], 'offset_remaining'),
-                    'nextOffsetRemaining' => self::lastTraceValueNext221($nextRecursive['trace'], 'offset_remaining'),
+                    'currentSkippedLabels' => self::traceLabelsMaxSumIntersectLimit($currentRecursive['trace'], false),
+                    'nextSkippedLabels' => self::traceLabelsMaxSumIntersectLimit($nextRecursive['trace'], false),
+                    'currentEmittedLabels' => self::traceLabelsMaxSumIntersectLimit($currentRecursive['trace'], true),
+                    'nextEmittedLabels' => self::traceLabelsMaxSumIntersectLimit($nextRecursive['trace'], true),
+                    'currentLimitRemaining' => self::lastTraceValueMaxSumIntersectLimit($currentRecursive['trace'], 'limit_remaining'),
+                    'nextLimitRemaining' => self::lastTraceValueMaxSumIntersectLimit($nextRecursive['trace'], 'limit_remaining'),
+                    'currentOffsetRemaining' => self::lastTraceValueMaxSumIntersectLimit($currentRecursive['trace'], 'offset_remaining'),
+                    'nextOffsetRemaining' => self::lastTraceValueMaxSumIntersectLimit($nextRecursive['trace'], 'offset_remaining'),
                 ],
                 'windows' => [
                     'current' => $currentWindows,
-                    'next' => self::windowTermsNext221($nextPlan),
+                    'next' => self::windowTermsMaxSumIntersectLimit($nextPlan),
                     'functions' => $functions,
-                    'aggregateMetrics' => self::numericMetricsForWindowAliasNext221($currentPreLimitRows, 'metric'),
-                    'textMetrics' => self::stringMetricsForWindowAliasNext221($currentPreLimitRows, 'label'),
+                    'aggregateMetrics' => self::numericMetricsForWindowAliasMaxSumIntersectLimit($currentPreLimitRows, 'metric'),
+                    'textMetrics' => self::stringMetricsForWindowAliasMaxSumIntersectLimit($currentPreLimitRows, 'label'),
                 ],
                 'sourceWindow' => [
                     'currentToken' => $currentToken,
                     'nextToken' => $nextToken,
-                    'currentAdmittedLabels' => self::labelsNext221($currentRows),
-                    'nextAdmittedLabels' => self::labelsNext221($nextRows),
-                    'currentSkippedLabels' => self::labelsNext221(array_slice($currentPreLimitRows, 0, $offset)),
-                    'nextSkippedLabels' => self::labelsNext221(array_slice($nextPreLimitRows, 0, $offset)),
-                    'currentTruncatedLabels' => self::labelsNext221(array_slice($currentPreLimitRows, $offset + $limit)),
-                    'nextTruncatedLabels' => self::labelsNext221(array_slice($nextPreLimitRows, $offset + $limit)),
-                    'nextOnlyAdmittedLabels' => self::changedLabelsNext221($currentRows, $nextRows, true),
-                    'currentOnlyAdmittedLabels' => self::changedLabelsNext221($currentRows, $nextRows, false),
+                    'currentAdmittedLabels' => self::labelsMaxSumIntersectLimit($currentRows),
+                    'nextAdmittedLabels' => self::labelsMaxSumIntersectLimit($nextRows),
+                    'currentSkippedLabels' => self::labelsMaxSumIntersectLimit(array_slice($currentPreLimitRows, 0, $offset)),
+                    'nextSkippedLabels' => self::labelsMaxSumIntersectLimit(array_slice($nextPreLimitRows, 0, $offset)),
+                    'currentTruncatedLabels' => self::labelsMaxSumIntersectLimit(array_slice($currentPreLimitRows, $offset + $limit)),
+                    'nextTruncatedLabels' => self::labelsMaxSumIntersectLimit(array_slice($nextPreLimitRows, $offset + $limit)),
+                    'nextOnlyAdmittedLabels' => self::changedLabelsMaxSumIntersectLimit($currentRows, $nextRows, true),
+                    'currentOnlyAdmittedLabels' => self::changedLabelsMaxSumIntersectLimit($currentRows, $nextRows, false),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext221($currentPreLimitRows, $currentRows, $currentPlan),
-                    'next' => self::limitTraceNext221($nextPreLimitRows, $nextRows, $nextPlan),
+                    'current' => self::limitTraceMaxSumIntersectLimit($currentPreLimitRows, $currentRows, $currentPlan),
+                    'next' => self::limitTraceMaxSumIntersectLimit($nextPreLimitRows, $nextRows, $nextPlan),
                 ],
                 'cursor' => [
                     'currentToken' => $currentToken,
@@ -14804,18 +14804,18 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'nextRowCount' => count($nextRows),
                 ],
                 'replanReasons' => [
-                    'compound-max-sum-current-source-next221',
-                    'recursive-queue-exhausted-before-intersect-next221',
-                    'intersect-window-membership-before-final-limit-next221',
-                    'wordpress-option-preview-stale-cursor-fence-next221',
+                    'compound-max-sum-current-source-max-sum-intersect-limit',
+                    'recursive-queue-exhausted-before-intersect-max-sum-intersect-limit',
+                    'intersect-window-membership-before-final-limit-max-sum-intersect-limit',
+                    'wordpress-option-preview-stale-cursor-fence-max-sum-intersect-limit',
                 ],
                 'dependencies' => [
-                    'sqlite-select-sql-recursive-queue-order-limit-next221',
-                    'sqlite-select-sql-max-sum-window-next221',
-                    'sqlite-compound-intersect-current-source-token-fence-next221',
+                    'sqlite-select-sql-recursive-queue-order-limit-max-sum-intersect-limit',
+                    'sqlite-select-sql-max-sum-window-max-sum-intersect-limit',
+                    'sqlite-compound-intersect-current-source-token-fence-max-sum-intersect-limit',
                 ],
-                'dependency_closure' => 'no new support component needed; next221 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, max and sum window dispatch, INTERSECT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next212 group_concat/row_number EXCEPT fencing, next210 row_number/last_value INTERSECT+EXCEPT fencing, next209 sum/count aggregate windows, lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, and JSON/WAL/B-tree/VFS clusters; this slice fences max/sum window output through INTERSECT before final compound LIMIT over current and next wp_options sources',
+                'dependency_closure' => 'no new support component needed; max-sum-intersect-limit reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, max and sum window dispatch, INTERSECT membership, current-source tokens, and final LIMIT helpers',
+                'non_overlap' => 'avoids accepted group_concat/row_number EXCEPT fencing, row_number/last_value INTERSECT+EXCEPT fencing, sum/count aggregate windows, and lead/nth_value INTERSECT fencing, and JSON/WAL/B-tree/VFS clusters; this slice fences max/sum window output through INTERSECT before final compound LIMIT over current and next wp_options sources',
             ];
         }
 
@@ -14823,58 +14823,58 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @param array<string,mixed> $nextPlan
          */
-        private static function assertSupportedNext221(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertSupportedMaxSumIntersectLimit(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (stripos($sql, 'WITH RECURSIVE') === false) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next221 needs WITH RECURSIVE SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT max-sum-intersect-limit needs WITH RECURSIVE SQL');
             }
             if (!is_array($currentPlan['compound'] ?? null) || !is_array($nextPlan['compound'] ?? null)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next221 needs compound SELECT SQL');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT max-sum-intersect-limit needs compound SELECT SQL');
             }
-            $operators = self::operatorsNext221($currentPlan);
+            $operators = self::operatorsMaxSumIntersectLimit($currentPlan);
             if (!in_array('UNION ALL', $operators, true) || !in_array('INTERSECT', $operators, true)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next221 needs UNION ALL and INTERSECT');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT max-sum-intersect-limit needs UNION ALL and INTERSECT');
             }
             if (($currentPlan['compound']['limit'] ?? null) === null || (($currentPlan['compound']['offset'] ?? 0) < 1)) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next221 needs final LIMIT/OFFSET');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT max-sum-intersect-limit needs final LIMIT/OFFSET');
             }
-            if (preg_match('/\bORDER\s+BY\b.*?\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyNext221($sql)) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next221 needs ordered recursive LIMIT/OFFSET');
+            if (preg_match('/\bORDER\s+BY\b.*?\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', self::recursiveBodyMaxSumIntersectLimit($sql)) !== 1) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT max-sum-intersect-limit needs ordered recursive LIMIT/OFFSET');
             }
-            $functions = array_map('strtolower', array_column(self::windowTermsNext221($currentPlan), 'function'));
+            $functions = array_map('strtolower', array_column(self::windowTermsMaxSumIntersectLimit($currentPlan), 'function'));
             foreach (['max', 'sum'] as $function) {
                 if (!in_array($function, $functions, true)) {
-                    throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT next221 needs {$function} window output");
+                    throw new \InvalidArgumentException("SQLite compound SELECT window recursive LIMIT max-sum-intersect-limit needs {$function} window output");
                 }
             }
         }
 
-        private static function recursiveBodyNext221(string $sql): string
+        private static function recursiveBodyMaxSumIntersectLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^WITH\s+RECURSIVE\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s+AS\s*\((.*)\)\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next221 cannot isolate recursive CTE body');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT max-sum-intersect-limit cannot isolate recursive CTE body');
             }
 
             return $match[1];
         }
 
-        private static function recursiveTraceSqlNext221(string $sql): string
+        private static function recursiveTraceSqlMaxSumIntersectLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^(WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)\s+AS\s*\(.*\))\s*SELECT\s+/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next221 cannot isolate recursive CTE');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT max-sum-intersect-limit cannot isolate recursive CTE');
             }
 
             return $match[1] . ' SELECT * FROM ' . $match[2];
         }
 
-        private static function withoutFinalLimitNext221(string $sql): string
+        private static function withoutFinalLimitMaxSumIntersectLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
             if (!is_string($without) || $without === $trimmed) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next221 cannot isolate final LIMIT');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT max-sum-intersect-limit cannot isolate final LIMIT');
             }
 
             return $without;
@@ -14884,7 +14884,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function operatorsNext221(array $plan): array
+        private static function operatorsMaxSumIntersectLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -14895,7 +14895,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext221(array $plan): array
+        private static function orderColumnsMaxSumIntersectLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             if (!is_array($compound['orderBy'] ?? null)) {
@@ -14909,7 +14909,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext221(array $plan): array
+        private static function windowTermsMaxSumIntersectLimit(array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $windows = [];
@@ -14937,7 +14937,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function limitNext221(array $plan): int
+        private static function limitMaxSumIntersectLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -14947,7 +14947,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function offsetNext221(array $plan): int
+        private static function offsetMaxSumIntersectLimit(array $plan): int
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
@@ -14958,7 +14958,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function labelsNext221(array $rows): array
+        private static function labelsMaxSumIntersectLimit(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? ''), $rows));
         }
@@ -14968,10 +14968,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $right
          * @return list<string>
          */
-        private static function changedLabelsNext221(array $left, array $right, bool $rightOnly): array
+        private static function changedLabelsMaxSumIntersectLimit(array $left, array $right, bool $rightOnly): array
         {
-            $leftLabels = self::labelsNext221($left);
-            $rightLabels = self::labelsNext221($right);
+            $leftLabels = self::labelsMaxSumIntersectLimit($left);
+            $rightLabels = self::labelsMaxSumIntersectLimit($right);
             $diff = $rightOnly ? array_diff($rightLabels, $leftLabels) : array_diff($leftLabels, $rightLabels);
 
             return array_values($diff);
@@ -14981,7 +14981,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<mixed>
          */
-        private static function stringMetricsForWindowAliasNext221(array $rows, string $alias): array
+        private static function stringMetricsForWindowAliasMaxSumIntersectLimit(array $rows, string $alias): array
         {
             return array_values(array_filter(
                 array_map(static fn (array $row): mixed => $row[$alias] ?? null, $rows),
@@ -14993,7 +14993,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<int|float>
          */
-        private static function numericMetricsForWindowAliasNext221(array $rows, string $alias): array
+        private static function numericMetricsForWindowAliasMaxSumIntersectLimit(array $rows, string $alias): array
         {
             return array_values(array_filter(
                 array_map(static fn (array $row): mixed => $row[$alias] ?? null, $rows),
@@ -15006,13 +15006,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $preLimitRows
          * @param list<array<string,mixed>> $trace
          */
-        private static function sourceTokenNext221(array $rows, array $preLimitRows, array $trace): string
+        private static function sourceTokenMaxSumIntersectLimit(array $rows, array $preLimitRows, array $trace): string
         {
             return hash('sha256', json_encode([
                 'rows' => $rows,
-                'preLimitLabels' => self::labelsNext221($preLimitRows),
-                'traceLabels' => self::traceLabelsNext221($trace, true),
-                'traceSkippedLabels' => self::traceLabelsNext221($trace, false),
+                'preLimitLabels' => self::labelsMaxSumIntersectLimit($preLimitRows),
+                'traceLabels' => self::traceLabelsMaxSumIntersectLimit($trace, true),
+                'traceSkippedLabels' => self::traceLabelsMaxSumIntersectLimit($trace, false),
             ], JSON_THROW_ON_ERROR));
         }
 
@@ -15020,7 +15020,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $trace
          * @return list<string>
          */
-        private static function traceLabelsNext221(array $trace, bool $emitted): array
+        private static function traceLabelsMaxSumIntersectLimit(array $trace, bool $emitted): array
         {
             $labels = [];
             foreach ($trace as $entry) {
@@ -15037,7 +15037,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $trace
          */
-        private static function lastTraceValueNext221(array $trace, string $key): ?int
+        private static function lastTraceValueMaxSumIntersectLimit(array $trace, string $key): ?int
         {
             $last = $trace[count($trace) - 1] ?? null;
             if (!is_array($last) || !is_int($last[$key] ?? null)) {
@@ -15053,10 +15053,10 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function limitTraceNext221(array $preLimitRows, array $limitedRows, array $plan): array
+        private static function limitTraceMaxSumIntersectLimit(array $preLimitRows, array $limitedRows, array $plan): array
         {
-            $offset = self::offsetNext221($plan);
-            $limit = self::limitNext221($plan);
+            $offset = self::offsetMaxSumIntersectLimit($plan);
+            $limit = self::limitMaxSumIntersectLimit($plan);
 
             return [
                 'preLimitCount' => count($preLimitRows),
@@ -15070,13 +15070,13 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /**
          * @param array<string,mixed>|null $cursor
          */
-        private static function validateCursorNext221(?array $cursor, string $currentToken): void
+        private static function validateCursorMaxSumIntersectLimit(?array $cursor, string $currentToken): void
         {
             if ($cursor === null || !array_key_exists('currentToken', $cursor)) {
                 return;
             }
             if ($cursor['currentToken'] !== $currentToken) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next221 cursor does not match current source token');
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT max-sum-intersect-limit cursor does not match current source token');
             }
         }
 

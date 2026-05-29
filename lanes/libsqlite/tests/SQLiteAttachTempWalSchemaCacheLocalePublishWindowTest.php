@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas733748 = [
+$localePublishSchemas = [
     'main' => [
         'schema_cookie' => 732,
         'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_receipt_next716', 'wp_navigation_rule_locale_publish_final_next732'],
@@ -57,7 +57,7 @@ $schemas733748 = [
     ],
 ];
 
-$statements733748 = [
+$localePublishStatements = [
     ['name' => 'main-final-reader', 'sql' => 'SELECT nav_id FROM main.wp_navigation_rule_locale_publish_final_next732 INDEXED BY wp_navigation_rule_locale_publish_final_key_next732 WHERE nav_key = ?', 'active' => true],
     ['name' => 'main-receipt-reader', 'sql' => 'SELECT receipt_id FROM main.wp_navigation_rule_locale_publish_receipt_next716 INDEXED BY wp_navigation_rule_locale_publish_receipt_key_next716 WHERE receipt_key = ?'],
     ['name' => 'publish-done-reader', 'sql' => 'SELECT publish_id FROM publish.wp_schema_publish_done_next706 INDEXED BY wp_schema_publish_done_key_next722 WHERE publish_key = ?'],
@@ -69,16 +69,16 @@ $statements733748 = [
     ['name' => 'temp-notice-reader', 'sql' => 'SELECT notice_id FROM temp.wp_theme_stage_publish_notice_next736 WHERE cache_key = ?'],
 ];
 
-$plan733748 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
-    $schemas ?? $schemas733748,
-    $statements ?? $statements733748,
+$localePublishPlan = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
+    $schemas ?? $localePublishSchemas,
+    $statements ?? $localePublishStatements,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next733-748 extends next717-732 handoff'] = static function (TestRunner $t) use ($plan733748): void {
-    $result = $plan733748([
+$tests['attach temp wal schema cache locale publish window extends prior handoff'] = static function (TestRunner $t) use ($localePublishPlan): void {
+    $result = $localePublishPlan([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 734, 'table' => 'wp_navigation_rule_locale_publish_delta_next734', 'indexes' => ['wp_navigation_rule_locale_publish_delta_key_next734'], 'commit' => true],
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 736, 'table' => 'wp_theme_stage_publish_notice_next736', 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'queue', 'from' => 'wp_job_retry_checkpoint_archive_key_next724', 'to' => 'wp_job_retry_checkpoint_archive_key_next738'],
@@ -114,8 +114,8 @@ $tests['attach temp wal schema cache current source next733-748 extends next717-
     $t->same(['report-meta-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next733-748 ignores detached scratch handoff'] = static function (TestRunner $t) use ($plan733748): void {
-    $result = $plan733748([
+$tests['attach temp wal schema cache locale publish window ignores detached scratch handoff'] = static function (TestRunner $t) use ($localePublishPlan): void {
+    $result = $localePublishPlan([
         ['op' => 'attach', 'schema' => 'scratch', 'schema_cookie' => 733, 'tables' => ['wp_scratch_next733'], 'indexes' => ['wp_scratch_key_next733'], 'file' => '/srv/wp/scratch-next733.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'scratch', 'schema_cookie' => 734, 'table' => 'wp_scratch_meta_next734', 'indexes' => ['wp_scratch_meta_key_next734'], 'commit' => false],
         ['op' => 'detach', 'schema' => 'scratch'],

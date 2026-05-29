@@ -9,7 +9,7 @@ canonical entry points on `SQLitePagerMasterJournalReaderCacheCurrentSourceNextP
 
 Direct tests and WordPress smokes now call the descriptive canonical helpers and
 were renamed to descriptive unsuffixed file names. No numbered compatibility
-shims were added, and the exact user-named source-next150 production suffix
+shims were added, and the exact user-named user-named removed suffix production suffix
 remains absent.
 
 Verification:

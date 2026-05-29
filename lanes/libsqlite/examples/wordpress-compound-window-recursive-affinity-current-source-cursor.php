@@ -61,13 +61,13 @@ SELECT option_id AS id,
  ORDER BY id, key_value, source
 SQL;
 
-$first = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan::pageNext147(
+$first = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan::pageCurrentSourceCursor(
     $sql,
     ['wp_options' => $currentOptions, 'wp_option_edges' => $currentEdges],
     ['wp_options' => $nextOptions, 'wp_option_edges' => $nextEdges],
     4,
 );
-$second = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan::pageNext147(
+$second = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan::pageCurrentSourceCursor(
     $sql,
     ['wp_options' => $currentOptions, 'wp_option_edges' => $currentEdges],
     ['wp_options' => $nextOptions, 'wp_option_edges' => $nextEdges],
@@ -77,16 +77,16 @@ $second = SQLiteCompoundWindowRecursiveAffinityCurrentSourceNextPlan::pageNext14
 );
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($first['status'] === 'compound-window-recursive-affinity-current-source-next147-ready');
+    assert($first['status'] === 'compound-window-recursive-affinity-current-source-cursor-ready');
     assert($first['currentPageIds'] === [1, 1, 2, 2]);
     assert($second['nextPageIds'] === [3, 3, 4, 4]);
     assert($first['sourceDelta']['newSources'] === ['plugin_alpha', 'plugin_beta']);
-    echo "wordpress-compound-window-recursive-affinity-current-source-next147 self-test passed\n";
+    echo "wordpress-compound-window-recursive-affinity-current-source-cursor self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-compound-window-recursive-affinity-current-source-next147',
+    'scenario' => 'wordpress-compound-window-recursive-affinity-current-source-cursor',
     'sqlShape' => 'WITH RECURSIVE ... UNION ... SELECT window(...) FROM cte UNION SELECT window(...) FROM wp_options ORDER BY left-most columns LIMIT page resume',
     'wordpressUse' => 'Copied wp_options repair/import diagnostics can page through recursive dependency walks while preserving UNION numeric-affinity deduplication, per-arm window evaluation, left-most compound output names, and stale current/next source cursor rejection.',
     'firstPage' => [

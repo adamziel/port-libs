@@ -7,15 +7,15 @@ use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPl
 require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
-$databaseDigest = $digest('wp next214 checkpoint database');
-$walDigest = $digest('wp next214 retained wal');
-$writerDigest = $digest('wp next214 writer generation');
+$databaseDigest = $digest('wp restart-reader-release checkpoint database');
+$walDigest = $digest('wp restart-reader-release retained wal');
+$writerDigest = $digest('wp restart-reader-release writer generation');
 
 $passivePlan = [
     'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next212',
-    'database_path' => '/srv/www/wp-content/database/wp-next214.sqlite',
-    'journal_path' => '/srv/www/wp-content/database/wp-next214.sqlite-journal',
-    'wal_path' => '/srv/www/wp-content/database/wp-next214.sqlite-wal',
+    'database_path' => '/srv/www/wp-content/database/wp-restart-reader-release.sqlite',
+    'journal_path' => '/srv/www/wp-content/database/wp-restart-reader-release.sqlite-journal',
+    'wal_path' => '/srv/www/wp-content/database/wp-restart-reader-release.sqlite-wal',
     'page_size' => 512,
     'requested_checkpoint_frame' => 214,
     'checkpointed_frame' => 214,
@@ -28,7 +28,7 @@ $passivePlan = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next212'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214RestartCheckpoint(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartCheckpointAfterReaderRelease(
     $passivePlan,
     [
         [
@@ -51,9 +51,9 @@ $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214Rest
         ],
     ],
     [
-        'wal_salt_before' => $digest('wp next214 salt before'),
-        'wal_salt_after' => $digest('wp next214 salt after'),
-        'hot_journal_digest' => $digest('wp next214 hot journal'),
+        'wal_salt_before' => $digest('wp restart-reader-release salt before'),
+        'wal_salt_after' => $digest('wp restart-reader-release salt after'),
+        'hot_journal_digest' => $digest('wp restart-reader-release hot journal'),
         'savepoint_closed' => true,
         'exclusive_checkpoint_lock' => true,
         'database_synced' => true,
@@ -64,7 +64,7 @@ $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next214Rest
 );
 
 $summary = [
-    'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next214',
+    'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-restart-reader-release',
     'wordpressUse' => 'A copied WordPress options import finishes hot-journal recovery and savepoint checkpointing, releases current readers, restarts the WAL with a rotated salt, and only then deletes the hot journal.',
     'status' => $plan['status'],
     'walAction' => $plan['wal_action'],
@@ -75,16 +75,16 @@ $summary = [
 ];
 
 if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
-    if ($summary['status'] !== 'wal-hot-journal-savepoint-checkpoint-current-source-next214'
+    if ($summary['status'] !== 'wal-hot-journal-savepoint-checkpoint-current-source-restart-reader-release'
         || $summary['walAction'] !== 'restart_wal_header_with_rotated_salt'
         || $summary['journalAction'] !== 'delete_hot_journal_after_wal_restart_sync'
         || $summary['reopenReaders'] !== ['wp-plugin-stale-reader']
     ) {
-        fwrite(STDERR, "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next214 self-test failed\n");
+        fwrite(STDERR, "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-restart-reader-release self-test failed\n");
         exit(1);
     }
 
-    echo "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next214 self-test passed\n";
+    echo "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-restart-reader-release self-test passed\n";
 }
 
 return $summary;

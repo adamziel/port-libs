@@ -11,7 +11,7 @@
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext421Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext422Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext423Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext424Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext425Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext426Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext427Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext428Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext429Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext430Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext431Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext442Test.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext444Test.php`
   - `13 test files, 18051 assertions, 0 failures`
 - `php -l` passed for changed production and test PHP files.
-- Exact banned suffix scan for the removed source-next150 family returned no matches.
+- Exact banned suffix scan for the removed user-named removed suffix family returned no matches.
 - Numbered production method audit moved from `4160` to `4147`.
 
 ## Dependency Closure

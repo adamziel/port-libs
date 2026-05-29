@@ -16,6 +16,6 @@ Verification:
 - `php lanes/libsqlite/examples/wordpress-stat4-expression-partial-current-source-next155.php --self-test`: pass.
 - `php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next159.php --self-test`: pass.
 - `php lanes/libsqlite/examples/wordpress-planner-stat4-expression-partial-current-source-next160.php --self-test`: pass.
-- Exact banned source-next150 scan across `src`, `tests`, `examples`, and `fixtures`: no matches.
+- Exact banned user-named removed suffix scan across `src`, `tests`, `examples`, and `fixtures`: no matches.
 
 Dependency closure: no new support component is needed; this is a production identifier consolidation only and reuses the existing STAT4 expression-partial planner implementation and fixtures.

@@ -72,7 +72,7 @@ $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMa
 );
 
 $payload = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next221',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-max-sum-intersect-limit',
     'wordpressUse' => 'Copied wp_options previews can fence aggregate window metrics after recursive queue exhaustion, then re-evaluate current versus staged rows through INTERSECT/EXCEPT and final LIMIT boundaries.',
     'status' => $plan['status'],
     'currentRows' => $plan['sourceWindow']['currentAdmittedLabels'],
@@ -83,16 +83,16 @@ $payload = [
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next221-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next221 self-test failed\n");
+if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-max-sum-intersect-limit-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-max-sum-intersect-limit self-test failed\n");
     exit(1);
 }
 if ($payload['currentTokenLength'] !== 64 || $payload['nextTokenLength'] !== 64) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next221 token guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-max-sum-intersect-limit token guard failed\n");
     exit(1);
 }
 if (!in_array('plugin_prime', $payload['nextRows'], true)) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next221 next-source boundary failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-max-sum-intersect-limit next-source boundary failed\n");
     exit(1);
 }
 

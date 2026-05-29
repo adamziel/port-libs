@@ -7,9 +7,9 @@ use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPl
 require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
-$databaseDigest = $digest('wordpress next216 copied database after hot journal checkpoint');
-$walDigest = $digest('wordpress next216 retained wal before reader drain');
-$writerDigest = $digest('wordpress next216 post checkpoint writer fence');
+$databaseDigest = $digest('wordpress reader-drain copied database after hot journal checkpoint');
+$walDigest = $digest('wordpress reader-drain retained wal before reader drain');
+$writerDigest = $digest('wordpress reader-drain post checkpoint writer fence');
 
 $passivePlan = [
     'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next212',
@@ -64,19 +64,19 @@ $readerTransitions = [
     ],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartOrTruncateCheckpointAfterReaderDrain(
     $passivePlan,
     $readerTransitions,
     'TRUNCATE'
 );
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['status'] === 'wal-hot-journal-savepoint-checkpoint-current-source-next216');
+    assert($plan['status'] === 'wal-hot-journal-savepoint-checkpoint-current-source-reader-drain');
     assert($plan['truncate_allowed'] === true);
     assert($plan['wal_action'] === 'truncate_wal_after_reader_drain');
     assert($plan['released_active_reader_names'] === ['wp-options-import-reader', 'wp-cron-reader']);
     assert($plan['reopened_stale_reader_names'] === ['stale-plugin-settings-reader']);
-    echo "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next216 self-test passed\n";
+    echo "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-reader-drain self-test passed\n";
     return;
 }
 

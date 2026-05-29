@@ -34120,7 +34120,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         })::plan($basePlan, $leases);
     }
 
-    public static function next214RestartCheckpoint(array $passivePlan, array $readers, array $options = []): array
+    public static function restartCheckpointAfterReaderRelease(array $passivePlan, array $readers, array $options = []): array
     {
         return (new class {
     /**
@@ -34131,10 +34131,10 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     public static function restartCheckpoint(array $passivePlan, array $readers, array $options = []): array
     {
         if (($passivePlan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next212') {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next214 requires an admitted next212 passive checkpoint plan');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source restart-reader-release requires an admitted next212 passive checkpoint plan');
         }
         if ($readers === []) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next214 requires reader rows');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source restart-reader-release requires reader rows');
         }
 
         $requestedFrame = self::positiveInt($passivePlan, 'requested_checkpoint_frame');
@@ -34192,8 +34192,8 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
         return [
             'status' => $ready
-                ? 'wal-hot-journal-savepoint-checkpoint-current-source-next214'
-                : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next214',
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source-restart-reader-release'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-restart-reader-release',
             'reason' => $ready
                 ? 'restart_checkpoint_resets_wal_after_current_source_readers_release'
                 : 'restart_checkpoint_waits_for_reader_release_and_durable_reset',
@@ -34230,21 +34230,21 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             'operation_names' => array_values(array_unique(array_merge(
                 is_array($passivePlan['operation_names'] ?? null) ? $passivePlan['operation_names'] : [],
                 [
-                    'verify_restart_checkpoint_reader_release_current_source_next214',
-                    $ready ? 'restart_wal_after_hot_journal_savepoint_checkpoint_next214' : 'preserve_wal_until_restart_checkpoint_safe_next214',
+                    'verify_restart_checkpoint_reader_release_current_source_restart_reader_release',
+                    $ready ? 'restart_wal_after_hot_journal_savepoint_checkpoint_restart_reader_release' : 'preserve_wal_until_restart_checkpoint_safe_restart_reader_release',
                 ]
             ))),
             'restart_digest' => hash('sha256', json_encode([$readerRows, $guards, $saltBefore, $saltAfter], JSON_THROW_ON_ERROR)),
             'dependencies' => array_values(array_unique(array_merge(
                 is_array($passivePlan['dependencies'] ?? null) ? $passivePlan['dependencies'] : [],
                 [
-                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next214',
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-restart-reader-release',
                     'sqlite-restart-checkpoint-current-source-reader-release',
                     'wordpress-import-restart-checkpoint-deletes-hot-journal-after-wal-reset',
                 ]
             ))),
             'dependency_closure' => 'no new support component needed; reuses next212 passive checkpoint current-source metadata, WAL salt digests, and lane-local VFS sync/delete receipts',
-            'non_overlap' => 'next214 models RESTART checkpoint admission after reader release and durable WAL-header salt rotation; it does not repeat next212 PASSIVE reader pins, next209 writer fences, next206 statement consumers, checkpoint transaction planning, VFS savepoint rollback, rollback-journal commit/apply, WAL byte truncation, or WAL file writer wrappers',
+            'non_overlap' => 'restartReaderRelease models RESTART checkpoint admission after reader release and durable WAL-header salt rotation; it does not repeat next212 PASSIVE reader pins, next209 writer fences, next206 statement consumers, checkpoint transaction planning, VFS savepoint rollback, rollback-journal commit/apply, WAL byte truncation, or WAL file writer wrappers',
         ];
     }
 
@@ -34255,7 +34255,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $value = $values[$key] ?? null;
         if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next214 requires {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source restart-reader-release requires {$key}");
         }
 
         return $value;
@@ -34268,7 +34268,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $value = $values[$key] ?? null;
         if (!is_int($value) || $value <= 0) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next214 requires positive {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source restart-reader-release requires positive {$key}");
         }
 
         return $value;
@@ -34281,7 +34281,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $value = $values[$key] ?? null;
         if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next214 requires {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source restart-reader-release requires {$key}");
         }
 
         return $value;
@@ -34301,17 +34301,17 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     ): array {
         $name = $reader['name'] ?? null;
         if (!is_string($name) || $name === '') {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next214 reader name is required');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source restart-reader-release reader name is required');
         }
         $released = $reader['released'] ?? null;
         $endFrame = $reader['reader_end_frame'] ?? null;
         $generation = $reader['reader_generation'] ?? null;
         if (!is_bool($released) || !is_int($endFrame) || $endFrame <= 0 || !is_int($generation) || $generation < 0) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next214 {$name} reader release/frame/generation is invalid");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source restart-reader-release {$name} reader release/frame/generation is invalid");
         }
         foreach (['observed_database_digest', 'observed_wal_digest', 'observed_writer_digest'] as $key) {
             if (!is_string($reader[$key] ?? null) || !preg_match('/^[a-f0-9]{64}$/', (string) $reader[$key])) {
-                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next214 {$name} {$key} is required");
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source restart-reader-release {$name} {$key} is required");
             }
         }
 
@@ -34358,7 +34358,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         })::restartCheckpoint($passivePlan, $readers, $options);
     }
 
-    public static function next215RestartCheckpoint(array $passivePlan, array $reopenRows, string $mode = 'restart'): array
+    public static function restartOrTruncateCheckpointAfterReaderReopen(array $passivePlan, array $reopenRows, string $mode = 'restart'): array
     {
         return (new class {
     /**
@@ -34369,13 +34369,13 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     public static function restartCheckpoint(array $passivePlan, array $reopenRows, string $mode = 'restart'): array
     {
         if (($passivePlan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next212') {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next215 requires an admitted next212 passive checkpoint plan');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen requires an admitted next212 passive checkpoint plan');
         }
         if (!in_array($mode, ['restart', 'truncate'], true)) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next215 mode must be restart or truncate');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen mode must be restart or truncate');
         }
         if ($reopenRows === []) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next215 requires reopened reader rows');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen requires reopened reader rows');
         }
 
         $requestedFrame = self::positiveInt($passivePlan, 'requested_checkpoint_frame');
@@ -34452,8 +34452,8 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
         return [
             'status' => $ready
-                ? 'wal-hot-journal-savepoint-checkpoint-current-source-next215'
-                : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next215',
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source-reader-reopen'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-reader-reopen',
             'reason' => $ready
                 ? 'restart_checkpoint_resets_wal_after_current_source_readers_reopen'
                 : 'restart_checkpoint_waits_for_reader_reopen_and_pin_drain',
@@ -34492,21 +34492,21 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             'operation_names' => array_values(array_unique(array_merge(
                 $operationNames,
                 [
-                    'verify_restart_checkpoint_reopen_current_source_next215',
-                    $ready ? 'publish_restart_checkpoint_current_source_next215' : 'preserve_wal_until_reader_pin_drains_next215',
+                    'verify_restart_checkpoint_reopen_current_source_reader_reopen',
+                    $ready ? 'publish_restart_checkpoint_current_source_reader_reopen' : 'preserve_wal_until_reader_pin_drains_reader_reopen',
                 ]
             ))),
             'checkpoint_digest' => hash('sha256', json_encode([$mode, $requestedFrame, $ready, $readerRows], JSON_THROW_ON_ERROR)),
             'dependencies' => array_values(array_unique(array_merge(
                 is_array($passivePlan['dependencies'] ?? null) ? $passivePlan['dependencies'] : [],
                 [
-                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next215',
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-reader-reopen',
                     'sqlite-restart-checkpoint-reader-reopen-after-hot-journal',
                     'wordpress-import-restart-checkpoint-reset-after-reader-reopen',
                 ]
             ))),
             'dependency_closure' => 'no new support component needed; reuses next212 passive checkpoint reader-pin metadata and current-source digest fences',
-            'non_overlap' => 'next215 models RESTART/TRUNCATE completion after next212 PASSIVE reader-pin discovery; it does not repeat next212 passive progress, next209 writer fences, WAL byte truncation, VFS savepoint rollback, rollback-journal commit/apply, sync plans, or checkpoint transaction planning',
+            'non_overlap' => 'readerReopen models RESTART/TRUNCATE completion after next212 PASSIVE reader-pin discovery; it does not repeat next212 passive progress, next209 writer fences, WAL byte truncation, VFS savepoint rollback, rollback-journal commit/apply, sync plans, or checkpoint transaction planning',
         ];
     }
 
@@ -34517,7 +34517,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $value = $values[$key] ?? null;
         if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 requires {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen requires {$key}");
         }
 
         return $value;
@@ -34530,7 +34530,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $value = $values[$key] ?? null;
         if (!is_int($value) || $value <= 0) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 requires positive {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen requires positive {$key}");
         }
 
         return $value;
@@ -34543,7 +34543,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $value = $values[$key] ?? null;
         if (!is_int($value) || $value < 0) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 requires non-negative {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen requires non-negative {$key}");
         }
 
         return $value;
@@ -34557,11 +34557,11 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $list = $values[$key] ?? null;
         if (!is_array($list)) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 requires {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen requires {$key}");
         }
         foreach ($list as $value) {
             if (!is_string($value) || $value === '') {
-                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 {$key} must contain non-empty strings");
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen {$key} must contain non-empty strings");
             }
         }
 
@@ -34583,16 +34583,16 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     ): array {
         $name = $reader['name'] ?? null;
         if (!is_string($name) || $name === '') {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next215 reader name is required');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen reader name is required');
         }
         $endFrame = $reader['reader_end_frame'] ?? null;
         $generation = $reader['reader_generation'] ?? null;
         if (!is_int($endFrame) || $endFrame <= 0 || !is_int($generation) || $generation < 0) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 {$name} reader frame/generation is invalid");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen {$name} reader frame/generation is invalid");
         }
         foreach (['observed_database_digest', 'observed_wal_digest', 'observed_writer_digest'] as $key) {
             if (!is_string($reader[$key] ?? null) || !preg_match('/^[a-f0-9]{64}$/', (string) $reader[$key])) {
-                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 {$name} {$key} is required");
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-reopen {$name} {$key} is required");
             }
         }
 
@@ -34632,14 +34632,14 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             'admitted' => $admitted,
             'reader_reason' => $admitted ? 'reader_reopened_on_current_source_for_restart_checkpoint' : implode('|', $reasons),
             'blocked_reasons' => $reasons,
-            'transition' => $name . '>' . ($admitted ? 'reopened-current-source' : 'preserve-old-source') . ':next215',
+            'transition' => $name . '>' . ($admitted ? 'reopened-current-source' : 'preserve-old-source') . ':reader-reopen',
         ];
     }
 
         })::restartCheckpoint($passivePlan, $reopenRows, $mode);
     }
 
-    public static function next216RestartOrTruncateAfterReaderDrain(array $passivePlan, array $readerTransitions, string $mode): array
+    public static function restartOrTruncateCheckpointAfterReaderDrain(array $passivePlan, array $readerTransitions, string $mode): array
     {
         return (new class {
     /**
@@ -34650,13 +34650,13 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     public static function restartOrTruncateAfterReaderDrain(array $passivePlan, array $readerTransitions, string $mode): array
     {
         if (($passivePlan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next212') {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next216 requires an admitted next212 passive checkpoint plan');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source reader-drain requires an admitted next212 passive checkpoint plan');
         }
         if (!in_array($mode, ['RESTART', 'TRUNCATE'], true)) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next216 mode must be RESTART or TRUNCATE');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source reader-drain mode must be RESTART or TRUNCATE');
         }
         if ($readerTransitions === []) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next216 requires reader transition rows');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source reader-drain requires reader transition rows');
         }
 
         $requestedFrame = self::positiveInt($passivePlan, 'requested_checkpoint_frame');
@@ -34669,7 +34669,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         $activeReaders = self::stringList($passivePlan, 'active_reader_names');
         $reopenReaders = self::stringList($passivePlan, 'reopen_reader_names');
         if ($activeReaders === [] || $reopenReaders === []) {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next216 requires active and reopened reader names from next212');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source reader-drain requires active and reopened reader names from next212');
         }
 
         $transitionRows = [];
@@ -34700,7 +34700,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             [
                 'name' => 'passive_checkpoint_was_busy',
                 'matched' => ($passivePlan['busy'] ?? null) === true && $checkpointedFrame < $requestedFrame,
-                'reason' => 'next216 only follows the current-reader pin boundary from next212',
+                'reason' => 'readerDrain only follows the current-reader pin boundary from next212',
             ],
             [
                 'name' => 'all_current_readers_released',
@@ -34740,8 +34740,8 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
         return [
             'status' => $ready
-                ? 'wal-hot-journal-savepoint-checkpoint-current-source-next216'
-                : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next216',
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source-reader-drain'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-reader-drain',
             'reason' => $ready
                 ? 'restart_or_truncate_checkpoint_publishes_next_source_after_reader_drain'
                 : 'restart_or_truncate_checkpoint_waits_for_reader_drain',
@@ -34783,23 +34783,23 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             'operation_names' => array_values(array_unique(array_merge(
                 is_array($passivePlan['operation_names'] ?? null) ? $passivePlan['operation_names'] : [],
                 [
-                    'verify_reader_drain_before_restart_truncate_current_source_next216',
+                    'verify_reader_drain_before_restart_truncate_current_source_reader_drain',
                     $ready && $mode === 'TRUNCATE'
-                        ? 'truncate_wal_after_reader_drain_next216'
-                        : ($ready ? 'restart_wal_after_reader_drain_next216' : 'preserve_wal_until_reader_drain_next216'),
+                        ? 'truncate_wal_after_reader_drain_reader_drain'
+                        : ($ready ? 'restart_wal_after_reader_drain_reader_drain' : 'preserve_wal_until_reader_drain_reader_drain'),
                 ]
             ))),
             'checkpoint_digest' => hash('sha256', json_encode([$mode, $ready, $requestedFrame, $transitionRows], JSON_THROW_ON_ERROR)),
             'dependencies' => array_values(array_unique(array_merge(
                 is_array($passivePlan['dependencies'] ?? null) ? $passivePlan['dependencies'] : [],
                 [
-                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next216',
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-reader-drain',
                     'sqlite-restart-truncate-after-hot-journal-reader-drain',
                     'wordpress-import-checkpoint-reset-after-reader-drain',
                 ]
             ))),
             'dependency_closure' => 'no new support component needed; reuses next212 passive checkpoint pins, writer generation digests, and reader reopen metadata',
-            'non_overlap' => 'next216 only models RESTART/TRUNCATE admission after next212 reader drain; it does not repeat WAL byte truncation, checkpoint transaction planning, VFS savepoint rollback, rollback-journal apply/commit, hot-journal recovery, or passive checkpoint pin detection',
+            'non_overlap' => 'readerDrain only models RESTART/TRUNCATE admission after next212 reader drain; it does not repeat WAL byte truncation, checkpoint transaction planning, VFS savepoint rollback, rollback-journal apply/commit, hot-journal recovery, or passive checkpoint pin detection',
         ];
     }
 
@@ -34810,7 +34810,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $value = $values[$key] ?? null;
         if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 requires {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-drain requires {$key}");
         }
 
         return $value;
@@ -34823,7 +34823,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $value = $values[$key] ?? null;
         if (!is_int($value) || $value <= 0) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 requires positive {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-drain requires positive {$key}");
         }
 
         return $value;
@@ -34836,7 +34836,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $value = $values[$key] ?? null;
         if (!is_int($value) || $value < 0) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 requires non-negative {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-drain requires non-negative {$key}");
         }
 
         return $value;
@@ -34850,11 +34850,11 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     {
         $list = $values[$key] ?? null;
         if (!is_array($list)) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 requires {$key}");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-drain requires {$key}");
         }
         foreach ($list as $value) {
             if (!is_string($value) || $value === '') {
-                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 {$key} must contain non-empty strings");
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-drain {$key} must contain non-empty strings");
             }
         }
 
@@ -34880,7 +34880,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
     ): array {
         $name = $transition['name'] ?? null;
         if (!is_string($name) || $name === '') {
-            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next216 reader transition name is required');
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source reader-drain reader transition name is required');
         }
         $role = in_array($name, $activeReaders, true)
             ? 'active'
@@ -34888,11 +34888,11 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         $generation = $transition['reader_generation'] ?? null;
         $endFrame = $transition['reader_end_frame'] ?? null;
         if (!is_int($generation) || $generation < 0 || !is_int($endFrame) || $endFrame < 0) {
-            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 {$name} generation/frame is invalid");
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-drain {$name} generation/frame is invalid");
         }
         foreach (['observed_database_digest', 'observed_wal_digest', 'observed_writer_digest'] as $key) {
             if (!is_string($transition[$key] ?? null) || !preg_match('/^[a-f0-9]{64}$/', (string) $transition[$key])) {
-                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 {$name} {$key} is required");
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source reader-drain {$name} {$key} is required");
             }
         }
 

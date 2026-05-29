@@ -53,7 +53,7 @@ $drained['active_reader_names'] = [];
 $drained['checkpointed_frame'] = 215;
 $drained['busy'] = false;
 
-$restart = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint(
+$restart = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::restartOrTruncateCheckpointAfterReaderReopen(
     $drained,
     [
         [
