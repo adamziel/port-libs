@@ -53,7 +53,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
             return self::variantNext322(...$args);
         }
 
-        return self::variantNext326(...$args);
+        if (count($args) < 77) {
+            return self::variantNext326(...$args);
+        }
+
+        return self::variantNext330(...$args);
     }
 
     /** @return array<string,mixed> */
@@ -27192,6 +27196,54 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         $base = self::variantNext325(...$args);
 
         return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_count_changes_token', $currentToken, 326, 'reader_cache_count_changes', 'reader_cache_count_changes_must_match_current_count_changes_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext327(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next327 requires checkpoint-fullfsync token');
+        }
+        $base = self::variantNext326(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_checkpoint_fullfsync_token', $currentToken, 327, 'reader_cache_checkpoint_fullfsync', 'reader_cache_checkpoint_fullfsync_must_match_current_checkpoint_fullfsync_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext328(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next328 requires fullfsync token');
+        }
+        $base = self::variantNext327(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_fullfsync_token', $currentToken, 328, 'reader_cache_fullfsync', 'reader_cache_fullfsync_must_match_current_fullfsync_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext329(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next329 requires legacy-file-format token');
+        }
+        $base = self::variantNext328(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_legacy_file_format_token', $currentToken, 329, 'reader_cache_legacy_file_format', 'reader_cache_legacy_file_format_must_match_current_legacy_file_format_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext330(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next330 requires read-uncommitted token');
+        }
+        $base = self::variantNext329(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_read_uncommitted_token', $currentToken, 330, 'reader_cache_read_uncommitted', 'reader_cache_read_uncommitted_must_match_current_read_uncommitted_state');
     }
 
     /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
