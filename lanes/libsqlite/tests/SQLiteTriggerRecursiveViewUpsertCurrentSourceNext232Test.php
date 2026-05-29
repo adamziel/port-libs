@@ -27,7 +27,7 @@ $next232 = [
     ['name' => 'fresh_plugin', 'value' => 'enabled'],
 ];
 
-$plan232 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext232(
+$plan232 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentUpsertConflictSeal(
     $rows232,
     $current232,
     $next232,

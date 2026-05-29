@@ -135,7 +135,7 @@ $baseOptions251 = [
     'current_source_change_counter_cursor_next251' => 'wp.returning.current.change.counter.251',
 ];
 
-$plan251 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext251(
+$plan251 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentChangeReceipt(
     $rows251,
     $currentInput251,
     $nextInput251,

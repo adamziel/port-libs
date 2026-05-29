@@ -33,7 +33,7 @@ $plan218 = static fn (
     ?array $requestedColumns = null,
     ?string $observedGeneration = null,
     ?string $observedFingerprint = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext218(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceYield(
     'json_tree',
     $current ?? $current218,
     $next ?? $next218,
@@ -137,7 +137,7 @@ $tests = [
     'alias-only requested columns normalize to id' => static fn (TestRunner $t) => $t->same(['id'], $aliasOnly218()['currentGeneratedPathRowidCurrentSourceYield218']['requestedColumns']),
     'alias-only id value survives' => static fn (TestRunner $t) => $t->same(7, $aliasOnly218()['currentGeneratedPathRowidCurrentSourceYield218']['requestedValues']['id']),
     'bad generated path rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan218(array_replace($current218, ['generated_path' => '$.rules[']), $current218)),
-    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext218('json_bad', $current218, $current218, 'option_value', 'generated_path')),
+    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceYield('json_bad', $current218, $current218, 'option_value', 'generated_path')),
     'dependency closure' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

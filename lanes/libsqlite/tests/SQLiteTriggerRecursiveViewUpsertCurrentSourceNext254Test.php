@@ -138,7 +138,7 @@ $baseOptions254 = [
     'current_view_mapping_trigger_token_next254' => 'main@trigger-cookie-254-current',
 ];
 
-$plan254 = static fn (array $options = [], array $view = null): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext254(
+$plan254 = static fn (array $options = [], array $view = null): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentViewMappingReceipt(
     $rows254,
     $currentInput254,
     $nextInput254,

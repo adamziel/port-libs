@@ -18,7 +18,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>
          */
-        public static function materializeNext144(
+        public static function materializePointPredicateCurrentSource(
             array $preparedSource,
             array $currentSource,
             array $predicate,
@@ -26,11 +26,11 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
             array $neededColumns,
             array $neededExpressions
         ): array {
-            self::validateSourceNext144($preparedSource);
-            self::validateSourceNext144($currentSource);
-            self::validateNeededColumnsNext144($neededColumns);
+            self::validateSource($preparedSource);
+            self::validateSource($currentSource);
+            self::validateNeededColumns($neededColumns);
 
-            $preparedView = SQLiteStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext117(
+            $preparedView = SQLiteStat4ExpressionCoveringCurrentSourceNextPlan::materializeExpressionCoveringCurrentSource(
                 $preparedSource,
                 $preparedSource,
                 $predicate,
@@ -38,7 +38,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
                 $neededColumns,
                 $neededExpressions,
             );
-            $currentView = SQLiteStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext117(
+            $currentView = SQLiteStat4ExpressionCoveringCurrentSourceNextPlan::materializeExpressionCoveringCurrentSource(
                 $preparedSource,
                 $currentSource,
                 $predicate,
@@ -47,14 +47,14 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
                 $neededExpressions,
             );
 
-            $preparedRows = self::rowsNext144($preparedView);
-            $currentRows = self::rowsNext144($currentView);
-            $preparedRowids = self::rowidsNext144($preparedRows);
-            $currentRowids = self::rowidsNext144($currentRows);
+            $preparedRows = self::rows($preparedView);
+            $currentRows = self::rows($currentView);
+            $preparedRowids = self::rowids($preparedRows);
+            $currentRowids = self::rowids($currentRows);
             $rejected = array_values(array_diff($preparedRowids, $currentRowids));
             $admitted = array_values(array_diff($currentRowids, $preparedRowids));
             $stable = array_values(array_intersect($currentRowids, $preparedRowids));
-            $selectedPlan = self::arrayValueNext144($currentView, 'selectedPlan');
+            $selectedPlan = self::arrayValue($currentView, 'selectedPlan');
             $ready = ($currentView['status'] ?? null) === 'stat4-expression-covering-current-source-ready'
                 && ($currentView['selectedSource'] ?? null) === 'current'
                 && ($currentView['stalePreparedStatement'] ?? false) === true
@@ -65,7 +65,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
                 && ($rejected !== [] || $admitted !== []);
 
             return array_replace($currentView, [
-                'status' => $ready ? 'stat4-expression-covering-current-source-next144-ready' : 'requires-next-stage',
+                'status' => $ready ? 'stat4-expression-covering-current-source-point-ready' : 'requires-next-stage',
                 'preparedCoveringRows' => $preparedRows,
                 'currentCoveringRows' => $currentRows,
                 'preparedCoveringRowids' => $preparedRowids,
@@ -74,32 +74,32 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
                 'currentCoveringAdmittedRowids' => $admitted,
                 'stableCoveringRowids' => $stable,
                 'currentSourceRowStreamChanged' => $preparedRowids !== $currentRowids,
-                'currentSourcePayloadChanged' => self::payloadSignatureNext144($preparedRows) !== self::payloadSignatureNext144($currentRows),
+                'currentSourcePayloadChanged' => self::payloadSignature($preparedRows) !== self::payloadSignature($currentRows),
                 'pointPredicateSignature' => hash('sha256', json_encode($predicate, JSON_THROW_ON_ERROR)),
-                'coveringExpressionSignature' => self::expressionSignatureNext144($neededExpressions),
+                'coveringExpressionSignature' => self::expressionSignature($neededExpressions),
                 'coveringColumnSignature' => implode(',', array_map('strtolower', $neededColumns)),
                 'currentSourceFence' => array_replace(
-                    self::arrayValueNext144($currentView, 'currentSourceFence'),
+                    self::arrayValue($currentView, 'currentSourceFence'),
                     [
-                        'next144PointPredicateSignature' => hash('sha256', json_encode($predicate, JSON_THROW_ON_ERROR)),
-                        'next144PreparedRowStreamSignature' => self::rowStreamSignatureNext144($preparedRows),
-                        'next144CurrentRowStreamSignature' => self::rowStreamSignatureNext144($currentRows),
-                        'next144PayloadSignature' => self::payloadSignatureNext144($currentRows),
+                        'pointPredicateSignature' => hash('sha256', json_encode($predicate, JSON_THROW_ON_ERROR)),
+                        'preparedRowStreamSignature' => self::rowStreamSignature($preparedRows),
+                        'currentRowStreamSignature' => self::rowStreamSignature($currentRows),
+                        'payloadSignature' => self::payloadSignature($currentRows),
                     ],
                 ),
-                'cursorTape' => self::cursorTapeNext144($currentView, $preparedRows, $currentRows, $rejected, $admitted, $stable),
+                'cursorTape' => self::cursorTape($currentView, $preparedRows, $currentRows, $rejected, $admitted, $stable),
                 'detail' => (($currentView['stalePreparedStatement'] ?? false) ? 'REPREPARE' : 'REUSE')
-                    . ' STAT4 EXPRESSION COVERING CURRENT-SOURCE NEXT144 '
+                    . ' STAT4 EXPRESSION COVERING CURRENT-SOURCE POINT '
                     . (string) ($selectedPlan['name'] ?? 'NO INDEX'),
                 'dependencies' => array_values(array_unique(array_merge(
                     is_array($currentView['dependencies'] ?? null) ? $currentView['dependencies'] : [],
                     [
                         'SQLiteStat4ExpressionCoveringCurrentSourceNextPlan',
-                        'sqlite-sqlplanner-stat4-expression-covering-current-source-next144',
+                        'sqlite-sqlplanner-stat4-expression-covering-current-source-point',
                     ],
                 ))),
-                'dependency_closure' => 'no new support component needed; next144 reuses native STAT4 expression-covering current-source planning and adds point-predicate row-stream replacement diagnostics',
-                'non_overlap' => 'avoids accepted STAT4 expression IN next126, expression range next128, expression skip-scan next137, range-cost ranking, and expression ORDER BY; this slice proves stale prepared point-predicate covering rows are replaced by the current sqlite_stat4/source row stream without table lookup',
+                'dependency_closure' => 'no new support component needed; native STAT4 expression-covering current-source point-predicate planning reuses native STAT4 expression-covering current-source planning and adds point-predicate row-stream replacement diagnostics',
+                'non_overlap' => 'avoids accepted accepted STAT4 expression IN, expression range, and expression skip-scan, range-cost ranking, and expression ORDER BY; this slice proves stale prepared point-predicate covering rows are replaced by the current sqlite_stat4/source row stream without table lookup',
             ]);
         }
 
@@ -107,7 +107,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
          * @param array<string,mixed> $view
          * @return list<array<string,mixed>>
          */
-        private static function rowsNext144(array $view): array
+        private static function rows(array $view): array
         {
             $rows = [];
             foreach (($view['cursorTape']['rowids'] ?? []) as $offset => $rowid) {
@@ -131,15 +131,15 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function validateSourceNext144(array $source): void
+        private static function validateSource(array $source): void
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes) || $indexes === []) {
-                throw new \InvalidArgumentException('SQLite STAT4 expression covering next144 source needs index definitions');
+                throw new \InvalidArgumentException('SQLite STAT4 expression covering current-source point source needs index definitions');
             }
             foreach ($indexes as $index) {
                 if (!is_array($index)) {
-                    throw new \InvalidArgumentException('SQLite STAT4 expression covering next144 indexes must be arrays');
+                    throw new \InvalidArgumentException('SQLite STAT4 expression covering current-source point indexes must be arrays');
                 }
             }
         }
@@ -147,14 +147,14 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
         /**
          * @param list<string> $neededColumns
          */
-        private static function validateNeededColumnsNext144(array $neededColumns): void
+        private static function validateNeededColumns(array $neededColumns): void
         {
             if ($neededColumns === []) {
-                throw new \InvalidArgumentException('SQLite STAT4 expression covering next144 plan needs at least one output column');
+                throw new \InvalidArgumentException('SQLite STAT4 expression covering current-source point plan needs at least one output column');
             }
             foreach ($neededColumns as $column) {
                 if (!is_string($column) || $column === '') {
-                    throw new \InvalidArgumentException('SQLite STAT4 expression covering next144 output columns must be names');
+                    throw new \InvalidArgumentException('SQLite STAT4 expression covering current-source point output columns must be names');
                 }
             }
         }
@@ -163,7 +163,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<int>
          */
-        private static function rowidsNext144(array $rows): array
+        private static function rowids(array $rows): array
         {
             $rowids = [];
             foreach ($rows as $row) {
@@ -179,7 +179,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $rows
          */
-        private static function rowStreamSignatureNext144(array $rows): string
+        private static function rowStreamSignature(array $rows): string
         {
             return hash('sha256', json_encode(array_map(static fn (array $row): array => [
                 'rowid' => $row['rowid'] ?? null,
@@ -190,7 +190,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $rows
          */
-        private static function payloadSignatureNext144(array $rows): string
+        private static function payloadSignature(array $rows): string
         {
             return hash('sha256', json_encode(array_map(static fn (array $row): array => [
                 'rowid' => $row['rowid'] ?? null,
@@ -202,7 +202,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
         /**
          * @param list<array<string,string>> $expressions
          */
-        private static function expressionSignatureNext144(array $expressions): string
+        private static function expressionSignature(array $expressions): string
         {
             if ($expressions === []) {
                 return '';
@@ -226,7 +226,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
          * @param list<int> $stable
          * @return array<string,mixed>
          */
-        private static function cursorTapeNext144(
+        private static function cursorTape(
             array $currentView,
             array $preparedRows,
             array $currentRows,
@@ -234,7 +234,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
             array $admitted,
             array $stable
         ): array {
-            $tape = self::arrayValueNext144($currentView, 'cursorTape');
+            $tape = self::arrayValue($currentView, 'cursorTape');
             $program = is_array($tape['program'] ?? null) ? $tape['program'] : [];
             array_unshift($program, [
                 'opcode' => 'RecheckPointSource',
@@ -247,8 +247,8 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
                 'program' => $program,
                 'preparedRows' => $preparedRows,
                 'currentRows' => $currentRows,
-                'preparedRowids' => self::rowidsNext144($preparedRows),
-                'currentRowids' => self::rowidsNext144($currentRows),
+                'preparedRowids' => self::rowids($preparedRows),
+                'currentRowids' => self::rowids($currentRows),
                 'staleCoveringRejectedRowids' => $rejected,
                 'currentCoveringAdmittedRowids' => $admitted,
                 'stableCoveringRowids' => $stable,
@@ -260,7 +260,7 @@ final class SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan
         /**
          * @return array<string,mixed>
          */
-        private static function arrayValueNext144(array $data, string $key): array
+        private static function arrayValue(array $data, string $key): array
         {
             $value = $data[$key] ?? [];
 

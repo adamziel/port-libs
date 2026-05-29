@@ -50,7 +50,7 @@ $stack->recordWalFrameWrite(4, 4, true);
 $stack->recordWalFrameWrite(5, 2, true);
 $stack->recordWalFrameWrite(6, 5, true);
 
-$plan = SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan(
+$plan = SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::readerCheckpointSavepointTruncateAfterRollbackPlan(
     $stack,
     'plugin-batch-next130',
     SQLiteWal::parse($walBytes, $pageSize, true),

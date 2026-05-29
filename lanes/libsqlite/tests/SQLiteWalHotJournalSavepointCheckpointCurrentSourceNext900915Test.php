@@ -63,7 +63,7 @@ $chain = static function () use ($base899, $receiptFor): array {
     $next912 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next912AfterCurrentCheckpoint($next911, [$receiptFor($next911, 'next912-commit-generation-checkpoint-frame')]);
     $next913 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next913AfterCurrentCheckpoint($next912, [$receiptFor($next912, 'next913-hot-journal-page-cache')]);
     $next914 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next914AfterCurrentCheckpoint($next913, [$receiptFor($next913, 'next914-wal-index-reader-release')]);
-    $next915 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next915AfterCurrentCheckpoint($next914, [$receiptFor($next914, 'next915-current-source-seal')]);
+    $next915 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::sealExtendedReadyCheckpointCurrentSourceHandoff($next914, [$receiptFor($next914, 'next915-current-source-seal')]);
 
     return [$next900, $next901, $next902, $next903, $next904, $next905, $next906, $next907, $next908, $next909, $next910, $next911, $next912, $next913, $next914, $next915];
 };
@@ -155,7 +155,7 @@ $tests['wal hot journal savepoint checkpoint current source next911 blocks check
 $tests['wal hot journal savepoint checkpoint current source next915 blocks duplicate final receipts'] = static function (TestRunner $t) use ($chain, $receiptFor): void {
     [, , , , , , , , , , , , , , $next914] = $chain();
     $receipt = $receiptFor($next914, 'next915-duplicate-current-source-seal');
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next915AfterCurrentCheckpoint($next914, [$receipt, $receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::sealExtendedReadyCheckpointCurrentSourceHandoff($next914, [$receipt, $receipt]);
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next915', $record['status']);
     $t->same(['checkpoint_receipt_name_duplicate:next915-duplicate-current-source-seal'], $record['blocked_reasons']);

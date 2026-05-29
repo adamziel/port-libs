@@ -121,7 +121,7 @@ $baseOptions244 = [
     'current_upsert_commit_trigger_cookie_next244' => 'main@trigger-cookie-244-current',
 ];
 
-$plan244 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext244(
+$plan244 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentCommitReceipt(
     $rows244,
     $currentInput244,
     $nextInput244,

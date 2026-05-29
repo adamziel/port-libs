@@ -14,67 +14,67 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext138(string $sql, array $currentTables, array $nextTables): array
+        public static function compare(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
             if (!isset($currentPlan['compound'], $nextPlan['compound']) || !is_array($currentPlan['compound']) || !is_array($nextPlan['compound'])) {
-                throw new \InvalidArgumentException('SQLite compound EXCEPT order affinity current-source next138 plan needs a compound SELECT');
+                throw new \InvalidArgumentException('SQLite compound EXCEPT order affinity current-source plan needs a compound SELECT');
             }
 
             $operators = array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? []));
             if (!in_array('EXCEPT', $operators, true)) {
-                throw new \InvalidArgumentException('SQLite compound EXCEPT order affinity current-source next138 plan needs an EXCEPT arm');
+                throw new \InvalidArgumentException('SQLite compound EXCEPT order affinity current-source plan needs an EXCEPT arm');
             }
             if (!is_array($currentPlan['compound']['orderBy'] ?? null) || $currentPlan['compound']['orderBy'] === []) {
-                throw new \InvalidArgumentException('SQLite compound EXCEPT order affinity current-source next138 plan needs a tail ORDER BY');
+                throw new \InvalidArgumentException('SQLite compound EXCEPT order affinity current-source plan needs a tail ORDER BY');
             }
 
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
-            $currentPreOrder = self::preOrderRowsNext138($currentPlan);
-            $nextPreOrder = self::preOrderRowsNext138($nextPlan);
+            $currentPreOrder = self::preOrderRows($currentPlan);
+            $nextPreOrder = self::preOrderRows($nextPlan);
 
             return [
-                'status' => 'compound-except-order-affinity-current-source-next138-ready',
+                'status' => 'compound-except-order-affinity-current-source-next-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
-                'currentSignatures' => self::rowSignaturesNext138($currentRows),
-                'nextSignatures' => self::rowSignaturesNext138($nextRows),
-                'changedSignatures' => self::changedSignaturesNext138($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignatures($currentRows),
+                'nextSignatures' => self::rowSignatures($nextRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
                 'compound' => [
                     'operators' => $operators,
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'exceptArmIndexes' => self::exceptArmIndexesNext138($operators),
-                    'orderBy' => self::orderTermsNext138($currentPlan),
-                    'leftCollations' => self::leftArmCollationsNext138($currentPlan),
+                    'exceptArmIndexes' => self::exceptArmIndexes($operators),
+                    'orderBy' => self::orderTerms($currentPlan),
+                    'leftCollations' => self::leftArmCollations($currentPlan),
                 ],
                 'except' => [
-                    'currentRemoved' => self::exceptRemovedRowsNext138($currentPlan),
-                    'nextRemoved' => self::exceptRemovedRowsNext138($nextPlan),
+                    'currentRemoved' => self::exceptRemovedRows($currentPlan),
+                    'nextRemoved' => self::exceptRemovedRows($nextPlan),
                 ],
                 'orderTrace' => [
                     'currentPreOrder' => $currentPreOrder,
                     'nextPreOrder' => $nextPreOrder,
-                    'currentKeys' => self::orderKeysNext138($currentRows, $currentPlan),
-                    'nextKeys' => self::orderKeysNext138($nextRows, $nextPlan),
-                    'currentPreOrderKeys' => self::orderKeysNext138($currentPreOrder, $currentPlan),
-                    'nextPreOrderKeys' => self::orderKeysNext138($nextPreOrder, $nextPlan),
+                    'currentKeys' => self::orderKeys($currentRows, $currentPlan),
+                    'nextKeys' => self::orderKeys($nextRows, $nextPlan),
+                    'currentPreOrderKeys' => self::orderKeys($currentPreOrder, $currentPlan),
+                    'nextPreOrderKeys' => self::orderKeys($nextPreOrder, $nextPlan),
                 ],
                 'affinity' => [
-                    'currentClasses' => self::valueClassesNext138($currentRows),
-                    'nextClasses' => self::valueClassesNext138($nextRows),
-                    'currentRemovedClasses' => self::valueClassesNext138(self::exceptRemovedRowsNext138($currentPlan)),
-                    'nextRemovedClasses' => self::valueClassesNext138(self::exceptRemovedRowsNext138($nextPlan)),
-                    'changedClasses' => self::changedValueClassesNext138($currentRows, $nextRows),
+                    'currentClasses' => self::valueClasses($currentRows),
+                    'nextClasses' => self::valueClasses($nextRows),
+                    'currentRemovedClasses' => self::valueClasses(self::exceptRemovedRows($currentPlan)),
+                    'nextRemovedClasses' => self::valueClasses(self::exceptRemovedRows($nextPlan)),
+                    'changedClasses' => self::changedValueClasses($currentRows, $nextRows),
                 ],
-                'replanReasons' => self::replanReasonsNext138($currentRows, $nextRows, $currentPlan, $nextPlan),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentPlan, $nextPlan),
                 'dependencies' => [
                     'sqlite-compound-except-affinity',
                     'sqlite-select-sql-compound-tail-order',
                     'sqlite-select-result-storage-class-order',
-                    'sqlite-current-source-next138',
+                    'sqlite-current-source-next',
                 ],
             ];
         }
@@ -83,7 +83,7 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function preOrderRowsNext138(array $plan): array
+        private static function preOrderRows(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound)) {
@@ -100,7 +100,7 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param list<string> $operators
          * @return list<int>
          */
-        private static function exceptArmIndexesNext138(array $operators): array
+        private static function exceptArmIndexes(array $operators): array
         {
             $indexes = [];
             foreach ($operators as $index => $operator) {
@@ -116,7 +116,7 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function orderTermsNext138(array $plan): array
+        private static function orderTerms(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -130,7 +130,7 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,string>
          */
-        private static function leftArmCollationsNext138(array $plan): array
+        private static function leftArmCollations(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             $arm = is_array($compound) && is_array($compound['arms'] ?? null) ? ($compound['arms'][0] ?? null) : null;
@@ -154,7 +154,7 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function exceptRemovedRowsNext138(array $plan): array
+        private static function exceptRemovedRows(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null) || !is_array($compound['operators'] ?? null)) {
@@ -170,9 +170,9 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
                 }
                 $armRows = SQLiteSelectQuery::execute($arm);
                 if ($columns === null) {
-                    $columns = self::outputColumnsNext138($arm);
+                    $columns = self::outputColumns($arm);
                 }
-                $armRows = self::renameRowsNext138($armRows, $columns);
+                $armRows = self::renameRows($armRows, $columns);
                 if ($index === 0) {
                     $rows = $armRows;
                     continue;
@@ -182,9 +182,9 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
                 if (!is_array($rows)) {
                     continue;
                 }
-                $nextRows = SQLiteSelectCompound::combine($rows, $armRows, $operator, self::leftArmCollationsNext138($plan));
+                $nextRows = SQLiteSelectCompound::combine($rows, $armRows, $operator, self::leftArmCollations($plan));
                 if ($operator === 'EXCEPT') {
-                    $removed = array_merge($removed, self::removedRowsNext138($rows, $nextRows));
+                    $removed = array_merge($removed, self::removedRows($rows, $nextRows));
                 }
                 $rows = $nextRows;
             }
@@ -196,7 +196,7 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $arm
          * @return list<string>
          */
-        private static function outputColumnsNext138(array $arm): array
+        private static function outputColumns(array $arm): array
         {
             $columns = [];
             foreach (($arm['select'] ?? []) as $index => $term) {
@@ -221,7 +221,7 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param list<string> $columns
          * @return list<array<string,mixed>>
          */
-        private static function renameRowsNext138(array $rows, array $columns): array
+        private static function renameRows(array $rows, array $columns): array
         {
             return array_values(array_map(static function (array $row) use ($columns): array {
                 $renamed = array_combine($columns, array_values($row));
@@ -238,9 +238,9 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $after
          * @return list<array<string,mixed>>
          */
-        private static function removedRowsNext138(array $before, array $after): array
+        private static function removedRows(array $before, array $after): array
         {
-            $afterSignatures = array_fill_keys(self::rowSignaturesNext138($after), true);
+            $afterSignatures = array_fill_keys(self::rowSignatures($after), true);
             $removed = [];
             foreach ($before as $row) {
                 if (!isset($afterSignatures[json_encode($row, JSON_THROW_ON_ERROR)])) {
@@ -256,14 +256,14 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderKeysNext138(array $rows, array $plan): array
+        private static function orderKeys(array $rows, array $plan): array
         {
             $keys = [];
             foreach ($rows as $row) {
                 $parts = [];
-                foreach (self::orderTermsNext138($plan) as $term) {
+                foreach (self::orderTerms($plan) as $term) {
                     $column = (string) ($term['column'] ?? '');
-                    $parts[] = $column . '=' . self::sqliteValueClassNext138($row[$column] ?? null)
+                    $parts[] = $column . '=' . self::sqliteValueClass($row[$column] ?? null)
                         . ':dir=' . strtoupper((string) ($term['direction'] ?? 'ASC'))
                         . ':collate=' . strtoupper((string) ($term['collation'] ?? 'BINARY'))
                         . ':nulls=' . strtoupper((string) ($term['nulls'] ?? ''));
@@ -278,7 +278,7 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext138(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -288,10 +288,10 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext138(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext138($currentRows);
-            $next = self::rowSignaturesNext138($nextRows);
+            $current = self::rowSignatures($currentRows);
+            $next = self::rowSignatures($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -300,12 +300,12 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function valueClassesNext138(array $rows): array
+        private static function valueClasses(array $rows): array
         {
             $classes = [];
             foreach ($rows as $row) {
                 foreach ($row as $value) {
-                    $classes[self::sqliteValueClassNext138($value)] = true;
+                    $classes[self::sqliteValueClass($value)] = true;
                 }
             }
 
@@ -317,15 +317,15 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedValueClassesNext138(array $currentRows, array $nextRows): array
+        private static function changedValueClasses(array $currentRows, array $nextRows): array
         {
-            $current = self::valueClassesNext138($currentRows);
-            $next = self::valueClassesNext138($nextRows);
+            $current = self::valueClasses($currentRows);
+            $next = self::valueClasses($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
 
-        private static function sqliteValueClassNext138(mixed $value): string
+        private static function sqliteValueClass(mixed $value): string
         {
             if ($value === null) {
                 return 'null';
@@ -350,22 +350,22 @@ final class SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $nextPlan
          * @return list<string>
          */
-        private static function replanReasonsNext138(array $currentRows, array $nextRows, array $currentPlan, array $nextPlan): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentPlan, array $nextPlan): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext138($currentRows) !== self::rowSignaturesNext138($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'compound-except-order-rowset-changed';
             }
-            if (self::orderTermsNext138($currentPlan) !== []) {
+            if (self::orderTerms($currentPlan) !== []) {
                 $reasons[] = 'compound-tail-order-by';
             }
-            if (self::changedValueClassesNext138($currentRows, $nextRows) !== []) {
+            if (self::changedValueClasses($currentRows, $nextRows) !== []) {
                 $reasons[] = 'order-affinity-class-changed';
             }
-            if (self::exceptRemovedRowsNext138($currentPlan) !== self::exceptRemovedRowsNext138($nextPlan)) {
+            if (self::exceptRemovedRows($currentPlan) !== self::exceptRemovedRows($nextPlan)) {
                 $reasons[] = 'except-removal-set-changed';
             }
-            if (self::orderTermsNext138($currentPlan) !== self::orderTermsNext138($nextPlan)) {
+            if (self::orderTerms($currentPlan) !== self::orderTerms($nextPlan)) {
                 $reasons[] = 'order-plan-changed';
             }
 

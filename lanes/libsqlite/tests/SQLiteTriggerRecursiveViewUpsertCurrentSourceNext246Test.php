@@ -51,7 +51,7 @@ $returning246 = [
     ['expr' => 'spawn_child', 'as' => 'spawn_child'],
 ];
 
-$plan246 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext246(
+$plan246 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentConflictImageReceipt(
     $rows246,
     $currentInput246,
     $nextInput246,

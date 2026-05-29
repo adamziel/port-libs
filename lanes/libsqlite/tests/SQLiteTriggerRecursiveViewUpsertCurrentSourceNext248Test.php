@@ -124,7 +124,7 @@ $options = [
     'current_source_upsert_where_columns_next248' => ['option_value', 'autoload'],
 ];
 
-$plan = static fn (array $extra = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext248(
+$plan = static fn (array $extra = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentWhereOutcomeReceipt(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],

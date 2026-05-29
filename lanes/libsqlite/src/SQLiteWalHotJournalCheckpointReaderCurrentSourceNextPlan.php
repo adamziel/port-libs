@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan
 {
-    public static function next120Plan(
+    public static function hotJournalCheckpointReaderPinnedSourcePlan(
         SQLiteRollbackJournal $journal,
         string $databaseBytes,
         string $journalBytes,
@@ -256,7 +256,7 @@ final class SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan
         return $impl::plan($journal, $databaseBytes, $journalBytes, $savepoints, $savepoint, $wal, $walBytes, $readerWalBytes, $databasePath, $pageNumbers, $mode, $readerEndFrame, $databasePageSize, $databaseReservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
-    public static function next135Plan(
+    public static function hotJournalCheckpointReaderSeparatedWalPlan(
         string $databasePath,
         string $databaseBytes,
         string $journalBytes,

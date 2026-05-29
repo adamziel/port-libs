@@ -135,7 +135,7 @@ $baseOptions252 = [
     'current_source_upsert_where_token_next252' => 'wp.current.source.upsert.where.252',
 ];
 
-$plan252 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext252(
+$plan252 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentPredicateDecisionReceipt(
     $rows252,
     $currentInput252,
     $nextInput252,

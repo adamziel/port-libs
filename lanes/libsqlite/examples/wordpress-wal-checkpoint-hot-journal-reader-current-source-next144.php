@@ -54,7 +54,7 @@ $walBytes = $makeWalBytes([
     [2, 3, 'wp next144 current reader wp_options commit'],
 ]);
 
-$ready = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next144Plan(
+$ready = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::checkpointHotJournalReaderReleasedWalPlan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -66,7 +66,7 @@ $ready = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next144Plan(
     2
 );
 
-$staleReader = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next144Plan(
+$staleReader = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::checkpointHotJournalReaderReleasedWalPlan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

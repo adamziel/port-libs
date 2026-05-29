@@ -108,7 +108,7 @@ $baseOptions239 = [
     'current_source_upsert_generation_next239' => 'wp.current.source.upsert.generation.239',
 ];
 
-$plan239 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext239(
+$plan239 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentTargetReceipt(
     $rows239,
     $currentInput239,
     $nextInput239,

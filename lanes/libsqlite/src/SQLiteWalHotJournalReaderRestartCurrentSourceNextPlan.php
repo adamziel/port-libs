@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan
 {
-    public static function next131Plan(
+    public static function hotJournalReaderRestartPlan(
         string $databasePath,
         string $databaseBytes,
         string $journalBytes,
@@ -191,7 +191,7 @@ final class SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, $pageNumbers, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
-    public static function next143Plan(
+    public static function hotJournalReaderRestartSeparatedWalPlan(
         string $databasePath,
         string $dirtyDatabaseBytes,
         string $journalBytes,
@@ -230,7 +230,7 @@ final class SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan
                         throw new \InvalidArgumentException('SQLite WAL hot-journal reader restart current-source next143 reader frame is outside the current WAL range');
                     }
 
-                    $base = SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan(
+                    $base = SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::hotJournalReaderRestartPlan(
                         $databasePath,
                         $dirtyDatabaseBytes,
                         $journalBytes,

@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCookieSourcePlan;
 
 $tests = [];
 
-$schemas94 = static fn (): array => [
+$schemas = static fn (): array => [
     'main' => [
         'schema_cookie' => 40,
         'wal_frames' => [
@@ -45,7 +45,7 @@ $schemas94 = static fn (): array => [
     ],
 ];
 
-$statements94 = static fn (): array => [
+$statements = static fn (): array => [
     ['name' => 'bracket-main-schema-reader', 'sql' => 'SELECT sql FROM [main].[sqlite_schema] WHERE name = ?'],
     ['name' => 'bracket-temp-master-reader', 'sql' => 'SELECT name FROM [temp].[sqlite_master] WHERE type = ?'],
     ['name' => 'bracket-site-options-reader', 'sql' => 'SELECT option_value FROM [site].[wp_2_options] WHERE option_name = ?'],
@@ -56,13 +56,13 @@ $statements94 = static fn (): array => [
     ['name' => 'main-plugin-state', 'sql' => 'SELECT option_name FROM [main].[wp_plugin_state]'],
 ];
 
-$plan94 = static fn (?array $schemas = null, ?array $statements = null, string $source = 'main'): array => SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan(
-    $schemas ?? $schemas94(),
-    $statements ?? $statements94(),
+$plan = static fn (?array $schemasArg = null, ?array $statementsArg = null, string $source = 'main'): array => SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan(
+    $schemasArg ?? $schemas(),
+    $statementsArg ?? $statements(),
     $source,
 );
 
-$value94 = static function (array $data, string $path): mixed {
+$value = static function (array $data, string $path): mixed {
     $cursor = $data;
     foreach (explode('.', $path) as $part) {
         if (is_array($cursor) && array_key_exists($part, $cursor)) {
@@ -76,7 +76,7 @@ $value94 = static function (array $data, string $path): mixed {
     return $cursor;
 };
 
-$pathCases94 = [
+$pathCases = [
     'operation marker' => ['operation', 'attach-temp-wal-schema-cookie-bracket-quoted-source'],
     'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-cookie-bracket-quoted-source'],
     'bracket dependency marker' => ['dependencies.3', 'sqlite-bracket-quoted-attach-schema-cookie-source'],
@@ -121,27 +121,27 @@ $pathCases94 = [
     'database list analytics next cookie' => ['database_list.3.next_schema_cookie', 4],
 ];
 
-foreach ($pathCases94 as $name => [$path, $expected]) {
-    $tests['attach temp wal schema cookie current source next94 ' . $name] = static function (TestRunner $t) use ($plan94, $value94, $path, $expected): void {
-        $t->same($expected, $value94($plan94(), $path));
+foreach ($pathCases as $name => [$path, $expected]) {
+    $tests['attach temp wal schema cookie bracket quoted ' . $name] = static function (TestRunner $t) use ($plan, $value, $path, $expected): void {
+        $t->same($expected, $value($plan(), $path));
     };
 }
 
-$tests['attach temp wal schema cookie current source next94 bracket quoted source accepted'] = static function (TestRunner $t) use ($schemas94, $statements94): void {
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), $statements94(), '[site]');
+$tests['attach temp wal schema cookie bracket quoted source accepted'] = static function (TestRunner $t) use ($schemas, $statements): void {
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas(), $statements(), '[site]');
     $t->same('site', $result['source']);
 };
 
-$tests['attach temp wal schema cookie current source next94 sqlite master bare alias resolves'] = static function (TestRunner $t) use ($schemas94): void {
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), [
+$tests['attach temp wal schema cookie bracket quoted sqlite master bare alias resolves'] = static function (TestRunner $t) use ($schemas): void {
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas(), [
         ['name' => 'bare-master', 'sql' => 'SELECT name FROM sqlite_master WHERE type = ?'],
     ]);
     $t->same('temp', $result['statements'][0]['schema_transitions'][0]['prepare_schema']);
     $t->same('sqlite_schema', $result['statements'][0]['tables'][0]);
 };
 
-$tests['attach temp wal schema cookie current source next94 stable without pending bracket cookies'] = static function (TestRunner $t) use ($schemas94): void {
-    $schemas = $schemas94();
+$tests['attach temp wal schema cookie bracket quoted stable without pending bracket cookies'] = static function (TestRunner $t) use ($schemas): void {
+    $schemas = $schemas();
     unset($schemas['main']['wal_schema_cookie'], $schemas['temp']['temp_schema_cookie'], $schemas['analytics']['wal_schema_cookie']);
     $schemas['main']['next_tables'] = $schemas['main']['tables'];
     $schemas['temp']['next_tables'] = $schemas['temp']['tables'];
@@ -153,14 +153,14 @@ $tests['attach temp wal schema cookie current source next94 stable without pendi
     $t->same('schema_cache_stable', $result['status']);
 };
 
-$tests['attach temp wal schema cookie current source next94 rejects empty bracket identifier'] = static function (TestRunner $t) use ($schemas94): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), [
+$tests['attach temp wal schema cookie bracket quoted rejects empty bracket identifier'] = static function (TestRunner $t) use ($schemas): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas(), [
         ['name' => 'bad', 'sql' => 'SELECT sql FROM []'],
     ]));
 };
 
-$tests['attach temp wal schema cookie current source next94 update bracket target blocks write retry'] = static function (TestRunner $t) use ($schemas94): void {
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), [
+$tests['attach temp wal schema cookie bracket quoted update bracket target blocks write retry'] = static function (TestRunner $t) use ($schemas): void {
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas(), [
         ['name' => 'update-main', 'sql' => 'UPDATE [main].[wp_options] SET option_value = ? WHERE option_name = ?'],
     ]);
     $t->same('main.wp_options', $result['statements'][0]['tables'][0]);
@@ -168,16 +168,16 @@ $tests['attach temp wal schema cookie current source next94 update bracket targe
     $t->same('sqlite_schema_before_write_retry', $result['statements'][0]['next_step_action']);
 };
 
-$tests['attach temp wal schema cookie current source next94 delete bracket target extracts schema'] = static function (TestRunner $t) use ($schemas94): void {
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), [
+$tests['attach temp wal schema cookie bracket quoted delete bracket target extracts schema'] = static function (TestRunner $t) use ($schemas): void {
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas(), [
         ['name' => 'delete-stage', 'sql' => 'DELETE FROM [temp].[wp_options_stage] WHERE option_name = ?'],
     ]);
     $t->same('temp.wp_options_stage', $result['statements'][0]['tables'][0]);
     $t->same('temp_rollback_journal', $result['statements'][0]['schema_transitions'][0]['next_cookie_source']);
 };
 
-$tests['attach temp wal schema cookie current source next94 quoted sqlite master alias remains schema table'] = static function (TestRunner $t) use ($schemas94): void {
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), [
+$tests['attach temp wal schema cookie bracket quoted sqlite master alias remains schema table'] = static function (TestRunner $t) use ($schemas): void {
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas(), [
         ['name' => 'quoted-master', 'sql' => 'SELECT name FROM "main"."sqlite_master" WHERE type = ?'],
     ]);
     $t->same('main.sqlite_schema', $result['statements'][0]['tables'][0]);

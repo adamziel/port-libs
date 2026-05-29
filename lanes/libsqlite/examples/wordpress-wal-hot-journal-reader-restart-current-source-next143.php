@@ -59,7 +59,7 @@ $restartedWalBytes = $makeWalBytes([
     [4, 4, 'wp next143 restarted autoload commit'],
 ], 144, 0x14314401, 0x14314402);
 
-$plan = SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan(
+$plan = SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::hotJournalReaderRestartSeparatedWalPlan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

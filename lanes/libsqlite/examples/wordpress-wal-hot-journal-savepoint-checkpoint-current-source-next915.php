@@ -27,7 +27,7 @@ $base = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next899'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next915AfterCurrentCheckpoint($base, [[
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::sealExtendedReadyCheckpointCurrentSourceHandoff($base, [[
     'name' => 'wp-next915-current-source-seal',
     'source_token' => $base['source_token'],
     'database_digest' => $base['database_digest'],

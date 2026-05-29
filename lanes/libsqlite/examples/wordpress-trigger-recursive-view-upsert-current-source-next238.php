@@ -9,7 +9,7 @@ require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewUpsertCurrentSou
 
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
-$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext238(
+$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentUpsertReceipt(
     [
         ['option_name' => 'siteurl', 'option_value' => 'https://old.test'],
         ['option_name' => 'home', 'option_value' => 'https://old-home.test'],

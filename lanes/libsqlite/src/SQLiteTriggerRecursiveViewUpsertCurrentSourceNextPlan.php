@@ -20,7 +20,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext232(
+    public static function executeCurrentUpsertConflictSeal(
         array $rows,
         array $currentViewRows,
         array $nextViewRows,
@@ -41,17 +41,17 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $baseOptions,
         );
 
-        $upsertSource = self::tokenNext232((string) ($options['current_upsert_source_next232'] ?? 'wp.current.upsert.source.232'), 'current upsert source');
-        $viewSource = self::tokenNext232((string) ($options['current_view_source_next232'] ?? (string) ($base['current_source'] ?? 'main@cookie232-current')), 'current view source');
-        $expectedViewSource = self::tokenNext232((string) ($options['expected_current_view_source_next232'] ?? $viewSource), 'expected current view source');
-        $triggerProgram = self::tokenNext232((string) ($options['current_trigger_program_next232'] ?? 'wp.current.recursive.trigger.program.232'), 'current trigger program');
-        $expectedTriggerProgram = self::tokenNext232((string) ($options['expected_current_trigger_program_next232'] ?? $triggerProgram), 'expected current trigger program');
+        $upsertSource = self::tokenCurrentUpsertConflictSeal((string) ($options['current_upsert_source_next232'] ?? 'wp.current.upsert.source.232'), 'current upsert source');
+        $viewSource = self::tokenCurrentUpsertConflictSeal((string) ($options['current_view_source_next232'] ?? (string) ($base['current_source'] ?? 'main@cookie232-current')), 'current view source');
+        $expectedViewSource = self::tokenCurrentUpsertConflictSeal((string) ($options['expected_current_view_source_next232'] ?? $viewSource), 'expected current view source');
+        $triggerProgram = self::tokenCurrentUpsertConflictSeal((string) ($options['current_trigger_program_next232'] ?? 'wp.current.recursive.trigger.program.232'), 'current trigger program');
+        $expectedTriggerProgram = self::tokenCurrentUpsertConflictSeal((string) ($options['expected_current_trigger_program_next232'] ?? $triggerProgram), 'expected current trigger program');
         $requireOrder = (bool) ($options['require_current_upsert_conflict_order_next232'] ?? true);
 
-        $currentYield = self::rowsNext232($base['current_yield_stream'] ?? [], 'current yield stream');
-        $attemptedNextYield = self::rowsNext232($base['attempted_next_yield_stream'] ?? [], 'attempted next yield stream');
-        $requiredSeals = self::conflictSealsNext232($currentYield, $upsertSource, $viewSource, $triggerProgram);
-        $acknowledgedSeals = self::acknowledgedSealsNext232($options, $requiredSeals);
+        $currentYield = self::rowsCurrentUpsertConflictSeal($base['current_yield_stream'] ?? [], 'current yield stream');
+        $attemptedNextYield = self::rowsCurrentUpsertConflictSeal($base['attempted_next_yield_stream'] ?? [], 'attempted next yield stream');
+        $requiredSeals = self::conflictSealsCurrentUpsertConflictSeal($currentYield, $upsertSource, $viewSource, $triggerProgram);
+        $acknowledgedSeals = self::acknowledgedSealsCurrentUpsertConflictSeal($options, $requiredSeals);
         $missingSeals = array_values(array_diff($requiredSeals, $acknowledgedSeals));
         $unexpectedSeals = array_values(array_diff($acknowledgedSeals, $requiredSeals));
         $viewMatches = hash_equals($viewSource, $expectedViewSource);
@@ -79,14 +79,14 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             );
         }
 
-        $blockedReasons = self::blockedReasonsNext232($viewMatches, $triggerMatches, $missingSeals, $unexpectedSeals, $requireOrder, $orderMatches);
-        $currentYield = self::tagRowsNext232($currentYield, 'current', true, $requiredSeals, $upsertSource, $viewSource, $triggerProgram, []);
-        $attemptedNextYield = self::tagRowsNext232($attemptedNextYield, 'next', $conflictComplete, [], $upsertSource, $viewSource, $triggerProgram, $conflictComplete ? [] : $blockedReasons);
-        $currentReturning = self::tagRowsNext232(self::rowsNext232($base['current_returning_rows'] ?? [], 'current returning rows'), 'current', true, $requiredSeals, $upsertSource, $viewSource, $triggerProgram, []);
-        $attemptedNextReturning = self::tagRowsNext232(self::rowsNext232($base['attempted_next_returning_rows'] ?? [], 'attempted next returning rows'), 'next', $conflictComplete, [], $upsertSource, $viewSource, $triggerProgram, $conflictComplete ? [] : $blockedReasons);
+        $blockedReasons = self::blockedReasonsCurrentUpsertConflictSeal($viewMatches, $triggerMatches, $missingSeals, $unexpectedSeals, $requireOrder, $orderMatches);
+        $currentYield = self::tagRowsCurrentUpsertConflictSeal($currentYield, 'current', true, $requiredSeals, $upsertSource, $viewSource, $triggerProgram, []);
+        $attemptedNextYield = self::tagRowsCurrentUpsertConflictSeal($attemptedNextYield, 'next', $conflictComplete, [], $upsertSource, $viewSource, $triggerProgram, $conflictComplete ? [] : $blockedReasons);
+        $currentReturning = self::tagRowsCurrentUpsertConflictSeal(self::rowsCurrentUpsertConflictSeal($base['current_returning_rows'] ?? [], 'current returning rows'), 'current', true, $requiredSeals, $upsertSource, $viewSource, $triggerProgram, []);
+        $attemptedNextReturning = self::tagRowsCurrentUpsertConflictSeal(self::rowsCurrentUpsertConflictSeal($base['attempted_next_returning_rows'] ?? [], 'attempted next returning rows'), 'next', $conflictComplete, [], $upsertSource, $viewSource, $triggerProgram, $conflictComplete ? [] : $blockedReasons);
 
         return [
-            'status_next232' => self::statusNext232($conflictComplete, $viewMatches, $triggerMatches, $missingSeals, $unexpectedSeals, $requireOrder, $orderMatches),
+            'status_next232' => self::statusCurrentUpsertConflictSeal($conflictComplete, $viewMatches, $triggerMatches, $missingSeals, $unexpectedSeals, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'released_base_next232' => $next,
@@ -147,7 +147,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $rows @return list<string> */
-    private static function conflictSealsNext232(array $rows, string $source, string $viewSource, string $triggerProgram): array
+    private static function conflictSealsCurrentUpsertConflictSeal(array $rows, string $source, string $viewSource, string $triggerProgram): array
     {
         $seals = [];
         foreach ($rows as $index => $row) {
@@ -171,17 +171,17 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $options @param list<string> $required @return list<string> */
-    private static function acknowledgedSealsNext232(array $options, array $required): array
+    private static function acknowledgedSealsCurrentUpsertConflictSeal(array $options, array $required): array
     {
         if (($options['auto_ack_current_upsert_conflict_seals_next232'] ?? false) === true) {
             return $required;
         }
 
-        return self::sealListNext232($options['acknowledged_current_upsert_conflict_seals_next232'] ?? [], 'acknowledged current upsert conflict seals');
+        return self::sealListCurrentUpsertConflictSeal($options['acknowledged_current_upsert_conflict_seals_next232'] ?? [], 'acknowledged current upsert conflict seals');
     }
 
     /** @param mixed $values @return list<string> */
-    private static function sealListNext232(mixed $values, string $label): array
+    private static function sealListCurrentUpsertConflictSeal(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next232 {$label} must be a list");
@@ -196,7 +196,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param mixed $rows @return list<array<string,mixed>> */
-    private static function rowsNext232(mixed $rows, string $label): array
+    private static function rowsCurrentUpsertConflictSeal(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next232 {$label} must be a list");
@@ -211,7 +211,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $rows @param list<string> $seals @param list<string> $reasons @return list<array<string,mixed>> */
-    private static function tagRowsNext232(array $rows, string $phase, bool $visible, array $seals, string $source, string $viewSource, string $triggerProgram, array $reasons): array
+    private static function tagRowsCurrentUpsertConflictSeal(array $rows, string $phase, bool $visible, array $seals, string $source, string $viewSource, string $triggerProgram, array $reasons): array
     {
         $tagged = [];
         foreach ($rows as $index => $row) {
@@ -230,7 +230,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<string> $missing @param list<string> $unexpected @return list<string> */
-    private static function blockedReasonsNext232(bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentUpsertConflictSeal(bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
     {
         $reasons = [];
         if (!$viewMatches) {
@@ -253,7 +253,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<string> $missing @param list<string> $unexpected */
-    private static function statusNext232(bool $complete, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
+    private static function statusCurrentUpsertConflictSeal(bool $complete, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
     {
         if ($complete) {
             return 'trigger-recursive-view-upsert-current-source-next232-conflict-released';
@@ -274,7 +274,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next232-held';
     }
 
-    private static function tokenNext232(string $token, string $label): string
+    private static function tokenCurrentUpsertConflictSeal(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next232 {$label} is malformed");
@@ -295,7 +295,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext233(
+    public static function executeCurrentUpsertConflictTarget(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -304,7 +304,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext229(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentReturningGenerationSeal(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -314,28 +314,28 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $options,
         );
 
-        $currentRows = self::rowsNext233($base['current_source_rows_next229'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext233($base['attempted_next_source_rows_next229'] ?? [], 'attempted next source rows');
+        $currentRows = self::rowsCurrentUpsertConflictTarget($base['current_source_rows_next229'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentUpsertConflictTarget($base['attempted_next_source_rows_next229'] ?? [], 'attempted next source rows');
         $baseVisible = (bool) ($base['next_source_visible_after_current_returning_generation_next229'] ?? false);
-        $upsertToken = self::tokenNext233((string) ($options['current_upsert_source_token_next233'] ?? 'wp.current.upsert.source.233'), 'current upsert source token');
-        $expectedUpsertToken = self::tokenNext233((string) ($options['expected_current_upsert_source_token_next233'] ?? $upsertToken), 'expected current upsert source token');
-        $viewSource = self::tokenNext233((string) ($options['current_upsert_view_source_next233'] ?? ($currentView['source'] ?? 'main@view-upsert-233-current')), 'current upsert view source');
-        $expectedViewSource = self::tokenNext233((string) ($options['expected_current_upsert_view_source_next233'] ?? $viewSource), 'expected current upsert view source');
-        $triggerSource = self::tokenNext233((string) ($options['current_upsert_trigger_source_next233'] ?? ($currentView['trigger_source'] ?? 'main@trigger-upsert-233-current')), 'current upsert trigger source');
-        $expectedTriggerSource = self::tokenNext233((string) ($options['expected_current_upsert_trigger_source_next233'] ?? $triggerSource), 'expected current upsert trigger source');
-        $conflictTarget = self::identifierListNext233($options['current_upsert_conflict_target_next233'] ?? ['option_name'], 'conflict target');
-        $updateColumns = self::identifierListNext233($options['current_upsert_update_columns_next233'] ?? ['option_value', 'autoload'], 'update columns');
+        $upsertToken = self::tokenCurrentUpsertConflictTarget((string) ($options['current_upsert_source_token_next233'] ?? 'wp.current.upsert.source.233'), 'current upsert source token');
+        $expectedUpsertToken = self::tokenCurrentUpsertConflictTarget((string) ($options['expected_current_upsert_source_token_next233'] ?? $upsertToken), 'expected current upsert source token');
+        $viewSource = self::tokenCurrentUpsertConflictTarget((string) ($options['current_upsert_view_source_next233'] ?? ($currentView['source'] ?? 'main@view-upsert-233-current')), 'current upsert view source');
+        $expectedViewSource = self::tokenCurrentUpsertConflictTarget((string) ($options['expected_current_upsert_view_source_next233'] ?? $viewSource), 'expected current upsert view source');
+        $triggerSource = self::tokenCurrentUpsertConflictTarget((string) ($options['current_upsert_trigger_source_next233'] ?? ($currentView['trigger_source'] ?? 'main@trigger-upsert-233-current')), 'current upsert trigger source');
+        $expectedTriggerSource = self::tokenCurrentUpsertConflictTarget((string) ($options['expected_current_upsert_trigger_source_next233'] ?? $triggerSource), 'expected current upsert trigger source');
+        $conflictTarget = self::identifierListCurrentUpsertConflictTarget($options['current_upsert_conflict_target_next233'] ?? ['option_name'], 'conflict target');
+        $updateColumns = self::identifierListCurrentUpsertConflictTarget($options['current_upsert_update_columns_next233'] ?? ['option_value', 'autoload'], 'update columns');
         $requireOrder = (bool) ($options['require_current_upsert_order_next233'] ?? true);
 
-        $requiredSeals = self::upsertSealsNext233($currentRows, $upsertToken, $viewSource, $triggerSource, $conflictTarget, $updateColumns);
-        $acknowledgedSeals = self::acknowledgedSealsNext233($options, $requiredSeals);
+        $requiredSeals = self::upsertSealsCurrentUpsertConflictTarget($currentRows, $upsertToken, $viewSource, $triggerSource, $conflictTarget, $updateColumns);
+        $acknowledgedSeals = self::acknowledgedSealsCurrentUpsertConflictTarget($options, $requiredSeals);
         $missingSeals = array_values(array_diff($requiredSeals, $acknowledgedSeals));
         $unexpectedSeals = array_values(array_diff($acknowledgedSeals, $requiredSeals));
         $upsertMatches = hash_equals($upsertToken, $expectedUpsertToken);
         $viewMatches = hash_equals($viewSource, $expectedViewSource);
         $triggerMatches = hash_equals($triggerSource, $expectedTriggerSource);
         $orderMatches = !$requireOrder || $requiredSeals === $acknowledgedSeals;
-        $upsertEvents = self::upsertEventsNext233($currentRows);
+        $upsertEvents = self::upsertEventsCurrentUpsertConflictTarget($currentRows);
         $hasUpsertRows = $requiredSeals !== [] && ($upsertEvents['insert'] + $upsertEvents['update']) > 0;
         $sealComplete = $requiredSeals !== []
             && $hasUpsertRows
@@ -346,7 +346,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedSeals === []
             && $orderMatches;
         $nextVisible = $baseVisible && $sealComplete;
-        $blockedReasons = self::blockedReasonsNext233(
+        $blockedReasons = self::blockedReasonsCurrentUpsertConflictTarget(
             $base['blocked_reasons_next229'] ?? [],
             $baseVisible,
             $hasUpsertRows,
@@ -359,8 +359,8 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $currentRows = self::tagRowsNext233($currentRows, 'current', true, $requiredSeals, $upsertToken, $viewSource, $triggerSource, $conflictTarget, $updateColumns, []);
-        $nextRows = self::tagRowsNext233($nextRows, 'next', $nextVisible, [], $upsertToken, $viewSource, $triggerSource, $conflictTarget, $updateColumns, $nextVisible ? [] : $blockedReasons);
+        $currentRows = self::tagRowsCurrentUpsertConflictTarget($currentRows, 'current', true, $requiredSeals, $upsertToken, $viewSource, $triggerSource, $conflictTarget, $updateColumns, []);
+        $nextRows = self::tagRowsCurrentUpsertConflictTarget($nextRows, 'next', $nextVisible, [], $upsertToken, $viewSource, $triggerSource, $conflictTarget, $updateColumns, $nextVisible ? [] : $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentRows, $nextRows),
             static fn (array $row): bool => (bool) $row['visible_after_current_upsert_source_next233'],
@@ -371,7 +371,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         ));
 
         return [
-            'status_next233' => self::statusNext233($nextVisible, $baseVisible, $hasUpsertRows, $upsertMatches, $viewMatches, $triggerMatches, $missingSeals, $unexpectedSeals, $requireOrder, $orderMatches),
+            'status_next233' => self::statusCurrentUpsertConflictTarget($nextVisible, $baseVisible, $hasUpsertRows, $upsertMatches, $viewMatches, $triggerMatches, $missingSeals, $unexpectedSeals, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next233' => $baseVisible,
@@ -447,7 +447,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $updateColumns
      * @return list<string>
      */
-    private static function upsertSealsNext233(array $rows, string $upsertToken, string $viewSource, string $triggerSource, array $conflictTarget, array $updateColumns): array
+    private static function upsertSealsCurrentUpsertConflictTarget(array $rows, string $upsertToken, string $viewSource, string $triggerSource, array $conflictTarget, array $updateColumns): array
     {
         $seals = [];
         foreach ($rows as $index => $row) {
@@ -474,7 +474,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array{insert:int,update:int,other:int,names:list<string>}
      */
-    private static function upsertEventsNext233(array $rows): array
+    private static function upsertEventsCurrentUpsertConflictTarget(array $rows): array
     {
         $events = ['insert' => 0, 'update' => 0, 'other' => 0, 'names' => []];
         foreach ($rows as $row) {
@@ -498,20 +498,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedSealsNext233(array $options, array $required): array
+    private static function acknowledgedSealsCurrentUpsertConflictTarget(array $options, array $required): array
     {
         if (($options['auto_ack_current_upsert_seals_next233'] ?? false) === true) {
             return $required;
         }
 
-        return self::sealListNext233($options['acknowledged_current_upsert_seals_next233'] ?? [], 'acknowledged current upsert seals');
+        return self::sealListCurrentUpsertConflictTarget($options['acknowledged_current_upsert_seals_next233'] ?? [], 'acknowledged current upsert seals');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function sealListNext233(mixed $values, string $label): array
+    private static function sealListCurrentUpsertConflictTarget(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next233 {$label} must be a list");
@@ -529,7 +529,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext233(mixed $rows, string $label): array
+    private static function rowsCurrentUpsertConflictTarget(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next233 {$label} must be a list");
@@ -551,7 +551,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext233(
+    private static function tagRowsCurrentUpsertConflictTarget(
         array $rows,
         string $phase,
         bool $visible,
@@ -587,7 +587,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext233(
+    private static function blockedReasonsCurrentUpsertConflictTarget(
         mixed $baseReasons,
         bool $baseVisible,
         bool $hasUpsertRows,
@@ -632,7 +632,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $values
      * @return list<string>
      */
-    private static function identifierListNext233(mixed $values, string $label): array
+    private static function identifierListCurrentUpsertConflictTarget(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values) || $values === []) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next233 {$label} must be a non-empty list");
@@ -648,7 +648,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return array_values(array_unique($out));
     }
 
-    private static function tokenNext233(string $value, string $label): string
+    private static function tokenCurrentUpsertConflictTarget(string $value, string $label): string
     {
         if ($value === '' || preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next233 {$label} is malformed");
@@ -661,7 +661,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext233(
+    private static function statusCurrentUpsertConflictTarget(
         bool $nextVisible,
         bool $baseVisible,
         bool $hasUpsertRows,
@@ -716,7 +716,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext234(
+    public static function executeCurrentSourceUpsertReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -736,17 +736,17 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_next231'] ?? false);
-        $currentRows = self::rowsNext234($base['current_source_rows_next231'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext234($base['attempted_next_source_rows_next231'] ?? [], 'attempted next source rows');
-        $conflictColumns = self::columnsNext234($options['upsert_conflict_columns_next234'] ?? ['option_name']);
-        $upsertToken = self::tokenNext234((string) ($options['current_source_upsert_token_next234'] ?? 'wp.current.source.upsert.234'), 'upsert token');
-        $expectedUpsertToken = self::tokenNext234((string) ($options['expected_current_source_upsert_token_next234'] ?? $upsertToken), 'expected upsert token');
-        $viewCookie = self::tokenNext234((string) ($options['current_upsert_view_cookie_next234'] ?? (string) ($currentView['source'] ?? 'main@view-cookie-234-current')), 'view cookie');
-        $triggerCookie = self::tokenNext234((string) ($options['current_upsert_trigger_cookie_next234'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-cookie-234-current')), 'trigger cookie');
+        $currentRows = self::rowsCurrentSourceUpsertReceipt($base['current_source_rows_next231'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentSourceUpsertReceipt($base['attempted_next_source_rows_next231'] ?? [], 'attempted next source rows');
+        $conflictColumns = self::columnsCurrentSourceUpsertReceipt($options['upsert_conflict_columns_next234'] ?? ['option_name']);
+        $upsertToken = self::tokenCurrentSourceUpsertReceipt((string) ($options['current_source_upsert_token_next234'] ?? 'wp.current.source.upsert.234'), 'upsert token');
+        $expectedUpsertToken = self::tokenCurrentSourceUpsertReceipt((string) ($options['expected_current_source_upsert_token_next234'] ?? $upsertToken), 'expected upsert token');
+        $viewCookie = self::tokenCurrentSourceUpsertReceipt((string) ($options['current_upsert_view_cookie_next234'] ?? (string) ($currentView['source'] ?? 'main@view-cookie-234-current')), 'view cookie');
+        $triggerCookie = self::tokenCurrentSourceUpsertReceipt((string) ($options['current_upsert_trigger_cookie_next234'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-cookie-234-current')), 'trigger cookie');
         $requireOrder = (bool) ($options['require_current_source_upsert_order_next234'] ?? true);
 
-        $required = self::upsertReceiptsNext234($currentRows, $conflictColumns, $upsertToken, $viewCookie, $triggerCookie);
-        $acknowledged = self::acknowledgedReceiptsNext234($options, $required);
+        $required = self::upsertReceiptsCurrentSourceUpsertReceipt($currentRows, $conflictColumns, $upsertToken, $viewCookie, $triggerCookie);
+        $acknowledged = self::acknowledgedReceiptsCurrentSourceUpsertReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $orderMatches = !$requireOrder || $required === $acknowledged;
@@ -757,7 +757,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpected === []
             && $orderMatches;
         $nextVisible = $baseVisible && $upsertComplete;
-        $blockedReasons = self::blockedReasonsNext234(
+        $blockedReasons = self::blockedReasonsCurrentSourceUpsertReceipt(
             $base['blocked_reasons_next231'] ?? [],
             $baseVisible,
             $tokenMatches,
@@ -767,13 +767,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $taggedCurrent = self::tagRowsNext234($currentRows, 'current-upsert', true, $required, $conflictColumns, $upsertToken, $viewCookie, $triggerCookie, []);
-        $taggedNext = self::tagRowsNext234($nextRows, 'next-source', $nextVisible, [], $conflictColumns, $upsertToken, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentSourceUpsertReceipt($currentRows, 'current-upsert', true, $required, $conflictColumns, $upsertToken, $viewCookie, $triggerCookie, []);
+        $taggedNext = self::tagRowsCurrentSourceUpsertReceipt($nextRows, 'next-source', $nextVisible, [], $conflictColumns, $upsertToken, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next234' => self::statusNext234($baseVisible, $tokenMatches, $missing, $unexpected, $requireOrder, $orderMatches, $nextVisible),
+            'status_next234' => self::statusCurrentSourceUpsertReceipt($baseVisible, $tokenMatches, $missing, $unexpected, $requireOrder, $orderMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next234' => $baseVisible,
@@ -836,7 +836,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $columns
      * @return list<string>
      */
-    private static function upsertReceiptsNext234(array $rows, array $columns, string $token, string $viewCookie, string $triggerCookie): array
+    private static function upsertReceiptsCurrentSourceUpsertReceipt(array $rows, array $columns, string $token, string $viewCookie, string $triggerCookie): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -858,20 +858,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext234(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentSourceUpsertReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_upserts_next234'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext234($options['acknowledged_current_source_upsert_receipts_next234'] ?? [], 'acknowledged current source upsert receipts');
+        return self::receiptListCurrentSourceUpsertReceipt($options['acknowledged_current_source_upsert_receipts_next234'] ?? [], 'acknowledged current source upsert receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext234(mixed $values, string $label): array
+    private static function receiptListCurrentSourceUpsertReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next234 {$label} must be a list");
@@ -889,7 +889,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext234(mixed $rows, string $label): array
+    private static function rowsCurrentSourceUpsertReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next234 {$label} must be a list");
@@ -907,7 +907,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $columns
      * @return list<string>
      */
-    private static function columnsNext234(mixed $columns): array
+    private static function columnsCurrentSourceUpsertReceipt(mixed $columns): array
     {
         if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next234 conflict columns must be a non-empty list');
@@ -930,7 +930,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext234(array $rows, string $phase, bool $visible, array $receipts, array $columns, string $token, string $viewCookie, string $triggerCookie, array $reasons): array
+    private static function tagRowsCurrentSourceUpsertReceipt(array $rows, string $phase, bool $visible, array $receipts, array $columns, string $token, string $viewCookie, string $triggerCookie, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -955,7 +955,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext234(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentSourceUpsertReceipt(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next234 base blocked reasons are malformed');
@@ -984,7 +984,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext234(bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches, bool $nextVisible): string
+    private static function statusCurrentSourceUpsertReceipt(bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches, bool $nextVisible): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next234-upsert-released';
@@ -1005,7 +1005,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next234-upsert-empty-held';
     }
 
-    private static function tokenNext234(string $value, string $label): string
+    private static function tokenCurrentSourceUpsertReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/\s/', $value) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next234 {$label} is malformed");
@@ -1026,7 +1026,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext235(
+    public static function executeCurrentYieldTicket(
         array $rows,
         array $currentViewRows,
         array $nextViewRows,
@@ -1037,7 +1037,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     ): array {
         $baseOptions = $options;
         $baseOptions['auto_ack_current_upsert_conflict_seals_next232'] = true;
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext232(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentUpsertConflictSeal(
             $rows,
             $currentViewRows,
             $nextViewRows,
@@ -1047,16 +1047,16 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $baseOptions,
         );
 
-        $currentTicketSource = self::tokenNext235((string) ($options['current_yield_ticket_source_next235'] ?? 'wp.current.yield.ticket.source.235'), 'current yield ticket source');
-        $expectedTicketSource = self::tokenNext235((string) ($options['expected_current_yield_ticket_source_next235'] ?? $currentTicketSource), 'expected current yield ticket source');
-        $resumeCursor = self::tokenNext235((string) ($options['current_yield_resume_cursor_next235'] ?? 'wp.current.yield.cursor.235'), 'current yield resume cursor');
-        $expectedResumeCursor = self::tokenNext235((string) ($options['expected_current_yield_resume_cursor_next235'] ?? $resumeCursor), 'expected current yield resume cursor');
+        $currentTicketSource = self::tokenCurrentYieldTicket((string) ($options['current_yield_ticket_source_next235'] ?? 'wp.current.yield.ticket.source.235'), 'current yield ticket source');
+        $expectedTicketSource = self::tokenCurrentYieldTicket((string) ($options['expected_current_yield_ticket_source_next235'] ?? $currentTicketSource), 'expected current yield ticket source');
+        $resumeCursor = self::tokenCurrentYieldTicket((string) ($options['current_yield_resume_cursor_next235'] ?? 'wp.current.yield.cursor.235'), 'current yield resume cursor');
+        $expectedResumeCursor = self::tokenCurrentYieldTicket((string) ($options['expected_current_yield_resume_cursor_next235'] ?? $resumeCursor), 'expected current yield resume cursor');
         $requireOrder = (bool) ($options['require_current_yield_ticket_order_next235'] ?? true);
 
-        $currentRows = self::rowsNext235($base['current_yield_stream_next232'] ?? [], 'current yield stream');
-        $attemptedNextRows = self::rowsNext235($base['attempted_next_yield_stream_next232'] ?? [], 'attempted next yield stream');
-        $requiredTickets = self::ticketsNext235($currentRows, $currentTicketSource, $resumeCursor);
-        $acknowledgedTickets = self::acknowledgedTicketsNext235($options, $requiredTickets);
+        $currentRows = self::rowsCurrentYieldTicket($base['current_yield_stream_next232'] ?? [], 'current yield stream');
+        $attemptedNextRows = self::rowsCurrentYieldTicket($base['attempted_next_yield_stream_next232'] ?? [], 'attempted next yield stream');
+        $requiredTickets = self::ticketsCurrentYieldTicket($currentRows, $currentTicketSource, $resumeCursor);
+        $acknowledgedTickets = self::acknowledgedTicketsCurrentYieldTicket($options, $requiredTickets);
         $missingTickets = array_values(array_diff($requiredTickets, $acknowledgedTickets));
         $unexpectedTickets = array_values(array_diff($acknowledgedTickets, $requiredTickets));
         $sourceMatches = hash_equals($currentTicketSource, $expectedTicketSource);
@@ -1071,14 +1071,14 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedTickets === []
             && $orderMatches;
 
-        $blockedReasons = self::blockedReasonsNext235($baseReleased, $sourceMatches, $cursorMatches, $missingTickets, $unexpectedTickets, $requireOrder, $orderMatches);
-        $currentTagged = self::tagRowsNext235($currentRows, 'current', true, $requiredTickets, $currentTicketSource, $resumeCursor, []);
-        $nextTagged = self::tagRowsNext235($attemptedNextRows, 'next', $ticketsComplete, [], $currentTicketSource, $resumeCursor, $ticketsComplete ? [] : $blockedReasons);
-        $currentReturning = self::tagRowsNext235(self::rowsNext235($base['current_returning_rows_next232'] ?? [], 'current returning rows'), 'current', true, $requiredTickets, $currentTicketSource, $resumeCursor, []);
-        $nextReturning = self::tagRowsNext235(self::rowsNext235($base['attempted_next_returning_rows_next232'] ?? [], 'attempted next returning rows'), 'next', $ticketsComplete, [], $currentTicketSource, $resumeCursor, $ticketsComplete ? [] : $blockedReasons);
+        $blockedReasons = self::blockedReasonsCurrentYieldTicket($baseReleased, $sourceMatches, $cursorMatches, $missingTickets, $unexpectedTickets, $requireOrder, $orderMatches);
+        $currentTagged = self::tagRowsCurrentYieldTicket($currentRows, 'current', true, $requiredTickets, $currentTicketSource, $resumeCursor, []);
+        $nextTagged = self::tagRowsCurrentYieldTicket($attemptedNextRows, 'next', $ticketsComplete, [], $currentTicketSource, $resumeCursor, $ticketsComplete ? [] : $blockedReasons);
+        $currentReturning = self::tagRowsCurrentYieldTicket(self::rowsCurrentYieldTicket($base['current_returning_rows_next232'] ?? [], 'current returning rows'), 'current', true, $requiredTickets, $currentTicketSource, $resumeCursor, []);
+        $nextReturning = self::tagRowsCurrentYieldTicket(self::rowsCurrentYieldTicket($base['attempted_next_returning_rows_next232'] ?? [], 'attempted next returning rows'), 'next', $ticketsComplete, [], $currentTicketSource, $resumeCursor, $ticketsComplete ? [] : $blockedReasons);
 
         return [
-            'status_next235' => self::statusNext235($ticketsComplete, $baseReleased, $sourceMatches, $cursorMatches, $missingTickets, $unexpectedTickets, $requireOrder, $orderMatches),
+            'status_next235' => self::statusCurrentYieldTicket($ticketsComplete, $baseReleased, $sourceMatches, $cursorMatches, $missingTickets, $unexpectedTickets, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base_next235' => $base,
             'current_yield_ticket_source_next235' => $currentTicketSource,
@@ -1137,7 +1137,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $rows @return list<string> */
-    private static function ticketsNext235(array $rows, string $source, string $cursor): array
+    private static function ticketsCurrentYieldTicket(array $rows, string $source, string $cursor): array
     {
         $tickets = [];
         foreach ($rows as $index => $row) {
@@ -1162,17 +1162,17 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $options @param list<string> $required @return list<string> */
-    private static function acknowledgedTicketsNext235(array $options, array $required): array
+    private static function acknowledgedTicketsCurrentYieldTicket(array $options, array $required): array
     {
         if (($options['auto_ack_current_yield_tickets_next235'] ?? false) === true) {
             return $required;
         }
 
-        return self::ticketListNext235($options['acknowledged_current_yield_tickets_next235'] ?? [], 'acknowledged current yield tickets');
+        return self::ticketListCurrentYieldTicket($options['acknowledged_current_yield_tickets_next235'] ?? [], 'acknowledged current yield tickets');
     }
 
     /** @param mixed $values @return list<string> */
-    private static function ticketListNext235(mixed $values, string $label): array
+    private static function ticketListCurrentYieldTicket(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next235 {$label} must be a list");
@@ -1187,7 +1187,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param mixed $rows @return list<array<string,mixed>> */
-    private static function rowsNext235(mixed $rows, string $label): array
+    private static function rowsCurrentYieldTicket(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next235 {$label} must be a list");
@@ -1202,7 +1202,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $rows @param list<string> $tickets @param list<string> $reasons @return list<array<string,mixed>> */
-    private static function tagRowsNext235(array $rows, string $phase, bool $visible, array $tickets, string $source, string $cursor, array $reasons): array
+    private static function tagRowsCurrentYieldTicket(array $rows, string $phase, bool $visible, array $tickets, string $source, string $cursor, array $reasons): array
     {
         $tagged = [];
         foreach ($rows as $index => $row) {
@@ -1220,7 +1220,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<string> $missing @param list<string> $unexpected @return list<string> */
-    private static function blockedReasonsNext235(bool $baseReleased, bool $sourceMatches, bool $cursorMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentYieldTicket(bool $baseReleased, bool $sourceMatches, bool $cursorMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
     {
         $reasons = [];
         if (!$baseReleased) {
@@ -1246,7 +1246,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<string> $missing @param list<string> $unexpected */
-    private static function statusNext235(bool $complete, bool $baseReleased, bool $sourceMatches, bool $cursorMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
+    private static function statusCurrentYieldTicket(bool $complete, bool $baseReleased, bool $sourceMatches, bool $cursorMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
     {
         if ($complete) {
             return 'trigger-recursive-view-upsert-current-source-next235-yield-released';
@@ -1270,7 +1270,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next235-held';
     }
 
-    private static function tokenNext235(string $token, string $label): string
+    private static function tokenCurrentYieldTicket(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next235 {$label} is malformed");
@@ -1291,7 +1291,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext236(
+    public static function executeCurrentRowImageReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -1300,7 +1300,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext233(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentUpsertConflictTarget(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -1310,26 +1310,26 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $options,
         );
 
-        $currentRows = self::rowsNext236($base['current_source_rows_next233'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext236($base['attempted_next_source_rows_next233'] ?? [], 'attempted next source rows');
+        $currentRows = self::rowsCurrentRowImageReceipt($base['current_source_rows_next233'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentRowImageReceipt($base['attempted_next_source_rows_next233'] ?? [], 'attempted next source rows');
         $baseVisible = (bool) ($base['next_source_visible_after_current_upsert_source_next233'] ?? false);
-        $imageToken = self::tokenNext236((string) ($options['current_upsert_row_image_token_next236'] ?? 'wp.current.upsert.row.image.236'), 'current upsert row-image token');
-        $expectedImageToken = self::tokenNext236((string) ($options['expected_current_upsert_row_image_token_next236'] ?? $imageToken), 'expected current upsert row-image token');
-        $viewSource = self::tokenNext236((string) ($options['current_upsert_row_image_view_source_next236'] ?? ($base['current_upsert_view_source_next233'] ?? ($currentView['source'] ?? 'main@view-upsert-236-current'))), 'current upsert row-image view source');
-        $expectedViewSource = self::tokenNext236((string) ($options['expected_current_upsert_row_image_view_source_next236'] ?? $viewSource), 'expected current upsert row-image view source');
-        $triggerSource = self::tokenNext236((string) ($options['current_upsert_row_image_trigger_source_next236'] ?? ($base['current_upsert_trigger_source_next233'] ?? ($currentView['trigger_source'] ?? 'main@trigger-upsert-236-current'))), 'current upsert row-image trigger source');
-        $expectedTriggerSource = self::tokenNext236((string) ($options['expected_current_upsert_row_image_trigger_source_next236'] ?? $triggerSource), 'expected current upsert row-image trigger source');
+        $imageToken = self::tokenCurrentRowImageReceipt((string) ($options['current_upsert_row_image_token_next236'] ?? 'wp.current.upsert.row.image.236'), 'current upsert row-image token');
+        $expectedImageToken = self::tokenCurrentRowImageReceipt((string) ($options['expected_current_upsert_row_image_token_next236'] ?? $imageToken), 'expected current upsert row-image token');
+        $viewSource = self::tokenCurrentRowImageReceipt((string) ($options['current_upsert_row_image_view_source_next236'] ?? ($base['current_upsert_view_source_next233'] ?? ($currentView['source'] ?? 'main@view-upsert-236-current'))), 'current upsert row-image view source');
+        $expectedViewSource = self::tokenCurrentRowImageReceipt((string) ($options['expected_current_upsert_row_image_view_source_next236'] ?? $viewSource), 'expected current upsert row-image view source');
+        $triggerSource = self::tokenCurrentRowImageReceipt((string) ($options['current_upsert_row_image_trigger_source_next236'] ?? ($base['current_upsert_trigger_source_next233'] ?? ($currentView['trigger_source'] ?? 'main@trigger-upsert-236-current'))), 'current upsert row-image trigger source');
+        $expectedTriggerSource = self::tokenCurrentRowImageReceipt((string) ($options['expected_current_upsert_row_image_trigger_source_next236'] ?? $triggerSource), 'expected current upsert row-image trigger source');
         $requireOrder = (bool) ($options['require_current_upsert_row_image_order_next236'] ?? true);
 
-        $requiredReceipts = self::rowImageReceiptsNext236($currentRows, $imageToken, $viewSource, $triggerSource);
-        $acknowledgedReceipts = self::acknowledgedReceiptsNext236($options, $requiredReceipts);
+        $requiredReceipts = self::rowImageReceiptsCurrentRowImageReceipt($currentRows, $imageToken, $viewSource, $triggerSource);
+        $acknowledgedReceipts = self::acknowledgedReceiptsCurrentRowImageReceipt($options, $requiredReceipts);
         $missingReceipts = array_values(array_diff($requiredReceipts, $acknowledgedReceipts));
         $unexpectedReceipts = array_values(array_diff($acknowledgedReceipts, $requiredReceipts));
         $imageMatches = hash_equals($imageToken, $expectedImageToken);
         $viewMatches = hash_equals($viewSource, $expectedViewSource);
         $triggerMatches = hash_equals($triggerSource, $expectedTriggerSource);
         $orderMatches = !$requireOrder || $requiredReceipts === $acknowledgedReceipts;
-        $currentImages = self::rowImagesNext236($currentRows);
+        $currentImages = self::rowImagesCurrentRowImageReceipt($currentRows);
         $hasImages = $requiredReceipts !== [] && $currentImages['total'] > 0;
         $imageComplete = $hasImages
             && $imageMatches
@@ -1339,7 +1339,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedReceipts === []
             && $orderMatches;
         $nextVisible = $baseVisible && $imageComplete;
-        $blockedReasons = self::blockedReasonsNext236(
+        $blockedReasons = self::blockedReasonsCurrentRowImageReceipt(
             $base['blocked_reasons_next233'] ?? [],
             $baseVisible,
             $hasImages,
@@ -1352,8 +1352,8 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $currentRows = self::tagRowsNext236($currentRows, 'current', true, $requiredReceipts, $imageToken, $viewSource, $triggerSource, []);
-        $nextRows = self::tagRowsNext236($nextRows, 'next', $nextVisible, [], $imageToken, $viewSource, $triggerSource, $nextVisible ? [] : $blockedReasons);
+        $currentRows = self::tagRowsCurrentRowImageReceipt($currentRows, 'current', true, $requiredReceipts, $imageToken, $viewSource, $triggerSource, []);
+        $nextRows = self::tagRowsCurrentRowImageReceipt($nextRows, 'next', $nextVisible, [], $imageToken, $viewSource, $triggerSource, $nextVisible ? [] : $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentRows, $nextRows),
             static fn (array $row): bool => (bool) $row['visible_after_current_upsert_row_image_next236'],
@@ -1364,7 +1364,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         ));
 
         return [
-            'status_next236' => self::statusNext236($nextVisible, $baseVisible, $hasImages, $imageMatches, $viewMatches, $triggerMatches, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches),
+            'status_next236' => self::statusCurrentRowImageReceipt($nextVisible, $baseVisible, $hasImages, $imageMatches, $viewMatches, $triggerMatches, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next236' => $baseVisible,
@@ -1431,7 +1431,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $rows @return list<string> */
-    private static function rowImageReceiptsNext236(array $rows, string $imageToken, string $viewSource, string $triggerSource): array
+    private static function rowImageReceiptsCurrentRowImageReceipt(array $rows, string $imageToken, string $viewSource, string $triggerSource): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -1458,7 +1458,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array{total:int,insert:int,update:int,recursive:int,names:list<string>,events:list<string>,max_depth:int}
      */
-    private static function rowImagesNext236(array $rows): array
+    private static function rowImagesCurrentRowImageReceipt(array $rows): array
     {
         $images = ['total' => 0, 'insert' => 0, 'update' => 0, 'recursive' => 0, 'names' => [], 'events' => [], 'max_depth' => 0];
         foreach ($rows as $row) {
@@ -1484,17 +1484,17 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $options @param list<string> $required @return list<string> */
-    private static function acknowledgedReceiptsNext236(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentRowImageReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_upsert_row_image_receipts_next236'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext236($options['acknowledged_current_upsert_row_image_receipts_next236'] ?? [], 'acknowledged current upsert row-image receipts');
+        return self::receiptListCurrentRowImageReceipt($options['acknowledged_current_upsert_row_image_receipts_next236'] ?? [], 'acknowledged current upsert row-image receipts');
     }
 
     /** @param mixed $values @return list<string> */
-    private static function receiptListNext236(mixed $values, string $label): array
+    private static function receiptListCurrentRowImageReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next236 {$label} must be a list");
@@ -1509,7 +1509,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param mixed $rows @return list<array<string,mixed>> */
-    private static function rowsNext236(mixed $rows, string $label): array
+    private static function rowsCurrentRowImageReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next236 {$label} must be a list");
@@ -1529,7 +1529,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext236(array $rows, string $phase, bool $visible, array $receipts, string $imageToken, string $viewSource, string $triggerSource, array $reasons): array
+    private static function tagRowsCurrentRowImageReceipt(array $rows, string $phase, bool $visible, array $receipts, string $imageToken, string $viewSource, string $triggerSource, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -1553,7 +1553,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext236(
+    private static function blockedReasonsCurrentRowImageReceipt(
         mixed $baseReasons,
         bool $baseVisible,
         bool $hasImages,
@@ -1594,7 +1594,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return array_values(array_unique(array_map('strval', $reasons)));
     }
 
-    private static function tokenNext236(string $value, string $label): string
+    private static function tokenCurrentRowImageReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next236 {$label} is malformed");
@@ -1604,7 +1604,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<string> $missing @param list<string> $unexpected */
-    private static function statusNext236(
+    private static function statusCurrentRowImageReceipt(
         bool $nextVisible,
         bool $baseVisible,
         bool $hasImages,
@@ -1656,7 +1656,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext237(
+    public static function executeCurrentActionReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -1665,7 +1665,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext234(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentSourceUpsertReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -1676,18 +1676,18 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_next234'] ?? false);
-        $currentRows = self::rowsNext237($base['current_source_rows_next234'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext237($base['attempted_next_source_rows_next234'] ?? [], 'attempted next source rows');
-        $actionToken = self::tokenNext237((string) ($options['current_source_upsert_action_token_next237'] ?? 'wp.current.source.upsert.action.237'), 'action token');
-        $expectedActionToken = self::tokenNext237((string) ($options['expected_current_source_upsert_action_token_next237'] ?? $actionToken), 'expected action token');
-        $viewCookie = self::tokenNext237((string) ($options['current_upsert_action_view_cookie_next237'] ?? ($base['current_upsert_view_cookie_next234'] ?? 'main@view-cookie-237-current')), 'view cookie');
-        $triggerCookie = self::tokenNext237((string) ($options['current_upsert_action_trigger_cookie_next237'] ?? ($base['current_upsert_trigger_cookie_next234'] ?? 'main@trigger-cookie-237-current')), 'trigger cookie');
+        $currentRows = self::rowsCurrentActionReceipt($base['current_source_rows_next234'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentActionReceipt($base['attempted_next_source_rows_next234'] ?? [], 'attempted next source rows');
+        $actionToken = self::tokenCurrentActionReceipt((string) ($options['current_source_upsert_action_token_next237'] ?? 'wp.current.source.upsert.action.237'), 'action token');
+        $expectedActionToken = self::tokenCurrentActionReceipt((string) ($options['expected_current_source_upsert_action_token_next237'] ?? $actionToken), 'expected action token');
+        $viewCookie = self::tokenCurrentActionReceipt((string) ($options['current_upsert_action_view_cookie_next237'] ?? ($base['current_upsert_view_cookie_next234'] ?? 'main@view-cookie-237-current')), 'view cookie');
+        $triggerCookie = self::tokenCurrentActionReceipt((string) ($options['current_upsert_action_trigger_cookie_next237'] ?? ($base['current_upsert_trigger_cookie_next234'] ?? 'main@trigger-cookie-237-current')), 'trigger cookie');
         $requireOrder = (bool) ($options['require_current_source_upsert_action_order_next237'] ?? true);
-        $actionOverrides = self::actionOverridesNext237($options['current_source_upsert_actions_next237'] ?? []);
+        $actionOverrides = self::actionOverridesCurrentActionReceipt($options['current_source_upsert_actions_next237'] ?? []);
 
-        $actionRows = self::actionRowsNext237($currentRows, $baseRows, $actionOverrides);
-        $required = self::actionReceiptsNext237($actionRows, $actionToken, $viewCookie, $triggerCookie);
-        $acknowledged = self::acknowledgedReceiptsNext237($options, $required);
+        $actionRows = self::actionRowsCurrentActionReceipt($currentRows, $baseRows, $actionOverrides);
+        $required = self::actionReceiptsCurrentActionReceipt($actionRows, $actionToken, $viewCookie, $triggerCookie);
+        $acknowledged = self::acknowledgedReceiptsCurrentActionReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $orderMatches = !$requireOrder || $required === $acknowledged;
@@ -1698,7 +1698,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpected === []
             && $orderMatches;
         $nextVisible = $baseVisible && $actionComplete;
-        $blockedReasons = self::blockedReasonsNext237(
+        $blockedReasons = self::blockedReasonsCurrentActionReceipt(
             $base['blocked_reasons_next234'] ?? [],
             $baseVisible,
             $tokenMatches,
@@ -1708,13 +1708,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $taggedCurrent = self::tagRowsNext237($currentRows, $actionRows, 'current-action', true, $required, $actionToken, $viewCookie, $triggerCookie, []);
-        $taggedNext = self::tagRowsNext237($nextRows, [], 'next-source', $nextVisible, [], $actionToken, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentActionReceipt($currentRows, $actionRows, 'current-action', true, $required, $actionToken, $viewCookie, $triggerCookie, []);
+        $taggedNext = self::tagRowsCurrentActionReceipt($nextRows, [], 'next-source', $nextVisible, [], $actionToken, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next237' => self::statusNext237($baseVisible, $tokenMatches, $missing, $unexpected, $requireOrder, $orderMatches, $nextVisible),
+            'status_next237' => self::statusCurrentActionReceipt($baseVisible, $tokenMatches, $missing, $unexpected, $requireOrder, $orderMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next237' => $baseVisible,
@@ -1777,7 +1777,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,string> $overrides
      * @return list<array{name:string,action:string,event:string,conflict:int}>
      */
-    private static function actionRowsNext237(array $rows, array $baseRows, array $overrides): array
+    private static function actionRowsCurrentActionReceipt(array $rows, array $baseRows, array $overrides): array
     {
         $existing = [];
         foreach ($baseRows as $row) {
@@ -1793,7 +1793,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             if ($name === '') {
                 throw new InvalidArgumentException('SQLite recursive view UPSERT next237 current rows require a RETURNING name');
             }
-            $action = $overrides[$name] ?? self::defaultActionNext237($name, isset($existing[$name]));
+            $action = $overrides[$name] ?? self::defaultActionCurrentActionReceipt($name, isset($existing[$name]));
             $actions[] = [
                 'name' => $name,
                 'action' => $action,
@@ -1805,7 +1805,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return $actions;
     }
 
-    private static function defaultActionNext237(string $name, bool $conflict): string
+    private static function defaultActionCurrentActionReceipt(string $name, bool $conflict): string
     {
         if (str_ends_with($name, '_child')) {
             return 'insert-recursive';
@@ -1818,7 +1818,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array{name:string,action:string,event:string,conflict:int}> $actions
      * @return list<string>
      */
-    private static function actionReceiptsNext237(array $actions, string $token, string $viewCookie, string $triggerCookie): array
+    private static function actionReceiptsCurrentActionReceipt(array $actions, string $token, string $viewCookie, string $triggerCookie): array
     {
         $receipts = [];
         foreach ($actions as $index => $action) {
@@ -1842,20 +1842,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext237(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentActionReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_upsert_actions_next237'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext237($options['acknowledged_current_source_upsert_action_receipts_next237'] ?? [], 'acknowledged current source upsert action receipts');
+        return self::receiptListCurrentActionReceipt($options['acknowledged_current_source_upsert_action_receipts_next237'] ?? [], 'acknowledged current source upsert action receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext237(mixed $values, string $label): array
+    private static function receiptListCurrentActionReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next237 {$label} must be a list");
@@ -1873,7 +1873,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $values
      * @return array<string,string>
      */
-    private static function actionOverridesNext237(mixed $values): array
+    private static function actionOverridesCurrentActionReceipt(mixed $values): array
     {
         if (!is_array($values)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next237 action overrides must be an array');
@@ -1896,7 +1896,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext237(mixed $rows, string $label): array
+    private static function rowsCurrentActionReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next237 {$label} must be a list");
@@ -1917,7 +1917,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext237(array $rows, array $actions, string $phase, bool $visible, array $receipts, string $token, string $viewCookie, string $triggerCookie, array $reasons): array
+    private static function tagRowsCurrentActionReceipt(array $rows, array $actions, string $phase, bool $visible, array $receipts, string $token, string $viewCookie, string $triggerCookie, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -1942,7 +1942,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext237(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentActionReceipt(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next237 base blocked reasons are malformed');
@@ -1971,7 +1971,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext237(bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches, bool $nextVisible): string
+    private static function statusCurrentActionReceipt(bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches, bool $nextVisible): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next237-actions-released';
@@ -1989,7 +1989,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next237-actions-held';
     }
 
-    private static function tokenNext237(string $token, string $label): string
+    private static function tokenCurrentActionReceipt(string $token, string $label): string
     {
         if (!preg_match('/^[A-Za-z0-9_.:@-]{3,160}$/', $token)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next237 invalid {$label}");
@@ -2010,7 +2010,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext238(
+    public static function executeCurrentUpsertReceipt(
         array $rows,
         array $currentViewRows,
         array $nextViewRows,
@@ -2021,7 +2021,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     ): array {
         $baseOptions = $options;
         $baseOptions['auto_ack_current_yield_tickets_next235'] = true;
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext235(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentYieldTicket(
             $rows,
             $currentViewRows,
             $nextViewRows,
@@ -2031,18 +2031,18 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $baseOptions,
         );
 
-        $resumeSource = self::tokenNext238((string) ($options['current_resume_source_next238'] ?? 'wp.current.resume.source.238'), 'current resume source');
-        $expectedResumeSource = self::tokenNext238((string) ($options['expected_current_resume_source_next238'] ?? $resumeSource), 'expected current resume source');
-        $resumeCursor = self::tokenNext238((string) ($options['current_resume_cursor_next238'] ?? 'wp.current.resume.cursor.238'), 'current resume cursor');
-        $expectedResumeCursor = self::tokenNext238((string) ($options['expected_current_resume_cursor_next238'] ?? $resumeCursor), 'expected current resume cursor');
-        $resumeEpoch = self::tokenNext238((string) ($options['current_resume_epoch_next238'] ?? 'wp.current.resume.epoch.238'), 'current resume epoch');
-        $expectedResumeEpoch = self::tokenNext238((string) ($options['expected_current_resume_epoch_next238'] ?? $resumeEpoch), 'expected current resume epoch');
+        $resumeSource = self::tokenCurrentUpsertReceipt((string) ($options['current_resume_source_next238'] ?? 'wp.current.resume.source.238'), 'current resume source');
+        $expectedResumeSource = self::tokenCurrentUpsertReceipt((string) ($options['expected_current_resume_source_next238'] ?? $resumeSource), 'expected current resume source');
+        $resumeCursor = self::tokenCurrentUpsertReceipt((string) ($options['current_resume_cursor_next238'] ?? 'wp.current.resume.cursor.238'), 'current resume cursor');
+        $expectedResumeCursor = self::tokenCurrentUpsertReceipt((string) ($options['expected_current_resume_cursor_next238'] ?? $resumeCursor), 'expected current resume cursor');
+        $resumeEpoch = self::tokenCurrentUpsertReceipt((string) ($options['current_resume_epoch_next238'] ?? 'wp.current.resume.epoch.238'), 'current resume epoch');
+        $expectedResumeEpoch = self::tokenCurrentUpsertReceipt((string) ($options['expected_current_resume_epoch_next238'] ?? $resumeEpoch), 'expected current resume epoch');
         $requireOrder = (bool) ($options['require_current_resume_receipt_order_next238'] ?? true);
 
-        $currentRows = self::rowsNext238($base['current_yield_stream_next235'] ?? [], 'current yield stream');
-        $attemptedNextRows = self::rowsNext238($base['attempted_next_yield_stream_next235'] ?? [], 'attempted next yield stream');
-        $requiredReceipts = self::receiptsNext238($currentRows, $resumeSource, $resumeCursor, $resumeEpoch);
-        $acknowledgedReceipts = self::acknowledgedReceiptsNext238($options, $requiredReceipts);
+        $currentRows = self::rowsCurrentUpsertReceipt($base['current_yield_stream_next235'] ?? [], 'current yield stream');
+        $attemptedNextRows = self::rowsCurrentUpsertReceipt($base['attempted_next_yield_stream_next235'] ?? [], 'attempted next yield stream');
+        $requiredReceipts = self::receiptsCurrentUpsertReceipt($currentRows, $resumeSource, $resumeCursor, $resumeEpoch);
+        $acknowledgedReceipts = self::acknowledgedReceiptsCurrentUpsertReceipt($options, $requiredReceipts);
         $missingReceipts = array_values(array_diff($requiredReceipts, $acknowledgedReceipts));
         $unexpectedReceipts = array_values(array_diff($acknowledgedReceipts, $requiredReceipts));
         $sourceMatches = hash_equals($resumeSource, $expectedResumeSource);
@@ -2059,14 +2059,14 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedReceipts === []
             && $orderMatches;
 
-        $blockedReasons = self::blockedReasonsNext238($baseReleased, $sourceMatches, $cursorMatches, $epochMatches, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches);
-        $currentTagged = self::tagRowsNext238($currentRows, 'current', true, $requiredReceipts, $resumeSource, $resumeCursor, $resumeEpoch, []);
-        $nextTagged = self::tagRowsNext238($attemptedNextRows, 'next', $resumeComplete, [], $resumeSource, $resumeCursor, $resumeEpoch, $resumeComplete ? [] : $blockedReasons);
-        $currentReturning = self::tagRowsNext238(self::rowsNext238($base['current_returning_rows_next235'] ?? [], 'current returning rows'), 'current', true, $requiredReceipts, $resumeSource, $resumeCursor, $resumeEpoch, []);
-        $nextReturning = self::tagRowsNext238(self::rowsNext238($base['attempted_next_returning_rows_next235'] ?? [], 'attempted next returning rows'), 'next', $resumeComplete, [], $resumeSource, $resumeCursor, $resumeEpoch, $resumeComplete ? [] : $blockedReasons);
+        $blockedReasons = self::blockedReasonsCurrentUpsertReceipt($baseReleased, $sourceMatches, $cursorMatches, $epochMatches, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches);
+        $currentTagged = self::tagRowsCurrentUpsertReceipt($currentRows, 'current', true, $requiredReceipts, $resumeSource, $resumeCursor, $resumeEpoch, []);
+        $nextTagged = self::tagRowsCurrentUpsertReceipt($attemptedNextRows, 'next', $resumeComplete, [], $resumeSource, $resumeCursor, $resumeEpoch, $resumeComplete ? [] : $blockedReasons);
+        $currentReturning = self::tagRowsCurrentUpsertReceipt(self::rowsCurrentUpsertReceipt($base['current_returning_rows_next235'] ?? [], 'current returning rows'), 'current', true, $requiredReceipts, $resumeSource, $resumeCursor, $resumeEpoch, []);
+        $nextReturning = self::tagRowsCurrentUpsertReceipt(self::rowsCurrentUpsertReceipt($base['attempted_next_returning_rows_next235'] ?? [], 'attempted next returning rows'), 'next', $resumeComplete, [], $resumeSource, $resumeCursor, $resumeEpoch, $resumeComplete ? [] : $blockedReasons);
 
         return [
-            'status_next238' => self::statusNext238($resumeComplete, $baseReleased, $sourceMatches, $cursorMatches, $epochMatches, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches),
+            'status_next238' => self::statusCurrentUpsertReceipt($resumeComplete, $baseReleased, $sourceMatches, $cursorMatches, $epochMatches, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base_next238' => $base,
             'current_resume_source_next238' => $resumeSource,
@@ -2129,7 +2129,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $rows @return list<string> */
-    private static function receiptsNext238(array $rows, string $source, string $cursor, string $epoch): array
+    private static function receiptsCurrentUpsertReceipt(array $rows, string $source, string $cursor, string $epoch): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -2159,17 +2159,17 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $options @param list<string> $required @return list<string> */
-    private static function acknowledgedReceiptsNext238(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentUpsertReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_resume_receipts_next238'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext238($options['acknowledged_current_resume_receipts_next238'] ?? [], 'acknowledged current resume receipts');
+        return self::receiptListCurrentUpsertReceipt($options['acknowledged_current_resume_receipts_next238'] ?? [], 'acknowledged current resume receipts');
     }
 
     /** @param mixed $values @return list<string> */
-    private static function receiptListNext238(mixed $values, string $label): array
+    private static function receiptListCurrentUpsertReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next238 {$label} must be a list");
@@ -2184,7 +2184,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param mixed $rows @return list<array<string,mixed>> */
-    private static function rowsNext238(mixed $rows, string $label): array
+    private static function rowsCurrentUpsertReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next238 {$label} must be a list");
@@ -2199,7 +2199,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<array<string,mixed>> $rows @param list<string> $receipts @param list<string> $reasons @return list<array<string,mixed>> */
-    private static function tagRowsNext238(array $rows, string $phase, bool $visible, array $receipts, string $source, string $cursor, string $epoch, array $reasons): array
+    private static function tagRowsCurrentUpsertReceipt(array $rows, string $phase, bool $visible, array $receipts, string $source, string $cursor, string $epoch, array $reasons): array
     {
         $tagged = [];
         foreach ($rows as $index => $row) {
@@ -2218,7 +2218,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<string> $missing @param list<string> $unexpected @return list<string> */
-    private static function blockedReasonsNext238(bool $baseReleased, bool $sourceMatches, bool $cursorMatches, bool $epochMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentUpsertReceipt(bool $baseReleased, bool $sourceMatches, bool $cursorMatches, bool $epochMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
     {
         $reasons = [];
         if (!$baseReleased) {
@@ -2247,7 +2247,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     }
 
     /** @param list<string> $missing @param list<string> $unexpected */
-    private static function statusNext238(bool $complete, bool $baseReleased, bool $sourceMatches, bool $cursorMatches, bool $epochMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
+    private static function statusCurrentUpsertReceipt(bool $complete, bool $baseReleased, bool $sourceMatches, bool $cursorMatches, bool $epochMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
     {
         if ($complete) {
             return 'trigger-recursive-view-upsert-current-source-next238-resume-released';
@@ -2274,7 +2274,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next238-held';
     }
 
-    private static function tokenNext238(string $token, string $label): string
+    private static function tokenCurrentUpsertReceipt(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next238 {$label} is malformed");
@@ -2295,7 +2295,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext239(
+    public static function executeCurrentTargetReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -2315,17 +2315,17 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_next231'] ?? false);
-        $currentRows = self::rowsNext239($base['current_source_rows_next231'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext239($base['attempted_next_source_rows_next231'] ?? [], 'attempted next source rows');
-        $target = self::tokenNext239((string) ($options['current_source_upsert_target_next239'] ?? 'option_name'), 'upsert target');
-        $policy = self::tokenNext239((string) ($options['current_source_upsert_policy_next239'] ?? 'do-update-returning'), 'upsert policy');
-        $cursor = self::tokenNext239((string) ($options['current_source_upsert_cursor_next239'] ?? 'wp.returning.upsert.cursor.239'), 'upsert cursor');
-        $generation = self::tokenNext239((string) ($options['current_source_upsert_generation_next239'] ?? 'wp.current.source.upsert.generation.239'), 'upsert generation');
-        $expectedGeneration = self::tokenNext239((string) ($options['expected_current_source_upsert_generation_next239'] ?? $generation), 'expected upsert generation');
+        $currentRows = self::rowsCurrentTargetReceipt($base['current_source_rows_next231'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentTargetReceipt($base['attempted_next_source_rows_next231'] ?? [], 'attempted next source rows');
+        $target = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_target_next239'] ?? 'option_name'), 'upsert target');
+        $policy = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_policy_next239'] ?? 'do-update-returning'), 'upsert policy');
+        $cursor = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_cursor_next239'] ?? 'wp.returning.upsert.cursor.239'), 'upsert cursor');
+        $generation = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_generation_next239'] ?? 'wp.current.source.upsert.generation.239'), 'upsert generation');
+        $expectedGeneration = self::tokenCurrentTargetReceipt((string) ($options['expected_current_source_upsert_generation_next239'] ?? $generation), 'expected upsert generation');
         $requireOrder = (bool) ($options['require_current_source_upsert_order_next239'] ?? true);
         $generationMatches = hash_equals($generation, $expectedGeneration);
-        $requiredTargets = self::targetReceiptsNext239($currentRows, $target, $policy, $cursor, $generation);
-        $acknowledgedTargets = self::acknowledgedTargetsNext239($options, $requiredTargets);
+        $requiredTargets = self::targetReceiptsCurrentTargetReceipt($currentRows, $target, $policy, $cursor, $generation);
+        $acknowledgedTargets = self::acknowledgedTargetsCurrentTargetReceipt($options, $requiredTargets);
         $missingTargets = array_values(array_diff($requiredTargets, $acknowledgedTargets));
         $unexpectedTargets = array_values(array_diff($acknowledgedTargets, $requiredTargets));
         $orderMatches = !$requireOrder || $requiredTargets === $acknowledgedTargets;
@@ -2335,7 +2335,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedTargets === []
             && $orderMatches;
         $nextVisible = $baseVisible && $upsertComplete;
-        $blockedReasons = self::blockedReasonsNext239(
+        $blockedReasons = self::blockedReasonsCurrentTargetReceipt(
             $base['blocked_reasons_next231'] ?? [],
             $baseVisible,
             $generationMatches,
@@ -2345,8 +2345,8 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $currentRows = self::tagRowsNext239($currentRows, 'current', true, $requiredTargets, $target, $policy, $cursor, $generation, []);
-        $nextRows = self::tagRowsNext239($nextRows, 'next', $nextVisible, [], $target, $policy, $cursor, $generation, $nextVisible ? [] : $blockedReasons);
+        $currentRows = self::tagRowsCurrentTargetReceipt($currentRows, 'current', true, $requiredTargets, $target, $policy, $cursor, $generation, []);
+        $nextRows = self::tagRowsCurrentTargetReceipt($nextRows, 'next', $nextVisible, [], $target, $policy, $cursor, $generation, $nextVisible ? [] : $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentRows, $nextRows),
             static fn (array $row): bool => (bool) $row['visible_after_current_source_upsert_next239'],
@@ -2357,7 +2357,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         ));
 
         return [
-            'status_next239' => self::statusNext239($baseVisible, $generationMatches, $missingTargets, $unexpectedTargets, $requireOrder, $orderMatches, $nextVisible),
+            'status_next239' => self::statusCurrentTargetReceipt($baseVisible, $generationMatches, $missingTargets, $unexpectedTargets, $requireOrder, $orderMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next239' => $baseVisible,
@@ -2420,7 +2420,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function targetReceiptsNext239(array $rows, string $target, string $policy, string $cursor, string $generation): array
+    private static function targetReceiptsCurrentTargetReceipt(array $rows, string $target, string $policy, string $cursor, string $generation): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -2448,20 +2448,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedTargetsNext239(array $options, array $required): array
+    private static function acknowledgedTargetsCurrentTargetReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_upsert_targets_next239'] ?? false) === true) {
             return $required;
         }
 
-        return self::targetListNext239($options['acknowledged_current_source_upsert_targets_next239'] ?? [], 'acknowledged current source upsert targets');
+        return self::targetListCurrentTargetReceipt($options['acknowledged_current_source_upsert_targets_next239'] ?? [], 'acknowledged current source upsert targets');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function targetListNext239(mixed $values, string $label): array
+    private static function targetListCurrentTargetReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next239 {$label} must be a list");
@@ -2479,7 +2479,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext239(mixed $rows, string $label): array
+    private static function rowsCurrentTargetReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next239 {$label} must be a list");
@@ -2499,7 +2499,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext239(
+    private static function tagRowsCurrentTargetReceipt(
         array $rows,
         string $phase,
         bool $visible,
@@ -2533,7 +2533,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext239(
+    private static function blockedReasonsCurrentTargetReceipt(
         mixed $baseReasons,
         bool $baseVisible,
         bool $generationMatches,
@@ -2569,7 +2569,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext239(
+    private static function statusCurrentTargetReceipt(
         bool $baseVisible,
         bool $generationMatches,
         array $missing,
@@ -2597,7 +2597,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next239-empty-held';
     }
 
-    private static function tokenNext239(string $value, string $label): string
+    private static function tokenCurrentTargetReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/\s/', $value) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next239 {$label} is malformed");
@@ -2618,7 +2618,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext240(
+    public static function executeCurrentCompositeKeyReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -2637,20 +2637,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $options,
         );
 
-        $cursor = self::tokenNext240((string) ($options['current_source_upsert_cursor_next240'] ?? 'wp.upsert.current.cursor.240'), 'current source upsert cursor');
-        $viewCookie = self::tokenNext240((string) ($options['current_view_upsert_cookie_next240'] ?? (string) ($currentView['source'] ?? 'main@view-upsert-cookie-240-current')), 'current view upsert cookie');
-        $triggerCookie = self::tokenNext240((string) ($options['current_trigger_upsert_cookie_next240'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-upsert-cookie-240-current')), 'current trigger upsert cookie');
-        $conflictColumns = self::columnsNext240($options['upsert_conflict_columns_next240'] ?? ['name'], 'conflict columns');
+        $cursor = self::tokenCurrentCompositeKeyReceipt((string) ($options['current_source_upsert_cursor_next240'] ?? 'wp.upsert.current.cursor.240'), 'current source upsert cursor');
+        $viewCookie = self::tokenCurrentCompositeKeyReceipt((string) ($options['current_view_upsert_cookie_next240'] ?? (string) ($currentView['source'] ?? 'main@view-upsert-cookie-240-current')), 'current view upsert cookie');
+        $triggerCookie = self::tokenCurrentCompositeKeyReceipt((string) ($options['current_trigger_upsert_cookie_next240'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-upsert-cookie-240-current')), 'current trigger upsert cookie');
+        $conflictColumns = self::columnsCurrentCompositeKeyReceipt($options['upsert_conflict_columns_next240'] ?? ['name'], 'conflict columns');
         $requireOrder = (bool) ($options['require_current_source_upsert_order_next240'] ?? true);
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_next231'] ?? false);
 
-        $currentRows = self::rowsNext240($base['current_source_rows_next231'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext240($base['attempted_next_source_rows_next231'] ?? [], 'attempted next source rows');
-        $currentKeys = self::currentKeysNext240($currentRows, $conflictColumns);
-        $nextKeys = self::nextKeysNext240($nextRows, $conflictColumns);
+        $currentRows = self::rowsCurrentCompositeKeyReceipt($base['current_source_rows_next231'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentCompositeKeyReceipt($base['attempted_next_source_rows_next231'] ?? [], 'attempted next source rows');
+        $currentKeys = self::currentKeysCurrentCompositeKeyReceipt($currentRows, $conflictColumns);
+        $nextKeys = self::nextKeysCurrentCompositeKeyReceipt($nextRows, $conflictColumns);
         $conflictingNextKeys = array_values(array_intersect($nextKeys, $currentKeys));
-        $requiredReceipts = self::upsertReceiptsNext240($currentRows, $conflictColumns, $cursor, $viewCookie, $triggerCookie);
-        $acknowledgedReceipts = self::acknowledgedReceiptsNext240($options, $requiredReceipts);
+        $requiredReceipts = self::upsertReceiptsCurrentCompositeKeyReceipt($currentRows, $conflictColumns, $cursor, $viewCookie, $triggerCookie);
+        $acknowledgedReceipts = self::acknowledgedReceiptsCurrentCompositeKeyReceipt($options, $requiredReceipts);
         $missingReceipts = array_values(array_diff($requiredReceipts, $acknowledgedReceipts));
         $unexpectedReceipts = array_values(array_diff($acknowledgedReceipts, $requiredReceipts));
         $orderMatches = !$requireOrder || $requiredReceipts === $acknowledgedReceipts;
@@ -2659,7 +2659,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedReceipts === []
             && $orderMatches;
         $nextVisible = $baseVisible && $conflictSourceComplete;
-        $blockedReasons = self::blockedReasonsNext240(
+        $blockedReasons = self::blockedReasonsCurrentCompositeKeyReceipt(
             $base['blocked_reasons_next231'] ?? [],
             $baseVisible,
             $missingReceipts,
@@ -2668,8 +2668,8 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $currentRows = self::tagRowsNext240($currentRows, 'current', true, $requiredReceipts, $cursor, $viewCookie, $triggerCookie, $conflictColumns, []);
-        $nextRows = self::tagRowsNext240($nextRows, 'next', $nextVisible, [], $cursor, $viewCookie, $triggerCookie, $conflictColumns, $nextVisible ? [] : $blockedReasons);
+        $currentRows = self::tagRowsCurrentCompositeKeyReceipt($currentRows, 'current', true, $requiredReceipts, $cursor, $viewCookie, $triggerCookie, $conflictColumns, []);
+        $nextRows = self::tagRowsCurrentCompositeKeyReceipt($nextRows, 'next', $nextVisible, [], $cursor, $viewCookie, $triggerCookie, $conflictColumns, $nextVisible ? [] : $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentRows, $nextRows),
             static fn (array $row): bool => (bool) $row['visible_after_current_source_upsert_next240'],
@@ -2680,7 +2680,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         ));
 
         return [
-            'status_next240' => self::statusNext240($baseVisible, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches, $nextVisible),
+            'status_next240' => self::statusCurrentCompositeKeyReceipt($baseVisible, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next240' => $baseVisible,
@@ -2745,7 +2745,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $columns
      * @return list<string>
      */
-    private static function columnsNext240(mixed $columns, string $label): array
+    private static function columnsCurrentCompositeKeyReceipt(mixed $columns, string $label): array
     {
         if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next240 {$label} must be a non-empty list");
@@ -2765,7 +2765,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext240(mixed $rows, string $label): array
+    private static function rowsCurrentCompositeKeyReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next240 {$label} must be a list");
@@ -2784,11 +2784,11 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $columns
      * @return list<string>
      */
-    private static function currentKeysNext240(array $rows, array $columns): array
+    private static function currentKeysCurrentCompositeKeyReceipt(array $rows, array $columns): array
     {
         $keys = [];
         foreach ($rows as $row) {
-            $keys[] = self::keyForNext240($row['returning'], $columns);
+            $keys[] = self::keyForCurrentCompositeKeyReceipt($row['returning'], $columns);
         }
 
         return array_values(array_unique($keys));
@@ -2799,11 +2799,11 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $columns
      * @return list<string>
      */
-    private static function nextKeysNext240(array $rows, array $columns): array
+    private static function nextKeysCurrentCompositeKeyReceipt(array $rows, array $columns): array
     {
         $keys = [];
         foreach ($rows as $row) {
-            $keys[] = self::keyForNext240($row['returning'], $columns);
+            $keys[] = self::keyForCurrentCompositeKeyReceipt($row['returning'], $columns);
         }
 
         return array_values(array_unique($keys));
@@ -2813,20 +2813,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $payload
      * @param list<string> $columns
      */
-    private static function keyForNext240(array $payload, array $columns): string
+    private static function keyForCurrentCompositeKeyReceipt(array $payload, array $columns): string
     {
         $parts = [];
         foreach ($columns as $column) {
             if (!array_key_exists($column, $payload)) {
                 throw new InvalidArgumentException("SQLite recursive view UPSERT next240 conflict column {$column} is missing");
             }
-            $parts[] = $column . '=' . self::scalarKeyNext240($payload[$column]);
+            $parts[] = $column . '=' . self::scalarKeyCurrentCompositeKeyReceipt($payload[$column]);
         }
 
         return implode('|', $parts);
     }
 
-    private static function scalarKeyNext240(mixed $value): string
+    private static function scalarKeyCurrentCompositeKeyReceipt(mixed $value): string
     {
         return match (true) {
             $value === null => 'NULL',
@@ -2843,7 +2843,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $columns
      * @return list<string>
      */
-    private static function upsertReceiptsNext240(array $rows, array $columns, string $cursor, string $viewCookie, string $triggerCookie): array
+    private static function upsertReceiptsCurrentCompositeKeyReceipt(array $rows, array $columns, string $cursor, string $viewCookie, string $triggerCookie): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -2852,7 +2852,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 $viewCookie,
                 $triggerCookie,
                 (string) ($row['current_source_close_receipt_next231'] ?? ''),
-                self::keyForNext240($row['returning'], $columns),
+                self::keyForCurrentCompositeKeyReceipt($row['returning'], $columns),
                 (string) ($row['returning_row_ordinal'] ?? $index),
             ];
             $receipts[] = substr(hash('sha256', implode('|', $parts)), 0, 48);
@@ -2866,20 +2866,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext240(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentCompositeKeyReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_upserts_next240'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext240($options['acknowledged_current_source_upserts_next240'] ?? [], 'acknowledged current source upserts');
+        return self::receiptListCurrentCompositeKeyReceipt($options['acknowledged_current_source_upserts_next240'] ?? [], 'acknowledged current source upserts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext240(mixed $values, string $label): array
+    private static function receiptListCurrentCompositeKeyReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next240 {$label} must be a list");
@@ -2900,7 +2900,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext240(
+    private static function tagRowsCurrentCompositeKeyReceipt(
         array $rows,
         string $phase,
         bool $visible,
@@ -2919,7 +2919,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 'current_view_upsert_cookie_next240' => $viewCookie,
                 'current_trigger_upsert_cookie_next240' => $triggerCookie,
                 'upsert_conflict_columns_next240' => $columns,
-                'upsert_conflict_key_next240' => self::keyForNext240($row['returning'], $columns),
+                'upsert_conflict_key_next240' => self::keyForCurrentCompositeKeyReceipt($row['returning'], $columns),
                 'current_source_upsert_receipt_next240' => $receipts[$index] ?? null,
                 'visible_after_current_source_upsert_next240' => $visible,
                 'held_by_current_source_upsert_reasons_next240' => $visible ? [] : $reasons,
@@ -2935,7 +2935,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext240(
+    private static function blockedReasonsCurrentCompositeKeyReceipt(
         mixed $baseReasons,
         bool $baseVisible,
         array $missing,
@@ -2967,7 +2967,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext240(
+    private static function statusCurrentCompositeKeyReceipt(
         bool $baseVisible,
         array $missing,
         array $unexpected,
@@ -2991,7 +2991,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next240-conflict-source-empty-held';
     }
 
-    private static function tokenNext240(string $value, string $label): string
+    private static function tokenCurrentCompositeKeyReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/\s/', $value) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next240 {$label} is malformed");
@@ -3012,7 +3012,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext241(
+    public static function executeCurrentCloseReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -3021,7 +3021,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext237(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentActionReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -3032,20 +3032,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_action_next237'] ?? false);
-        $currentRows = self::rowsNext241($base['current_source_rows_next237'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext241($base['attempted_next_source_rows_next237'] ?? [], 'attempted next source rows');
-        $closeToken = self::tokenNext241((string) ($options['current_source_upsert_close_token_next241'] ?? 'wp.current.source.upsert.close.241'), 'close token');
-        $expectedCloseToken = self::tokenNext241((string) ($options['expected_current_source_upsert_close_token_next241'] ?? $closeToken), 'expected close token');
-        $sourceGeneration = self::tokenNext241((string) ($options['current_source_upsert_generation_next241'] ?? 'main@source-generation-241-current'), 'source generation');
-        $expectedSourceGeneration = self::tokenNext241((string) ($options['expected_current_source_upsert_generation_next241'] ?? $sourceGeneration), 'expected source generation');
-        $viewCookie = self::tokenNext241((string) ($options['current_upsert_close_view_cookie_next241'] ?? ($base['current_upsert_action_view_cookie_next237'] ?? 'main@view-cookie-241-current')), 'view cookie');
-        $expectedViewCookie = self::tokenNext241((string) ($options['expected_current_upsert_close_view_cookie_next241'] ?? $viewCookie), 'expected view cookie');
-        $triggerCookie = self::tokenNext241((string) ($options['current_upsert_close_trigger_cookie_next241'] ?? ($base['current_upsert_action_trigger_cookie_next237'] ?? 'main@trigger-cookie-241-current')), 'trigger cookie');
-        $expectedTriggerCookie = self::tokenNext241((string) ($options['expected_current_upsert_close_trigger_cookie_next241'] ?? $triggerCookie), 'expected trigger cookie');
+        $currentRows = self::rowsCurrentCloseReceipt($base['current_source_rows_next237'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentCloseReceipt($base['attempted_next_source_rows_next237'] ?? [], 'attempted next source rows');
+        $closeToken = self::tokenCurrentCloseReceipt((string) ($options['current_source_upsert_close_token_next241'] ?? 'wp.current.source.upsert.close.241'), 'close token');
+        $expectedCloseToken = self::tokenCurrentCloseReceipt((string) ($options['expected_current_source_upsert_close_token_next241'] ?? $closeToken), 'expected close token');
+        $sourceGeneration = self::tokenCurrentCloseReceipt((string) ($options['current_source_upsert_generation_next241'] ?? 'main@source-generation-241-current'), 'source generation');
+        $expectedSourceGeneration = self::tokenCurrentCloseReceipt((string) ($options['expected_current_source_upsert_generation_next241'] ?? $sourceGeneration), 'expected source generation');
+        $viewCookie = self::tokenCurrentCloseReceipt((string) ($options['current_upsert_close_view_cookie_next241'] ?? ($base['current_upsert_action_view_cookie_next237'] ?? 'main@view-cookie-241-current')), 'view cookie');
+        $expectedViewCookie = self::tokenCurrentCloseReceipt((string) ($options['expected_current_upsert_close_view_cookie_next241'] ?? $viewCookie), 'expected view cookie');
+        $triggerCookie = self::tokenCurrentCloseReceipt((string) ($options['current_upsert_close_trigger_cookie_next241'] ?? ($base['current_upsert_action_trigger_cookie_next237'] ?? 'main@trigger-cookie-241-current')), 'trigger cookie');
+        $expectedTriggerCookie = self::tokenCurrentCloseReceipt((string) ($options['expected_current_upsert_close_trigger_cookie_next241'] ?? $triggerCookie), 'expected trigger cookie');
         $requireOrder = (bool) ($options['require_current_source_upsert_close_order_next241'] ?? true);
 
-        $required = self::closeReceiptsNext241($currentRows, $closeToken, $sourceGeneration, $viewCookie, $triggerCookie);
-        $acknowledged = self::acknowledgedReceiptsNext241($options, $required);
+        $required = self::closeReceiptsCurrentCloseReceipt($currentRows, $closeToken, $sourceGeneration, $viewCookie, $triggerCookie);
+        $acknowledged = self::acknowledgedReceiptsCurrentCloseReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $orderMatches = !$requireOrder || $required === $acknowledged;
@@ -3062,7 +3062,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpected === []
             && $orderMatches;
         $nextVisible = $baseVisible && $closeComplete;
-        $blockedReasons = self::blockedReasonsNext241(
+        $blockedReasons = self::blockedReasonsCurrentCloseReceipt(
             $base['blocked_reasons_next237'] ?? [],
             $baseVisible,
             $tokenMatches,
@@ -3075,13 +3075,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $taggedCurrent = self::tagRowsNext241($currentRows, 'current-close', true, $required, $closeToken, $sourceGeneration, $viewCookie, $triggerCookie, []);
-        $taggedNext = self::tagRowsNext241($nextRows, 'next-source', $nextVisible, [], $closeToken, $sourceGeneration, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentCloseReceipt($currentRows, 'current-close', true, $required, $closeToken, $sourceGeneration, $viewCookie, $triggerCookie, []);
+        $taggedNext = self::tagRowsCurrentCloseReceipt($nextRows, 'next-source', $nextVisible, [], $closeToken, $sourceGeneration, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next241' => self::statusNext241($nextVisible, $baseVisible, $tokenMatches, $sourceMatches, $viewMatches, $triggerMatches, $missing, $unexpected, $requireOrder, $orderMatches),
+            'status_next241' => self::statusCurrentCloseReceipt($nextVisible, $baseVisible, $tokenMatches, $sourceMatches, $viewMatches, $triggerMatches, $missing, $unexpected, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next241' => $baseVisible,
@@ -3151,7 +3151,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function closeReceiptsNext241(array $rows, string $closeToken, string $sourceGeneration, string $viewCookie, string $triggerCookie): array
+    private static function closeReceiptsCurrentCloseReceipt(array $rows, string $closeToken, string $sourceGeneration, string $viewCookie, string $triggerCookie): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -3178,20 +3178,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext241(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentCloseReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_upsert_closes_next241'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext241($options['acknowledged_current_source_upsert_close_receipts_next241'] ?? [], 'acknowledged current source upsert close receipts');
+        return self::receiptListCurrentCloseReceipt($options['acknowledged_current_source_upsert_close_receipts_next241'] ?? [], 'acknowledged current source upsert close receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext241(mixed $values, string $label): array
+    private static function receiptListCurrentCloseReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next241 {$label} must be a list");
@@ -3209,7 +3209,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext241(mixed $rows, string $label): array
+    private static function rowsCurrentCloseReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next241 {$label} must be a list");
@@ -3229,7 +3229,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext241(array $rows, string $phase, bool $visible, array $receipts, string $token, string $sourceGeneration, string $viewCookie, string $triggerCookie, array $reasons): array
+    private static function tagRowsCurrentCloseReceipt(array $rows, string $phase, bool $visible, array $receipts, string $token, string $sourceGeneration, string $viewCookie, string $triggerCookie, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -3254,7 +3254,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext241(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, bool $sourceMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentCloseReceipt(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, bool $sourceMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next241 base blocked reasons are malformed');
@@ -3292,7 +3292,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext241(bool $nextVisible, bool $baseVisible, bool $tokenMatches, bool $sourceMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
+    private static function statusCurrentCloseReceipt(bool $nextVisible, bool $baseVisible, bool $tokenMatches, bool $sourceMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next241-close-released';
@@ -3319,7 +3319,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next241-close-held';
     }
 
-    private static function tokenNext241(string $token, string $label): string
+    private static function tokenCurrentCloseReceipt(string $token, string $label): string
     {
         if (!preg_match('/^[A-Za-z0-9_.:@-]{3,180}$/', $token)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next241 invalid {$label}");
@@ -3340,7 +3340,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext242(
+    public static function executeCurrentStatementEpochReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -3349,7 +3349,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext239(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentTargetReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -3360,19 +3360,19 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_next239'] ?? false);
-        $currentRows = self::rowsNext242($base['current_source_rows_next239'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext242($base['attempted_next_source_rows_next239'] ?? [], 'attempted next source rows');
-        $statementEpoch = self::tokenNext242((string) ($options['current_source_statement_epoch_next242'] ?? 'wp.current.source.statement.epoch.242'), 'statement epoch');
-        $expectedStatementEpoch = self::tokenNext242((string) ($options['expected_current_source_statement_epoch_next242'] ?? $statementEpoch), 'expected statement epoch');
-        $viewProgram = self::tokenNext242((string) ($options['current_source_view_program_next242'] ?? ($currentView['source'] ?? 'main@view-cookie-242-current')), 'view program');
-        $triggerProgram = self::tokenNext242((string) ($options['current_source_trigger_program_next242'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-242-current')), 'trigger program');
-        $schemaCookie = self::tokenNext242((string) ($options['current_source_schema_cookie_next242'] ?? 'main.schema.cookie.242'), 'schema cookie');
-        $sqlHash = self::tokenNext242((string) ($options['current_source_upsert_sql_hash_next242'] ?? 'insert-into-recursive-view-upsert-242'), 'UPSERT SQL hash');
+        $currentRows = self::rowsCurrentStatementEpochReceipt($base['current_source_rows_next239'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentStatementEpochReceipt($base['attempted_next_source_rows_next239'] ?? [], 'attempted next source rows');
+        $statementEpoch = self::tokenCurrentStatementEpochReceipt((string) ($options['current_source_statement_epoch_next242'] ?? 'wp.current.source.statement.epoch.242'), 'statement epoch');
+        $expectedStatementEpoch = self::tokenCurrentStatementEpochReceipt((string) ($options['expected_current_source_statement_epoch_next242'] ?? $statementEpoch), 'expected statement epoch');
+        $viewProgram = self::tokenCurrentStatementEpochReceipt((string) ($options['current_source_view_program_next242'] ?? ($currentView['source'] ?? 'main@view-cookie-242-current')), 'view program');
+        $triggerProgram = self::tokenCurrentStatementEpochReceipt((string) ($options['current_source_trigger_program_next242'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-242-current')), 'trigger program');
+        $schemaCookie = self::tokenCurrentStatementEpochReceipt((string) ($options['current_source_schema_cookie_next242'] ?? 'main.schema.cookie.242'), 'schema cookie');
+        $sqlHash = self::tokenCurrentStatementEpochReceipt((string) ($options['current_source_upsert_sql_hash_next242'] ?? 'insert-into-recursive-view-upsert-242'), 'UPSERT SQL hash');
         $requireOrder = (bool) ($options['require_current_source_statement_epoch_order_next242'] ?? true);
 
         $epochMatches = hash_equals($statementEpoch, $expectedStatementEpoch);
-        $requiredEpochs = self::statementReceiptsNext242($currentRows, $statementEpoch, $viewProgram, $triggerProgram, $schemaCookie, $sqlHash);
-        $acknowledgedEpochs = self::acknowledgedReceiptsNext242($options, $requiredEpochs);
+        $requiredEpochs = self::statementReceiptsCurrentStatementEpochReceipt($currentRows, $statementEpoch, $viewProgram, $triggerProgram, $schemaCookie, $sqlHash);
+        $acknowledgedEpochs = self::acknowledgedReceiptsCurrentStatementEpochReceipt($options, $requiredEpochs);
         $missingEpochs = array_values(array_diff($requiredEpochs, $acknowledgedEpochs));
         $unexpectedEpochs = array_values(array_diff($acknowledgedEpochs, $requiredEpochs));
         $orderMatches = !$requireOrder || $requiredEpochs === $acknowledgedEpochs;
@@ -3382,7 +3382,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedEpochs === []
             && $orderMatches;
         $nextVisible = $baseVisible && $statementComplete;
-        $blockedReasons = self::blockedReasonsNext242(
+        $blockedReasons = self::blockedReasonsCurrentStatementEpochReceipt(
             $base['blocked_reasons_next239'] ?? [],
             $baseVisible,
             $epochMatches,
@@ -3392,13 +3392,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $currentRows = self::tagRowsNext242($currentRows, 'current-statement', true, $requiredEpochs, $statementEpoch, $viewProgram, $triggerProgram, $schemaCookie, $sqlHash, []);
-        $nextRows = self::tagRowsNext242($nextRows, 'next-source', $nextVisible, [], $statementEpoch, $viewProgram, $triggerProgram, $schemaCookie, $sqlHash, $nextVisible ? [] : $blockedReasons);
+        $currentRows = self::tagRowsCurrentStatementEpochReceipt($currentRows, 'current-statement', true, $requiredEpochs, $statementEpoch, $viewProgram, $triggerProgram, $schemaCookie, $sqlHash, []);
+        $nextRows = self::tagRowsCurrentStatementEpochReceipt($nextRows, 'next-source', $nextVisible, [], $statementEpoch, $viewProgram, $triggerProgram, $schemaCookie, $sqlHash, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($currentRows, $nextRows) : $currentRows;
         $heldRows = $nextVisible ? [] : $nextRows;
 
         return [
-            'status_next242' => self::statusNext242($baseVisible, $epochMatches, $missingEpochs, $unexpectedEpochs, $requireOrder, $orderMatches, $nextVisible),
+            'status_next242' => self::statusCurrentStatementEpochReceipt($baseVisible, $epochMatches, $missingEpochs, $unexpectedEpochs, $requireOrder, $orderMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next242' => $baseVisible,
@@ -3464,7 +3464,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function statementReceiptsNext242(array $rows, string $epoch, string $viewProgram, string $triggerProgram, string $schemaCookie, string $sqlHash): array
+    private static function statementReceiptsCurrentStatementEpochReceipt(array $rows, string $epoch, string $viewProgram, string $triggerProgram, string $schemaCookie, string $sqlHash): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -3492,20 +3492,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext242(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentStatementEpochReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_statement_epochs_next242'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext242($options['acknowledged_current_source_statement_receipts_next242'] ?? [], 'acknowledged current source statement receipts');
+        return self::receiptListCurrentStatementEpochReceipt($options['acknowledged_current_source_statement_receipts_next242'] ?? [], 'acknowledged current source statement receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext242(mixed $values, string $label): array
+    private static function receiptListCurrentStatementEpochReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next242 {$label} must be a list");
@@ -3523,7 +3523,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext242(mixed $rows, string $label): array
+    private static function rowsCurrentStatementEpochReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next242 {$label} must be a list");
@@ -3543,7 +3543,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext242(
+    private static function tagRowsCurrentStatementEpochReceipt(
         array $rows,
         string $phase,
         bool $visible,
@@ -3579,7 +3579,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext242(
+    private static function blockedReasonsCurrentStatementEpochReceipt(
         mixed $baseReasons,
         bool $baseVisible,
         bool $epochMatches,
@@ -3615,7 +3615,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext242(
+    private static function statusCurrentStatementEpochReceipt(
         bool $baseVisible,
         bool $epochMatches,
         array $missing,
@@ -3643,7 +3643,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next242-empty-held';
     }
 
-    private static function tokenNext242(string $value, string $label): string
+    private static function tokenCurrentStatementEpochReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/\s/', $value) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next242 {$label} is malformed");
@@ -3664,7 +3664,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext243(
+    public static function executeCurrentSourceReady(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -3673,7 +3673,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext240(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentCompositeKeyReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -3683,20 +3683,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $options,
         );
 
-        $currentCookie = self::tokenNext243((string) ($options['current_source_view_cookie_next243'] ?? ($currentView['source'] ?? 'main@view-cookie-243-current')), 'current source view cookie');
-        $expectedCurrentCookie = self::tokenNext243((string) ($options['expected_current_source_view_cookie_next243'] ?? $currentCookie), 'expected current source view cookie');
-        $currentTrigger = self::tokenNext243((string) ($options['current_source_trigger_cookie_next243'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-243-current')), 'current source trigger cookie');
-        $expectedCurrentTrigger = self::tokenNext243((string) ($options['expected_current_source_trigger_cookie_next243'] ?? $currentTrigger), 'expected current source trigger cookie');
-        $nextCookie = self::tokenNext243((string) ($options['next_source_view_cookie_next243'] ?? ($nextView['source'] ?? 'main@view-cookie-243-next')), 'next source view cookie');
-        $cursor = self::tokenNext243((string) ($options['upsert_source_cursor_next243'] ?? 'wp.upsert.source.cursor.243'), 'upsert source cursor');
+        $currentCookie = self::tokenCurrentSourceReady((string) ($options['current_source_view_cookie_next243'] ?? ($currentView['source'] ?? 'main@view-cookie-243-current')), 'current source view cookie');
+        $expectedCurrentCookie = self::tokenCurrentSourceReady((string) ($options['expected_current_source_view_cookie_next243'] ?? $currentCookie), 'expected current source view cookie');
+        $currentTrigger = self::tokenCurrentSourceReady((string) ($options['current_source_trigger_cookie_next243'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-243-current')), 'current source trigger cookie');
+        $expectedCurrentTrigger = self::tokenCurrentSourceReady((string) ($options['expected_current_source_trigger_cookie_next243'] ?? $currentTrigger), 'expected current source trigger cookie');
+        $nextCookie = self::tokenCurrentSourceReady((string) ($options['next_source_view_cookie_next243'] ?? ($nextView['source'] ?? 'main@view-cookie-243-next')), 'next source view cookie');
+        $cursor = self::tokenCurrentSourceReady((string) ($options['upsert_source_cursor_next243'] ?? 'wp.upsert.source.cursor.243'), 'upsert source cursor');
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_next240'] ?? false);
         $viewMatches = hash_equals($currentCookie, $expectedCurrentCookie);
         $triggerMatches = hash_equals($currentTrigger, $expectedCurrentTrigger);
         $sourceCurrent = $viewMatches && $triggerMatches;
         $nextVisible = $baseVisible && $sourceCurrent;
-        $reasons = self::blockedReasonsNext243($base['blocked_reasons_next240'] ?? [], $baseVisible, $viewMatches, $triggerMatches);
-        $currentRows = self::tagRowsNext243(self::rowsNext243($base['current_source_rows_next240'] ?? [], 'current rows'), 'current', true, $cursor, $currentCookie, $currentTrigger, $nextCookie, []);
-        $nextRows = self::tagRowsNext243(self::rowsNext243($base['attempted_next_source_rows_next240'] ?? [], 'next rows'), 'next', $nextVisible, $cursor, $currentCookie, $currentTrigger, $nextCookie, $nextVisible ? [] : $reasons);
+        $reasons = self::blockedReasonsCurrentSourceReady($base['blocked_reasons_next240'] ?? [], $baseVisible, $viewMatches, $triggerMatches);
+        $currentRows = self::tagRowsCurrentSourceReady(self::rowsCurrentSourceReady($base['current_source_rows_next240'] ?? [], 'current rows'), 'current', true, $cursor, $currentCookie, $currentTrigger, $nextCookie, []);
+        $nextRows = self::tagRowsCurrentSourceReady(self::rowsCurrentSourceReady($base['attempted_next_source_rows_next240'] ?? [], 'next rows'), 'next', $nextVisible, $cursor, $currentCookie, $currentTrigger, $nextCookie, $nextVisible ? [] : $reasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentRows, $nextRows),
             static fn (array $row): bool => (bool) $row['visible_after_upsert_current_source_next243'],
@@ -3707,7 +3707,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         ));
 
         return [
-            'status_next243' => self::statusNext243($baseVisible, $viewMatches, $triggerMatches, $nextVisible),
+            'status_next243' => self::statusCurrentSourceReady($baseVisible, $viewMatches, $triggerMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next243' => $baseVisible,
@@ -3759,7 +3759,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext243(mixed $rows, string $label): array
+    private static function rowsCurrentSourceReady(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next243 {$label} must be a list");
@@ -3773,7 +3773,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext243(array $rows, string $phase, bool $visible, string $cursor, string $viewCookie, string $triggerCookie, string $nextCookie, array $reasons): array
+    private static function tagRowsCurrentSourceReady(array $rows, string $phase, bool $visible, string $cursor, string $viewCookie, string $triggerCookie, string $nextCookie, array $reasons): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -3795,7 +3795,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $baseReasons
      * @return list<string>
      */
-    private static function blockedReasonsNext243(mixed $baseReasons, bool $baseVisible, bool $viewMatches, bool $triggerMatches): array
+    private static function blockedReasonsCurrentSourceReady(mixed $baseReasons, bool $baseVisible, bool $viewMatches, bool $triggerMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next243 base blocked reasons are malformed');
@@ -3814,7 +3814,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext243(bool $baseVisible, bool $viewMatches, bool $triggerMatches, bool $nextVisible): string
+    private static function statusCurrentSourceReady(bool $baseVisible, bool $viewMatches, bool $triggerMatches, bool $nextVisible): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next243-source-released';
@@ -3832,7 +3832,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next243-source-held';
     }
 
-    private static function tokenNext243(string $value, string $label): string
+    private static function tokenCurrentSourceReady(string $value, string $label): string
     {
         if ($value === '' || preg_match('/\s/', $value) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next243 {$label} is malformed");
@@ -3853,7 +3853,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext244(
+    public static function executeCurrentCommitReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -3862,7 +3862,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext241(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentCloseReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -3873,20 +3873,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_close_next241'] ?? false);
-        $currentRows = self::rowsNext244($base['current_source_rows_next241'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext244($base['attempted_next_source_rows_next241'] ?? [], 'attempted next source rows');
-        $statementId = self::tokenNext244((string) ($options['current_source_upsert_statement_id_next244'] ?? 'wp.current.source.upsert.statement.244'), 'statement id');
-        $expectedStatementId = self::tokenNext244((string) ($options['expected_current_source_upsert_statement_id_next244'] ?? $statementId), 'expected statement id');
-        $watermark = self::tokenNext244((string) ($options['current_source_upsert_commit_watermark_next244'] ?? 'wp.current.source.upsert.commit.244'), 'commit watermark');
-        $expectedWatermark = self::tokenNext244((string) ($options['expected_current_source_upsert_commit_watermark_next244'] ?? $watermark), 'expected commit watermark');
-        $viewCookie = self::tokenNext244((string) ($options['current_upsert_commit_view_cookie_next244'] ?? ($base['current_upsert_close_view_cookie_next241'] ?? 'main@view-cookie-244-current')), 'view cookie');
-        $expectedViewCookie = self::tokenNext244((string) ($options['expected_current_upsert_commit_view_cookie_next244'] ?? $viewCookie), 'expected view cookie');
-        $triggerCookie = self::tokenNext244((string) ($options['current_upsert_commit_trigger_cookie_next244'] ?? ($base['current_upsert_close_trigger_cookie_next241'] ?? 'main@trigger-cookie-244-current')), 'trigger cookie');
-        $expectedTriggerCookie = self::tokenNext244((string) ($options['expected_current_upsert_commit_trigger_cookie_next244'] ?? $triggerCookie), 'expected trigger cookie');
+        $currentRows = self::rowsCurrentCommitReceipt($base['current_source_rows_next241'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentCommitReceipt($base['attempted_next_source_rows_next241'] ?? [], 'attempted next source rows');
+        $statementId = self::tokenCurrentCommitReceipt((string) ($options['current_source_upsert_statement_id_next244'] ?? 'wp.current.source.upsert.statement.244'), 'statement id');
+        $expectedStatementId = self::tokenCurrentCommitReceipt((string) ($options['expected_current_source_upsert_statement_id_next244'] ?? $statementId), 'expected statement id');
+        $watermark = self::tokenCurrentCommitReceipt((string) ($options['current_source_upsert_commit_watermark_next244'] ?? 'wp.current.source.upsert.commit.244'), 'commit watermark');
+        $expectedWatermark = self::tokenCurrentCommitReceipt((string) ($options['expected_current_source_upsert_commit_watermark_next244'] ?? $watermark), 'expected commit watermark');
+        $viewCookie = self::tokenCurrentCommitReceipt((string) ($options['current_upsert_commit_view_cookie_next244'] ?? ($base['current_upsert_close_view_cookie_next241'] ?? 'main@view-cookie-244-current')), 'view cookie');
+        $expectedViewCookie = self::tokenCurrentCommitReceipt((string) ($options['expected_current_upsert_commit_view_cookie_next244'] ?? $viewCookie), 'expected view cookie');
+        $triggerCookie = self::tokenCurrentCommitReceipt((string) ($options['current_upsert_commit_trigger_cookie_next244'] ?? ($base['current_upsert_close_trigger_cookie_next241'] ?? 'main@trigger-cookie-244-current')), 'trigger cookie');
+        $expectedTriggerCookie = self::tokenCurrentCommitReceipt((string) ($options['expected_current_upsert_commit_trigger_cookie_next244'] ?? $triggerCookie), 'expected trigger cookie');
         $requireOrder = (bool) ($options['require_current_source_upsert_commit_order_next244'] ?? true);
 
-        $required = self::commitReceiptsNext244($currentRows, $statementId, $watermark, $viewCookie, $triggerCookie);
-        $acknowledged = self::acknowledgedReceiptsNext244($options, $required);
+        $required = self::commitReceiptsCurrentCommitReceipt($currentRows, $statementId, $watermark, $viewCookie, $triggerCookie);
+        $acknowledged = self::acknowledgedReceiptsCurrentCommitReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $orderMatches = !$requireOrder || $required === $acknowledged;
@@ -3903,7 +3903,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpected === []
             && $orderMatches;
         $nextVisible = $baseVisible && $commitComplete;
-        $blockedReasons = self::blockedReasonsNext244(
+        $blockedReasons = self::blockedReasonsCurrentCommitReceipt(
             $base['blocked_reasons_next241'] ?? [],
             $baseVisible,
             $statementMatches,
@@ -3916,13 +3916,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $taggedCurrent = self::tagRowsNext244($currentRows, 'current-commit', true, $required, $statementId, $watermark, $viewCookie, $triggerCookie, []);
-        $taggedNext = self::tagRowsNext244($nextRows, 'next-source', $nextVisible, [], $statementId, $watermark, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentCommitReceipt($currentRows, 'current-commit', true, $required, $statementId, $watermark, $viewCookie, $triggerCookie, []);
+        $taggedNext = self::tagRowsCurrentCommitReceipt($nextRows, 'next-source', $nextVisible, [], $statementId, $watermark, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next244' => self::statusNext244($nextVisible, $baseVisible, $statementMatches, $watermarkMatches, $viewMatches, $triggerMatches, $missing, $unexpected, $requireOrder, $orderMatches),
+            'status_next244' => self::statusCurrentCommitReceipt($nextVisible, $baseVisible, $statementMatches, $watermarkMatches, $viewMatches, $triggerMatches, $missing, $unexpected, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next244' => $baseVisible,
@@ -3992,7 +3992,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function commitReceiptsNext244(array $rows, string $statementId, string $watermark, string $viewCookie, string $triggerCookie): array
+    private static function commitReceiptsCurrentCommitReceipt(array $rows, string $statementId, string $watermark, string $viewCookie, string $triggerCookie): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -4018,20 +4018,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext244(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentCommitReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_upsert_commits_next244'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext244($options['acknowledged_current_source_upsert_commit_receipts_next244'] ?? [], 'acknowledged current source upsert commit receipts');
+        return self::receiptListCurrentCommitReceipt($options['acknowledged_current_source_upsert_commit_receipts_next244'] ?? [], 'acknowledged current source upsert commit receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext244(mixed $values, string $label): array
+    private static function receiptListCurrentCommitReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next244 {$label} must be a list");
@@ -4049,7 +4049,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext244(mixed $rows, string $label): array
+    private static function rowsCurrentCommitReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next244 {$label} must be a list");
@@ -4069,7 +4069,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext244(array $rows, string $phase, bool $visible, array $receipts, string $statementId, string $watermark, string $viewCookie, string $triggerCookie, array $reasons): array
+    private static function tagRowsCurrentCommitReceipt(array $rows, string $phase, bool $visible, array $receipts, string $statementId, string $watermark, string $viewCookie, string $triggerCookie, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -4094,7 +4094,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext244(mixed $baseReasons, bool $baseVisible, bool $statementMatches, bool $watermarkMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentCommitReceipt(mixed $baseReasons, bool $baseVisible, bool $statementMatches, bool $watermarkMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next244 base blocked reasons are malformed');
@@ -4132,7 +4132,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext244(bool $nextVisible, bool $baseVisible, bool $statementMatches, bool $watermarkMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
+    private static function statusCurrentCommitReceipt(bool $nextVisible, bool $baseVisible, bool $statementMatches, bool $watermarkMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next244-commit-released';
@@ -4159,7 +4159,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next244-commit-held';
     }
 
-    private static function tokenNext244(string $token, string $label): string
+    private static function tokenCurrentCommitReceipt(string $token, string $label): string
     {
         if (!preg_match('/^[A-Za-z0-9_.:@-]{3,180}$/', $token)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next244 invalid {$label}");
@@ -4180,7 +4180,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext245(
+    public static function executeCurrentTargetReasonReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -4189,7 +4189,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext241(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentCloseReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -4200,22 +4200,22 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_close_next241'] ?? false);
-        $currentRows = self::rowsNext245($base['current_source_rows_next241'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext245($base['attempted_next_source_rows_next241'] ?? [], 'attempted next source rows');
-        $target = self::identifierListNext245($options['current_source_upsert_conflict_target_next245'] ?? ['option_name'], 'conflict target');
-        $expectedTarget = self::identifierListNext245($options['expected_current_source_upsert_conflict_target_next245'] ?? $target, 'expected conflict target');
-        $excludedColumns = self::identifierListNext245($options['current_source_upsert_excluded_columns_next245'] ?? ['option_value', 'autoload'], 'excluded columns');
-        $expectedExcludedColumns = self::identifierListNext245($options['expected_current_source_upsert_excluded_columns_next245'] ?? $excludedColumns, 'expected excluded columns');
-        $sourceToken = self::tokenNext245((string) ($options['current_source_upsert_target_token_next245'] ?? 'wp.current.source.upsert.target.245'), 'target token');
-        $expectedSourceToken = self::tokenNext245((string) ($options['expected_current_source_upsert_target_token_next245'] ?? $sourceToken), 'expected target token');
-        $viewCookie = self::tokenNext245((string) ($options['current_upsert_target_view_cookie_next245'] ?? ($base['current_upsert_close_view_cookie_next241'] ?? 'main@view-cookie-245-current')), 'view cookie');
-        $expectedViewCookie = self::tokenNext245((string) ($options['expected_current_upsert_target_view_cookie_next245'] ?? $viewCookie), 'expected view cookie');
-        $triggerCookie = self::tokenNext245((string) ($options['current_upsert_target_trigger_cookie_next245'] ?? ($base['current_upsert_close_trigger_cookie_next241'] ?? 'main@trigger-cookie-245-current')), 'trigger cookie');
-        $expectedTriggerCookie = self::tokenNext245((string) ($options['expected_current_upsert_target_trigger_cookie_next245'] ?? $triggerCookie), 'expected trigger cookie');
+        $currentRows = self::rowsCurrentTargetReasonReceipt($base['current_source_rows_next241'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentTargetReasonReceipt($base['attempted_next_source_rows_next241'] ?? [], 'attempted next source rows');
+        $target = self::identifierListCurrentTargetReasonReceipt($options['current_source_upsert_conflict_target_next245'] ?? ['option_name'], 'conflict target');
+        $expectedTarget = self::identifierListCurrentTargetReasonReceipt($options['expected_current_source_upsert_conflict_target_next245'] ?? $target, 'expected conflict target');
+        $excludedColumns = self::identifierListCurrentTargetReasonReceipt($options['current_source_upsert_excluded_columns_next245'] ?? ['option_value', 'autoload'], 'excluded columns');
+        $expectedExcludedColumns = self::identifierListCurrentTargetReasonReceipt($options['expected_current_source_upsert_excluded_columns_next245'] ?? $excludedColumns, 'expected excluded columns');
+        $sourceToken = self::tokenCurrentTargetReasonReceipt((string) ($options['current_source_upsert_target_token_next245'] ?? 'wp.current.source.upsert.target.245'), 'target token');
+        $expectedSourceToken = self::tokenCurrentTargetReasonReceipt((string) ($options['expected_current_source_upsert_target_token_next245'] ?? $sourceToken), 'expected target token');
+        $viewCookie = self::tokenCurrentTargetReasonReceipt((string) ($options['current_upsert_target_view_cookie_next245'] ?? ($base['current_upsert_close_view_cookie_next241'] ?? 'main@view-cookie-245-current')), 'view cookie');
+        $expectedViewCookie = self::tokenCurrentTargetReasonReceipt((string) ($options['expected_current_upsert_target_view_cookie_next245'] ?? $viewCookie), 'expected view cookie');
+        $triggerCookie = self::tokenCurrentTargetReasonReceipt((string) ($options['current_upsert_target_trigger_cookie_next245'] ?? ($base['current_upsert_close_trigger_cookie_next241'] ?? 'main@trigger-cookie-245-current')), 'trigger cookie');
+        $expectedTriggerCookie = self::tokenCurrentTargetReasonReceipt((string) ($options['expected_current_upsert_target_trigger_cookie_next245'] ?? $triggerCookie), 'expected trigger cookie');
         $requireOrder = (bool) ($options['require_current_source_upsert_target_order_next245'] ?? true);
 
-        $required = self::targetReceiptsNext245($currentRows, $sourceToken, $viewCookie, $triggerCookie, $target, $excludedColumns);
-        $acknowledged = self::acknowledgedReceiptsNext245($options, $required);
+        $required = self::targetReceiptsCurrentTargetReasonReceipt($currentRows, $sourceToken, $viewCookie, $triggerCookie, $target, $excludedColumns);
+        $acknowledged = self::acknowledgedReceiptsCurrentTargetReasonReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $orderMatches = !$requireOrder || $required === $acknowledged;
@@ -4234,7 +4234,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpected === []
             && $orderMatches;
         $nextVisible = $baseVisible && $targetComplete;
-        $blockedReasons = self::blockedReasonsNext245(
+        $blockedReasons = self::blockedReasonsCurrentTargetReasonReceipt(
             $base['blocked_reasons_next241'] ?? [],
             $baseVisible,
             $targetMatches,
@@ -4248,13 +4248,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $taggedCurrent = self::tagRowsNext245($currentRows, 'current-upsert-target', true, $required, $sourceToken, $target, $excludedColumns, $viewCookie, $triggerCookie, []);
-        $taggedNext = self::tagRowsNext245($nextRows, 'next-source', $nextVisible, [], $sourceToken, $target, $excludedColumns, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentTargetReasonReceipt($currentRows, 'current-upsert-target', true, $required, $sourceToken, $target, $excludedColumns, $viewCookie, $triggerCookie, []);
+        $taggedNext = self::tagRowsCurrentTargetReasonReceipt($nextRows, 'next-source', $nextVisible, [], $sourceToken, $target, $excludedColumns, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next245' => self::statusNext245($nextVisible, $baseVisible, $targetMatches, $excludedMatches, $tokenMatches, $viewMatches, $triggerMatches, $missing, $unexpected, $requireOrder, $orderMatches),
+            'status_next245' => self::statusCurrentTargetReasonReceipt($nextVisible, $baseVisible, $targetMatches, $excludedMatches, $tokenMatches, $viewMatches, $triggerMatches, $missing, $unexpected, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next245' => $baseVisible,
@@ -4330,7 +4330,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $excludedColumns
      * @return list<string>
      */
-    private static function targetReceiptsNext245(array $rows, string $sourceToken, string $viewCookie, string $triggerCookie, array $target, array $excludedColumns): array
+    private static function targetReceiptsCurrentTargetReasonReceipt(array $rows, string $sourceToken, string $viewCookie, string $triggerCookie, array $target, array $excludedColumns): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -4360,20 +4360,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext245(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentTargetReasonReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_upsert_targets_next245'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext245($options['acknowledged_current_source_upsert_target_receipts_next245'] ?? [], 'acknowledged current source upsert target receipts');
+        return self::receiptListCurrentTargetReasonReceipt($options['acknowledged_current_source_upsert_target_receipts_next245'] ?? [], 'acknowledged current source upsert target receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext245(mixed $values, string $label): array
+    private static function receiptListCurrentTargetReasonReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next245 {$label} must be a list");
@@ -4391,7 +4391,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $values
      * @return list<string>
      */
-    private static function identifierListNext245(mixed $values, string $label): array
+    private static function identifierListCurrentTargetReasonReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values) || $values === []) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next245 {$label} must be a non-empty list");
@@ -4411,7 +4411,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext245(mixed $rows, string $label): array
+    private static function rowsCurrentTargetReasonReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next245 {$label} must be a list");
@@ -4433,7 +4433,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext245(array $rows, string $phase, bool $visible, array $receipts, string $token, array $target, array $excludedColumns, string $viewCookie, string $triggerCookie, array $reasons): array
+    private static function tagRowsCurrentTargetReasonReceipt(array $rows, string $phase, bool $visible, array $receipts, string $token, array $target, array $excludedColumns, string $viewCookie, string $triggerCookie, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -4459,7 +4459,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext245(
+    private static function blockedReasonsCurrentTargetReasonReceipt(
         mixed $baseReasons,
         bool $baseVisible,
         bool $targetMatches,
@@ -4474,7 +4474,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     ): array {
         $reasons = [];
         if (!$baseVisible) {
-            $reasons = array_merge($reasons, self::reasonListNext245($baseReasons));
+            $reasons = array_merge($reasons, self::reasonListCurrentTargetReasonReceipt($baseReasons));
         }
         if (!$targetMatches) {
             $reasons[] = 'current-source-upsert-conflict-target-mismatch';
@@ -4508,7 +4508,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $values
      * @return list<string>
      */
-    private static function reasonListNext245(mixed $values): array
+    private static function reasonListCurrentTargetReasonReceipt(mixed $values): array
     {
         if (!is_array($values)) {
             return [];
@@ -4527,7 +4527,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext245(bool $nextVisible, bool $baseVisible, bool $targetMatches, bool $excludedMatches, bool $tokenMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
+    private static function statusCurrentTargetReasonReceipt(bool $nextVisible, bool $baseVisible, bool $targetMatches, bool $excludedMatches, bool $tokenMatches, bool $viewMatches, bool $triggerMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next245-target-released';
@@ -4563,7 +4563,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next245-target-held';
     }
 
-    private static function tokenNext245(string $value, string $label): string
+    private static function tokenCurrentTargetReasonReceipt(string $value, string $label): string
     {
         $value = trim($value);
         if ($value === '') {
@@ -4585,7 +4585,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext246(
+    public static function executeCurrentConflictImageReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -4594,7 +4594,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext243(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentSourceReady(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -4605,17 +4605,17 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_upsert_current_source_next243'] ?? false);
-        $currentRows = self::rowsNext246($base['current_source_rows_next243'] ?? [], 'current rows');
-        $nextRows = self::rowsNext246($base['attempted_next_source_rows_next243'] ?? [], 'next rows');
-        $conflictColumns = self::columnsNext246($options['upsert_conflict_columns_next246'] ?? ['name'], 'conflict columns');
-        $excludedColumns = self::columnsNext246($options['upsert_excluded_columns_next246'] ?? ['value', 'autoload_flag'], 'excluded columns');
-        $oldRows = self::oldRowsNext246($baseRows, (string) ($options['key'] ?? 'option_name'));
-        $sourceToken = self::tokenNext246((string) ($options['current_source_conflict_image_token_next246'] ?? 'wp.current.source.conflict.image.246'), 'conflict image token');
-        $expectedSourceToken = self::tokenNext246((string) ($options['expected_current_source_conflict_image_token_next246'] ?? $sourceToken), 'expected conflict image token');
+        $currentRows = self::rowsCurrentConflictImageReceipt($base['current_source_rows_next243'] ?? [], 'current rows');
+        $nextRows = self::rowsCurrentConflictImageReceipt($base['attempted_next_source_rows_next243'] ?? [], 'next rows');
+        $conflictColumns = self::columnsCurrentConflictImageReceipt($options['upsert_conflict_columns_next246'] ?? ['name'], 'conflict columns');
+        $excludedColumns = self::columnsCurrentConflictImageReceipt($options['upsert_excluded_columns_next246'] ?? ['value', 'autoload_flag'], 'excluded columns');
+        $oldRows = self::oldRowsCurrentConflictImageReceipt($baseRows, (string) ($options['key'] ?? 'option_name'));
+        $sourceToken = self::tokenCurrentConflictImageReceipt((string) ($options['current_source_conflict_image_token_next246'] ?? 'wp.current.source.conflict.image.246'), 'conflict image token');
+        $expectedSourceToken = self::tokenCurrentConflictImageReceipt((string) ($options['expected_current_source_conflict_image_token_next246'] ?? $sourceToken), 'expected conflict image token');
         $requireOrder = (bool) ($options['require_current_source_conflict_image_order_next246'] ?? true);
         $sourceMatches = hash_equals($sourceToken, $expectedSourceToken);
-        $requiredReceipts = self::conflictImageReceiptsNext246($currentRows, $oldRows, $conflictColumns, $excludedColumns, $sourceToken);
-        $acknowledgedReceipts = self::acknowledgedReceiptsNext246($options, $requiredReceipts);
+        $requiredReceipts = self::conflictImageReceiptsCurrentConflictImageReceipt($currentRows, $oldRows, $conflictColumns, $excludedColumns, $sourceToken);
+        $acknowledgedReceipts = self::acknowledgedReceiptsCurrentConflictImageReceipt($options, $requiredReceipts);
         $missingReceipts = array_values(array_diff($requiredReceipts, $acknowledgedReceipts));
         $unexpectedReceipts = array_values(array_diff($acknowledgedReceipts, $requiredReceipts));
         $orderMatches = !$requireOrder || $requiredReceipts === $acknowledgedReceipts;
@@ -4625,7 +4625,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedReceipts === []
             && $orderMatches;
         $nextVisible = $baseVisible && $conflictImagesComplete;
-        $blockedReasons = self::blockedReasonsNext246(
+        $blockedReasons = self::blockedReasonsCurrentConflictImageReceipt(
             $base['blocked_reasons_next243'] ?? [],
             $baseVisible,
             $sourceMatches,
@@ -4635,8 +4635,8 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $currentRows = self::tagRowsNext246($currentRows, 'current-conflict-image', true, $requiredReceipts, $sourceToken, $conflictColumns, $excludedColumns, []);
-        $nextRows = self::tagRowsNext246($nextRows, 'next-source', $nextVisible, [], $sourceToken, $conflictColumns, $excludedColumns, $nextVisible ? [] : $blockedReasons);
+        $currentRows = self::tagRowsCurrentConflictImageReceipt($currentRows, 'current-conflict-image', true, $requiredReceipts, $sourceToken, $conflictColumns, $excludedColumns, []);
+        $nextRows = self::tagRowsCurrentConflictImageReceipt($nextRows, 'next-source', $nextVisible, [], $sourceToken, $conflictColumns, $excludedColumns, $nextVisible ? [] : $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentRows, $nextRows),
             static fn (array $row): bool => (bool) $row['visible_after_current_source_conflict_image_next246'],
@@ -4647,7 +4647,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         ));
 
         return [
-            'status_next246' => self::statusNext246($baseVisible, $sourceMatches, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches, $nextVisible),
+            'status_next246' => self::statusCurrentConflictImageReceipt($baseVisible, $sourceMatches, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next246' => $baseVisible,
@@ -4675,7 +4675,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'visible_row_count_next246' => count($visibleRows),
             'held_next_row_count_next246' => count($heldRows),
             'blocked_reasons_next246' => $blockedReasons,
-            'current_source_conflict_images_next246' => self::conflictImagesNext246($currentRows, $oldRows, $conflictColumns, $excludedColumns),
+            'current_source_conflict_images_next246' => self::conflictImagesCurrentConflictImageReceipt($currentRows, $oldRows, $conflictColumns, $excludedColumns),
             'current_source_conflict_image_plan_next246' => [
                 'base_next_source_visible' => $baseVisible,
                 'source_token_matches' => $sourceMatches,
@@ -4713,10 +4713,10 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $excludedColumns
      * @return list<string>
      */
-    private static function conflictImageReceiptsNext246(array $rows, array $oldRows, array $conflictColumns, array $excludedColumns, string $sourceToken): array
+    private static function conflictImageReceiptsCurrentConflictImageReceipt(array $rows, array $oldRows, array $conflictColumns, array $excludedColumns, string $sourceToken): array
     {
         $receipts = [];
-        foreach (self::conflictImagesNext246($rows, $oldRows, $conflictColumns, $excludedColumns) as $image) {
+        foreach (self::conflictImagesCurrentConflictImageReceipt($rows, $oldRows, $conflictColumns, $excludedColumns) as $image) {
             $receipts[] = substr(hash('sha256', json_encode([$sourceToken, $image], JSON_THROW_ON_ERROR)), 0, 46);
         }
 
@@ -4730,22 +4730,22 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $excludedColumns
      * @return list<array<string,mixed>>
      */
-    private static function conflictImagesNext246(array $rows, array $oldRows, array $conflictColumns, array $excludedColumns): array
+    private static function conflictImagesCurrentConflictImageReceipt(array $rows, array $oldRows, array $conflictColumns, array $excludedColumns): array
     {
         $images = [];
         foreach ($rows as $index => $row) {
-            $returning = self::returningNext246($row);
-            $key = self::imageKeyNext246($returning, $conflictColumns);
+            $returning = self::returningCurrentConflictImageReceipt($row);
+            $key = self::imageKeyCurrentConflictImageReceipt($returning, $conflictColumns);
             $old = $oldRows[$key] ?? null;
             $excluded = [];
             foreach ($excludedColumns as $column) {
-                $excluded[$column] = $returning[$column] ?? ($returning[self::inputAliasNext246($column)] ?? null);
+                $excluded[$column] = $returning[$column] ?? ($returning[self::inputAliasCurrentConflictImageReceipt($column)] ?? null);
             }
             $images[] = [
                 'ordinal' => $index,
                 'conflict_key' => $key,
-                'conflict_columns' => self::valuesForNext246($returning, $conflictColumns),
-                'old_values' => $old === null ? [] : self::valuesForNext246($old, array_keys($old)),
+                'conflict_columns' => self::valuesForCurrentConflictImageReceipt($returning, $conflictColumns),
+                'old_values' => $old === null ? [] : self::valuesForCurrentConflictImageReceipt($old, array_keys($old)),
                 'excluded_values' => $excluded,
                 'matched_existing_row' => $old !== null,
                 'upsert_action' => $old === null ? 'insert' : 'do-update',
@@ -4759,14 +4759,14 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,array<string,mixed>>
      */
-    private static function oldRowsNext246(array $rows, string $key): array
+    private static function oldRowsCurrentConflictImageReceipt(array $rows, string $key): array
     {
         $out = [];
         foreach ($rows as $row) {
             if (!is_array($row) || !array_key_exists($key, $row)) {
                 continue;
             }
-            $out[self::scalarKeyNext246($row[$key])] = $row;
+            $out[self::scalarKeyCurrentConflictImageReceipt($row[$key])] = $row;
         }
 
         return $out;
@@ -4776,12 +4776,12 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $payload
      * @param list<string> $columns
      */
-    private static function imageKeyNext246(array $payload, array $columns): string
+    private static function imageKeyCurrentConflictImageReceipt(array $payload, array $columns): string
     {
         $parts = [];
         foreach ($columns as $column) {
-            $value = $payload[$column] ?? ($payload[self::inputAliasNext246($column)] ?? null);
-            $parts[] = self::scalarKeyNext246($value);
+            $value = $payload[$column] ?? ($payload[self::inputAliasCurrentConflictImageReceipt($column)] ?? null);
+            $parts[] = self::scalarKeyCurrentConflictImageReceipt($value);
         }
 
         return implode('|', $parts);
@@ -4792,17 +4792,17 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $columns
      * @return array<string,mixed>
      */
-    private static function valuesForNext246(array $payload, array $columns): array
+    private static function valuesForCurrentConflictImageReceipt(array $payload, array $columns): array
     {
         $values = [];
         foreach ($columns as $column) {
-            $values[$column] = $payload[$column] ?? ($payload[self::inputAliasNext246($column)] ?? null);
+            $values[$column] = $payload[$column] ?? ($payload[self::inputAliasCurrentConflictImageReceipt($column)] ?? null);
         }
 
         return $values;
     }
 
-    private static function inputAliasNext246(string $column): string
+    private static function inputAliasCurrentConflictImageReceipt(string $column): string
     {
         return match ($column) {
             'name' => 'option_name',
@@ -4817,20 +4817,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext246(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentConflictImageReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_conflict_images_next246'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext246($options['acknowledged_current_source_conflict_image_receipts_next246'] ?? [], 'acknowledged current source conflict image receipts');
+        return self::receiptListCurrentConflictImageReceipt($options['acknowledged_current_source_conflict_image_receipts_next246'] ?? [], 'acknowledged current source conflict image receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext246(mixed $values, string $label): array
+    private static function receiptListCurrentConflictImageReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next246 {$label} must be a list");
@@ -4848,7 +4848,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext246(mixed $rows, string $label): array
+    private static function rowsCurrentConflictImageReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next246 {$label} must be a list");
@@ -4861,7 +4861,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $row
      * @return array<string,mixed>
      */
-    private static function returningNext246(array $row): array
+    private static function returningCurrentConflictImageReceipt(array $row): array
     {
         if (!isset($row['returning']) || !is_array($row['returning'])) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next246 row missing RETURNING payload');
@@ -4878,7 +4878,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext246(array $rows, string $phase, bool $visible, array $receipts, string $sourceToken, array $conflictColumns, array $excludedColumns, array $reasons): array
+    private static function tagRowsCurrentConflictImageReceipt(array $rows, string $phase, bool $visible, array $receipts, string $sourceToken, array $conflictColumns, array $excludedColumns, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -4900,7 +4900,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $columns
      * @return list<string>
      */
-    private static function columnsNext246(mixed $columns, string $label): array
+    private static function columnsCurrentConflictImageReceipt(mixed $columns, string $label): array
     {
         if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next246 {$label} must be a non-empty list");
@@ -4920,7 +4920,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpectedReceipts
      * @return list<string>
      */
-    private static function blockedReasonsNext246(mixed $baseReasons, bool $baseVisible, bool $sourceMatches, array $missingReceipts, array $unexpectedReceipts, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentConflictImageReceipt(mixed $baseReasons, bool $baseVisible, bool $sourceMatches, array $missingReceipts, array $unexpectedReceipts, bool $requireOrder, bool $orderMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next246 base blocked reasons are malformed');
@@ -4949,7 +4949,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missingReceipts
      * @param list<string> $unexpectedReceipts
      */
-    private static function statusNext246(bool $baseVisible, bool $sourceMatches, array $missingReceipts, array $unexpectedReceipts, bool $requireOrder, bool $orderMatches, bool $nextVisible): string
+    private static function statusCurrentConflictImageReceipt(bool $baseVisible, bool $sourceMatches, array $missingReceipts, array $unexpectedReceipts, bool $requireOrder, bool $orderMatches, bool $nextVisible): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next246-conflict-images-released';
@@ -4970,7 +4970,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next246-conflict-images-held';
     }
 
-    private static function scalarKeyNext246(mixed $value): string
+    private static function scalarKeyCurrentConflictImageReceipt(mixed $value): string
     {
         return match (true) {
             $value === null => 'NULL',
@@ -4982,7 +4982,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         };
     }
 
-    private static function tokenNext246(string $value, string $label): string
+    private static function tokenCurrentConflictImageReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/\s/', $value) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next246 {$label} is malformed");
@@ -5003,7 +5003,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext247(
+    public static function executeCurrentSequenceReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -5012,7 +5012,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext244(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentCommitReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -5023,20 +5023,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_commit_next244'] ?? false);
-        $currentRows = self::rowsNext247($base['current_source_rows_next244'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext247($base['attempted_next_source_rows_next244'] ?? [], 'attempted next source rows');
-        $sequence = self::sequenceNext247($options['current_source_statement_sequence_next247'] ?? 1, 'statement sequence');
-        $expectedSequence = self::sequenceNext247($options['expected_current_source_statement_sequence_next247'] ?? $sequence, 'expected statement sequence');
-        $nextSequence = self::sequenceNext247($options['next_source_statement_sequence_next247'] ?? ($sequence + 1), 'next source statement sequence');
-        $viewCookie = self::tokenNext247((string) ($options['current_source_sequence_view_cookie_next247'] ?? ($base['current_upsert_commit_view_cookie_next244'] ?? ($currentView['source'] ?? 'main@view-cookie-247-current'))), 'view cookie');
-        $triggerCookie = self::tokenNext247((string) ($options['current_source_sequence_trigger_cookie_next247'] ?? ($base['current_upsert_commit_trigger_cookie_next244'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-247-current'))), 'trigger cookie');
-        $cursor = self::tokenNext247((string) ($options['current_source_sequence_cursor_next247'] ?? 'wp.returning.current.sequence.cursor.247'), 'sequence cursor');
+        $currentRows = self::rowsCurrentSequenceReceipt($base['current_source_rows_next244'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentSequenceReceipt($base['attempted_next_source_rows_next244'] ?? [], 'attempted next source rows');
+        $sequence = self::sequenceCurrentSequenceReceipt($options['current_source_statement_sequence_next247'] ?? 1, 'statement sequence');
+        $expectedSequence = self::sequenceCurrentSequenceReceipt($options['expected_current_source_statement_sequence_next247'] ?? $sequence, 'expected statement sequence');
+        $nextSequence = self::sequenceCurrentSequenceReceipt($options['next_source_statement_sequence_next247'] ?? ($sequence + 1), 'next source statement sequence');
+        $viewCookie = self::tokenCurrentSequenceReceipt((string) ($options['current_source_sequence_view_cookie_next247'] ?? ($base['current_upsert_commit_view_cookie_next244'] ?? ($currentView['source'] ?? 'main@view-cookie-247-current'))), 'view cookie');
+        $triggerCookie = self::tokenCurrentSequenceReceipt((string) ($options['current_source_sequence_trigger_cookie_next247'] ?? ($base['current_upsert_commit_trigger_cookie_next244'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-247-current'))), 'trigger cookie');
+        $cursor = self::tokenCurrentSequenceReceipt((string) ($options['current_source_sequence_cursor_next247'] ?? 'wp.returning.current.sequence.cursor.247'), 'sequence cursor');
         $requireMonotonic = (bool) ($options['require_monotonic_statement_sequence_next247'] ?? true);
 
         $sequenceMatches = $sequence === $expectedSequence;
         $nextIsFuture = $nextSequence > $sequence;
-        $required = self::sequenceReceiptsNext247($currentRows, $sequence, $viewCookie, $triggerCookie, $cursor);
-        $acknowledged = self::acknowledgedReceiptsNext247($options, $required);
+        $required = self::sequenceReceiptsCurrentSequenceReceipt($currentRows, $sequence, $viewCookie, $triggerCookie, $cursor);
+        $acknowledged = self::acknowledgedReceiptsCurrentSequenceReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $sequenceComplete = $required !== []
@@ -5045,7 +5045,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $missing === []
             && $unexpected === [];
         $nextVisible = $baseVisible && $sequenceComplete;
-        $blockedReasons = self::blockedReasonsNext247(
+        $blockedReasons = self::blockedReasonsCurrentSequenceReceipt(
             $base['blocked_reasons_next244'] ?? [],
             $baseVisible,
             $sequenceMatches,
@@ -5055,13 +5055,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $unexpected,
         );
 
-        $taggedCurrent = self::tagRowsNext247($currentRows, 'current-sequence', true, $required, $sequence, $nextSequence, $viewCookie, $triggerCookie, $cursor, []);
-        $taggedNext = self::tagRowsNext247($nextRows, 'next-source', $nextVisible, [], $sequence, $nextSequence, $viewCookie, $triggerCookie, $cursor, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentSequenceReceipt($currentRows, 'current-sequence', true, $required, $sequence, $nextSequence, $viewCookie, $triggerCookie, $cursor, []);
+        $taggedNext = self::tagRowsCurrentSequenceReceipt($nextRows, 'next-source', $nextVisible, [], $sequence, $nextSequence, $viewCookie, $triggerCookie, $cursor, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next247' => self::statusNext247($nextVisible, $baseVisible, $sequenceMatches, $requireMonotonic, $nextIsFuture, $missing, $unexpected),
+            'status_next247' => self::statusCurrentSequenceReceipt($nextVisible, $baseVisible, $sequenceMatches, $requireMonotonic, $nextIsFuture, $missing, $unexpected),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next247' => $baseVisible,
@@ -5123,7 +5123,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function sequenceReceiptsNext247(array $rows, int $sequence, string $viewCookie, string $triggerCookie, string $cursor): array
+    private static function sequenceReceiptsCurrentSequenceReceipt(array $rows, int $sequence, string $viewCookie, string $triggerCookie, string $cursor): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -5149,20 +5149,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext247(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentSequenceReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_statement_sequences_next247'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext247($options['acknowledged_current_source_sequence_receipts_next247'] ?? [], 'acknowledged statement sequence receipts');
+        return self::receiptListCurrentSequenceReceipt($options['acknowledged_current_source_sequence_receipts_next247'] ?? [], 'acknowledged statement sequence receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext247(mixed $values, string $label): array
+    private static function receiptListCurrentSequenceReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next247 {$label} must be a list");
@@ -5180,7 +5180,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext247(mixed $rows, string $label): array
+    private static function rowsCurrentSequenceReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next247 {$label} must be a list");
@@ -5200,7 +5200,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext247(array $rows, string $phase, bool $visible, array $receipts, int $sequence, int $nextSequence, string $viewCookie, string $triggerCookie, string $cursor, array $reasons): array
+    private static function tagRowsCurrentSequenceReceipt(array $rows, string $phase, bool $visible, array $receipts, int $sequence, int $nextSequence, string $viewCookie, string $triggerCookie, string $cursor, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -5226,7 +5226,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext247(mixed $baseReasons, bool $baseVisible, bool $sequenceMatches, bool $requireMonotonic, bool $nextIsFuture, array $missing, array $unexpected): array
+    private static function blockedReasonsCurrentSequenceReceipt(mixed $baseReasons, bool $baseVisible, bool $sequenceMatches, bool $requireMonotonic, bool $nextIsFuture, array $missing, array $unexpected): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next247 base blocked reasons are malformed');
@@ -5255,7 +5255,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext247(bool $nextVisible, bool $baseVisible, bool $sequenceMatches, bool $requireMonotonic, bool $nextIsFuture, array $missing, array $unexpected): string
+    private static function statusCurrentSequenceReceipt(bool $nextVisible, bool $baseVisible, bool $sequenceMatches, bool $requireMonotonic, bool $nextIsFuture, array $missing, array $unexpected): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next247-sequence-released';
@@ -5279,7 +5279,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next247-sequence-held';
     }
 
-    private static function sequenceNext247(mixed $value, string $label): int
+    private static function sequenceCurrentSequenceReceipt(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next247 {$label} must be a non-negative integer");
@@ -5288,7 +5288,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return $value;
     }
 
-    private static function tokenNext247(string $token, string $label): string
+    private static function tokenCurrentSequenceReceipt(string $token, string $label): string
     {
         if (!preg_match('/^[A-Za-z0-9_.:@-]{3,180}$/', $token)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next247 invalid {$label}");
@@ -5309,7 +5309,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext248(
+    public static function executeCurrentWhereOutcomeReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -5318,7 +5318,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext245(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentTargetReasonReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -5329,23 +5329,23 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_upsert_target_next245'] ?? false);
-        $currentRows = self::rowsNext248($base['current_source_rows_next245'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext248($base['attempted_next_source_rows_next245'] ?? [], 'attempted next source rows');
-        $guardToken = self::tokenNext248((string) ($options['current_source_upsert_where_token_next248'] ?? 'wp.current.source.upsert.where.248'), 'where token');
-        $expectedGuardToken = self::tokenNext248((string) ($options['expected_current_source_upsert_where_token_next248'] ?? $guardToken), 'expected where token');
-        $whereColumns = self::identifierListNext248($options['current_source_upsert_where_columns_next248'] ?? ['option_value', 'autoload'], 'where columns');
-        $expectedWhereColumns = self::identifierListNext248($options['expected_current_source_upsert_where_columns_next248'] ?? $whereColumns, 'expected where columns');
-        $expectedOutcomes = self::boolListNext248($options['expected_current_source_upsert_where_outcomes_next248'] ?? self::outcomesNext248($currentRows), 'expected where outcomes');
+        $currentRows = self::rowsCurrentWhereOutcomeReceipt($base['current_source_rows_next245'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentWhereOutcomeReceipt($base['attempted_next_source_rows_next245'] ?? [], 'attempted next source rows');
+        $guardToken = self::tokenCurrentWhereOutcomeReceipt((string) ($options['current_source_upsert_where_token_next248'] ?? 'wp.current.source.upsert.where.248'), 'where token');
+        $expectedGuardToken = self::tokenCurrentWhereOutcomeReceipt((string) ($options['expected_current_source_upsert_where_token_next248'] ?? $guardToken), 'expected where token');
+        $whereColumns = self::identifierListCurrentWhereOutcomeReceipt($options['current_source_upsert_where_columns_next248'] ?? ['option_value', 'autoload'], 'where columns');
+        $expectedWhereColumns = self::identifierListCurrentWhereOutcomeReceipt($options['expected_current_source_upsert_where_columns_next248'] ?? $whereColumns, 'expected where columns');
+        $expectedOutcomes = self::boolListCurrentWhereOutcomeReceipt($options['expected_current_source_upsert_where_outcomes_next248'] ?? self::outcomesCurrentWhereOutcomeReceipt($currentRows), 'expected where outcomes');
         $requireOrder = (bool) ($options['require_current_source_upsert_where_order_next248'] ?? true);
 
-        $required = self::whereReceiptsNext248($currentRows, $guardToken, $whereColumns);
-        $acknowledged = self::acknowledgedReceiptsNext248($options, $required);
+        $required = self::whereReceiptsCurrentWhereOutcomeReceipt($currentRows, $guardToken, $whereColumns);
+        $acknowledged = self::acknowledgedReceiptsCurrentWhereOutcomeReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $orderMatches = !$requireOrder || $required === $acknowledged;
         $tokenMatches = hash_equals($guardToken, $expectedGuardToken);
         $columnsMatch = $whereColumns === $expectedWhereColumns;
-        $outcomes = self::outcomesNext248($currentRows);
+        $outcomes = self::outcomesCurrentWhereOutcomeReceipt($currentRows);
         $outcomesMatch = $outcomes === $expectedOutcomes;
         $whereComplete = $required !== []
             && $tokenMatches
@@ -5355,7 +5355,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpected === []
             && $orderMatches;
         $nextVisible = $baseVisible && $whereComplete;
-        $blockedReasons = self::blockedReasonsNext248(
+        $blockedReasons = self::blockedReasonsCurrentWhereOutcomeReceipt(
             $base['blocked_reasons_next245'] ?? [],
             $baseVisible,
             $tokenMatches,
@@ -5367,13 +5367,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $taggedCurrent = self::tagRowsNext248($currentRows, 'current-upsert-where', true, $required, $outcomes, $guardToken, $whereColumns, []);
-        $taggedNext = self::tagRowsNext248($nextRows, 'next-source', $nextVisible, [], [], $guardToken, $whereColumns, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentWhereOutcomeReceipt($currentRows, 'current-upsert-where', true, $required, $outcomes, $guardToken, $whereColumns, []);
+        $taggedNext = self::tagRowsCurrentWhereOutcomeReceipt($nextRows, 'next-source', $nextVisible, [], [], $guardToken, $whereColumns, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next248' => self::statusNext248($nextVisible, $baseVisible, $tokenMatches, $columnsMatch, $outcomesMatch, $missing, $unexpected, $requireOrder, $orderMatches),
+            'status_next248' => self::statusCurrentWhereOutcomeReceipt($nextVisible, $baseVisible, $tokenMatches, $columnsMatch, $outcomesMatch, $missing, $unexpected, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next248' => $baseVisible,
@@ -5440,7 +5440,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $whereColumns
      * @return list<string>
      */
-    private static function whereReceiptsNext248(array $rows, string $guardToken, array $whereColumns): array
+    private static function whereReceiptsCurrentWhereOutcomeReceipt(array $rows, string $guardToken, array $whereColumns): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -5453,7 +5453,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 (string) ($returning['name'] ?? ''),
                 (string) ($returning['value'] ?? ''),
                 (string) ($returning['event_name'] ?? $returning['event'] ?? ''),
-                self::boolTextNext248(self::rowOutcomeNext248($row)),
+                self::boolTextCurrentWhereOutcomeReceipt(self::rowOutcomeCurrentWhereOutcomeReceipt($row)),
             ])), 0, 64);
         }
 
@@ -5464,15 +5464,15 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<bool>
      */
-    private static function outcomesNext248(array $rows): array
+    private static function outcomesCurrentWhereOutcomeReceipt(array $rows): array
     {
-        return array_map(static fn (array $row): bool => self::rowOutcomeNext248($row), $rows);
+        return array_map(static fn (array $row): bool => self::rowOutcomeCurrentWhereOutcomeReceipt($row), $rows);
     }
 
     /**
      * @param array<string,mixed> $row
      */
-    private static function rowOutcomeNext248(array $row): bool
+    private static function rowOutcomeCurrentWhereOutcomeReceipt(array $row): bool
     {
         $returning = $row['returning'];
 
@@ -5485,20 +5485,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext248(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentWhereOutcomeReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_upsert_where_next248'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext248($options['acknowledged_current_source_upsert_where_receipts_next248'] ?? [], 'acknowledged current source upsert where receipts');
+        return self::receiptListCurrentWhereOutcomeReceipt($options['acknowledged_current_source_upsert_where_receipts_next248'] ?? [], 'acknowledged current source upsert where receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext248(mixed $values, string $label): array
+    private static function receiptListCurrentWhereOutcomeReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next248 {$label} must be a list");
@@ -5516,7 +5516,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $values
      * @return list<string>
      */
-    private static function identifierListNext248(mixed $values, string $label): array
+    private static function identifierListCurrentWhereOutcomeReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values) || $values === []) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next248 {$label} must be a non-empty list");
@@ -5536,7 +5536,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $values
      * @return list<bool>
      */
-    private static function boolListNext248(mixed $values, string $label): array
+    private static function boolListCurrentWhereOutcomeReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next248 {$label} must be a list");
@@ -5554,7 +5554,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext248(mixed $rows, string $label): array
+    private static function rowsCurrentWhereOutcomeReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next248 {$label} must be a list");
@@ -5576,7 +5576,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $blockedReasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext248(array $rows, string $phase, bool $visible, array $receipts, array $outcomes, string $guardToken, array $whereColumns, array $blockedReasons): array
+    private static function tagRowsCurrentWhereOutcomeReceipt(array $rows, string $phase, bool $visible, array $receipts, array $outcomes, string $guardToken, array $whereColumns, array $blockedReasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -5600,7 +5600,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext248(array $baseReasons, bool $baseVisible, bool $tokenMatches, bool $columnsMatch, bool $outcomesMatch, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentWhereOutcomeReceipt(array $baseReasons, bool $baseVisible, bool $tokenMatches, bool $columnsMatch, bool $outcomesMatch, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
     {
         $reasons = [];
         foreach ($baseReasons as $reason) {
@@ -5637,7 +5637,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext248(bool $nextVisible, bool $baseVisible, bool $tokenMatches, bool $columnsMatch, bool $outcomesMatch, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
+    private static function statusCurrentWhereOutcomeReceipt(bool $nextVisible, bool $baseVisible, bool $tokenMatches, bool $columnsMatch, bool $outcomesMatch, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next248-where-released';
@@ -5664,7 +5664,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next248-held';
     }
 
-    private static function tokenNext248(string $value, string $label): string
+    private static function tokenCurrentWhereOutcomeReceipt(string $value, string $label): string
     {
         $value = trim($value);
         if ($value === '') {
@@ -5674,7 +5674,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return $value;
     }
 
-    private static function boolTextNext248(bool $value): string
+    private static function boolTextCurrentWhereOutcomeReceipt(bool $value): string
     {
         return $value ? '1' : '0';
     }
@@ -5691,7 +5691,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext249(
+    public static function executeCurrentAssignmentImageReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -5700,7 +5700,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext246(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentConflictImageReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -5711,16 +5711,16 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_conflict_image_next246'] ?? false);
-        $currentRows = self::rowsNext249($base['current_source_rows_next246'] ?? [], 'current rows');
-        $nextRows = self::rowsNext249($base['attempted_next_source_rows_next246'] ?? [], 'next rows');
-        $assignmentColumns = self::columnsNext249($options['upsert_assignment_columns_next249'] ?? ($base['upsert_excluded_columns_next246'] ?? ['value']), 'assignment columns');
-        $sourceToken = self::tokenNext249((string) ($options['current_source_assignment_token_next249'] ?? 'wp.current.source.assignment.249'), 'assignment token');
-        $expectedSourceToken = self::tokenNext249((string) ($options['expected_current_source_assignment_token_next249'] ?? $sourceToken), 'expected assignment token');
+        $currentRows = self::rowsCurrentAssignmentImageReceipt($base['current_source_rows_next246'] ?? [], 'current rows');
+        $nextRows = self::rowsCurrentAssignmentImageReceipt($base['attempted_next_source_rows_next246'] ?? [], 'next rows');
+        $assignmentColumns = self::columnsCurrentAssignmentImageReceipt($options['upsert_assignment_columns_next249'] ?? ($base['upsert_excluded_columns_next246'] ?? ['value']), 'assignment columns');
+        $sourceToken = self::tokenCurrentAssignmentImageReceipt((string) ($options['current_source_assignment_token_next249'] ?? 'wp.current.source.assignment.249'), 'assignment token');
+        $expectedSourceToken = self::tokenCurrentAssignmentImageReceipt((string) ($options['expected_current_source_assignment_token_next249'] ?? $sourceToken), 'expected assignment token');
         $sourceMatches = hash_equals($sourceToken, $expectedSourceToken);
         $requireOrder = (bool) ($options['require_current_source_assignment_order_next249'] ?? true);
-        $assignments = self::assignmentImagesNext249($base['current_source_conflict_images_next246'] ?? [], $assignmentColumns);
-        $requiredReceipts = self::assignmentReceiptsNext249($assignments, $sourceToken);
-        $acknowledgedReceipts = self::acknowledgedReceiptsNext249($options, $requiredReceipts);
+        $assignments = self::assignmentImagesCurrentAssignmentImageReceipt($base['current_source_conflict_images_next246'] ?? [], $assignmentColumns);
+        $requiredReceipts = self::assignmentReceiptsCurrentAssignmentImageReceipt($assignments, $sourceToken);
+        $acknowledgedReceipts = self::acknowledgedReceiptsCurrentAssignmentImageReceipt($options, $requiredReceipts);
         $missingReceipts = array_values(array_diff($requiredReceipts, $acknowledgedReceipts));
         $unexpectedReceipts = array_values(array_diff($acknowledgedReceipts, $requiredReceipts));
         $orderMatches = !$requireOrder || $requiredReceipts === $acknowledgedReceipts;
@@ -5730,7 +5730,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedReceipts === []
             && $orderMatches;
         $nextVisible = $baseVisible && $assignmentsComplete;
-        $blockedReasons = self::blockedReasonsNext249(
+        $blockedReasons = self::blockedReasonsCurrentAssignmentImageReceipt(
             $base['blocked_reasons_next246'] ?? [],
             $baseVisible,
             $sourceMatches,
@@ -5740,8 +5740,8 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $currentRows = self::tagRowsNext249($currentRows, 'current-assignment', true, $requiredReceipts, $sourceToken, $assignmentColumns, []);
-        $nextRows = self::tagRowsNext249($nextRows, 'next-source', $nextVisible, [], $sourceToken, $assignmentColumns, $nextVisible ? [] : $blockedReasons);
+        $currentRows = self::tagRowsCurrentAssignmentImageReceipt($currentRows, 'current-assignment', true, $requiredReceipts, $sourceToken, $assignmentColumns, []);
+        $nextRows = self::tagRowsCurrentAssignmentImageReceipt($nextRows, 'next-source', $nextVisible, [], $sourceToken, $assignmentColumns, $nextVisible ? [] : $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentRows, $nextRows),
             static fn (array $row): bool => (bool) $row['visible_after_current_source_assignment_next249'],
@@ -5752,7 +5752,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         ));
 
         return [
-            'status_next249' => self::statusNext249($baseVisible, $sourceMatches, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches, $nextVisible),
+            'status_next249' => self::statusCurrentAssignmentImageReceipt($baseVisible, $sourceMatches, $missingReceipts, $unexpectedReceipts, $requireOrder, $orderMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next249' => $baseVisible,
@@ -5812,7 +5812,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $assignmentColumns
      * @return list<array<string,mixed>>
      */
-    private static function assignmentImagesNext249(mixed $images, array $assignmentColumns): array
+    private static function assignmentImagesCurrentAssignmentImageReceipt(mixed $images, array $assignmentColumns): array
     {
         if (!is_array($images) || !array_is_list($images)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next249 conflict images must be a list');
@@ -5851,7 +5851,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $assignments
      * @return list<string>
      */
-    private static function assignmentReceiptsNext249(array $assignments, string $sourceToken): array
+    private static function assignmentReceiptsCurrentAssignmentImageReceipt(array $assignments, string $sourceToken): array
     {
         $receipts = [];
         foreach ($assignments as $assignment) {
@@ -5866,20 +5866,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext249(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentAssignmentImageReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_assignments_next249'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext249($options['acknowledged_current_source_assignment_receipts_next249'] ?? [], 'acknowledged current source assignment receipts');
+        return self::receiptListCurrentAssignmentImageReceipt($options['acknowledged_current_source_assignment_receipts_next249'] ?? [], 'acknowledged current source assignment receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext249(mixed $values, string $label): array
+    private static function receiptListCurrentAssignmentImageReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next249 {$label} must be a list");
@@ -5897,7 +5897,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext249(mixed $rows, string $label): array
+    private static function rowsCurrentAssignmentImageReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next249 {$label} must be a list");
@@ -5910,7 +5910,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $columns
      * @return list<string>
      */
-    private static function columnsNext249(mixed $columns, string $label): array
+    private static function columnsCurrentAssignmentImageReceipt(mixed $columns, string $label): array
     {
         if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next249 {$label} must be a non-empty list");
@@ -5931,7 +5931,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext249(array $rows, string $phase, bool $visible, array $receipts, string $sourceToken, array $assignmentColumns, array $reasons): array
+    private static function tagRowsCurrentAssignmentImageReceipt(array $rows, string $phase, bool $visible, array $receipts, string $sourceToken, array $assignmentColumns, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -5954,7 +5954,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpectedReceipts
      * @return list<string>
      */
-    private static function blockedReasonsNext249(mixed $baseReasons, bool $baseVisible, bool $sourceMatches, array $missingReceipts, array $unexpectedReceipts, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentAssignmentImageReceipt(mixed $baseReasons, bool $baseVisible, bool $sourceMatches, array $missingReceipts, array $unexpectedReceipts, bool $requireOrder, bool $orderMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next249 base blocked reasons are malformed');
@@ -5983,7 +5983,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missingReceipts
      * @param list<string> $unexpectedReceipts
      */
-    private static function statusNext249(bool $baseVisible, bool $sourceMatches, array $missingReceipts, array $unexpectedReceipts, bool $requireOrder, bool $orderMatches, bool $nextVisible): string
+    private static function statusCurrentAssignmentImageReceipt(bool $baseVisible, bool $sourceMatches, array $missingReceipts, array $unexpectedReceipts, bool $requireOrder, bool $orderMatches, bool $nextVisible): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next249-assignments-released';
@@ -6004,7 +6004,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next249-assignments-held';
     }
 
-    private static function tokenNext249(string $value, string $label): string
+    private static function tokenCurrentAssignmentImageReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/\s/', $value) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next249 {$label} is malformed");
@@ -6025,7 +6025,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext250(
+    public static function executeCurrentRowidProvenanceReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -6034,7 +6034,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext247(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentSequenceReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -6045,18 +6045,18 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_statement_sequence_next247'] ?? false);
-        $currentRows = self::rowsNext250($base['current_source_rows_next247'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext250($base['attempted_next_source_rows_next247'] ?? [], 'attempted next source rows');
-        $rowidToken = self::tokenNext250((string) ($options['current_source_rowid_provenance_token_next250'] ?? 'wp.current.source.rowid.provenance.250'), 'rowid provenance token');
-        $expectedToken = self::tokenNext250((string) ($options['expected_current_source_rowid_provenance_token_next250'] ?? $rowidToken), 'expected rowid provenance token');
-        $rowidColumn = self::columnNext250((string) ($options['rowid_column_next250'] ?? 'option_id'), 'rowid column');
-        $conflictKey = self::columnNext250((string) ($options['conflict_key_column_next250'] ?? 'option_name'), 'conflict key column');
+        $currentRows = self::rowsCurrentRowidProvenanceReceipt($base['current_source_rows_next247'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentRowidProvenanceReceipt($base['attempted_next_source_rows_next247'] ?? [], 'attempted next source rows');
+        $rowidToken = self::tokenCurrentRowidProvenanceReceipt((string) ($options['current_source_rowid_provenance_token_next250'] ?? 'wp.current.source.rowid.provenance.250'), 'rowid provenance token');
+        $expectedToken = self::tokenCurrentRowidProvenanceReceipt((string) ($options['expected_current_source_rowid_provenance_token_next250'] ?? $rowidToken), 'expected rowid provenance token');
+        $rowidColumn = self::columnCurrentRowidProvenanceReceipt((string) ($options['rowid_column_next250'] ?? 'option_id'), 'rowid column');
+        $conflictKey = self::columnCurrentRowidProvenanceReceipt((string) ($options['conflict_key_column_next250'] ?? 'option_name'), 'conflict key column');
         $requireExisting = (bool) ($options['require_existing_rowid_for_update_next250'] ?? false);
         $tokenMatches = hash_equals($rowidToken, $expectedToken);
-        $oldRows = self::oldRowsNext250($baseRows, $conflictKey);
-        $provenance = self::rowidProvenanceNext250($currentRows, $oldRows, $rowidColumn, $conflictKey);
-        $required = self::rowidReceiptsNext250($provenance, $rowidToken);
-        $acknowledged = self::acknowledgedReceiptsNext250($options, $required);
+        $oldRows = self::oldRowsCurrentRowidProvenanceReceipt($baseRows, $conflictKey);
+        $provenance = self::rowidProvenanceCurrentRowidProvenanceReceipt($currentRows, $oldRows, $rowidColumn, $conflictKey);
+        $required = self::rowidReceiptsCurrentRowidProvenanceReceipt($provenance, $rowidToken);
+        $acknowledged = self::acknowledgedReceiptsCurrentRowidProvenanceReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $missingExisting = $requireExisting
@@ -6068,7 +6068,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpected === []
             && $missingExisting === [];
         $nextVisible = $baseVisible && $rowidsComplete;
-        $blockedReasons = self::blockedReasonsNext250(
+        $blockedReasons = self::blockedReasonsCurrentRowidProvenanceReceipt(
             $base['blocked_reasons_next247'] ?? [],
             $baseVisible,
             $tokenMatches,
@@ -6078,13 +6078,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $missingExisting,
         );
 
-        $taggedCurrent = self::tagRowsNext250($currentRows, 'current-rowid-provenance', true, $required, $rowidToken, $rowidColumn, $conflictKey, []);
-        $taggedNext = self::tagRowsNext250($nextRows, 'next-source', $nextVisible, [], $rowidToken, $rowidColumn, $conflictKey, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentRowidProvenanceReceipt($currentRows, 'current-rowid-provenance', true, $required, $rowidToken, $rowidColumn, $conflictKey, []);
+        $taggedNext = self::tagRowsCurrentRowidProvenanceReceipt($nextRows, 'next-source', $nextVisible, [], $rowidToken, $rowidColumn, $conflictKey, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next250' => self::statusNext250($nextVisible, $baseVisible, $tokenMatches, $missing, $unexpected, $requireExisting, $missingExisting),
+            'status_next250' => self::statusCurrentRowidProvenanceReceipt($nextVisible, $baseVisible, $tokenMatches, $missing, $unexpected, $requireExisting, $missingExisting),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next250' => $baseVisible,
@@ -6148,12 +6148,12 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,array<string,mixed>> $oldRows
      * @return list<array<string,mixed>>
      */
-    private static function rowidProvenanceNext250(array $rows, array $oldRows, string $rowidColumn, string $conflictKey): array
+    private static function rowidProvenanceCurrentRowidProvenanceReceipt(array $rows, array $oldRows, string $rowidColumn, string $conflictKey): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
             $returning = $row['returning'];
-            $key = self::scalarKeyNext250($returning['name'] ?? $returning[$conflictKey] ?? null);
+            $key = self::scalarKeyCurrentRowidProvenanceReceipt($returning['name'] ?? $returning[$conflictKey] ?? null);
             $old = $oldRows[$key] ?? null;
             $out[] = [
                 'ordinal' => $index,
@@ -6174,7 +6174,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $provenance
      * @return list<string>
      */
-    private static function rowidReceiptsNext250(array $provenance, string $token): array
+    private static function rowidReceiptsCurrentRowidProvenanceReceipt(array $provenance, string $token): array
     {
         $receipts = [];
         foreach ($provenance as $row) {
@@ -6188,14 +6188,14 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,array<string,mixed>>
      */
-    private static function oldRowsNext250(array $rows, string $keyColumn): array
+    private static function oldRowsCurrentRowidProvenanceReceipt(array $rows, string $keyColumn): array
     {
         $out = [];
         foreach ($rows as $row) {
             if (!is_array($row) || !array_key_exists($keyColumn, $row)) {
                 continue;
             }
-            $out[self::scalarKeyNext250($row[$keyColumn])] = $row;
+            $out[self::scalarKeyCurrentRowidProvenanceReceipt($row[$keyColumn])] = $row;
         }
 
         return $out;
@@ -6205,7 +6205,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext250(mixed $rows, string $label): array
+    private static function rowsCurrentRowidProvenanceReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next250 {$label} must be a list");
@@ -6224,20 +6224,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext250(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentRowidProvenanceReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_rowid_provenance_next250'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext250($options['acknowledged_current_source_rowid_receipts_next250'] ?? [], 'acknowledged rowid receipts');
+        return self::receiptListCurrentRowidProvenanceReceipt($options['acknowledged_current_source_rowid_receipts_next250'] ?? [], 'acknowledged rowid receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext250(mixed $values, string $label): array
+    private static function receiptListCurrentRowidProvenanceReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next250 {$label} must be a list");
@@ -6251,7 +6251,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return array_values(array_unique($values));
     }
 
-    private static function tokenNext250(string $value, string $label): string
+    private static function tokenCurrentRowidProvenanceReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next250 {$label} is malformed");
@@ -6260,7 +6260,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return $value;
     }
 
-    private static function columnNext250(string $value, string $label): string
+    private static function columnCurrentRowidProvenanceReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next250 {$label} is malformed");
@@ -6275,7 +6275,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext250(array $rows, string $phase, bool $visible, array $receipts, string $token, string $rowidColumn, string $conflictKey, array $reasons): array
+    private static function tagRowsCurrentRowidProvenanceReceipt(array $rows, string $phase, bool $visible, array $receipts, string $token, string $rowidColumn, string $conflictKey, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -6300,7 +6300,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $missingExisting
      * @return list<string>
      */
-    private static function blockedReasonsNext250(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireExisting, array $missingExisting): array
+    private static function blockedReasonsCurrentRowidProvenanceReceipt(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireExisting, array $missingExisting): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next250 base blocked reasons are malformed');
@@ -6330,7 +6330,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @param list<array<string,mixed>> $missingExisting
      */
-    private static function statusNext250(bool $nextVisible, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireExisting, array $missingExisting): string
+    private static function statusCurrentRowidProvenanceReceipt(bool $nextVisible, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireExisting, array $missingExisting): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next250-rowid-provenance-released';
@@ -6354,7 +6354,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next250-held';
     }
 
-    private static function scalarKeyNext250(mixed $value): string
+    private static function scalarKeyCurrentRowidProvenanceReceipt(mixed $value): string
     {
         return match (true) {
             $value === null => 'NULL',
@@ -6377,7 +6377,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext251(
+    public static function executeCurrentChangeReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -6386,7 +6386,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext247(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentSequenceReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -6397,21 +6397,21 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_statement_sequence_next247'] ?? false);
-        $currentRows = self::rowsNext251($base['current_source_rows_next247'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext251($base['attempted_next_source_rows_next247'] ?? [], 'attempted next source rows');
-        $statementChanges = self::counterNext251($options['current_source_changes_next251'] ?? count($currentRows), 'statement changes');
-        $expectedChanges = self::counterNext251($options['expected_current_source_changes_next251'] ?? count($currentRows), 'expected statement changes');
-        $totalChanges = self::counterNext251($options['current_source_total_changes_next251'] ?? ($statementChanges + count($baseRows)), 'total changes');
-        $minimumTotal = self::counterNext251($options['minimum_current_source_total_changes_next251'] ?? $statementChanges, 'minimum total changes');
-        $viewCookie = self::tokenNext251((string) ($options['current_source_change_view_cookie_next251'] ?? ($base['current_source_sequence_view_cookie_next247'] ?? ($currentView['source'] ?? 'main@view-cookie-251-current'))), 'view cookie');
-        $triggerCookie = self::tokenNext251((string) ($options['current_source_change_trigger_cookie_next251'] ?? ($base['current_source_sequence_trigger_cookie_next247'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-251-current'))), 'trigger cookie');
-        $counterCursor = self::tokenNext251((string) ($options['current_source_change_counter_cursor_next251'] ?? 'wp.returning.current.change.counter.251'), 'change counter cursor');
+        $currentRows = self::rowsCurrentChangeReceipt($base['current_source_rows_next247'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentChangeReceipt($base['attempted_next_source_rows_next247'] ?? [], 'attempted next source rows');
+        $statementChanges = self::counterCurrentChangeReceipt($options['current_source_changes_next251'] ?? count($currentRows), 'statement changes');
+        $expectedChanges = self::counterCurrentChangeReceipt($options['expected_current_source_changes_next251'] ?? count($currentRows), 'expected statement changes');
+        $totalChanges = self::counterCurrentChangeReceipt($options['current_source_total_changes_next251'] ?? ($statementChanges + count($baseRows)), 'total changes');
+        $minimumTotal = self::counterCurrentChangeReceipt($options['minimum_current_source_total_changes_next251'] ?? $statementChanges, 'minimum total changes');
+        $viewCookie = self::tokenCurrentChangeReceipt((string) ($options['current_source_change_view_cookie_next251'] ?? ($base['current_source_sequence_view_cookie_next247'] ?? ($currentView['source'] ?? 'main@view-cookie-251-current'))), 'view cookie');
+        $triggerCookie = self::tokenCurrentChangeReceipt((string) ($options['current_source_change_trigger_cookie_next251'] ?? ($base['current_source_sequence_trigger_cookie_next247'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-251-current'))), 'trigger cookie');
+        $counterCursor = self::tokenCurrentChangeReceipt((string) ($options['current_source_change_counter_cursor_next251'] ?? 'wp.returning.current.change.counter.251'), 'change counter cursor');
         $requireTotal = (bool) ($options['require_total_changes_monotonic_next251'] ?? true);
 
         $changesMatch = $statementChanges === $expectedChanges;
         $totalMonotonic = $totalChanges >= $minimumTotal && $totalChanges >= $statementChanges;
-        $required = self::changeReceiptsNext251($currentRows, $statementChanges, $totalChanges, $viewCookie, $triggerCookie, $counterCursor);
-        $acknowledged = self::acknowledgedReceiptsNext251($options, $required);
+        $required = self::changeReceiptsCurrentChangeReceipt($currentRows, $statementChanges, $totalChanges, $viewCookie, $triggerCookie, $counterCursor);
+        $acknowledged = self::acknowledgedReceiptsCurrentChangeReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $changesComplete = $required !== []
@@ -6420,7 +6420,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $missing === []
             && $unexpected === [];
         $nextVisible = $baseVisible && $changesComplete;
-        $blockedReasons = self::blockedReasonsNext251(
+        $blockedReasons = self::blockedReasonsCurrentChangeReceipt(
             $base['blocked_reasons_next247'] ?? [],
             $baseVisible,
             $changesMatch,
@@ -6430,13 +6430,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $unexpected,
         );
 
-        $taggedCurrent = self::tagRowsNext251($currentRows, 'current-change-counter', true, $required, $statementChanges, $expectedChanges, $totalChanges, $minimumTotal, $viewCookie, $triggerCookie, $counterCursor, []);
-        $taggedNext = self::tagRowsNext251($nextRows, 'next-source', $nextVisible, [], $statementChanges, $expectedChanges, $totalChanges, $minimumTotal, $viewCookie, $triggerCookie, $counterCursor, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentChangeReceipt($currentRows, 'current-change-counter', true, $required, $statementChanges, $expectedChanges, $totalChanges, $minimumTotal, $viewCookie, $triggerCookie, $counterCursor, []);
+        $taggedNext = self::tagRowsCurrentChangeReceipt($nextRows, 'next-source', $nextVisible, [], $statementChanges, $expectedChanges, $totalChanges, $minimumTotal, $viewCookie, $triggerCookie, $counterCursor, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next251' => self::statusNext251($nextVisible, $baseVisible, $changesMatch, $requireTotal, $totalMonotonic, $missing, $unexpected),
+            'status_next251' => self::statusCurrentChangeReceipt($nextVisible, $baseVisible, $changesMatch, $requireTotal, $totalMonotonic, $missing, $unexpected),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next251' => $baseVisible,
@@ -6503,7 +6503,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function changeReceiptsNext251(array $rows, int $changes, int $totalChanges, string $viewCookie, string $triggerCookie, string $cursor): array
+    private static function changeReceiptsCurrentChangeReceipt(array $rows, int $changes, int $totalChanges, string $viewCookie, string $triggerCookie, string $cursor): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -6530,20 +6530,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext251(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentChangeReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_change_counters_next251'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext251($options['acknowledged_current_source_change_receipts_next251'] ?? [], 'acknowledged change-counter receipts');
+        return self::receiptListCurrentChangeReceipt($options['acknowledged_current_source_change_receipts_next251'] ?? [], 'acknowledged change-counter receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext251(mixed $values, string $label): array
+    private static function receiptListCurrentChangeReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next251 {$label} must be a list");
@@ -6561,7 +6561,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext251(mixed $rows, string $label): array
+    private static function rowsCurrentChangeReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next251 {$label} must be a list");
@@ -6581,7 +6581,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext251(array $rows, string $phase, bool $visible, array $receipts, int $changes, int $expectedChanges, int $totalChanges, int $minimumTotal, string $viewCookie, string $triggerCookie, string $cursor, array $reasons): array
+    private static function tagRowsCurrentChangeReceipt(array $rows, string $phase, bool $visible, array $receipts, int $changes, int $expectedChanges, int $totalChanges, int $minimumTotal, string $viewCookie, string $triggerCookie, string $cursor, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -6609,7 +6609,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext251(mixed $baseReasons, bool $baseVisible, bool $changesMatch, bool $requireTotal, bool $totalMonotonic, array $missing, array $unexpected): array
+    private static function blockedReasonsCurrentChangeReceipt(mixed $baseReasons, bool $baseVisible, bool $changesMatch, bool $requireTotal, bool $totalMonotonic, array $missing, array $unexpected): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next251 base blocked reasons are malformed');
@@ -6638,7 +6638,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext251(bool $nextVisible, bool $baseVisible, bool $changesMatch, bool $requireTotal, bool $totalMonotonic, array $missing, array $unexpected): string
+    private static function statusCurrentChangeReceipt(bool $nextVisible, bool $baseVisible, bool $changesMatch, bool $requireTotal, bool $totalMonotonic, array $missing, array $unexpected): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next251-change-counters-released';
@@ -6662,7 +6662,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return 'trigger-recursive-view-upsert-current-source-next251-change-counters-held';
     }
 
-    private static function counterNext251(mixed $value, string $label): int
+    private static function counterCurrentChangeReceipt(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next251 {$label} must be a non-negative integer");
@@ -6671,7 +6671,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return $value;
     }
 
-    private static function tokenNext251(string $token, string $label): string
+    private static function tokenCurrentChangeReceipt(string $token, string $label): string
     {
         if (!preg_match('/^[A-Za-z0-9_.:@-]{3,180}$/', $token)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next251 invalid {$label}");
@@ -6692,7 +6692,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext252(
+    public static function executeCurrentPredicateDecisionReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -6701,7 +6701,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext249(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentAssignmentImageReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -6712,16 +6712,16 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_assignment_next249'] ?? false);
-        $currentRows = self::rowsNext252($base['current_source_rows_next249'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext252($base['attempted_next_source_rows_next249'] ?? [], 'attempted next source rows');
-        $assignments = self::assignmentsNext252($base['current_source_assignment_images_next249'] ?? []);
-        $predicateToken = self::tokenNext252((string) ($options['current_source_upsert_where_token_next252'] ?? 'wp.current.source.upsert.where.252'), 'where token');
-        $expectedPredicateToken = self::tokenNext252((string) ($options['expected_current_source_upsert_where_token_next252'] ?? $predicateToken), 'expected where token');
+        $currentRows = self::rowsCurrentPredicateDecisionReceipt($base['current_source_rows_next249'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentPredicateDecisionReceipt($base['attempted_next_source_rows_next249'] ?? [], 'attempted next source rows');
+        $assignments = self::assignmentsCurrentPredicateDecisionReceipt($base['current_source_assignment_images_next249'] ?? []);
+        $predicateToken = self::tokenCurrentPredicateDecisionReceipt((string) ($options['current_source_upsert_where_token_next252'] ?? 'wp.current.source.upsert.where.252'), 'where token');
+        $expectedPredicateToken = self::tokenCurrentPredicateDecisionReceipt((string) ($options['expected_current_source_upsert_where_token_next252'] ?? $predicateToken), 'expected where token');
         $tokenMatches = hash_equals($predicateToken, $expectedPredicateToken);
-        $decisions = self::predicateDecisionsNext252($options['current_source_upsert_where_decisions_next252'] ?? null, $assignments);
+        $decisions = self::predicateDecisionsCurrentPredicateDecisionReceipt($options['current_source_upsert_where_decisions_next252'] ?? null, $assignments);
         $requireTrue = (bool) ($options['require_current_source_upsert_where_true_next252'] ?? false);
-        $requiredReceipts = self::predicateReceiptsNext252($assignments, $decisions, $predicateToken);
-        $acknowledgedReceipts = self::acknowledgedReceiptsNext252($options, $requiredReceipts);
+        $requiredReceipts = self::predicateReceiptsCurrentPredicateDecisionReceipt($assignments, $decisions, $predicateToken);
+        $acknowledgedReceipts = self::acknowledgedReceiptsCurrentPredicateDecisionReceipt($options, $requiredReceipts);
         $missingReceipts = array_values(array_diff($requiredReceipts, $acknowledgedReceipts));
         $unexpectedReceipts = array_values(array_diff($acknowledgedReceipts, $requiredReceipts));
         $allPredicatesTrue = !in_array(false, $decisions, true);
@@ -6731,7 +6731,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpectedReceipts === []
             && (!$requireTrue || $allPredicatesTrue);
         $nextVisible = $baseVisible && $predicateComplete;
-        $blockedReasons = self::blockedReasonsNext252(
+        $blockedReasons = self::blockedReasonsCurrentPredicateDecisionReceipt(
             $base['blocked_reasons_next249'] ?? [],
             $baseVisible,
             $tokenMatches,
@@ -6741,13 +6741,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $allPredicatesTrue,
         );
 
-        $currentRows = self::tagRowsNext252($currentRows, 'current-where', true, $requiredReceipts, $predicateToken, $decisions, []);
-        $nextRows = self::tagRowsNext252($nextRows, 'next-source', $nextVisible, [], $predicateToken, [], $nextVisible ? [] : $blockedReasons);
+        $currentRows = self::tagRowsCurrentPredicateDecisionReceipt($currentRows, 'current-where', true, $requiredReceipts, $predicateToken, $decisions, []);
+        $nextRows = self::tagRowsCurrentPredicateDecisionReceipt($nextRows, 'next-source', $nextVisible, [], $predicateToken, [], $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($currentRows, $nextRows) : $currentRows;
         $heldRows = $nextVisible ? [] : $nextRows;
 
         return [
-            'status_next252' => self::statusNext252($baseVisible, $tokenMatches, $missingReceipts, $unexpectedReceipts, $requireTrue, $allPredicatesTrue, $nextVisible),
+            'status_next252' => self::statusCurrentPredicateDecisionReceipt($baseVisible, $tokenMatches, $missingReceipts, $unexpectedReceipts, $requireTrue, $allPredicatesTrue, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next252' => $baseVisible,
@@ -6805,7 +6805,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext252(mixed $rows, string $label): array
+    private static function rowsCurrentPredicateDecisionReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next252 {$label} must be a list");
@@ -6818,7 +6818,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $assignments
      * @return list<array<string,mixed>>
      */
-    private static function assignmentsNext252(mixed $assignments): array
+    private static function assignmentsCurrentPredicateDecisionReceipt(mixed $assignments): array
     {
         if (!is_array($assignments) || !array_is_list($assignments) || $assignments === []) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next252 assignment images must be a non-empty list');
@@ -6837,7 +6837,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $assignments
      * @return list<bool>
      */
-    private static function predicateDecisionsNext252(mixed $decisions, array $assignments): array
+    private static function predicateDecisionsCurrentPredicateDecisionReceipt(mixed $decisions, array $assignments): array
     {
         if ($decisions === null) {
             return array_fill(0, count($assignments), true);
@@ -6859,7 +6859,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<bool> $decisions
      * @return list<string>
      */
-    private static function predicateReceiptsNext252(array $assignments, array $decisions, string $predicateToken): array
+    private static function predicateReceiptsCurrentPredicateDecisionReceipt(array $assignments, array $decisions, string $predicateToken): array
     {
         $receipts = [];
         foreach ($assignments as $index => $assignment) {
@@ -6881,20 +6881,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext252(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentPredicateDecisionReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_upsert_where_next252'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext252($options['acknowledged_current_source_upsert_where_receipts_next252'] ?? [], 'acknowledged where receipts');
+        return self::receiptListCurrentPredicateDecisionReceipt($options['acknowledged_current_source_upsert_where_receipts_next252'] ?? [], 'acknowledged where receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext252(mixed $values, string $label): array
+    private static function receiptListCurrentPredicateDecisionReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next252 {$label} must be a list");
@@ -6908,7 +6908,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return array_values(array_unique($values));
     }
 
-    private static function tokenNext252(string $token, string $label): string
+    private static function tokenCurrentPredicateDecisionReceipt(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next252 {$label} is malformed");
@@ -6924,7 +6924,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext252(array $rows, string $phase, bool $visible, array $receipts, string $predicateToken, array $decisions, array $reasons): array
+    private static function tagRowsCurrentPredicateDecisionReceipt(array $rows, string $phase, bool $visible, array $receipts, string $predicateToken, array $decisions, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -6947,7 +6947,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext252(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireTrue, bool $allPredicatesTrue): array
+    private static function blockedReasonsCurrentPredicateDecisionReceipt(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireTrue, bool $allPredicatesTrue): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next252 base blocked reasons are malformed');
@@ -6976,7 +6976,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext252(bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireTrue, bool $allPredicatesTrue, bool $nextVisible): string
+    private static function statusCurrentPredicateDecisionReceipt(bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireTrue, bool $allPredicatesTrue, bool $nextVisible): string
     {
         if (!$baseVisible) {
             return 'trigger-recursive-view-upsert-current-source-next252-base-held';
@@ -7008,7 +7008,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext253(
+    public static function executeCurrentViewMaterializationReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -7017,7 +7017,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext250(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentRowidProvenanceReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -7028,19 +7028,19 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_rowid_provenance_next250'] ?? false);
-        $currentRows = self::rowsNext253($base['current_source_rows_next250'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext253($base['attempted_next_source_rows_next250'] ?? [], 'attempted next source rows');
-        $materializationToken = self::tokenNext253((string) ($options['current_source_view_materialization_token_next253'] ?? 'wp.current.source.view.materialization.253'), 'view materialization token');
-        $expectedToken = self::tokenNext253((string) ($options['expected_current_source_view_materialization_token_next253'] ?? $materializationToken), 'expected view materialization token');
-        $viewCookie = self::tokenNext253((string) ($options['current_source_view_cookie_next253'] ?? ($base['base']['current_source_sequence_view_cookie_next247'] ?? ($currentView['source'] ?? 'main@view-cookie-253-current'))), 'view cookie');
-        $triggerCookie = self::tokenNext253((string) ($options['current_source_trigger_cookie_next253'] ?? ($base['base']['current_source_sequence_trigger_cookie_next247'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-253-current'))), 'trigger cookie');
-        $cursor = self::tokenNext253((string) ($options['current_source_materialization_cursor_next253'] ?? 'wp.returning.materialized.cursor.253'), 'materialization cursor');
-        $projectionColumns = self::columnsNext253($options['materialized_returning_columns_next253'] ?? ['name', 'value', 'event_name', 'depth_value', 'ordinal_value'], 'materialized returning columns');
+        $currentRows = self::rowsCurrentViewMaterializationReceipt($base['current_source_rows_next250'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentViewMaterializationReceipt($base['attempted_next_source_rows_next250'] ?? [], 'attempted next source rows');
+        $materializationToken = self::tokenCurrentViewMaterializationReceipt((string) ($options['current_source_view_materialization_token_next253'] ?? 'wp.current.source.view.materialization.253'), 'view materialization token');
+        $expectedToken = self::tokenCurrentViewMaterializationReceipt((string) ($options['expected_current_source_view_materialization_token_next253'] ?? $materializationToken), 'expected view materialization token');
+        $viewCookie = self::tokenCurrentViewMaterializationReceipt((string) ($options['current_source_view_cookie_next253'] ?? ($base['base']['current_source_sequence_view_cookie_next247'] ?? ($currentView['source'] ?? 'main@view-cookie-253-current'))), 'view cookie');
+        $triggerCookie = self::tokenCurrentViewMaterializationReceipt((string) ($options['current_source_trigger_cookie_next253'] ?? ($base['base']['current_source_sequence_trigger_cookie_next247'] ?? ($currentView['trigger_source'] ?? 'main@trigger-cookie-253-current'))), 'trigger cookie');
+        $cursor = self::tokenCurrentViewMaterializationReceipt((string) ($options['current_source_materialization_cursor_next253'] ?? 'wp.returning.materialized.cursor.253'), 'materialization cursor');
+        $projectionColumns = self::columnsCurrentViewMaterializationReceipt($options['materialized_returning_columns_next253'] ?? ['name', 'value', 'event_name', 'depth_value', 'ordinal_value'], 'materialized returning columns');
         $tokenMatches = hash_equals($materializationToken, $expectedToken);
 
-        $materialized = self::materializedRowsNext253($currentRows, $projectionColumns, $viewCookie, $triggerCookie, $cursor);
-        $required = self::materializationReceiptsNext253($materialized, $materializationToken);
-        $acknowledged = self::acknowledgedReceiptsNext253($options, $required);
+        $materialized = self::materializedRowsCurrentViewMaterializationReceipt($currentRows, $projectionColumns, $viewCookie, $triggerCookie, $cursor);
+        $required = self::materializationReceiptsCurrentViewMaterializationReceipt($materialized, $materializationToken);
+        $acknowledged = self::acknowledgedReceiptsCurrentViewMaterializationReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $requireOrder = (bool) ($options['require_current_source_view_materialization_order_next253'] ?? true);
@@ -7051,7 +7051,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $unexpected === []
             && $orderMatches;
         $nextVisible = $baseVisible && $complete;
-        $blockedReasons = self::blockedReasonsNext253(
+        $blockedReasons = self::blockedReasonsCurrentViewMaterializationReceipt(
             $base['blocked_reasons_next250'] ?? [],
             $baseVisible,
             $tokenMatches,
@@ -7061,13 +7061,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $taggedCurrent = self::tagRowsNext253($currentRows, 'current-view-materialized', true, $required, $materializationToken, $viewCookie, $triggerCookie, $cursor, []);
-        $taggedNext = self::tagRowsNext253($nextRows, 'next-source', $nextVisible, [], $materializationToken, $viewCookie, $triggerCookie, $cursor, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentViewMaterializationReceipt($currentRows, 'current-view-materialized', true, $required, $materializationToken, $viewCookie, $triggerCookie, $cursor, []);
+        $taggedNext = self::tagRowsCurrentViewMaterializationReceipt($nextRows, 'next-source', $nextVisible, [], $materializationToken, $viewCookie, $triggerCookie, $cursor, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next253' => self::statusNext253($nextVisible, $baseVisible, $tokenMatches, $missing, $unexpected, $requireOrder, $orderMatches),
+            'status_next253' => self::statusCurrentViewMaterializationReceipt($nextVisible, $baseVisible, $tokenMatches, $missing, $unexpected, $requireOrder, $orderMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next253' => $baseVisible,
@@ -7132,7 +7132,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext253(mixed $rows, string $label): array
+    private static function rowsCurrentViewMaterializationReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next253 {$label} must be a list");
@@ -7150,7 +7150,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $columns
      * @return list<string>
      */
-    private static function columnsNext253(mixed $columns, string $label): array
+    private static function columnsCurrentViewMaterializationReceipt(mixed $columns, string $label): array
     {
         if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next253 {$label} must be a non-empty list");
@@ -7171,7 +7171,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $columns
      * @return list<array<string,mixed>>
      */
-    private static function materializedRowsNext253(array $rows, array $columns, string $viewCookie, string $triggerCookie, string $cursor): array
+    private static function materializedRowsCurrentViewMaterializationReceipt(array $rows, array $columns, string $viewCookie, string $triggerCookie, string $cursor): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -7198,7 +7198,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function materializationReceiptsNext253(array $rows, string $token): array
+    private static function materializationReceiptsCurrentViewMaterializationReceipt(array $rows, string $token): array
     {
         $receipts = [];
         foreach ($rows as $row) {
@@ -7213,20 +7213,20 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext253(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentViewMaterializationReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_source_view_materialization_next253'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext253($options['acknowledged_current_source_view_materialization_receipts_next253'] ?? [], 'acknowledged view materialization receipts');
+        return self::receiptListCurrentViewMaterializationReceipt($options['acknowledged_current_source_view_materialization_receipts_next253'] ?? [], 'acknowledged view materialization receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext253(mixed $values, string $label): array
+    private static function receiptListCurrentViewMaterializationReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next253 {$label} must be a list");
@@ -7240,7 +7240,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return array_values(array_unique($values));
     }
 
-    private static function tokenNext253(string $value, string $label): string
+    private static function tokenCurrentViewMaterializationReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next253 {$label} is malformed");
@@ -7255,7 +7255,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext253(array $rows, string $phase, bool $visible, array $receipts, string $token, string $viewCookie, string $triggerCookie, string $cursor, array $reasons): array
+    private static function tagRowsCurrentViewMaterializationReceipt(array $rows, string $phase, bool $visible, array $receipts, string $token, string $viewCookie, string $triggerCookie, string $cursor, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -7280,7 +7280,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext253(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
+    private static function blockedReasonsCurrentViewMaterializationReceipt(mixed $baseReasons, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next253 base blocked reasons are malformed');
@@ -7309,7 +7309,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext253(bool $nextVisible, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
+    private static function statusCurrentViewMaterializationReceipt(bool $nextVisible, bool $baseVisible, bool $tokenMatches, array $missing, array $unexpected, bool $requireOrder, bool $orderMatches): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next253-view-materialization-released';
@@ -7345,7 +7345,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext254(
+    public static function executeCurrentViewMappingReceipt(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -7354,7 +7354,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext250(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentRowidProvenanceReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -7365,22 +7365,22 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         );
 
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_rowid_provenance_next250'] ?? false);
-        $currentRows = self::rowsNext254($base['current_source_rows_next250'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext254($base['attempted_next_source_rows_next250'] ?? [], 'attempted next source rows');
-        $mapping = self::mappingNext254($currentView['mapping'] ?? [], 'current view mapping');
-        $expectedMapping = self::mappingNext254($options['expected_current_view_mapping_next254'] ?? $mapping, 'expected current view mapping');
+        $currentRows = self::rowsCurrentViewMappingReceipt($base['current_source_rows_next250'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentViewMappingReceipt($base['attempted_next_source_rows_next250'] ?? [], 'attempted next source rows');
+        $mapping = self::mappingCurrentViewMappingReceipt($currentView['mapping'] ?? [], 'current view mapping');
+        $expectedMapping = self::mappingCurrentViewMappingReceipt($options['expected_current_view_mapping_next254'] ?? $mapping, 'expected current view mapping');
         $mappingMatches = $mapping === $expectedMapping;
-        $sourceToken = self::tokenNext254((string) ($options['current_view_mapping_source_token_next254'] ?? ($currentView['source'] ?? 'main@view-mapping-current-254')), 'view mapping source token');
-        $expectedSourceToken = self::tokenNext254((string) ($options['expected_current_view_mapping_source_token_next254'] ?? $sourceToken), 'expected view mapping source token');
+        $sourceToken = self::tokenCurrentViewMappingReceipt((string) ($options['current_view_mapping_source_token_next254'] ?? ($currentView['source'] ?? 'main@view-mapping-current-254')), 'view mapping source token');
+        $expectedSourceToken = self::tokenCurrentViewMappingReceipt((string) ($options['expected_current_view_mapping_source_token_next254'] ?? $sourceToken), 'expected view mapping source token');
         $sourceMatches = hash_equals($sourceToken, $expectedSourceToken);
-        $triggerToken = self::tokenNext254((string) ($options['current_view_mapping_trigger_token_next254'] ?? ($currentView['trigger_source'] ?? 'main@trigger-mapping-current-254')), 'view mapping trigger token');
-        $expectedTriggerToken = self::tokenNext254((string) ($options['expected_current_view_mapping_trigger_token_next254'] ?? $triggerToken), 'expected view mapping trigger token');
+        $triggerToken = self::tokenCurrentViewMappingReceipt((string) ($options['current_view_mapping_trigger_token_next254'] ?? ($currentView['trigger_source'] ?? 'main@trigger-mapping-current-254')), 'view mapping trigger token');
+        $expectedTriggerToken = self::tokenCurrentViewMappingReceipt((string) ($options['expected_current_view_mapping_trigger_token_next254'] ?? $triggerToken), 'expected view mapping trigger token');
         $triggerMatches = hash_equals($triggerToken, $expectedTriggerToken);
-        $requiredColumns = self::columnListNext254($options['required_current_view_mapping_columns_next254'] ?? ['import_id', 'name', 'value', 'autoload_flag'], 'required mapping columns');
+        $requiredColumns = self::columnListCurrentViewMappingReceipt($options['required_current_view_mapping_columns_next254'] ?? ['import_id', 'name', 'value', 'autoload_flag'], 'required mapping columns');
         $missingColumns = array_values(array_filter($requiredColumns, static fn (string $column): bool => !array_key_exists($column, $mapping)));
-        $mappingRows = self::mappingRowsNext254($currentRows, $mapping, $sourceToken, $triggerToken, $requiredColumns);
-        $required = self::mappingReceiptsNext254($mappingRows, $sourceToken, $triggerToken);
-        $acknowledged = self::acknowledgedReceiptsNext254($options, $required);
+        $mappingRows = self::mappingRowsCurrentViewMappingReceipt($currentRows, $mapping, $sourceToken, $triggerToken, $requiredColumns);
+        $required = self::mappingReceiptsCurrentViewMappingReceipt($mappingRows, $sourceToken, $triggerToken);
+        $acknowledged = self::acknowledgedReceiptsCurrentViewMappingReceipt($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $mappingComplete = $required !== []
@@ -7391,7 +7391,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $missing === []
             && $unexpected === [];
         $nextVisible = $baseVisible && $mappingComplete;
-        $blockedReasons = self::blockedReasonsNext254(
+        $blockedReasons = self::blockedReasonsCurrentViewMappingReceipt(
             $base['blocked_reasons_next250'] ?? [],
             $baseVisible,
             $mappingMatches,
@@ -7402,13 +7402,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $unexpected,
         );
 
-        $taggedCurrent = self::tagRowsNext254($currentRows, 'current-view-mapping', true, $mappingRows, $required, $sourceToken, $triggerToken, []);
-        $taggedNext = self::tagRowsNext254($nextRows, 'next-source', $nextVisible, [], [], $sourceToken, $triggerToken, $nextVisible ? [] : $blockedReasons);
+        $taggedCurrent = self::tagRowsCurrentViewMappingReceipt($currentRows, 'current-view-mapping', true, $mappingRows, $required, $sourceToken, $triggerToken, []);
+        $taggedNext = self::tagRowsCurrentViewMappingReceipt($nextRows, 'next-source', $nextVisible, [], [], $sourceToken, $triggerToken, $nextVisible ? [] : $blockedReasons);
         $visibleRows = $nextVisible ? array_merge($taggedCurrent, $taggedNext) : $taggedCurrent;
         $heldRows = $nextVisible ? [] : $taggedNext;
 
         return [
-            'status_next254' => self::statusNext254($nextVisible, $baseVisible, $mappingMatches, $sourceMatches, $triggerMatches, $missingColumns, $missing, $unexpected),
+            'status_next254' => self::statusCurrentViewMappingReceipt($nextVisible, $baseVisible, $mappingMatches, $sourceMatches, $triggerMatches, $missingColumns, $missing, $unexpected),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next254' => $baseVisible,
@@ -7475,7 +7475,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext254(mixed $rows, string $label): array
+    private static function rowsCurrentViewMappingReceipt(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next254 {$label} must be a list");
@@ -7492,14 +7492,14 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     /**
      * @return array<string,string>
      */
-    private static function mappingNext254(mixed $mapping, string $label): array
+    private static function mappingCurrentViewMappingReceipt(mixed $mapping, string $label): array
     {
         if (!is_array($mapping)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next254 {$label} must be an array");
         }
         $out = [];
         foreach ($mapping as $source => $target) {
-            if (!is_string($source) || !is_string($target) || !self::isColumnNext254($source) || !self::isColumnNext254($target)) {
+            if (!is_string($source) || !is_string($target) || !self::isColumnCurrentViewMappingReceipt($source) || !self::isColumnCurrentViewMappingReceipt($target)) {
                 throw new InvalidArgumentException("SQLite recursive view UPSERT next254 {$label} contains malformed columns");
             }
             $out[$source] = $target;
@@ -7512,14 +7512,14 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function columnListNext254(mixed $columns, string $label): array
+    private static function columnListCurrentViewMappingReceipt(mixed $columns, string $label): array
     {
         if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next254 {$label} must be a non-empty list");
         }
         $out = [];
         foreach ($columns as $column) {
-            if (!is_string($column) || !self::isColumnNext254($column)) {
+            if (!is_string($column) || !self::isColumnCurrentViewMappingReceipt($column)) {
                 throw new InvalidArgumentException("SQLite recursive view UPSERT next254 {$label} contains a malformed column");
             }
             $out[] = $column;
@@ -7528,7 +7528,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return array_values(array_unique($out));
     }
 
-    private static function tokenNext254(string $value, string $label): string
+    private static function tokenCurrentViewMappingReceipt(string $value, string $label): string
     {
         if ($value === '' || preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next254 {$label} is malformed");
@@ -7537,7 +7537,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return $value;
     }
 
-    private static function isColumnNext254(string $value): bool
+    private static function isColumnCurrentViewMappingReceipt(string $value): bool
     {
         return preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) === 1;
     }
@@ -7548,7 +7548,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $requiredColumns
      * @return list<array<string,mixed>>
      */
-    private static function mappingRowsNext254(array $rows, array $mapping, string $sourceToken, string $triggerToken, array $requiredColumns): array
+    private static function mappingRowsCurrentViewMappingReceipt(array $rows, array $mapping, string $sourceToken, string $triggerToken, array $requiredColumns): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -7558,7 +7558,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 $targetColumn = $mapping[$sourceColumn] ?? null;
                 $mapped[$sourceColumn] = [
                     'target' => $targetColumn,
-                    'value' => $targetColumn === null ? null : ($returning[self::returningAliasNext254($sourceColumn, $targetColumn)] ?? $returning[$targetColumn] ?? null),
+                    'value' => $targetColumn === null ? null : ($returning[self::returningAliasCurrentViewMappingReceipt($sourceColumn, $targetColumn)] ?? $returning[$targetColumn] ?? null),
                 ];
             }
             $out[] = [
@@ -7575,7 +7575,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         return $out;
     }
 
-    private static function returningAliasNext254(string $sourceColumn, string $targetColumn): string
+    private static function returningAliasCurrentViewMappingReceipt(string $sourceColumn, string $targetColumn): string
     {
         if ($sourceColumn === 'name' && $targetColumn === 'option_name') {
             return 'name';
@@ -7597,7 +7597,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<array<string,mixed>> $mappingRows
      * @return list<string>
      */
-    private static function mappingReceiptsNext254(array $mappingRows, string $sourceToken, string $triggerToken): array
+    private static function mappingReceiptsCurrentViewMappingReceipt(array $mappingRows, string $sourceToken, string $triggerToken): array
     {
         $receipts = [];
         foreach ($mappingRows as $row) {
@@ -7612,19 +7612,19 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext254(array $options, array $required): array
+    private static function acknowledgedReceiptsCurrentViewMappingReceipt(array $options, array $required): array
     {
         if (($options['auto_ack_current_view_mapping_receipts_next254'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext254($options['acknowledged_current_view_mapping_receipts_next254'] ?? [], 'acknowledged view mapping receipts');
+        return self::receiptListCurrentViewMappingReceipt($options['acknowledged_current_view_mapping_receipts_next254'] ?? [], 'acknowledged view mapping receipts');
     }
 
     /**
      * @return list<string>
      */
-    private static function receiptListNext254(mixed $values, string $label): array
+    private static function receiptListCurrentViewMappingReceipt(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view UPSERT next254 {$label} must be a list");
@@ -7645,7 +7645,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext254(array $rows, string $phase, bool $visible, array $mappingRows, array $receipts, string $sourceToken, string $triggerToken, array $reasons): array
+    private static function tagRowsCurrentViewMappingReceipt(array $rows, string $phase, bool $visible, array $mappingRows, array $receipts, string $sourceToken, string $triggerToken, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -7670,7 +7670,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext254(mixed $baseReasons, bool $baseVisible, bool $mappingMatches, bool $sourceMatches, bool $triggerMatches, array $missingColumns, array $missing, array $unexpected): array
+    private static function blockedReasonsCurrentViewMappingReceipt(mixed $baseReasons, bool $baseVisible, bool $mappingMatches, bool $sourceMatches, bool $triggerMatches, array $missingColumns, array $missing, array $unexpected): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view UPSERT next254 base blocked reasons are malformed');
@@ -7706,7 +7706,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
      * @param list<string> $missing
      * @param list<string> $unexpected
      */
-    private static function statusNext254(bool $nextVisible, bool $baseVisible, bool $mappingMatches, bool $sourceMatches, bool $triggerMatches, array $missingColumns, array $missing, array $unexpected): string
+    private static function statusCurrentViewMappingReceipt(bool $nextVisible, bool $baseVisible, bool $mappingMatches, bool $sourceMatches, bool $triggerMatches, array $missingColumns, array $missing, array $unexpected): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-upsert-current-source-next254-view-mapping-released';
@@ -7757,7 +7757,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext252(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentPredicateDecisionReceipt(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -8127,7 +8127,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext253(
+        $base = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentViewMaterializationReceipt(
             $baseRows,
             $currentInput,
             $nextInput,

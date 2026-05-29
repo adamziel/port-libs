@@ -96,7 +96,7 @@ final class SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan
             $statementsOut[] = $statement;
         }
 
-        $base['operation'] = 'attach-temp-wal-schema-cookie-current-source-next98';
+        $base['operation'] = 'attach-temp-wal-schema-cookie-root-signature';
         $base['status'] = $expired === [] ? 'schema_cache_stable' : 'schema_cache_expired';
         $base['statements'] = $statementsOut;
         $base['expired_statements'] = $expired;
@@ -109,8 +109,8 @@ final class SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan
         $base['changed_root_schemas'] = $changedRootSchemas;
         $base['source_only_cookie_move_schemas'] = $sourceOnlySchemas;
         $base['dependencies'] = [
-            'sqlite-attach-temp-wal-schema-cookie-current-source-next98',
-            'sqlite-attach-wal-temp-schema-cookie-current-source-next87',
+            'sqlite-attach-temp-wal-schema-cookie-root-signature',
+            'sqlite-attach-wal-temp-schema-cookie-source',
             'sqlite-schema-root-signature-current-source',
         ];
 

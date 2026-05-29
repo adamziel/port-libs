@@ -6,7 +6,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCookieSourcePlan;
 
-$plan = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99(
+$plan = SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan(
     [
         'main' => [
             'schema_cookie' => 100,
@@ -68,7 +68,7 @@ $summary = [
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
-    if ($summary['operation'] !== 'attach-temp-wal-schema-cookie-current-source-next99') {
+    if ($summary['operation'] !== 'attach-temp-wal-schema-cookie-cte-source') {
         throw new RuntimeException('Unexpected operation marker');
     }
     if ($summary['cte_reader_tables'] !== ['main.wp_options']) {
@@ -87,7 +87,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Expected temp stage import write to block before retry');
     }
 
-    echo "wordpress-attach-temp-wal-schema-cookie-current-source-next99 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cookie-cte-source self-test passed\n";
     return;
 }
 

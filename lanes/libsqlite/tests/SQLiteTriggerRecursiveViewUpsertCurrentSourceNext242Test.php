@@ -114,7 +114,7 @@ $baseOptions242 = [
     'current_source_upsert_sql_hash_next242' => 'insert-into-recursive-view-upsert-242',
 ];
 
-$plan242 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext242(
+$plan242 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentStatementEpochReceipt(
     $rows242,
     $currentInput242,
     $nextInput242,

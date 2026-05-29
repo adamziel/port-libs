@@ -59,7 +59,7 @@ $nullNext164 = static fn (): array => $plan164($current164, array_replace($next1
 
 $tests = [
     'records next164 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next164', $plan164()['dependencies'], true)),
-    'preserves next161 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next161', $plan164()['dependencies'], true)),
+    'preserves current-source admission dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source', $plan164()['dependencies'], true)),
     'pins current reader policy' => static fn (TestRunner $t) => $t->same('pin-current-json-table-generated-path-rowid-cost-current-source-next164-until-cursor-reset', $plan164()['currentReaderPolicy']),
     'prepares changed next reader policy' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-generated-path-rowid-cost-current-source-next164-plan', $plan164()['nextReaderPolicy']),
     'stable reuses next reader policy' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-cost-current-source-next164-plan', $stable164()['nextReaderPolicy']),
@@ -113,7 +113,7 @@ $tests = [
     'reasons include order usage' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-current-source-order-usage-changed', $plan164()['next164ReplanReasons'], true)),
     'reasons include order rowset' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-current-source-order-rowset-changed', $plan164()['next164ReplanReasons'], true)),
     'reasons include order cost' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-current-source-order-cost-changed', $plan164()['next164ReplanReasons'], true)),
-    'reasons preserve next161 usage' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-current-source-admission-usage-changed', $plan164()['next164ReplanReasons'], true)),
+    'reasons preserve admission usage' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-path-rowid-current-source-admission-usage-changed', $plan164()['next164ReplanReasons'], true)),
     'null next remains unrunnable' => static fn (TestRunner $t) => $t->same('unrunnable-json-table', $nullNext164()['nextGeneratedPathRowidCurrentSourceOrder']['costClass']),
     'negative limit rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan164(null, null, null, null, -1)),
     'bad order direction rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan164(null, null, null, [['column' => 'id', 'direction' => 'SIDEWAYS']])),

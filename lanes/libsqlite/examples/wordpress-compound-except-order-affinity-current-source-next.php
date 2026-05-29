@@ -36,9 +36,9 @@ SELECT option_name AS name,
 SQL;
 
 $result = [
-    'scenario' => 'wordpress-compound-except-order-affinity-current-source-next138',
+    'scenario' => 'wordpress-compound-except-order-affinity-current-source-next',
     'wordpressUse' => 'Copied wp_options migration checks can subtract network-level options with EXCEPT, then apply SQLite tail ORDER BY storage-class and NOCASE rules so changed current-source rows are replayed in deterministic import order without ext/sqlite.',
-    'plan' => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compareNext138($sql, $currentTables, $nextTables),
+    'plan' => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compare($sql, $currentTables, $nextTables),
     'dependency' => 'native PHP compound SELECT EXCEPT, tail ORDER BY, and SQLite storage-class comparison; no new support component required',
 ];
 
@@ -50,7 +50,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
         exit(1);
     }
 
-    echo "wordpress-compound-except-order-affinity-current-source-next138 self-test passed\n";
+    echo "wordpress-compound-except-order-affinity-current-source-next self-test passed\n";
 }
 
 return $result;

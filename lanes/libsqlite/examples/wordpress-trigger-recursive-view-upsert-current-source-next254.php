@@ -34,7 +34,7 @@ $followingView = $view;
 $followingView['source'] = 'main@view-cookie-254-following';
 $followingView['trigger_source'] = 'main@trigger-cookie-254-following';
 
-$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext254(
+$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentViewMappingReceipt(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],

@@ -27,19 +27,24 @@ $base = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next1155'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1171AfterCurrentCheckpoint($base, [[
-    'name' => 'wp-next1171-current-source-seal',
-    'source_token' => $base['source_token'],
-    'database_digest' => $base['database_digest'],
-    'page_cache_digest' => $base['page_cache_digest'],
-    'commit_generation' => $base['commit_generation'],
-    'schema_cookie' => $base['schema_cookie'],
-    'checkpoint_frame' => $base['checkpoint_frame'],
-    'database_header_synced' => true,
-    'wal_index_salt_synced' => true,
-    'reader_marks_released' => true,
-    'hot_journal_visible' => false,
-]]);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification(
+    $base,
+    [[
+        'name' => 'wp-next1171-current-source-seal',
+        'source_token' => $base['source_token'],
+        'database_digest' => $base['database_digest'],
+        'page_cache_digest' => $base['page_cache_digest'],
+        'commit_generation' => $base['commit_generation'],
+        'schema_cookie' => $base['schema_cookie'],
+        'checkpoint_frame' => $base['checkpoint_frame'],
+        'database_header_synced' => true,
+        'wal_index_salt_synced' => true,
+        'reader_marks_released' => true,
+        'hot_journal_visible' => false,
+    ]],
+    1171,
+    'seal_after_ready_checkpoint_current_source_next1164_1171'
+);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['status'] === 'wal-hot-journal-savepoint-checkpoint-current-source-next1171');

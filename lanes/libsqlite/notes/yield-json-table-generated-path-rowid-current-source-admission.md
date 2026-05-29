@@ -1,8 +1,8 @@
-# JSON Table Generated Path Rowid Cost Current Source Next161
+# JSON Table Generated Path Rowid Current Source Admission
 
 ## Behavior
 
-- Adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext161()`.
+- Superseded by `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceAdmissionPlan()`.
 - Extends accepted next158/next159 generated-path rowid cost profiles into an xBestIndex-style admission layer:
   - path and rowid constraints can be marked omitted when the current JSON source cursor remains pinned;
   - rowid `IN`/point/range seek metadata carries into admission cost classes;
@@ -11,17 +11,17 @@
 
 ## WordPress Scenario
 
-`examples/wordpress-json-table-generated-path-rowid-cost-current-source-next161.php` models copied `wp_options` plugin rule diagnostics where a generated JSON path and rowid seek can reuse the current `json_tree()` cursor during a statement, while changed next-source JSON forces a fresh plan.
+`examples/wordpress-json-table-generated-path-rowid-current-source-admission.php` models copied `wp_options` plugin rule diagnostics where a generated JSON path and rowid seek can reuse the current `json_tree()` cursor during a statement, while changed next-source JSON forces a fresh plan.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
-- `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext161Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next161.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext161Test.php`
+- `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCurrentSourceAdmissionTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-current-source-admission.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCurrentSourceAdmissionTest.php`
   - `1 test files, 59 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next161.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-cost-current-source-next161 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-current-source-admission.php --self-test`
+  - `wordpress-json-table-generated-path-rowid-cost-current-source self-test passed`
 
 ## Non-Overlap
 

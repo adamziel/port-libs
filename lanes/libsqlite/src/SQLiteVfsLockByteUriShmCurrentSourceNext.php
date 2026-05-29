@@ -1252,40 +1252,40 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param list<array<string,mixed>|string> $operations
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    private static function legacy93Plan(array $current, array $operations, string $filename): array
+    private static function legacyUriShmLockPlan(array $current, array $operations, string $filename): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next93 requires operations');
         }
 
-        $open = self::legacy93Open($filename);
-        $state = self::legacy93NormalizeCurrent($current);
+        $open = self::legacyUriShmLockOpen($filename);
+        $state = self::legacyUriShmLockNormalizeCurrent($current);
         $sourceKey = $open['source_key'];
         $state['selected_source'] = $sourceKey;
-        $state['sources'][$sourceKey] ??= self::legacy93Source($open, []);
+        $state['sources'][$sourceKey] ??= self::legacyUriShmLockSource($open, []);
 
         $events = [];
         foreach ($operations as $operation) {
-            $op = self::legacy93Operation($operation);
-            $before = self::legacy93Summary($state);
+            $op = self::legacyUriShmLockOperation($operation);
+            $before = self::legacyUriShmLockSummary($state);
             $source = &$state['sources'][$sourceKey];
 
             if ($op['kind'] === 'main') {
-                $event = self::legacy93MainLock($source, $open, $op);
+                $event = self::legacyUriShmLockMainLock($source, $open, $op);
                 unset($source);
-                $events[] = self::legacy93Event('main', $event['status'], $before, self::legacy93Summary($state), $event);
+                $events[] = self::legacyUriShmLockEvent('main', $event['status'], $before, self::legacyUriShmLockSummary($state), $event);
                 continue;
             }
 
             if ($op['kind'] === 'shm') {
-                $event = self::legacy93ShmLock($source, $open, $op);
+                $event = self::legacyUriShmLockShmLock($source, $open, $op);
                 unset($source);
-                $events[] = self::legacy93Event('shm', $event['status'], $before, self::legacy93Summary($state), $event);
+                $events[] = self::legacyUriShmLockEvent('shm', $event['status'], $before, self::legacyUriShmLockSummary($state), $event);
                 continue;
             }
 
             if ($op['kind'] === 'release') {
-                $connection = self::legacy93Connection((string) $op['connection']);
+                $connection = self::legacyUriShmLockConnection((string) $op['connection']);
                 unset($source['main_holders'][$connection], $source['shared_slots'][$connection]);
                 foreach ($source['shm_locks'] as $lock => $holders) {
                     unset($source['shm_locks'][$lock][$connection]);
@@ -1299,7 +1299,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
                     'reason' => null,
                 ];
                 unset($source);
-                $events[] = self::legacy93Event('release', 'released', $before, self::legacy93Summary($state), $event);
+                $events[] = self::legacyUriShmLockEvent('release', 'released', $before, self::legacyUriShmLockSummary($state), $event);
                 continue;
             }
 
@@ -1309,8 +1309,8 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
 
         return [
             'status' => (string) $events[array_key_last($events)]['status'],
-            'current' => self::legacy93Summary(self::legacy93NormalizeCurrent($current)),
-            'next' => self::legacy93Summary($state),
+            'current' => self::legacyUriShmLockSummary(self::legacyUriShmLockNormalizeCurrent($current)),
+            'next' => self::legacyUriShmLockSummary($state),
             'events' => $events,
             'dependencies' => [
                 'sqlite-file-uri',
@@ -1324,7 +1324,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
     /**
      * @return array<string,mixed>
      */
-    private static function legacy93Open(string $filename): array
+    private static function legacyUriShmLockOpen(string $filename): array
     {
         $uri = SQLiteFileUri::parse($filename);
         $memory = ($uri['mode'] ?? null) === 'memory' || $uri['path'] === ':memory:';
@@ -1353,13 +1353,13 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $op
      * @return array<string,mixed>
      */
-    private static function legacy93MainLock(array &$source, array $open, array $op): array
+    private static function legacyUriShmLockMainLock(array &$source, array $open, array $op): array
     {
-        $connection = self::legacy93Connection((string) $op['connection']);
-        $level = self::legacy93Level((string) $op['level']);
+        $connection = self::legacyUriShmLockConnection((string) $op['connection']);
+        $level = self::legacyUriShmLockLevel((string) $op['level']);
         $currentLevel = (string) ($source['main_holders'][$connection] ?? 'none');
         $currentSlot = (int) ($source['shared_slots'][$connection] ?? 0);
-        $nextSlot = isset($op['shared_slot']) ? self::legacy93Slot($op['shared_slot']) : $currentSlot;
+        $nextSlot = isset($op['shared_slot']) ? self::legacyUriShmLockSlot($op['shared_slot']) : $currentSlot;
 
         $blockedReason = null;
         if (!$open['persistent']) {
@@ -1381,7 +1381,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
             $currentSlot,
             $nextSlot
         );
-        $blocking = $blockedReason === null ? self::legacy93MainBlockers($source['main_holders'], $connection, $level) : [];
+        $blocking = $blockedReason === null ? self::legacyUriShmLockMainBlockers($source['main_holders'], $connection, $level) : [];
         $status = $blockedReason === null && $blocking === [] && $plan['status'] === 'planned' ? 'planned' : 'blocked';
         $reason = $blockedReason ?? ($blocking === [] ? $plan['reason'] : 'main_lock_conflict');
 
@@ -1416,11 +1416,11 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $op
      * @return array<string,mixed>
      */
-    private static function legacy93ShmLock(array &$source, array $open, array $op): array
+    private static function legacyUriShmLockShmLock(array &$source, array $open, array $op): array
     {
-        $connection = self::legacy93Connection((string) $op['connection']);
-        $lock = self::legacy93ShmName((string) $op['lock']);
-        $mode = self::legacy93ShmMode((string) ($op['mode'] ?? 'shared'));
+        $connection = self::legacyUriShmLockConnection((string) $op['connection']);
+        $lock = self::legacyUriShmLockShmName((string) $op['lock']);
+        $mode = self::legacyUriShmLockShmMode((string) ($op['mode'] ?? 'shared'));
 
         if ($mode === 'unlock') {
             unset($source['shm_locks'][$lock][$connection]);
@@ -1449,7 +1449,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
             $blockedReason = 'readonly_uri_disables_exclusive_shm_lock';
         }
 
-        $blocking = $blockedReason === null ? self::legacy93ShmBlockers($source['shm_locks'][$lock], $connection, $mode) : [];
+        $blocking = $blockedReason === null ? self::legacyUriShmLockShmBlockers($source['shm_locks'][$lock], $connection, $mode) : [];
         $status = $blockedReason === null && $blocking === [] ? 'acquired' : 'blocked';
         $reason = $blockedReason ?? ($blocking === [] ? null : 'shm_lock_conflict');
         if ($status === 'acquired') {
@@ -1474,7 +1474,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,string> $holders
      * @return list<string>
      */
-    private static function legacy93MainBlockers(array $holders, string $connection, string $level): array
+    private static function legacyUriShmLockMainBlockers(array $holders, string $connection, string $level): array
     {
         if ($level === 'none' || $level === 'shared') {
             return [];
@@ -1502,7 +1502,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,string> $holders
      * @return list<string>
      */
-    private static function legacy93ShmBlockers(array $holders, string $connection, string $mode): array
+    private static function legacyUriShmLockShmBlockers(array $holders, string $connection, string $mode): array
     {
         $blocking = [];
         foreach ($holders as $holder => $held) {
@@ -1522,7 +1522,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $current
      * @return array<string,mixed>
      */
-    private static function legacy93NormalizeCurrent(array $current): array
+    private static function legacyUriShmLockNormalizeCurrent(array $current): array
     {
         $state = [
             'selected_source' => isset($current['selected_source']) ? (string) $current['selected_source'] : null,
@@ -1533,7 +1533,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
                 continue;
             }
             $sourceKey = (string) (($source['source_key'] ?? null) ?: $key);
-            $state['sources'][$sourceKey] = self::legacy93Source([
+            $state['sources'][$sourceKey] = self::legacyUriShmLockSource([
                 'source_key' => $sourceKey,
                 'shm_key' => (string) ($source['shm_key'] ?? ($sourceKey . '-shm')),
                 'path' => (string) ($source['path'] ?? $sourceKey),
@@ -1553,7 +1553,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $source
      * @return array<string,mixed>
      */
-    private static function legacy93Source(array $open, array $source): array
+    private static function legacyUriShmLockSource(array $open, array $source): array
     {
         return [
             'source_key' => (string) $open['source_key'],
@@ -1565,9 +1565,9 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
             'immutable' => (bool) $open['immutable'],
             'nolock' => (bool) $open['nolock'],
             'generation' => max(1, (int) ($source['generation'] ?? 1)),
-            'main_holders' => self::legacy93StringMap($source['main_holders'] ?? []),
-            'shared_slots' => self::legacy93IntMap($source['shared_slots'] ?? []),
-            'shm_locks' => self::legacy93ShmLocks($source['shm_locks'] ?? []),
+            'main_holders' => self::legacyUriShmLockStringMap($source['main_holders'] ?? []),
+            'shared_slots' => self::legacyUriShmLockIntMap($source['shared_slots'] ?? []),
+            'shm_locks' => self::legacyUriShmLockShmLocks($source['shm_locks'] ?? []),
             'constants' => SQLiteLockByteRangePlan::constants(),
         ];
     }
@@ -1575,7 +1575,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
     /**
      * @return array<string,mixed>
      */
-    private static function legacy93Summary(array $state): array
+    private static function legacyUriShmLockSummary(array $state): array
     {
         $sources = $state['sources'];
         ksort($sources);
@@ -1596,7 +1596,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $detail
      * @return array<string,mixed>
      */
-    private static function legacy93Event(string $kind, string $status, array $current, array $next, array $detail): array
+    private static function legacyUriShmLockEvent(string $kind, string $status, array $current, array $next, array $detail): array
     {
         return $detail + [
             'kind' => $kind,
@@ -1610,7 +1610,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed>|string $operation
      * @return array<string,mixed>
      */
-    private static function legacy93Operation(array|string $operation): array
+    private static function legacyUriShmLockOperation(array|string $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -1650,7 +1650,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param mixed $values
      * @return array<string,string>
      */
-    private static function legacy93StringMap(mixed $values): array
+    private static function legacyUriShmLockStringMap(mixed $values): array
     {
         $out = [];
         if (is_array($values)) {
@@ -1668,13 +1668,13 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param mixed $values
      * @return array<string,int>
      */
-    private static function legacy93IntMap(mixed $values): array
+    private static function legacyUriShmLockIntMap(mixed $values): array
     {
         $out = [];
         if (is_array($values)) {
             foreach ($values as $key => $value) {
                 if (is_string($key) && is_int($value)) {
-                    $out[$key] = self::legacy93Slot($value);
+                    $out[$key] = self::legacyUriShmLockSlot($value);
                 }
             }
         }
@@ -1686,20 +1686,20 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param mixed $locks
      * @return array<string,array<string,string>>
      */
-    private static function legacy93ShmLocks(mixed $locks): array
+    private static function legacyUriShmLockShmLocks(mixed $locks): array
     {
         $normalized = ['read0' => [], 'read1' => [], 'read2' => [], 'read3' => [], 'read4' => [], 'write' => [], 'checkpoint' => [], 'recover' => []];
         if (!is_array($locks)) {
             return $normalized;
         }
         foreach ($locks as $name => $holders) {
-            $normalized[self::legacy93ShmName((string) $name)] = self::legacy93StringMap($holders);
+            $normalized[self::legacyUriShmLockShmName((string) $name)] = self::legacyUriShmLockStringMap($holders);
         }
 
         return $normalized;
     }
 
-    private static function legacy93Connection(string $connection): string
+    private static function legacyUriShmLockConnection(string $connection): string
     {
         $connection = trim($connection);
         if ($connection === '') {
@@ -1709,7 +1709,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
         return $connection;
     }
 
-    private static function legacy93Level(string $level): string
+    private static function legacyUriShmLockLevel(string $level): string
     {
         $level = strtolower(trim($level));
         if (!in_array($level, ['none', 'shared', 'reserved', 'pending', 'exclusive'], true)) {
@@ -1719,7 +1719,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
         return $level;
     }
 
-    private static function legacy93ShmName(string $lock): string
+    private static function legacyUriShmLockShmName(string $lock): string
     {
         $lock = strtolower(trim($lock));
         if (!in_array($lock, ['read0', 'read1', 'read2', 'read3', 'read4', 'write', 'checkpoint', 'recover'], true)) {
@@ -1729,7 +1729,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
         return $lock;
     }
 
-    private static function legacy93ShmMode(string $mode): string
+    private static function legacyUriShmLockShmMode(string $mode): string
     {
         $mode = strtolower(trim($mode));
         if (!in_array($mode, ['shared', 'exclusive', 'unlock'], true)) {
@@ -1739,7 +1739,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
         return $mode;
     }
 
-    private static function legacy93Slot(mixed $slot): int
+    private static function legacyUriShmLockSlot(mixed $slot): int
     {
         if (!is_int($slot) || $slot < 0 || $slot >= SQLiteLockByteRangePlan::SHARED_SIZE) {
             throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next93 shared slot is out of range');

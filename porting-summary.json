@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 12:32:46 UTC",
-    "sourceCommit": "2be9d15fdfd98d203ea1a0ae0d3d94c918cae8c3",
-    "sourceCommitShort": "2be9d15fdfd9",
+    "generated": "2026-05-29 12:39:40 UTC",
+    "sourceCommit": "627dcf71e1f161c3ba906efe1b1a781c13e6b503",
+    "sourceCommitShort": "627dcf71e1f1",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2be9d15fdfd98d203ea1a0ae0d3d94c918cae8c3",
-    "dashboardCommitShort": "2be9d15fdfd9",
+    "dashboardCommit": "627dcf71e1f161c3ba906efe1b1a781c13e6b503",
+    "dashboardCommitShort": "627dcf71e1f1",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -88,9 +88,9 @@
             "phase": "second current functional batch plus broad numeric suff...",
             "audit": "Accepted 9 ready libsqlite handoffs on to...",
             "currentWork": "Integrated functional helpers and ongoing broad numbered method-wrapper consolidation. La...",
-            "nextTarget": "Keep 10-11 visible U/V-wave consolidation workers active, integrate new clean handoffs as...",
+            "nextTarget": "Keep 10-11 visible W/X-wave consolidation workers active, integrate new clean handoffs as...",
             "blocker": "No blocker for the pushed focused batches.",
-            "commit": "thirtee"
+            "commit": "fourtee"
         },
         {
             "library": "LightningCSS",

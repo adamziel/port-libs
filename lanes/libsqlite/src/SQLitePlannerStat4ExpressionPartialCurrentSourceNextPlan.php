@@ -33743,7 +33743,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext734749(
+    public static function materializePreparedHandoff(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -33944,7 +33944,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext734749($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $base = self::materializePreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
         $fence = self::handoffFencePreparedHandoffFirstContinuation($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next734-749-prepared"
             && $fence["allSlicesPrepared"]

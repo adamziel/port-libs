@@ -142,7 +142,7 @@ $baseOptions253 = [
     'current_source_materialization_cursor_next253' => 'wp.returning.materialized.cursor.253',
 ];
 
-$plan253 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext253(
+$plan253 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentViewMaterializationReceipt(
     $baseRows253,
     $currentInput253,
     $nextInput253,

@@ -127,7 +127,7 @@ $baseOptions247 = [
     'current_source_sequence_cursor_next247' => 'wp.returning.current.sequence.cursor.247',
 ];
 
-$plan247 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext247(
+$plan247 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentSequenceReceipt(
     $rows247,
     $currentInput247,
     $nextInput247,

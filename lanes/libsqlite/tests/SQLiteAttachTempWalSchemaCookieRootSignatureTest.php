@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan;
 
 $tests = [];
 
-$schemas98 = static fn (): array => [
+$schemas = static fn (): array => [
     'main' => [
         'schema_cookie' => 44,
         'wal_frames' => [
@@ -51,7 +51,7 @@ $schemas98 = static fn (): array => [
     ],
 ];
 
-$statements98 = static fn (): array => [
+$statements = static fn (): array => [
     ['name' => 'active-options-reader', 'sql' => 'SELECT option_value FROM main.wp_options WHERE option_name = ?', 'active' => true],
     ['name' => 'unqualified-options-reader', 'sql' => 'SELECT option_value FROM wp_options'],
     ['name' => 'stage-writer', 'sql' => 'INSERT INTO temp.wp_options_stage(option_name, option_value) VALUES (?, ?)'],
@@ -61,12 +61,12 @@ $statements98 = static fn (): array => [
     ['name' => 'posts-update', 'sql' => 'UPDATE main.wp_posts SET post_title = ? WHERE ID = ?'],
 ];
 
-$plan98 = static fn (?array $schemas = null, ?array $statements = null): array => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan(
-    $schemas ?? $schemas98(),
-    $statements ?? $statements98(),
+$plan = static fn (?array $schemasArg = null, ?array $statementsArg = null): array => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan(
+    $schemasArg ?? $schemas(),
+    $statementsArg ?? $statements(),
 );
 
-$value98 = static function (array $data, string $path): mixed {
+$value = static function (array $data, string $path): mixed {
     $cursor = $data;
     foreach (explode('.', $path) as $part) {
         if (is_array($cursor) && array_key_exists($part, $cursor)) {
@@ -80,11 +80,11 @@ $value98 = static function (array $data, string $path): mixed {
     return $cursor;
 };
 
-$pathCases98 = [
-    'operation marker' => ['operation', 'attach-temp-wal-schema-cookie-current-source-next98'],
+$pathCases = [
+    'operation marker' => ['operation', 'attach-temp-wal-schema-cookie-root-signature'],
     'status expired' => ['status', 'schema_cache_expired'],
     'search order' => ['search_order', ['temp', 'main', 'archive', 'network']],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-cookie-current-source-next98'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-cookie-root-signature'],
     'main current cookie' => ['schema_cookies_current.main', 44],
     'main next cookie' => ['schema_cookies_next.main', 44],
     'main current source wal' => ['schema_cookie_sources.main.current_source', 'wal_page1_frame'],
@@ -141,14 +141,14 @@ $pathCases98 = [
     'requires reprepare' => ['requires_reprepare', true],
 ];
 
-foreach ($pathCases98 as $name => [$path, $expected]) {
-    $tests['attach temp wal schema cookie current source next98 ' . $name] = static function (TestRunner $t) use ($plan98, $value98, $path, $expected): void {
-        $t->same($expected, $value98($plan98(), $path));
+foreach ($pathCases as $name => [$path, $expected]) {
+    $tests['attach temp wal schema cookie root signature ' . $name] = static function (TestRunner $t) use ($plan, $value, $path, $expected): void {
+        $t->same($expected, $value($plan(), $path));
     };
 }
 
-$tests['attach temp wal schema cookie current source next98 source only movement remains stable'] = static function (TestRunner $t) use ($schemas98): void {
-    $schemas = $schemas98();
+$tests['attach temp wal schema cookie root signature source only movement remains stable'] = static function (TestRunner $t) use ($schemas): void {
+    $schemas = $schemas();
     $schemas['temp']['next_tables'] = $schemas['temp']['tables'];
     $schemas['temp']['next_schema_roots'] = $schemas['temp']['schema_roots'];
     $schemas['archive']['next_schema_roots'] = $schemas['archive']['schema_roots'];
@@ -163,8 +163,8 @@ $tests['attach temp wal schema cookie current source next98 source only movement
     $t->same(['options', 'posts'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cookie current source next98 detects same cookie root change'] = static function (TestRunner $t) use ($schemas98): void {
-    $schemas = $schemas98();
+$tests['attach temp wal schema cookie root signature detects same cookie root change'] = static function (TestRunner $t) use ($schemas): void {
+    $schemas = $schemas();
     $schemas['archive']['next_schema_roots']['wp_comments'] = 19;
 
     $result = SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, [
@@ -176,18 +176,18 @@ $tests['attach temp wal schema cookie current source next98 detects same cookie 
     $t->same(19, $result['statements'][0]['schema_transitions'][0]['next_root_page']);
 };
 
-$tests['attach temp wal schema cookie current source next98 validates root map'] = static function (TestRunner $t) use ($schemas98, $statements98): void {
-    $schemas = $schemas98();
+$tests['attach temp wal schema cookie root signature validates root map'] = static function (TestRunner $t) use ($schemas, $statements): void {
+    $schemas = $schemas();
     $schemas['main']['schema_roots']['wp_options'] = -1;
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, $statements98()));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, $statements()));
 };
 
-$tests['attach temp wal schema cookie current source next98 rejects non array root map'] = static function (TestRunner $t) use ($schemas98, $statements98): void {
-    $schemas = $schemas98();
+$tests['attach temp wal schema cookie root signature rejects non array root map'] = static function (TestRunner $t) use ($schemas, $statements): void {
+    $schemas = $schemas();
     $schemas['main']['schema_roots'] = 'wp_options';
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, $statements98()));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, $statements()));
 };
 
 return $tests;

@@ -59,7 +59,7 @@ $nextWalBytes = $makeWalBytes([
     [3, 3, 'wp next135 next generation active_plugins commit'],
 ], 136, 0x13613601, 0x13613602);
 
-$plan = SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::next135Plan(
+$plan = SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::hotJournalCheckpointReaderSeparatedWalPlan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

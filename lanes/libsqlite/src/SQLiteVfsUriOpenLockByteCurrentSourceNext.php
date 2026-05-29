@@ -14,7 +14,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
     public static function plan(array $operations, array $current = []): array
     {
         if (self::looksLikeSourceList($operations)) {
-            return self::legacy84Plan($operations);
+            return self::legacyUriSourceListPlan($operations);
         }
 
         if ($operations === []) {
@@ -566,7 +566,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
      * @param list<array<string, mixed>> $sources
      * @return array{status:string,count:int,current:array<string, mixed>,next:array<string, mixed>,events:list<array<string, mixed>>,dependencies:list<string>}
      */
-    private static function legacy84Plan(array $sources): array
+    private static function legacyUriSourceListPlan(array $sources): array
     {
         if ($sources === []) {
             throw new \InvalidArgumentException('SQLite VFS URI open lock-byte current-source next84 requires sources');
@@ -578,18 +578,18 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
         $dependencies = ['vfs-uri-open-lock-byte-current-source-next84'];
 
         foreach ($sources as $ordinal => $source) {
-            $name = self::legacy84SourceName($source['name'] ?? ('source' . $ordinal));
-            $filename = self::legacy84SourceString($source['filename'] ?? null, 'filename');
+            $name = self::legacyUriSourceListSourceName($source['name'] ?? ('source' . $ordinal));
+            $filename = self::legacyUriSourceListSourceString($source['filename'] ?? null, 'filename');
             $open = SQLiteOpenPlan::forFilename(
                 $filename,
                 (bool) ($source['file_exists'] ?? true),
                 (bool) ($source['directory_writable'] ?? true),
                 (bool) ($source['lock_available'] ?? true),
-                isset($source['busy_timeout']) ? SQLiteBusyHandler::timeout(self::legacy84NonNegativeInt($source['busy_timeout'], 'busy_timeout')) : null
+                isset($source['busy_timeout']) ? SQLiteBusyHandler::timeout(self::legacyUriSourceListNonNegativeInt($source['busy_timeout'], 'busy_timeout')) : null
             );
-            $operations = self::legacy84Operations($source['operations'] ?? []);
-            $sourceCurrent = self::legacy84SourceSnapshot($name, $open, $locks);
-            $dependencies = self::legacy84Dependencies($dependencies, $open['dependencies']);
+            $operations = self::legacyUriSourceListOperations($source['operations'] ?? []);
+            $sourceCurrent = self::legacyUriSourceListSourceSnapshot($name, $open, $locks);
+            $dependencies = self::legacyUriSourceListDependencies($dependencies, $open['dependencies']);
 
             if (($open['can_open'] ?? false) !== true) {
                 $next = $current;
@@ -603,7 +603,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
                     'open' => $open,
                     'next_source' => $sourceCurrent,
                     'reason' => $open['reason'],
-                    'dependencies' => self::legacy84Dependencies(['vfs-uri-open-source'], $open['dependencies']),
+                    'dependencies' => self::legacyUriSourceListDependencies(['vfs-uri-open-source'], $open['dependencies']),
                 ];
                 $current = $next;
                 continue;
@@ -621,12 +621,12 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
                 'open' => $open,
                 'next_source' => $sourceCurrent,
                 'reason' => null,
-                'dependencies' => self::legacy84Dependencies(['vfs-uri-open-source'], $open['dependencies']),
+                'dependencies' => self::legacyUriSourceListDependencies(['vfs-uri-open-source'], $open['dependencies']),
             ];
             $current = $next;
 
             foreach ($operations as $operation) {
-                $before = self::legacy84SourceSnapshot($name, $open, $locks);
+                $before = self::legacyUriSourceListSourceSnapshot($name, $open, $locks);
                 $lockPlan = SQLiteLockByteRangePlan::forOpenPlan(
                     $open,
                     $operation['level'],
@@ -634,11 +634,11 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
                     $operation['shared_slot']
                 );
                 $result = $locks->acquire($lockPlan);
-                $after = self::legacy84SourceSnapshot($name, $open, $locks);
+                $after = self::legacyUriSourceListSourceSnapshot($name, $open, $locks);
                 $current['sources'][$name] = $after;
-                $current['holders'] = self::legacy84AllHolders($current['sources']);
+                $current['holders'] = self::legacyUriSourceListAllHolders($current['sources']);
                 $current['selected_source'] = $name;
-                $dependencies = self::legacy84Dependencies($dependencies, $lockPlan['dependencies'], $result['dependencies']);
+                $dependencies = self::legacyUriSourceListDependencies($dependencies, $lockPlan['dependencies'], $result['dependencies']);
 
                 $events[] = [
                     'ordinal' => count($events),
@@ -650,13 +650,13 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
                     'plan' => $lockPlan,
                     'result' => $result,
                     'next_source' => $after,
-                    'dependencies' => self::legacy84Dependencies(['vfs-uri-open-lock-byte-current-source-next84'], $lockPlan['dependencies'], $result['dependencies']),
+                    'dependencies' => self::legacyUriSourceListDependencies(['vfs-uri-open-lock-byte-current-source-next84'], $lockPlan['dependencies'], $result['dependencies']),
                 ];
             }
         }
 
         return [
-            'status' => self::legacy84Status($events),
+            'status' => self::legacyUriSourceListStatus($events),
             'count' => count($events),
             'current' => ['sources' => [], 'holders' => [], 'selected_source' => null],
             'next' => $current,
@@ -669,7 +669,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
      * @param array<string, mixed> $open
      * @return array{name:string,path:string,input:string,is_uri:bool,mode:string,cache:string|null,vfs:string|null,nolock:bool,immutable:bool,can_open:bool,holders:array<string, string>,constants:array<string, int>,dependencies:list<string>}
      */
-    private static function legacy84SourceSnapshot(string $name, array $open, SQLiteVfsLockState $locks): array
+    private static function legacyUriSourceListSourceSnapshot(string $name, array $open, SQLiteVfsLockState $locks): array
     {
         $path = (string) $open['path'];
 
@@ -686,7 +686,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
             'can_open' => (bool) $open['can_open'],
             'holders' => $locks->holders($path),
             'constants' => SQLiteLockByteRangePlan::constants(),
-            'dependencies' => self::legacy84Dependencies(['vfs-current-source-open'], $open['dependencies']),
+            'dependencies' => self::legacyUriSourceListDependencies(['vfs-current-source-open'], $open['dependencies']),
         ];
     }
 
@@ -694,7 +694,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
      * @param mixed $operations
      * @return list<array{level:string,connection:string,shared_slot:int}>
      */
-    private static function legacy84Operations(mixed $operations): array
+    private static function legacyUriSourceListOperations(mixed $operations): array
     {
         if (!is_array($operations)) {
             throw new \InvalidArgumentException('SQLite VFS next84 source operations must be a list');
@@ -719,9 +719,9 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
             }
 
             $normalized[] = [
-                'level' => strtolower(self::legacy84SourceString($operation['level'] ?? 'shared', 'lock level')),
-                'connection' => self::legacy84SourceName($operation['connection'] ?? null),
-                'shared_slot' => self::legacy84NonNegativeInt($operation['shared_slot'] ?? 0, 'shared_slot'),
+                'level' => strtolower(self::legacyUriSourceListSourceString($operation['level'] ?? 'shared', 'lock level')),
+                'connection' => self::legacyUriSourceListSourceName($operation['connection'] ?? null),
+                'shared_slot' => self::legacyUriSourceListNonNegativeInt($operation['shared_slot'] ?? 0, 'shared_slot'),
             ];
         }
 
@@ -732,7 +732,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
      * @param array<string, array<string, mixed>> $sources
      * @return array<string, array<string, string>>
      */
-    private static function legacy84AllHolders(array $sources): array
+    private static function legacyUriSourceListAllHolders(array $sources): array
     {
         $holders = [];
         foreach ($sources as $name => $source) {
@@ -742,7 +742,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
         return $holders;
     }
 
-    private static function legacy84Status(array $events): string
+    private static function legacyUriSourceListStatus(array $events): string
     {
         foreach (array_reverse($events) as $event) {
             if (($event['kind'] ?? null) === 'lock') {
@@ -756,7 +756,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
         return 'ready';
     }
 
-    private static function legacy84SourceName(mixed $value): string
+    private static function legacyUriSourceListSourceName(mixed $value): string
     {
         if (!is_string($value) || trim($value) === '') {
             throw new \InvalidArgumentException('SQLite VFS next84 source name must not be empty');
@@ -765,7 +765,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
         return trim($value);
     }
 
-    private static function legacy84SourceString(mixed $value, string $label): string
+    private static function legacyUriSourceListSourceString(mixed $value, string $label): string
     {
         if (!is_string($value) || $value === '') {
             throw new \InvalidArgumentException("SQLite VFS next84 {$label} must not be empty");
@@ -774,7 +774,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
         return $value;
     }
 
-    private static function legacy84NonNegativeInt(mixed $value, string $label): int
+    private static function legacyUriSourceListNonNegativeInt(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
             throw new \InvalidArgumentException("SQLite VFS next84 {$label} must be a non-negative integer");
@@ -787,7 +787,7 @@ final class SQLiteVfsUriOpenLockByteCurrentSourceNext
      * @param list<string> ...$sets
      * @return list<string>
      */
-    private static function legacy84Dependencies(array ...$sets): array
+    private static function legacyUriSourceListDependencies(array ...$sets): array
     {
         return array_values(array_unique(array_merge(...$sets)));
     }

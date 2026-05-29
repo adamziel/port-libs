@@ -54,7 +54,7 @@ foreach ([
 }
 $wal = SQLiteWal::parse($walBytes, $pageSize, true);
 
-$plan = SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan(
+$plan = SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::hotJournalReaderRestartPlan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

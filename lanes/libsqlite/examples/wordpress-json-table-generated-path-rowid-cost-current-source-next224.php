@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-224-b',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext224(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXCurrentYieldGuard(
     'json_tree',
     $current,
     $next,

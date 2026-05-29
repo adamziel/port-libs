@@ -49,7 +49,7 @@ $savepoints->recordWalFrameWrite(5, 4, true);
 $savepoints->recordWalFrameWrite(6, 5, true);
 $savepoints->recordWalFrameWrite(7, 2, true);
 
-$plan = SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next123Plan(
+$plan = SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::readerCheckpointSavepointTruncateWithStaleReaderPlan(
     $savepoints,
     'plugin-settings-next123',
     $wal,

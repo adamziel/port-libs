@@ -24,7 +24,7 @@ $nextView = array_replace($view, ['source' => 'main@view-cookie-234-next', 'trig
 $postResetView = array_replace($view, ['source' => 'main@view-cookie-234-post-reset', 'trigger_source' => 'main@trigger-cookie-234-post-reset']);
 $followingView = array_replace($view, ['source' => 'main@view-cookie-234-following', 'trigger_source' => 'main@trigger-cookie-234-following']);
 
-$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext234(
+$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentSourceUpsertReceipt(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],

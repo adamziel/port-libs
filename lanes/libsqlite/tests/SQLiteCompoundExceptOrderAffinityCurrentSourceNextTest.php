@@ -45,20 +45,20 @@ SQL;
 
 $currentTables = ['wp_options' => $currentOptions, 'network_options' => $currentNetwork];
 $nextTables = ['wp_options' => $nextOptions, 'network_options' => $nextNetwork];
-$summary = static fn (): array => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compareNext138($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compare($sql, $currentTables, $nextTables);
 
 $tests = [];
 
-$tests['compound except order affinity current source next138 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source status and dependencies'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
-    $t->same('compound-except-order-affinity-current-source-next138-ready', $plan['status']);
+    $t->same('compound-except-order-affinity-current-source-next-ready', $plan['status']);
     $t->true(in_array('sqlite-compound-except-affinity', $plan['dependencies'], true));
     $t->true(in_array('sqlite-select-sql-compound-tail-order', $plan['dependencies'], true));
     $t->true(in_array('sqlite-select-result-storage-class-order', $plan['dependencies'], true));
-    $t->true(in_array('sqlite-current-source-next138', $plan['dependencies'], true));
+    $t->true(in_array('sqlite-current-source-next', $plan['dependencies'], true));
 };
 
-$tests['compound except order affinity current source next138 compound metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source compound metadata'] = static function (TestRunner $t) use ($summary): void {
     $compound = $summary()['compound'];
     $t->same(['EXCEPT'], $compound['operators']);
     $t->same([1], $compound['exceptArmIndexes']);
@@ -67,7 +67,7 @@ $tests['compound except order affinity current source next138 compound metadata'
     $t->same(['name' => 'NOCASE'], $compound['leftCollations']);
 };
 
-$tests['compound except order affinity current source next138 tail order metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source tail order metadata'] = static function (TestRunner $t) use ($summary): void {
     $order = $summary()['compound']['orderBy'];
     $t->same('class_value', $order[0]['column']);
     $t->same('ASC', $order[0]['direction']);
@@ -77,31 +77,31 @@ $tests['compound except order affinity current source next138 tail order metadat
     $t->same('DESC', $order[1]['direction']);
 };
 
-$tests['compound except order affinity current source next138 current rows sorted by storage affinity'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source current rows sorted by storage affinity'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentRows'];
     $t->same(['blogname', 'Plugin_Flag', 'home'], array_column($rows, 'name'));
     $t->same([1.5, '02', '1'], array_column($rows, 'class_value'));
 };
 
-$tests['compound except order affinity current source next138 next rows sorted after current source delta'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source next rows sorted after current source delta'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same(['zero_text', 'Plugin_Flag', 'home', 'new_plugin_flag'], array_column($rows, 'name'));
     $t->same(['0', '02', '1', '2'], array_column($rows, 'class_value'));
 };
 
-$tests['compound except order affinity current source next138 removed rows preserve nocase and numeric matching'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source removed rows preserve nocase and numeric matching'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
     $t->same(['siteurl'], array_column($plan['except']['currentRemoved'], 'name'));
     $t->same(['siteurl', 'blogname', 'network_home'], array_column($plan['except']['nextRemoved'], 'name'));
 };
 
-$tests['compound except order affinity current source next138 pre order trace keeps EXCEPT result before tail sort'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source pre order trace keeps EXCEPT result before tail sort'] = static function (TestRunner $t) use ($summary): void {
     $trace = $summary()['orderTrace'];
     $t->same(['home', 'blogname', 'Plugin_Flag'], array_column($trace['currentPreOrder'], 'name'));
     $t->same(['home', 'Plugin_Flag', 'new_plugin_flag', 'zero_text'], array_column($trace['nextPreOrder'], 'name'));
 };
 
-$tests['compound except order affinity current source next138 order keys expose storage classes'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source order keys expose storage classes'] = static function (TestRunner $t) use ($summary): void {
     $keys = $summary()['orderTrace']['nextKeys'];
     $t->contains('class_value=text:0:dir=ASC', $keys[0]);
     $t->contains('class_value=text:02:dir=ASC', $keys[1]);
@@ -110,7 +110,7 @@ $tests['compound except order affinity current source next138 order keys expose 
     $t->contains('name=text:zero_text:dir=DESC:collate=NOCASE', $keys[0]);
 };
 
-$tests['compound except order affinity current source next138 affinity classes'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source affinity classes'] = static function (TestRunner $t) use ($summary): void {
     $affinity = $summary()['affinity'];
     $t->true(in_array('numeric:1.5', $affinity['currentClasses'], true));
     $t->true(in_array('text:02', $affinity['currentClasses'], true));
@@ -119,14 +119,14 @@ $tests['compound except order affinity current source next138 affinity classes']
     $t->true(in_array('numeric:3', $affinity['nextRemovedClasses'], true));
 };
 
-$tests['compound except order affinity current source next138 changed signatures'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source changed signatures'] = static function (TestRunner $t) use ($summary): void {
     $changed = implode("\n", $summary()['changedSignatures']);
     $t->contains('"name":"blogname"', $changed);
     $t->contains('"name":"new_plugin_flag"', $changed);
     $t->contains('"class_value":"2"', $changed);
 };
 
-$tests['compound except order affinity current source next138 replan reasons'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound except order affinity current source replan reasons'] = static function (TestRunner $t) use ($summary): void {
     $reasons = $summary()['replanReasons'];
     $t->true(in_array('compound-except-order-rowset-changed', $reasons, true));
     $t->true(in_array('compound-tail-order-by', $reasons, true));
@@ -134,16 +134,16 @@ $tests['compound except order affinity current source next138 replan reasons'] =
     $t->true(in_array('except-removal-set-changed', $reasons, true));
 };
 
-$tests['compound except order affinity current source next138 rejects missing except'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compareNext138(
+$tests['compound except order affinity current source rejects missing except'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compare(
         'SELECT option_name AS name FROM wp_options UNION SELECT option_name AS name FROM network_options ORDER BY name',
         $currentTables,
         $currentTables,
     ));
 };
 
-$tests['compound except order affinity current source next138 rejects missing tail order'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compareNext138(
+$tests['compound except order affinity current source rejects missing tail order'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundExceptOrderAffinityCurrentSourceNextPlan::compare(
         'SELECT option_name AS name FROM wp_options EXCEPT SELECT option_name AS name FROM network_options',
         $currentTables,
         $currentTables,
@@ -151,7 +151,7 @@ $tests['compound except order affinity current source next138 rejects missing ta
 };
 
 foreach (range(1, 48) as $case) {
-    $tests['compound except order affinity current source next138 generated order affinity case ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound except order affinity current source generated order affinity case ' . $case] = static function (TestRunner $t) use ($case): void {
         $leftWeight = $case % 3 === 0 ? (string) $case : $case;
         $rightWeight = $case % 3 === 0 ? $case : (float) $case;
         $tables = [

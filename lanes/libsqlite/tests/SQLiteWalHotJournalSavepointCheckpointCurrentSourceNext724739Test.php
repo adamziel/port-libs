@@ -59,7 +59,7 @@ $chain = static function () use ($base723, $receiptFor): array {
     $next736 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next736AfterCurrentCheckpoint($next735, [$receiptFor($next735, 'next736-commit-generation-checkpoint-frame')]);
     $next737 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next737AfterCurrentCheckpoint($next736, [$receiptFor($next736, 'next737-hot-journal-page-cache')]);
     $next738 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next738AfterCurrentCheckpoint($next737, [$receiptFor($next737, 'next738-wal-index-reader-release')]);
-    $next739 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next739AfterCurrentCheckpoint($next738, [$receiptFor($next738, 'next739-current-source-seal')]);
+    $next739 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::sealReadyCheckpointCurrentSourceHandoff($next738, [$receiptFor($next738, 'next739-current-source-seal')]);
 
     return [$next724, $next725, $next726, $next727, $next728, $next729, $next730, $next731, $next732, $next733, $next734, $next735, $next736, $next737, $next738, $next739];
 };
@@ -150,7 +150,7 @@ $tests['wal hot journal savepoint checkpoint current source next735 blocks check
 $tests['wal hot journal savepoint checkpoint current source next739 blocks duplicate final receipts'] = static function (TestRunner $t) use ($chain, $receiptFor): void {
     [, , , , , , , , , , , , , , $next738] = $chain();
     $receipt = $receiptFor($next738, 'next739-duplicate-current-source-seal');
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next739AfterCurrentCheckpoint($next738, [$receipt, $receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::sealReadyCheckpointCurrentSourceHandoff($next738, [$receipt, $receipt]);
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next739', $record['status']);
     $t->same(['checkpoint_receipt_name_duplicate:next739-duplicate-current-source-seal'], $record['blocked_reasons']);

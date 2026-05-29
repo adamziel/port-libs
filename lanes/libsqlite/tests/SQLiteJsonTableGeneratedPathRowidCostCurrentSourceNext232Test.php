@@ -25,7 +25,7 @@ $plan232 = static fn (
     ?array $current = null,
     ?array $next = null,
     ?string $observedBatchToken = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext232(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceBatch(
     'json_tree',
     $current ?? $current232,
     $next ?? $next232,

@@ -1,23 +1,23 @@
-# Attach temp WAL schema cookie current-source next94
+# Attach Temp WAL Schema Cookie Bracket Quoted
 
-Status: focused PHP behavior growth for ATTACH temp/WAL schema-cookie source attribution.
+Status: consolidation replay for ATTACH temp/WAL schema-cookie source attribution.
 
-This slice extends `SQLiteAttachWalTempSchemaCookieSourcePlan` with `currentSourceNext94()`, bracket-quoted identifier extraction, and `sqlite_master` to `sqlite_schema` alias normalization. Prepared statements that reference `[main].[sqlite_schema]`, `[temp].[sqlite_master]`, `[site].[wp_options]`, or bracket-quoted DML targets now feed the same current/next schema-cookie reprepare planner as bare and double-quoted names.
+This slice extends `SQLiteAttachWalTempSchemaCookieSourcePlan` with bracket-quoted identifier extraction and `sqlite_master` to `sqlite_schema` alias normalization. Prepared statements that reference `[main].[sqlite_schema]`, `[temp].[sqlite_master]`, `[site].[wp_options]`, or bracket-quoted DML targets now feed the same current/next schema-cookie reprepare planner as bare and double-quoted names.
 
 Focused evidence:
 
 - `php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCookieSourcePlan.php`
-- `php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCookieCurrentSourceNext94Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cookie-current-source-next94.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCookieCurrentSourceNext94Test.php`
+- `php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCookieBracketQuotedTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cookie-bracket-quoted.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCookieBracketQuotedTest.php`
   - `1 test files, 54 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cookie-current-source-next94.php --self-test`
-  - `wordpress-attach-temp-wal-schema-cookie-current-source-next94 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cookie-bracket-quoted.php --self-test`
+  - `wordpress-attach-temp-wal-schema-cookie-bracket-quoted self-test passed`
 - `git diff --check -- lanes/libsqlite`
 
 Dashboard delta:
 
-- `phpPass`: `36393` to `36447` (+54 focused PASS lines).
+- `phpPass`: unchanged by this consolidation replay; the existing focused coverage is preserved under stable names.
 - `benchmarkDenominator.mapped`: unchanged; this is focused PHP behavior over an already mapped ATTACH/temp/WAL schema-cookie source surface.
 
 Non-overlap:

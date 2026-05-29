@@ -27,7 +27,7 @@ $next238 = [
     ['name' => 'fresh_plugin', 'value' => 'enabled'],
 ];
 
-$plan238 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext238(
+$plan238 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentUpsertReceipt(
     $rows238,
     $current238,
     $next238,

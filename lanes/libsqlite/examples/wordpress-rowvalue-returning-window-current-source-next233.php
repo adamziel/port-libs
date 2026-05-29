@@ -26,7 +26,7 @@ $attemptDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3, 'o
 $retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry233', option_value || ':retry233', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes, (status, option_name) = ('retry233', 'rewrite_rules') AS tuple_hit ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes, (blog_id, option_name) NOT IN ((4, 'home')) AS tuple_hit ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext233(
+$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowRollbackRetry(
     ['wp_options' => $rows],
     [$yieldUpdate, $yieldDelete],
     [$attemptUpdate, $attemptDelete],

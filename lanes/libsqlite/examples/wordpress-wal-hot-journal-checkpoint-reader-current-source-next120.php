@@ -66,7 +66,7 @@ $savepoints->recordWalFrameWrite(3, 3);
 $savepoints->recordWalFrameWrite(4, 4, true);
 $savepoints->recordWalFrameWrite(5, 2, true);
 
-$plan = SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::next120Plan(
+$plan = SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::hotJournalCheckpointReaderPinnedSourcePlan(
     $journal,
     $dirtyDatabase,
     $journalBytes,

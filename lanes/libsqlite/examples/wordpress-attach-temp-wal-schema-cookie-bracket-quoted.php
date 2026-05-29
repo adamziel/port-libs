@@ -6,7 +6,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCookieSourcePlan;
 
-$plan = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext94(
+$plan = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan(
     [
         'main' => [
             'schema_cookie' => 40,
@@ -57,7 +57,7 @@ $summary = [
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
-    if ($summary['operation'] !== 'attach-temp-wal-schema-cookie-current-source-next94') {
+    if ($summary['operation'] !== 'attach-temp-wal-schema-cookie-bracket-quoted-source') {
         throw new RuntimeException('Unexpected operation marker');
     }
     if ($summary['current_option_schema'] !== 'main' || $summary['next_option_schema'] !== 'temp') {
@@ -70,7 +70,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Expected qualified attached site reader to stay stable');
     }
 
-    echo "wordpress-attach-temp-wal-schema-cookie-current-source-next94 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cookie-bracket-quoted self-test passed\n";
     return;
 }
 

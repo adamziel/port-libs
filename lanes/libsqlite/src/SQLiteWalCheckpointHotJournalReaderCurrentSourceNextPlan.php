@@ -224,7 +224,7 @@ final class SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, $pageNumbers, $mode, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
-    public static function next144Plan(
+    public static function checkpointHotJournalReaderReleasedWalPlan(
         string $databasePath,
         string $databaseBytes,
         string $journalBytes,

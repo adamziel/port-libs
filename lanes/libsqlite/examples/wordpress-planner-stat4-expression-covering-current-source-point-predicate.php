@@ -20,17 +20,17 @@ $predicate = [
     ],
 ];
 $index = [
-    'name' => 'idx_wp_options_lower_point_covering_stat4_next144',
+    'name' => 'idx_wp_options_lower_point_covering_stat4_point',
     'rootPage' => 14401,
     'estimatedRows' => 180,
     'coveringColumns' => ['option_name', 'autoload', 'option_value', 'option_id', 'blog_id'],
     'stat4Samples' => [
         ['neq' => '3 1', 'nlt' => '2 1', 'ndlt' => '1 1', 'sample' => ['plugin_cache', 20]],
     ],
-    'sql' => "CREATE INDEX idx_wp_options_lower_point_covering_stat4_next144 ON wp_options(lower(option_name), option_id, option_value, blog_id) WHERE autoload = 'yes'",
+    'sql' => "CREATE INDEX idx_wp_options_lower_point_covering_stat4_point ON wp_options(lower(option_name), option_id, option_value, blog_id) WHERE autoload = 'yes'",
 ];
 $prepared = [
-    'name' => 'prepared-wordpress-stat4-expression-covering-current-source-next144',
+    'name' => 'prepared-wordpress-stat4-expression-covering-current-source-point',
     'schemaCookie' => 1440,
     'stat4Generation' => 81,
     'indexes' => [$index],
@@ -40,7 +40,7 @@ $prepared = [
     ],
 ];
 $current = $prepared;
-$current['name'] = 'current-wordpress-stat4-expression-covering-current-source-next144';
+$current['name'] = 'current-wordpress-stat4-expression-covering-current-source-point';
 $current['schemaCookie'] = 1447;
 $current['stat4Generation'] = 88;
 $current['indexes'][0]['rootPage'] = 14477;
@@ -53,7 +53,7 @@ $current['rows'] = [
     ['rowid' => 203, 'option_id' => 203, 'option_name' => 'Plugin_Cache', 'autoload' => 'yes', 'option_value' => 'current-cache-b', 'blog_id' => 8],
 ];
 
-$plan = SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext144(
+$plan = SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan::materializePointPredicateCurrentSource(
     $prepared,
     $current,
     $predicate,
@@ -63,7 +63,7 @@ $plan = SQLitePlannerStat4ExpressionCoveringCurrentSourceNextPlan::materializeNe
 );
 
 $summary = [
-    'scenario' => 'wordpress-planner-stat4-expression-covering-current-source-next144',
+    'scenario' => 'wordpress-planner-stat4-expression-covering-current-source-point',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
     'selectedRootPage' => $plan['selectedPlan']['rootPage'] ?? null,
@@ -76,8 +76,8 @@ $summary = [
 ];
 
 if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    if (($summary['status'] ?? null) !== 'stat4-expression-covering-current-source-next144-ready') {
-        fwrite(STDERR, "expected next144 STAT4 expression covering current-source plan\n");
+    if (($summary['status'] ?? null) !== 'stat4-expression-covering-current-source-point-ready') {
+        fwrite(STDERR, "expected point STAT4 expression covering current-source plan\n");
         exit(1);
     }
     if (($summary['preparedRowids'] ?? []) !== [101, 102] || ($summary['currentRowids'] ?? []) !== [202, 203]) {
@@ -89,7 +89,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
         exit(1);
     }
 
-    echo "wordpress-planner-stat4-expression-covering-current-source-next144 self-test passed\n";
+    echo "wordpress-planner-stat4-expression-covering-current-source-point self-test passed\n";
 }
 
 return $summary;

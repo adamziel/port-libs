@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan
 {
-    public static function next123Plan(
+    public static function readerCheckpointSavepointTruncateWithStaleReaderPlan(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -243,7 +243,7 @@ final class SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan
         return $impl::plan($savepoints, $savepoint, $wal, $walBytes, $readerWalBytes, $databaseBytes, $pageNumbers, $readerEndFrame);
     }
 
-    public static function next130Plan(
+    public static function readerCheckpointSavepointTruncateAfterRollbackPlan(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,

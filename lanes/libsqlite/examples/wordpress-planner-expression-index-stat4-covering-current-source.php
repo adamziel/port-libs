@@ -16,11 +16,11 @@ $predicate = [
 ];
 
 $preparedSource = [
-    'name' => 'prepared-wp-options-next117',
+    'name' => 'prepared-wp-options-stable',
     'schemaCookie' => 50,
     'stat4Generation' => 12,
     'indexes' => [[
-        'name' => 'idx_wp_options_channel_covering_stat4_old_next117',
+        'name' => 'idx_wp_options_channel_covering_stat4_old_stable',
         'rootPage' => 1170,
         'estimatedRows' => 220,
         'stat4Samples' => [
@@ -28,7 +28,7 @@ $preparedSource = [
             ['neq' => '9 1', 'nlt' => '3 1', 'ndlt' => '1 1', 'sample' => ['beta', 'yes']],
         ],
         'coveringColumns' => ['option_name', 'autoload', 'option_id', 'blog_id'],
-        'sql' => "CREATE INDEX idx_wp_options_channel_covering_stat4_old_next117 ON wp_options(jsonb_extract(option_value, '$.plugin.channel'), autoload, option_id) WHERE autoload = 'yes'",
+        'sql' => "CREATE INDEX idx_wp_options_channel_covering_stat4_old_stable ON wp_options(jsonb_extract(option_value, '$.plugin.channel'), autoload, option_id) WHERE autoload = 'yes'",
     ]],
     'rows' => [
         ['rowid' => 1, 'option_id' => 1, 'option_name' => 'plugin_alpha_old', 'autoload' => 'yes', 'blog_id' => 1, 'option_value' => '{"plugin":{"channel":"alpha"}}'],
@@ -36,11 +36,11 @@ $preparedSource = [
 ];
 
 $currentSource = [
-    'name' => 'current-wp-options-next117',
+    'name' => 'current-wp-options-stable',
     'schemaCookie' => 51,
     'stat4Generation' => 13,
     'indexes' => [[
-        'name' => 'idx_wp_options_channel_covering_stat4_current_next117',
+        'name' => 'idx_wp_options_channel_covering_stat4_current_stable',
         'rootPage' => 1171,
         'estimatedRows' => 180,
         'stat4Samples' => [
@@ -49,7 +49,7 @@ $currentSource = [
             ['neq' => '5 1', 'nlt' => '10 2', 'ndlt' => '2 2', 'sample' => ['stable', 'yes']],
         ],
         'coveringColumns' => ['option_name', 'autoload', 'option_id', 'blog_id'],
-        'sql' => "CREATE INDEX idx_wp_options_channel_covering_stat4_current_next117 ON wp_options(jsonb_extract(option_value, '$.plugin.channel'), autoload, option_id) WHERE autoload = 'yes'",
+        'sql' => "CREATE INDEX idx_wp_options_channel_covering_stat4_current_stable ON wp_options(jsonb_extract(option_value, '$.plugin.channel'), autoload, option_id) WHERE autoload = 'yes'",
     ]],
     'rows' => [
         ['rowid' => 10, 'option_id' => 10, 'option_name' => 'plugin_beta_a', 'autoload' => 'yes', 'blog_id' => 1, 'option_value' => '{"plugin":{"channel":"beta"}}'],
@@ -59,7 +59,7 @@ $currentSource = [
     ],
 ];
 
-$plan = SQLiteStat4ExpressionCoveringCurrentSourceNextPlan::materializeNext117(
+$plan = SQLiteStat4ExpressionCoveringCurrentSourceNextPlan::materializeExpressionCoveringCurrentSource(
     $preparedSource,
     $currentSource,
     $predicate,
@@ -74,7 +74,7 @@ if (($plan['status'] ?? null) !== 'stat4-expression-covering-current-source-read
 }
 
 printf(
-    "wordpress planner expression-index stat4 covering current-source next117: source=%s index=%s rows=%d keys=%s names=%s\n",
+    "wordpress planner expression-index stat4 covering current-source stable: source=%s index=%s rows=%d keys=%s names=%s\n",
     (string) $plan['selectedSource'],
     (string) ($plan['cursorTape']['indexName'] ?? ''),
     (int) ($plan['cursorTape']['coveredRowCount'] ?? 0),

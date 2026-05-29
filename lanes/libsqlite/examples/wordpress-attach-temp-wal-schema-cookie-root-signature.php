@@ -54,7 +54,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['expired_statements'] === ['unqualified-options-reader', 'archive-reader']);
     assert($plan['source_only_cookie_move_schemas'] === ['main']);
     assert($plan['changed_root_schemas'] === ['temp', 'archive']);
-    echo "wordpress-attach-temp-wal-schema-cookie-current-source-next98 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cookie-root-signature self-test passed\n";
     return;
 }
 

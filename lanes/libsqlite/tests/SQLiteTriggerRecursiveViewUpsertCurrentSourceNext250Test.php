@@ -136,7 +136,7 @@ $baseOptions250 = [
     'current_source_rowid_provenance_token_next250' => 'wp.current.source.rowid.provenance.250',
 ];
 
-$plan250 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext250(
+$plan250 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeCurrentRowidProvenanceReceipt(
     $rows250,
     $currentInput250,
     $nextInput250,
