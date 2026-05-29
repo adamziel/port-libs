@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan;
 
 $rows138 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1, 'source' => 'seed'],
@@ -74,7 +74,7 @@ $returning138 = [
     static fn (array $new, ?array $old, string $action, int $statement): string => $statement . ':' . $action . ':' . ($old['revision'] ?? 0) . '>' . $new['revision'],
 ];
 
-$plan138 = static fn (array $incoming = null, array $triggers = null, ?callable $where = null): array => SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan::executeWithinSavepoint(
+$plan138 = static fn (array $incoming = null, array $triggers = null, ?callable $where = null): array => SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan::executeWithinSavepoint(
     'wp_import_ignore',
     $rows138,
     $incoming ?? $incoming138,

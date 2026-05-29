@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 use InvalidArgumentException;
 
-final class SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan
+final class SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $rows

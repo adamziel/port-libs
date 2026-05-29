@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan;
 
 $rows148 = [
     ['option_name' => 'siteurl', 'option_value' => 'https://old.test'],
@@ -27,7 +27,7 @@ $next148 = [
     ['name' => 'fresh_plugin', 'value' => 'enabled'],
 ];
 
-$plan148 = static fn (array $options = [], ?array $current = null, ?array $next = null, ?array $view = null, ?array $triggers = null): array => SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Plan::execute(
+$plan148 = static fn (array $options = [], ?array $current = null, ?array $next = null, ?array $view = null, ?array $triggers = null): array => SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan::execute(
     $rows148,
     $current ?? $current148,
     $next ?? $next148,
@@ -99,7 +99,7 @@ $cases148 = [
     'suppressed yields only view rows' => [static fn (): mixed => array_column($suppressed148()['current_yield_stream'], 'depth'), [0, 0]],
 
     'custom savepoint accepted' => [static fn (): mixed => $plan148(['savepoint' => 'wp_custom_148'])['savepoint'], 'wp_custom_148'],
-    'empty unique columns throws' => [static fn (): mixed => SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Plan::execute($rows148, [], [], $view148, [], $triggers148), InvalidArgumentException::class],
+    'empty unique columns throws' => [static fn (): mixed => SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan::execute($rows148, [], [], $view148, [], $triggers148), InvalidArgumentException::class],
     'bad savepoint throws' => [static fn (): mixed => $plan148(['savepoint' => 'bad name']), InvalidArgumentException::class],
     'bad view name throws' => [static fn (): mixed => $plan148([], null, null, ['name' => 'bad-name', 'source' => 'ok', 'mapping' => ['name' => 'option_name']]), InvalidArgumentException::class],
     'bad source throws' => [static fn (): mixed => $plan148([], null, null, ['name' => 'v', 'source' => 'bad source', 'mapping' => ['name' => 'option_name']]), InvalidArgumentException::class],

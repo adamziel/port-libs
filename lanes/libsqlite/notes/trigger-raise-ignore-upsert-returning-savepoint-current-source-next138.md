@@ -9,7 +9,7 @@ WordPress path: `wordpress-trigger-raise-ignore-upsert-returning-savepoint-curre
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan.php
+php -l lanes/libsqlite/src/SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRaiseIgnoreUpsertReturningSavepointCurrentSourceNext138Test.php
 php -l lanes/libsqlite/examples/wordpress-trigger-raise-ignore-upsert-returning-savepoint-current-source-next138.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRaiseIgnoreUpsertReturningSavepointCurrentSourceNext138Test.php

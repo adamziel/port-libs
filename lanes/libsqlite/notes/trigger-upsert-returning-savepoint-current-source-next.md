@@ -2,13 +2,13 @@
 
 Status: focused behavior growth for trigger/UPSERT/RETURNING savepoint current-source semantics.
 
-This slice adds `SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan`, a bounded native PHP model for a current savepoint where an UPSERT emits RETURNING rows, a later trigger abort rolls back the current savepoint, and the next retry starts from the saved source rather than the attempted current source. The attempted RETURNING yield is retained as diagnostic evidence, while committed `current_returning_rows` are suppressed after rollback.
+This slice adds `SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan`, a bounded native PHP model for a current savepoint where an UPSERT emits RETURNING rows, a later trigger abort rolls back the current savepoint, and the next retry starts from the saved source rather than the attempted current source. The attempted RETURNING yield is retained as diagnostic evidence, while committed `current_returning_rows` are suppressed after rollback.
 
 WordPress smoke: `wordpress-trigger-upsert-returning-savepoint-current-source-next129.php` models a copied `wp_options` plugin import where a site URL retry must not inherit the discarded current attempt after a bad plugin trigger rolls back the savepoint.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-trigger-upsert-returning-savepoint-current-source-next129.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Test.php`

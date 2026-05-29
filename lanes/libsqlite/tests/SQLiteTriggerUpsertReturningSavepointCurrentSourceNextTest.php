@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1],
@@ -46,7 +46,7 @@ $returning = [
 ];
 
 $plan = static function (array $current = null, array $next = null, array $triggerSet = null, array $projection = null, array $options = []) use ($rows, $assignments, $triggers, $returning): array {
-    return SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan::execute(
+    return SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan::execute(
         $rows,
         $current ?? [
             ['option_id' => 11, 'option_name' => 'siteurl', 'option_value' => 'https://current.test', 'autoload' => 'yes', 'revision' => 0],
@@ -128,8 +128,8 @@ $cases = [
     'next rollback committed changes include current only' => [static fn (): mixed => $nextRollback()['committed_changes'], 1],
 
     'empty savepoint throws' => [static fn (): mixed => $plan([], [], null, null, ['savepoint' => ' ']), InvalidArgumentException::class],
-    'empty conflict target throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan::execute($rows, [], [], [], $assignments, $triggers, $returning), InvalidArgumentException::class],
-    'bad assignment column throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan::execute($rows, [], [], ['option_name'], ['bad-column' => static fn (): int => 1], $triggers, $returning), InvalidArgumentException::class],
+    'empty conflict target throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan::execute($rows, [], [], [], $assignments, $triggers, $returning), InvalidArgumentException::class],
+    'bad assignment column throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan::execute($rows, [], [], ['option_name'], ['bad-column' => static fn (): int => 1], $triggers, $returning), InvalidArgumentException::class],
     'empty returning throws' => [static fn (): mixed => $plan([], [], null, []), InvalidArgumentException::class],
     'missing conflict column throws' => [static fn (): mixed => $plan([['option_id' => 99, 'option_value' => 'missing']], []), InvalidArgumentException::class],
     'old returning on insert throws' => [static fn (): mixed => $plan([['option_id' => 91, 'option_name' => 'fresh_old', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 0]], [], [], [['expr' => 'old.option_id', 'as' => 'old_id']]), InvalidArgumentException::class],

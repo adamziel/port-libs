@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan;
 
 $rows144 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1, 'source' => 'seed'],
@@ -53,7 +53,7 @@ $nextRows144 = [
     ['import_id' => 23, 'name' => 'rewrite_rules', 'value' => 'cached', 'autoload_flag' => 'yes', 'origin' => 'next-import'],
 ];
 
-$plan144 = static fn (array $options = [], ?array $currentRows = null, ?array $nextRows = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan::execute(
+$plan144 = static fn (array $options = [], ?array $currentRows = null, ?array $nextRows = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan::execute(
     $rows144,
     $currentRows ?? $currentRows144,
     $nextRows ?? $nextRows144,
@@ -140,14 +140,14 @@ $cases144 = [
     'empty returning throws' => [static fn (): mixed => $plan144([], null, null, null, null, []), InvalidArgumentException::class],
     'bad key throws' => [static fn (): mixed => $plan144(['key' => 'bad-key']), InvalidArgumentException::class],
     'bad savepoint throws' => [static fn (): mixed => $plan144(['savepoint' => 'bad savepoint']), InvalidArgumentException::class],
-    'empty unique columns throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan::execute($rows144, [], [], $currentView144, $nextView144, [], $assignments144, $returning144), InvalidArgumentException::class],
-    'bad assignment column throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan::execute($rows144, [], [], $currentView144, $nextView144, ['option_name'], ['bad-column' => static fn (): int => 1], $returning144), InvalidArgumentException::class],
+    'empty unique columns throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan::execute($rows144, [], [], $currentView144, $nextView144, [], $assignments144, $returning144), InvalidArgumentException::class],
+    'bad assignment column throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan::execute($rows144, [], [], $currentView144, $nextView144, ['option_name'], ['bad-column' => static fn (): int => 1], $returning144), InvalidArgumentException::class],
     'bad view source throws' => [static fn (): mixed => $plan144([], null, null, ['name' => 'v', 'source' => 'bad source', 'columns' => ['name'], 'mapping' => ['name' => 'option_name']]), InvalidArgumentException::class],
     'empty view columns throws' => [static fn (): mixed => $plan144([], null, null, ['name' => 'v', 'source' => 'ok', 'columns' => [], 'mapping' => ['name' => 'option_name']]), InvalidArgumentException::class],
     'bad view mapping throws' => [static fn (): mixed => $plan144([], null, null, ['name' => 'v', 'source' => 'ok', 'columns' => ['name'], 'mapping' => ['missing' => 'option_name']]), InvalidArgumentException::class],
     'bad where throws' => [static fn (): mixed => $plan144([], null, null, ['name' => 'v', 'source' => 'ok', 'columns' => ['name'], 'mapping' => ['name' => 'option_name'], 'where' => 'no']), InvalidArgumentException::class],
     'missing view column throws' => [static fn (): mixed => $plan144([], [['import_id' => 1, 'value' => 'x', 'autoload_flag' => 'yes']]), InvalidArgumentException::class],
-    'duplicate base key throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan::execute(array_merge($rows144, [['option_name' => 'siteurl']]), [], [], $currentView144, $nextView144, ['option_name'], $assignments144, $returning144), InvalidArgumentException::class],
+    'duplicate base key throws' => [static fn (): mixed => SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan::execute(array_merge($rows144, [['option_name' => 'siteurl']]), [], [], $currentView144, $nextView144, ['option_name'], $assignments144, $returning144), InvalidArgumentException::class],
     'old expression on insert throws' => [static fn (): mixed => $plan144([], [['import_id' => 30, 'name' => 'fresh_old', 'value' => 'x', 'autoload_flag' => 'yes']], [], null, null, [['expr' => 'old.option_value', 'as' => 'old_value']]), InvalidArgumentException::class],
 ];
 

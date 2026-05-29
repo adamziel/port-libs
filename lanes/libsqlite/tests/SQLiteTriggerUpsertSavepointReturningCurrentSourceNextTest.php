@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan;
 
 $rows132 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1, 'source' => 'seed'],
@@ -63,7 +63,7 @@ $returning132 = [
     static fn (array $new, ?array $old, string $action, int $statement): string => $statement . ':' . $action . ':' . ($old['revision'] ?? 0) . '>' . $new['revision'],
 ];
 
-$plan132 = static fn (array $incoming = null, array $triggers = null, ?callable $where = null, string $savepoint = 'wp_import_batch'): array => SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan::executeWithinSavepoint(
+$plan132 = static fn (array $incoming = null, array $triggers = null, ?callable $where = null, string $savepoint = 'wp_import_batch'): array => SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan::executeWithinSavepoint(
     $savepoint,
     $rows132,
     $incoming ?? $incoming132,
@@ -132,8 +132,8 @@ $cases132 = [
     'custom savepoint is accepted' => [static fn (): mixed => $plan132($incoming132, $triggers132, null, 'wp_retry')['savepoint'], 'wp_retry'],
     'empty savepoint throws' => [static fn (): mixed => $plan132($incoming132, $triggers132, null, '   '), InvalidArgumentException::class],
     'missing unique incoming column throws' => [static fn (): mixed => $plan132([['option_id' => 9]], $triggers132), InvalidArgumentException::class],
-    'bad unique column definition throws' => [static fn (): mixed => SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan::executeWithinSavepoint('x', $rows132, $incoming132, [''], $assignments132, $triggers132, $returning132), InvalidArgumentException::class],
-    'bad returning OLD on insert throws' => [static fn (): mixed => SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan::executeWithinSavepoint('x', $rows132, [['option_id' => 9, 'option_name' => 'new_option', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1, 'source' => 'import']], ['option_name'], $assignments132, [], ['old.option_name']), InvalidArgumentException::class],
+    'bad unique column definition throws' => [static fn (): mixed => SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan::executeWithinSavepoint('x', $rows132, $incoming132, [''], $assignments132, $triggers132, $returning132), InvalidArgumentException::class],
+    'bad returning OLD on insert throws' => [static fn (): mixed => SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan::executeWithinSavepoint('x', $rows132, [['option_id' => 9, 'option_name' => 'new_option', 'option_value' => 'x', 'autoload' => 'no', 'revision' => 1, 'source' => 'import']], ['option_name'], $assignments132, [], ['old.option_name']), InvalidArgumentException::class],
 ];
 
 $tests = [];

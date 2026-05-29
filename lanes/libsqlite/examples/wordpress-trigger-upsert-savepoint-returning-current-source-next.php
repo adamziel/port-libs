@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -42,7 +42,7 @@ $triggers = [
     ],
 ];
 
-$plan = SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan::executeWithinSavepoint(
+$plan = SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan::executeWithinSavepoint(
     'wp_import_batch',
     $rows,
     $incoming,

@@ -1,6 +1,6 @@
 # trigger-upsert-deferred-returning-current-source-next137
 
-Implemented `SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Plan`, a
+Implemented `SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan`, a
 bounded current-source UPSERT/trigger/RETURNING barrier for deferred validation.
 The plan lets current-source UPSERT rows yield `RETURNING`, then detects a
 deferred trigger-side parent-key violation at source release, suppresses the
@@ -16,7 +16,7 @@ and the retry source starts from the original savepoint rows.
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Plan.php
+php -l lanes/libsqlite/src/SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Test.php
 php -l lanes/libsqlite/examples/wordpress-trigger-upsert-deferred-returning-current-source-next137.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Test.php

@@ -31,7 +31,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
     ): array {
         $baseOptions = $options;
         $baseOptions['release_next'] = false;
-        $base = SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Plan::execute(
+        $base = SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan::execute(
             $rows,
             $currentViewRows,
             $nextViewRows,
@@ -68,7 +68,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         if ($conflictComplete) {
             $releaseOptions = $options;
             $releaseOptions['release_next'] = true;
-            $next = SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Plan::execute(
+            $next = SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan::execute(
                 $rows,
                 $currentViewRows,
                 $nextViewRows,

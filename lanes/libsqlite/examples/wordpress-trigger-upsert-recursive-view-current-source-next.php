@@ -12,9 +12,9 @@ spl_autoload_register(static function (string $class): void {
     require_once dirname(__DIR__) . '/src/' . substr($class, strlen($prefix)) . '.php';
 });
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan;
 
-$plan = SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Plan::execute(
+$plan = SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan::execute(
     [
         ['option_name' => 'siteurl', 'option_value' => 'https://old.test'],
         ['option_name' => 'home', 'option_value' => 'https://old-home.test'],

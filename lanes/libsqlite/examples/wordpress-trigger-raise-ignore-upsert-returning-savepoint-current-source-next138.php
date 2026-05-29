@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1, 'source' => 'seed'],
@@ -16,7 +16,7 @@ $incoming = [
     ['option_id' => 5, 'option_name' => 'blogname', 'option_value' => 'Imported Blog', 'autoload' => 'yes', 'revision' => 1, 'source' => 'import'],
 ];
 
-$plan = SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan::executeWithinSavepoint(
+$plan = SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan::executeWithinSavepoint(
     'wp_import_ignore',
     $rows,
     $incoming,

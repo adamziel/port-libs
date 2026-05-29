@@ -2,15 +2,15 @@
 
 Status: focused PHP behavior growth for `INSTEAD OF` view-trigger UPSERT `RETURNING` streams across current-source and next-source view definitions.
 
-This slice adds `SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan`. It models a WordPress `wp_options` import routed through an `INSTEAD OF` view trigger where `ON CONFLICT DO UPDATE WHERE` can skip conflicting rows. Skipped rows now produce a diagnostic yield with `returning = null`, do not increment changes, and suppress `RETURNING` output, while changed insert/update rows retain current-source view tokens. A held savepoint keeps the next view source out of the visible stream but still records attempted next-source rows; the release path admits the next view source and its generated `origin` mapping.
+This slice adds `SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan`. It models a WordPress `wp_options` import routed through an `INSTEAD OF` view trigger where `ON CONFLICT DO UPDATE WHERE` can skip conflicting rows. Skipped rows now produce a diagnostic yield with `returning = null`, do not increment changes, and suppress `RETURNING` output, while changed insert/update rows retain current-source view tokens. A held savepoint keeps the next view source out of the visible stream but still records attempted next-source rows; the release path admits the next view source and its generated `origin` mapping.
 
 WordPress path: `wordpress-trigger-upsert-returning-view-current-source-next144.php` covers a copied `wp_options` import view where plugin migrations add a next-source `origin` column, but the current savepoint still yields only current-source RETURNING rows and skips protected rows via `DO UPDATE WHERE`.
 
 Verification:
 
 ```text
-$ php -l lanes/libsqlite/src/SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan.php
+$ php -l lanes/libsqlite/src/SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan.php
 
 $ php -l lanes/libsqlite/tests/SQLiteTriggerUpsertReturningViewCurrentSourceNext144Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerUpsertReturningViewCurrentSourceNext144Test.php

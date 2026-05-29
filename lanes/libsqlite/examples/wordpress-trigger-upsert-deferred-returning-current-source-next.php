@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'parent_option_id' => 10, 'revision' => 1],
@@ -36,7 +36,7 @@ $returning = [
     ['expr' => 'new.parent_option_id', 'as' => 'parent_id'],
 ];
 
-$summary = SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Plan::execute(
+$summary = SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan::execute(
     $rows,
     [
         ['option_id' => 11, 'option_name' => 'siteurl', 'option_value' => 'https://broken.test', 'autoload' => 'yes', 'parent_option_id' => 99, 'revision' => 0],

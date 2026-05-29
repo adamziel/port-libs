@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan.php';
 
-$plan = SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan::execute(
+$plan = SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan::execute(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1],
         ['option_id' => 2, 'option_name' => 'active_plugins', 'option_value' => 'a:0:{}', 'autoload' => 'yes', 'revision' => 1],

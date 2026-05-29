@@ -10,7 +10,7 @@ source yields diagnostics before the next source is admitted.
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteTriggerUpsertRecursiveViewCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Test.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Test.php`
 - `php lanes/libsqlite/examples/wordpress-trigger-upsert-recursive-view-current-source-next148.php`

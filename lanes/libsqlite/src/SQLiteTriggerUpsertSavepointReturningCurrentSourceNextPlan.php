@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan
+final class SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $rows

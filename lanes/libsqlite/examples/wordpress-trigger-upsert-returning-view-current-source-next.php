@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan;
 
-$plan = SQLiteTriggerUpsertReturningViewCurrentSourceNext144Plan::execute(
+$plan = SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan::execute(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1, 'source' => 'seed'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes', 'revision' => 1, 'source' => 'seed'],

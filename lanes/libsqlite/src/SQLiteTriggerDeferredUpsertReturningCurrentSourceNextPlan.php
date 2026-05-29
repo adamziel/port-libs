@@ -41,7 +41,7 @@ final class SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan
         $childTable = (string) ($foreignKey['child_table'] ?? 'child');
         $deferred = (bool) ($foreignKey['deferred'] ?? true);
 
-        $statement = SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan::executeWithinSavepoint(
+        $statement = SQLiteTriggerUpsertSavepointReturningCurrentSourceNextPlan::executeWithinSavepoint(
             $transaction,
             $rows,
             $incomingRows,

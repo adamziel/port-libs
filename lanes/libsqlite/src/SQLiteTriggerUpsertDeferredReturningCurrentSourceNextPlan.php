@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Plan
+final class SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $rows
@@ -42,7 +42,7 @@ final class SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Plan
         $childTable = (string) ($foreignKey['child_table'] ?? 'child');
         $parentTable = (string) ($foreignKey['parent_table'] ?? 'parent');
 
-        $current = SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan::execute(
+        $current = SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan::execute(
             $rows,
             $currentIncoming,
             [],
@@ -60,7 +60,7 @@ final class SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Plan
         $violations = $deferred ? self::violations((array) $current['next_rows'], $parentRows, $childKey, $parentKey, $childTable, $parentTable) : [];
         $blocked = $violations !== [];
         $nextStartRows = $blocked && $rollbackOnDeferred ? array_values($rows) : (array) $current['next_rows'];
-        $next = SQLiteTriggerUpsertReturningSavepointCurrentSourceNext129Plan::execute(
+        $next = SQLiteTriggerUpsertReturningSavepointCurrentSourceNextPlan::execute(
             $nextStartRows,
             [],
             $nextIncoming,

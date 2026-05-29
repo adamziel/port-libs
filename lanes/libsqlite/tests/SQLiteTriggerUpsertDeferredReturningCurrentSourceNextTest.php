@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan;
 
 $rows137 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'parent_option_id' => 10, 'revision' => 1],
@@ -46,7 +46,7 @@ $fk137 = [
 ];
 
 $plan137 = static function (array $current = null, array $next = null, array $parents = null, array $options = []) use ($rows137, $assignments137, $triggers137, $returning137, $parents137, $fk137): array {
-    return SQLiteTriggerUpsertDeferredReturningCurrentSourceNext137Plan::execute(
+    return SQLiteTriggerUpsertDeferredReturningCurrentSourceNextPlan::execute(
         $rows137,
         $current ?? [
             ['option_id' => 11, 'option_name' => 'siteurl', 'option_value' => 'https://broken.test', 'autoload' => 'yes', 'parent_option_id' => 99, 'revision' => 0],
