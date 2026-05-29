@@ -27707,6 +27707,190 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
+    public function upstreamRunnerSuiteEvidenceCurrentSourceNext113115(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->upstreamRunnerFinalCurrentSourceNext109(
+            $artifactRows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $expectedPhases = ['next113', 'next114', 'next115'];
+        $phaseRows = [];
+        $preparedPhases = [];
+        $preservedPhases = [];
+        $blockedPhases = [];
+        $seenPhaseIds = [];
+        $duplicatePhaseIds = [];
+        $phaseBlockers = [];
+
+        foreach (is_array($record['final_evidence_rows'] ?? null) ? $record['final_evidence_rows'] : [] as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) ? $row['unit'] : '';
+            $source = null;
+            foreach ($artifactRows as $candidate) {
+                if (is_array($candidate) && ($candidate['unit'] ?? null) === $unit) {
+                    $source = $candidate;
+                    break;
+                }
+            }
+
+            $phase = is_array($source) && is_string($source['suite_phase'] ?? null)
+                ? trim($source['suite_phase'])
+                : '';
+            $phaseStatus = is_array($source) && is_string($source['suite_phase_status'] ?? null)
+                ? trim($source['suite_phase_status'])
+                : '';
+            $phaseId = is_array($source) && is_string($source['suite_phase_id'] ?? null) && $source['suite_phase_id'] !== ''
+                ? $source['suite_phase_id']
+                : ($phase !== '' ? $phase : $unit);
+            $phaseEvidence = is_array($source) && is_string($source['suite_phase_evidence'] ?? null)
+                ? trim($source['suite_phase_evidence'])
+                : '';
+            $artifactPath = is_array($source) && is_string($source['artifact_path'] ?? null)
+                ? $source['artifact_path']
+                : (is_string($row['artifact_path'] ?? null) ? $row['artifact_path'] : '');
+            $movement = is_string($row['movement'] ?? null) ? $row['movement'] : 'open';
+            $rowBlockers = is_array($row['blocker_ids'] ?? null) ? $row['blocker_ids'] : [];
+
+            if ($phase !== '' && !in_array($phase, $expectedPhases, true)) {
+                $rowBlockers[] = 'suite-phase-outside-next113-115';
+            }
+            if ($phase !== '' && isset($seenPhaseIds[$phase])) {
+                $duplicatePhaseIds[$phase] = true;
+                $rowBlockers[] = 'duplicate-suite-phase';
+            }
+            if ($phase !== '') {
+                $seenPhaseIds[$phase] = true;
+            }
+            if ($phase !== '' && !str_starts_with($artifactPath, 'lanes/libsqlite/notes/')) {
+                $rowBlockers[] = 'suite-phase-artifact-not-lane-note';
+            }
+            if ($movement === 'next-source-admitted') {
+                if ($phase === '') {
+                    $rowBlockers[] = 'suite-phase-missing';
+                }
+                if ($phaseStatus !== 'prepared') {
+                    $rowBlockers[] = 'suite-phase-status-not-prepared';
+                }
+                if ($phaseEvidence === '') {
+                    $rowBlockers[] = 'suite-phase-evidence-missing';
+                }
+                if (is_array($source) && ($source['current_source_only'] ?? false) !== true) {
+                    $rowBlockers[] = 'current-source-only-flag-missing';
+                }
+            }
+            if (is_array($source) && ($source['counts_release_parity'] ?? false) === true) {
+                $rowBlockers[] = 'release-parity-claim-not-allowed';
+            }
+
+            $rowBlockers = array_values(array_unique(array_filter($rowBlockers, 'is_string')));
+            if ($rowBlockers !== []) {
+                $blockedPhases[] = $phaseId;
+                $phaseBlockers[] = [
+                    'id' => 'current-source-next113-115-suite-phase-row-blocked',
+                    'unit' => $unit,
+                    'suite_phase_id' => $phaseId,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($movement === 'next-source-admitted') {
+                $preparedPhases[] = $phase;
+            } elseif ($movement === 'current-source-preserved' && $phase !== '') {
+                $preservedPhases[] = $phase;
+            }
+
+            $row['suite_phase'] = $phase;
+            $row['suite_phase_id'] = $phaseId;
+            $row['suite_phase_status'] = $phaseStatus;
+            $row['suite_phase_evidence'] = $phaseEvidence;
+            $row['blocker_ids'] = $rowBlockers;
+            $phaseRows[] = $row;
+        }
+
+        sort($preparedPhases, SORT_STRING);
+        sort($preservedPhases, SORT_STRING);
+        sort($blockedPhases, SORT_STRING);
+        $coveredPhases = array_values(array_unique(array_merge($preparedPhases, $preservedPhases)));
+        $missingPhases = array_values(array_diff($expectedPhases, $coveredPhases));
+        $duplicatePhases = array_keys($duplicatePhaseIds);
+        sort($duplicatePhases, SORT_STRING);
+
+        if ($missingPhases !== []) {
+            $phaseBlockers[] = [
+                'id' => 'current-source-next113-115-suite-phases-incomplete',
+                'unit' => 'upstream-runner-suite-evidence-current-source-next113-115',
+                'suite_phase_id' => implode(',', $missingPhases),
+                'evidence' => 'missing prepared suite phases: ' . implode(', ', $missingPhases),
+            ];
+        }
+
+        $blockers = array_merge(is_array($record['blockers'] ?? null) ? $record['blockers'] : [], $phaseBlockers);
+        $blocked = $blockers !== [];
+        $mappedDelta = !$blocked && $missingPhases === [] && $preparedPhases !== [] ? count($preparedPhases) : 0;
+        $phpPassDelta = !$blocked ? (int) ($record['php_pass_delta'] ?? 0) : 0;
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-source-next113-115-upstream-suite-evidence-prepared';
+        } elseif (!$blocked) {
+            $status = 'current-source-next113-115-upstream-suite-evidence-preserved';
+        }
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-source-next113-115-upstream-suite-evidence-prepared';
+        $record['blockers'] = $blockers;
+        $record['blocker_count'] = count($blockers);
+        $record['mapped_delta'] = $mappedDelta;
+        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
+        $record['php_pass_delta'] = $phpPassDelta;
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta;
+        $record['tests_total_delta'] = $blocked ? 0 : (int) ($record['tests_total_delta'] ?? 0);
+        $record['suite_phase_rows'] = $phaseRows;
+        $record['prepared_suite_phases'] = $preparedPhases;
+        $record['preserved_suite_phases'] = $preservedPhases;
+        $record['blocked_suite_phase_ids'] = $blockedPhases;
+        $record['missing_suite_phases'] = $missingPhases;
+        $record['duplicate_suite_phases'] = $duplicatePhases;
+        $record['counts_upstream_runner_final_current_source_next109'] = false;
+        $record['counts_upstream_suite_evidence_current_source_next113_115'] = $status === 'current-source-next113-115-upstream-suite-evidence-prepared';
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-source-next113-115-upstream-suite-evidence-prepared'
+            ? 'publish only the isolated current-source next113-115 upstream-suite evidence triplet and exact focused PASS-line movement; release/all parity remains blocked'
+            : 'keep current-source next113-115 suite evidence uncounted until all three prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source next113-115 suite evidence composes the next110-112 handoff with three prepared current-source-only suite phases and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
     public function upstreamRunnerReleaseAdmissionCurrentSourceNext114(
         array $artifactRows,
         int $currentMapped,
