@@ -19,8 +19,8 @@ savepoints, and trigger view uniqueness behavior.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNext142Test.php`
   - `1 test files, 52 assertions, 0 failures`
   - `52` PASS lines
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-trigger-upsert-do-nothing-returning-current-source-next142.php --self-test`
-  - `wordpress-trigger-upsert-do-nothing-returning-current-source-next142 self-test passed`
+- WordPress smoke: `php lanes/libsqlite/examples/wordpress-trigger-upsert-do-nothing-returning-current-source-next.php --self-test`
+  - `wordpress-trigger-upsert-do-nothing-returning-current-source-next self-test passed`
 
 ## Dependency Closure
 

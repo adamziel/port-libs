@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNext168Plan.php';
+require __DIR__ . '/../src/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNext168Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_name' => 'plugin_root', 'option_value' => 'root', 'autoload' => 'yes', 'parent_name' => null, 'priority' => 0],
@@ -35,7 +35,7 @@ $returning = [
     ['expr' => 'trigger_source', 'as' => 'trigger_cookie'],
 ];
 
-$plan = SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNext168Plan::execute(
+$plan = SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan::execute(
     $rows,
     [['root_name' => 'plugin_root']],
     [['root_name' => 'plugin_next_root']],
@@ -55,7 +55,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['next_deleted_keys'] === ['plugin_next_root', 'plugin_next_child']);
     assert(array_column($plan['after_savepoint'], 'option_name') === ['siteurl']);
     assert($plan['changes'] === 6);
-    echo "wordpress-trigger-recursive-view-delete-returning-current-source-next168 self-test passed\n";
+    echo "wordpress-trigger-recursive-view-delete-returning-current-source-next self-test passed\n";
     return;
 }
 

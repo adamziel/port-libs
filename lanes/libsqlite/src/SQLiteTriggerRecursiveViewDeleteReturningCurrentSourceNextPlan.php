@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 use InvalidArgumentException;
 
-final class SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNext168Plan
+final class SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $rows

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan;
 
 $rows149 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1, 'source' => 'seed'],
@@ -56,7 +56,7 @@ $nextInput149 = [
     ['import_id' => 23, 'name' => 'rewrite_rules', 'value' => 'cached', 'autoload_flag' => 'yes', 'origin' => 'next-import'],
 ];
 
-$plan149 = static fn (array $options = [], ?array $currentInput = null, ?array $nextInput = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan::execute(
+$plan149 = static fn (array $options = [], ?array $currentInput = null, ?array $nextInput = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan::execute(
     $rows149,
     $currentInput ?? $currentInput149,
     $nextInput ?? $nextInput149,
@@ -136,13 +136,13 @@ $cases149 = [
     'empty returning throws' => [static fn (): mixed => $plan149([], null, null, null, null, []), InvalidArgumentException::class],
     'bad savepoint throws' => [static fn (): mixed => $plan149(['savepoint' => 'bad savepoint']), InvalidArgumentException::class],
     'bad key throws' => [static fn (): mixed => $plan149(['key' => 'bad-key']), InvalidArgumentException::class],
-    'empty unique columns throws' => [static fn (): mixed => SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan::execute($rows149, [], [], $currentView149, $nextView149, [], $assign149, $returning149), InvalidArgumentException::class],
-    'bad assignment column throws' => [static fn (): mixed => SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan::execute($rows149, [], [], $currentView149, $nextView149, ['option_name'], ['bad-column' => static fn (): int => 1], $returning149), InvalidArgumentException::class],
+    'empty unique columns throws' => [static fn (): mixed => SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan::execute($rows149, [], [], $currentView149, $nextView149, [], $assign149, $returning149), InvalidArgumentException::class],
+    'bad assignment column throws' => [static fn (): mixed => SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan::execute($rows149, [], [], $currentView149, $nextView149, ['option_name'], ['bad-column' => static fn (): int => 1], $returning149), InvalidArgumentException::class],
     'bad trigger source throws' => [static fn (): mixed => $plan149([], null, null, ['name' => 'v', 'source' => 'ok', 'trigger' => 'trg', 'trigger_source' => 'bad source', 'columns' => ['name'], 'mapping' => ['name' => 'option_name']]), InvalidArgumentException::class],
     'empty view columns throws' => [static fn (): mixed => $plan149([], null, null, ['name' => 'v', 'source' => 'ok', 'trigger' => 'trg', 'trigger_source' => 'ok', 'columns' => [], 'mapping' => ['name' => 'option_name']]), InvalidArgumentException::class],
     'bad view mapping throws' => [static fn (): mixed => $plan149([], null, null, ['name' => 'v', 'source' => 'ok', 'trigger' => 'trg', 'trigger_source' => 'ok', 'columns' => ['name'], 'mapping' => ['missing' => 'option_name']]), InvalidArgumentException::class],
     'missing view column throws' => [static fn (): mixed => $plan149([], [['import_id' => 1, 'value' => 'x', 'autoload_flag' => 'yes']]), InvalidArgumentException::class],
-    'duplicate base key throws' => [static fn (): mixed => SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan::execute(array_merge($rows149, [['option_name' => 'siteurl']]), [], [], $currentView149, $nextView149, ['option_name'], $assign149, $returning149), InvalidArgumentException::class],
+    'duplicate base key throws' => [static fn (): mixed => SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan::execute(array_merge($rows149, [['option_name' => 'siteurl']]), [], [], $currentView149, $nextView149, ['option_name'], $assign149, $returning149), InvalidArgumentException::class],
 ];
 
 $tests = [];

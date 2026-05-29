@@ -1,6 +1,6 @@
-# trigger-upsert-returning-recursive-current-source-next145
+# trigger-upsert-returning-recursive-current-source-next
 
-Adds `SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Plan`, a focused
+Adds `SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan`, a focused
 current-source savepoint model for recursive trigger UPSERT `RETURNING`.
 
 The slice covers a WordPress `wp_options` import shape where a current source
@@ -13,11 +13,11 @@ image.
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Plan.php
-php -l lanes/libsqlite/tests/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-upsert-returning-recursive-current-source-next145.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Test.php
-php lanes/libsqlite/examples/wordpress-trigger-upsert-returning-recursive-current-source-next145.php --self-test
+php -l lanes/libsqlite/src/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextTest.php
+php -l lanes/libsqlite/examples/wordpress-trigger-upsert-returning-recursive-current-source-next.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextTest.php
+php lanes/libsqlite/examples/wordpress-trigger-upsert-returning-recursive-current-source-next.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

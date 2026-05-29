@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteRecursiveUpsertConflictYieldPlan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan;
 
-$plan = SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Plan::execute(
+$plan = SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan::execute(
     [
         ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1, 'depth' => 0, 'autoload' => 'yes'],
         ['option_name' => 'plugin_seed', 'option_value' => 'seed-old', 'revision' => 4, 'depth' => 1, 'autoload' => 'no'],
@@ -72,7 +72,7 @@ $plan = SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Plan::execute(
 );
 
 $summary = [
-    'scenario' => 'wordpress-trigger-upsert-returning-recursive-current-source-next145',
+    'scenario' => 'wordpress-trigger-upsert-returning-recursive-current-source-next',
     'wordpressUse' => 'Preview a copied wp_options import where recursive trigger UPSERT RETURNING rows are attempted in the current source, a savepoint barrier rolls them back, and the next source restarts from the saved image.',
     'status' => $plan['status'],
     'currentRolledBack' => $plan['current_rolled_back'],
@@ -90,7 +90,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($summary['rollbackKey'] === 'fresh_plugin_child');
     assert($summary['nextStartedFrom'] === 'savepoint');
     assert($summary['committedReturning'] === ['plugin_seed_child', 'plugin_seed_child_child', 'fresh_plugin', 'fresh_plugin_child', 'fresh_plugin_child_child']);
-    echo "wordpress-trigger-upsert-returning-recursive-current-source-next145 self-test passed\n";
+    echo "wordpress-trigger-upsert-returning-recursive-current-source-next self-test passed\n";
     return;
 }
 

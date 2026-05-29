@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNext168Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan;
 
 $rows168 = [
     ['option_name' => 'plugin_root', 'option_value' => 'root', 'autoload' => 'yes', 'parent_name' => null, 'priority' => 0],
@@ -36,7 +36,7 @@ $returning168 = [
     static fn (array $old, array $root, string $source, int $ordinal, int $depth): string => $source . ':' . $root['root_name'] . ':' . $ordinal . ':' . $depth . ':' . $old['option_name'],
 ];
 
-$run168 = static fn (array $options = [], ?array $currentRoots = null, ?array $nextRoots = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNext168Plan::execute(
+$run168 = static fn (array $options = [], ?array $currentRoots = null, ?array $nextRoots = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan::execute(
     $rows168,
     $currentRoots ?? [['root_name' => 'plugin_root']],
     $nextRoots ?? [['root_name' => 'plugin_next_root']],
@@ -111,7 +111,7 @@ $cases168 = [
     'empty returning rejected' => [static fn (): mixed => $run168([], null, null, null, null, []), InvalidArgumentException::class],
     'bad view source rejected' => [static fn (): mixed => $run168([], null, null, ['name' => 'v', 'source' => 'bad source', 'trigger' => 'trg', 'trigger_source' => 'ok', 'columns' => ['option_name']]), InvalidArgumentException::class],
     'bad root key rejected' => [static fn (): mixed => $run168([], [['missing' => 'plugin_root']]), InvalidArgumentException::class],
-    'duplicate row rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNext168Plan::execute(array_merge($rows168, [['option_name' => 'siteurl']]), [], [], $currentView168, $nextView168, $returning168), InvalidArgumentException::class],
+    'duplicate row rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan::execute(array_merge($rows168, [['option_name' => 'siteurl']]), [], [], $currentView168, $nextView168, $returning168), InvalidArgumentException::class],
     'bad parent key rejected' => [static fn (): mixed => $run168(['parent_key' => 'bad-key']), InvalidArgumentException::class],
 ];
 

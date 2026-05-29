@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan;
 
 $rows145 = [
     ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1, 'depth' => 0, 'autoload' => 'yes'],
@@ -59,7 +59,7 @@ $returning145 = [
     ['expr' => 'trigger', 'as' => 'source_trigger'],
 ];
 
-$run145 = static fn (array $options = [], array $current = null, array $next = null): array => SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Plan::execute(
+$run145 = static fn (array $options = [], array $current = null, array $next = null): array => SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan::execute(
     $rows145,
     $current ?? [
         ['option_name' => 'plugin_seed', 'option_value' => 'seed-current', 'revision' => 2, 'depth' => 1, 'autoload' => 'yes'],
@@ -146,7 +146,7 @@ $cases145 = [
     'bad rollback key throws' => [static fn (): mixed => $run145(['rollback_on_returning_key' => ['bad key']]), InvalidArgumentException::class],
     'empty current rows throw' => [static fn (): mixed => $run145([], []), InvalidArgumentException::class],
     'empty next rows throw' => [static fn (): mixed => $run145([], null, []), InvalidArgumentException::class],
-    'malformed current rows throw' => [static fn (): mixed => SQLiteTriggerUpsertReturningRecursiveCurrentSourceNext145Plan::execute($rows145, ['bad' => ['option_name' => 'x']], [['option_name' => 'y']], ['option_name'], $assign145, $triggers145), InvalidArgumentException::class],
+    'malformed current rows throw' => [static fn (): mixed => SQLiteTriggerUpsertReturningRecursiveCurrentSourceNextPlan::execute($rows145, ['bad' => ['option_name' => 'x']], [['option_name' => 'y']], ['option_name'], $assign145, $triggers145), InvalidArgumentException::class],
     'missing unique column throws' => [static fn (): mixed => $run145([], [['option_value' => 'missing']]), InvalidArgumentException::class],
     'max depth throws' => [static fn (): mixed => $run145(['max_depth' => 1]), RuntimeException::class],
 ];

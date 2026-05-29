@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNext142Plan.php';
+require __DIR__ . '/../src/SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan;
 
-$plan = SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNext142Plan::execute(
+$plan = SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan::execute(
     [
         ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'blog_id' => 1, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
@@ -51,7 +51,7 @@ $plan = SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNext142Plan::
 );
 
 $summary = [
-    'scenario' => 'wordpress-trigger-upsert-do-nothing-returning-current-source-next142',
+    'scenario' => 'wordpress-trigger-upsert-do-nothing-returning-current-source-next',
     'wordpressUse' => 'Preview copied wp_options import batches that use INSERT ... ON CONFLICT DO NOTHING RETURNING inside a savepoint: duplicate option rows fire BEFORE trigger diagnostics but yield no RETURNING row, while the next source sees either the released current insert or the savepoint image.',
     'status' => $plan['status'],
     'currentReturned' => array_column($plan['current_returning_rows'], 'name'),
@@ -69,7 +69,7 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     assert($summary['nextReturned'] === ['theme_mods']);
     assert($summary['nextSkipped'] === ['plugin_seed']);
     assert($summary['committedChanges'] === 2);
-    echo "wordpress-trigger-upsert-do-nothing-returning-current-source-next142 self-test passed\n";
+    echo "wordpress-trigger-upsert-do-nothing-returning-current-source-next self-test passed\n";
     return;
 }
 

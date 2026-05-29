@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `INSTEAD OF` view-trigger UPSERT
 `RETURNING` current-source draining when the next schema source rewrites the
 view trigger body.
 
-This slice adds `SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan`.
+This slice adds `SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan`.
 It models copied WordPress `wp_options` import rows inserted through a view
 trigger. The current trigger source is drained first and its `RETURNING` rows
 are captured with the current trigger-source token. A changed next trigger
@@ -13,7 +13,7 @@ admits it. `RAISE(IGNORE)`-style skipped rows suppress `RETURNING` rows without
 rolling back the current source.
 
 WordPress path:
-`wordpress-trigger-returning-upsert-view-current-source-next149.php` previews a
+`wordpress-trigger-returning-upsert-view-current-source-next.php` previews a
 plugin migration that rewrites the import view trigger between current and next
 schema cookies. The smoke proves the current trigger source remains visible
 until reset while next-source `RETURNING` rows stay attempted-only.
@@ -21,16 +21,16 @@ until reset while next-source `RETURNING` rows stay attempted-only.
 Focused verification:
 
 ```sh
-$ php -l lanes/libsqlite/src/SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan.php
-$ php -l lanes/libsqlite/tests/SQLiteTriggerReturningUpsertViewCurrentSourceNext149Test.php
-No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerReturningUpsertViewCurrentSourceNext149Test.php
-$ php -l lanes/libsqlite/examples/wordpress-trigger-returning-upsert-view-current-source-next149.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-returning-upsert-view-current-source-next149.php
-$ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerReturningUpsertViewCurrentSourceNext149Test.php
+$ php -l lanes/libsqlite/src/SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan.php
+$ php -l lanes/libsqlite/tests/SQLiteTriggerReturningUpsertViewCurrentSourceNextTest.php
+No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerReturningUpsertViewCurrentSourceNextTest.php
+$ php -l lanes/libsqlite/examples/wordpress-trigger-returning-upsert-view-current-source-next.php
+No syntax errors detected in lanes/libsqlite/examples/wordpress-trigger-returning-upsert-view-current-source-next.php
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerReturningUpsertViewCurrentSourceNextTest.php
 1 test files, 69 assertions, 0 failures
-$ php lanes/libsqlite/examples/wordpress-trigger-returning-upsert-view-current-source-next149.php --self-test
-wordpress-trigger-returning-upsert-view-current-source-next149 self-test passed
+$ php lanes/libsqlite/examples/wordpress-trigger-returning-upsert-view-current-source-next.php --self-test
+wordpress-trigger-returning-upsert-view-current-source-next self-test passed
 ```
 
 Dashboard delta: `phpPass` should increase by 69 focused PASS lines

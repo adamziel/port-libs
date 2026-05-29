@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1, 'source' => 'seed'],
@@ -45,7 +45,7 @@ $returning = [
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
 ];
 
-$plan = SQLiteTriggerReturningUpsertViewCurrentSourceNext149Plan::execute(
+$plan = SQLiteTriggerReturningUpsertViewCurrentSourceNextPlan::execute(
     $rows,
     [
         ['import_id' => 11, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes'],
@@ -70,7 +70,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['next_returning_rows'] === []);
     assert(array_column(array_column($plan['attempted_next_returning_rows'], 'returning'), 'name') === ['home', 'rewrite_rules']);
     assert(array_column($plan['after_savepoint'], 'option_name') === ['siteurl', 'home']);
-    echo "wordpress-trigger-returning-upsert-view-current-source-next149 self-test passed\n";
+    echo "wordpress-trigger-returning-upsert-view-current-source-next self-test passed\n";
     return;
 }
 

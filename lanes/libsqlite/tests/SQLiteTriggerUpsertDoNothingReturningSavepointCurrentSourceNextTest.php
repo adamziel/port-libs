@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan;
 
 $rows142 = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1],
@@ -50,7 +50,7 @@ $returning142 = [
 ];
 
 $plan142 = static function (array $options = [], array $current = null, array $next = null) use ($rows142, $currentIncoming142, $nextIncoming142, $triggers142, $returning142): array {
-    return SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNext142Plan::execute(
+    return SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan::execute(
         $rows142,
         $current ?? $currentIncoming142,
         $next ?? $nextIncoming142,
@@ -121,8 +121,8 @@ $cases142 = [
     'bad savepoint throws' => [static fn (): mixed => $plan142(['savepoint' => 'bad name']), InvalidArgumentException::class],
     'bad source throws' => [static fn (): mixed => $plan142(['next_source' => 'bad next']), InvalidArgumentException::class],
     'missing conflict column throws' => [static fn (): mixed => $plan142([], [['option_id' => 40, 'blog_id' => 1, 'option_value' => 'missing', 'autoload' => 'yes']], []), InvalidArgumentException::class],
-    'old returning throws for insert' => [static fn (): mixed => SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNext142Plan::execute($rows142, [['option_id' => 50, 'blog_id' => 1, 'option_name' => 'new_old', 'option_value' => 'x', 'autoload' => 'no']], [], ['blog_id', 'option_name'], [], ['old.option_name']), InvalidArgumentException::class],
-    'unsupported trigger action throws' => [static fn (): mixed => SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNext142Plan::execute($rows142, [['option_id' => 60, 'blog_id' => 1, 'option_name' => 'bad_trigger', 'option_value' => 'x', 'autoload' => 'no']], [], ['blog_id', 'option_name'], [['timing' => 'before', 'event' => 'insert', 'action' => 'raise']], ['new.option_name']), InvalidArgumentException::class],
+    'old returning throws for insert' => [static fn (): mixed => SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan::execute($rows142, [['option_id' => 50, 'blog_id' => 1, 'option_name' => 'new_old', 'option_value' => 'x', 'autoload' => 'no']], [], ['blog_id', 'option_name'], [], ['old.option_name']), InvalidArgumentException::class],
+    'unsupported trigger action throws' => [static fn (): mixed => SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan::execute($rows142, [['option_id' => 60, 'blog_id' => 1, 'option_name' => 'bad_trigger', 'option_value' => 'x', 'autoload' => 'no']], [], ['blog_id', 'option_name'], [['timing' => 'before', 'event' => 'insert', 'action' => 'raise']], ['new.option_name']), InvalidArgumentException::class],
 ];
 
 foreach ($cases142 as $name => [$callback, $expected]) {
