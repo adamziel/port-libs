@@ -25,7 +25,7 @@ $nextConstraints = [
     ['column' => 'limit', 'operator' => '=', 'value' => 8],
 ];
 
-$plan = SQLiteJsonTablePlan::constraintPlannerCurrentNext72(
+$plan = SQLiteJsonTablePlan::constraintPlannerComparison(
     'json_tree',
     $currentConstraints,
     $nextConstraints,

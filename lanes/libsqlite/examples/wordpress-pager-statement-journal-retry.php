@@ -21,7 +21,7 @@ $stack->recordStatementPageImageWrite('insert-plugin-setting', 4, $page('before-
 $stack->recordStatementWalFrameWrite('insert-plugin-setting', 4, 4);
 $stack->recordStatementWalFrameWrite('insert-plugin-setting', 5, 5, true);
 
-$plan = $stack->rollbackStatementAndBeginNextStatementJournal70(
+$plan = $stack->rollbackStatementAndBeginStatementJournal(
     'insert-plugin-setting',
     'retry-plugin-setting',
     6,
@@ -31,7 +31,7 @@ $plan = $stack->rollbackStatementAndBeginNextStatementJournal70(
 );
 
 $summary = [
-    'scenario' => 'wordpress pager statement journal current next70',
+    'scenario' => 'wordpress pager statement journal retry',
     'current_statement' => $plan['current_statement'],
     'next_statement' => $plan['next_statement'],
     'savepoint' => $plan['savepoint'],
@@ -59,7 +59,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['next_statement_journal']['page_numbers'] === [6]);
     assert($summary['pending_pages_after_next'] === [1, 2, 3, 6]);
     assert($summary['pending_wal_after_next'] === [1, 2, 3, 4]);
-    echo "wordpress-pager-statement-journal-current-next70 self-test passed\n";
+    echo "wordpress-pager-statement-journal-retry self-test passed\n";
     return;
 }
 

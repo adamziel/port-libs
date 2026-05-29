@@ -52,7 +52,7 @@ $constraints81 = [
     ['column' => 'atom', 'operator' => 'IS NOT NULL', 'value' => null],
 ];
 
-$plan81 = static fn (): array => SQLiteJsonTablePlan::lateralRowidCurrentNext81(
+$plan81 = static fn (): array => SQLiteJsonTablePlan::lateralRowidComparison(
     $currentHosts81,
     $nextHosts81,
     'option_value',
@@ -64,7 +64,7 @@ $plan81 = static fn (): array => SQLiteJsonTablePlan::lateralRowidCurrentNext81(
     'rule_',
 );
 
-$stable81 = static fn (): array => SQLiteJsonTablePlan::lateralRowidCurrentNext81(
+$stable81 = static fn (): array => SQLiteJsonTablePlan::lateralRowidComparison(
     [$currentHosts81[0]],
     [$currentHosts81[0]],
     'option_value',
@@ -76,7 +76,7 @@ $stable81 = static fn (): array => SQLiteJsonTablePlan::lateralRowidCurrentNext8
     'rule_',
 );
 
-$inner81 = static fn (): array => SQLiteJsonTablePlan::lateralRowidCurrentNext81(
+$inner81 = static fn (): array => SQLiteJsonTablePlan::lateralRowidComparison(
     $currentHosts81,
     $nextHosts81,
     'option_value',
@@ -88,7 +88,7 @@ $inner81 = static fn (): array => SQLiteJsonTablePlan::lateralRowidCurrentNext81
 
 $tests = [
     'function is normalized' => static fn (TestRunner $t) => $t->same('json_each', $plan81()['function']),
-    'dependency marker names current next81' => static fn (TestRunner $t) => $t->same('sqlite-json-table-lateral-rowid-current-next81', $plan81()['dependencies'][0]),
+    'dependency marker names current next81' => static fn (TestRunner $t) => $t->same('sqlite-json-table-lateral-rowid-comparison', $plan81()['dependencies'][0]),
     'current reader policy is rowid specific' => static fn (TestRunner $t) => $t->same('keep-current-lateral-json-rowid-until-host-row-advances', $plan81()['currentReaderPolicy']),
     'next policy materializes changed rowid tape' => static fn (TestRunner $t) => $t->same('materialize-next-lateral-json-rowid-tape', $plan81()['nextReaderPolicy']),
     'stable next policy reuses rowid tape' => static fn (TestRunner $t) => $t->same('reuse-current-lateral-json-rowid-tape', $stable81()['nextReaderPolicy']),
@@ -136,14 +136,14 @@ $tests = [
     'stable rowid transition is unchanged' => static fn (TestRunner $t) => $t->same(false, $stable81()['transitions'][0]['changed']),
     'default prefix projects json rowid' => static fn (TestRunner $t) => $t->same(1, $inner81()['current'][0]['json_rowid']),
     'default prefix projects json atom' => static fn (TestRunner $t) => $t->same('seo', $inner81()['current'][0]['json_atom']),
-    'missing json host column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidCurrentNext81([['option_name' => 'missing']], [], 'option_value', 'json_each')),
-    'missing root host column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidCurrentNext81([['option_value' => '{}']], [], 'option_value', 'json_each', [], 'scan_root')),
-    'empty json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidCurrentNext81([], [], '', 'json_each')),
-    'empty root column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidCurrentNext81([], [], 'option_value', 'json_each', [], '')),
-    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidCurrentNext81([], [], 'option_value', 'json_bad')),
-    'bad join type is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidCurrentNext81([], [], 'option_value', 'json_each', [], null, ['atom'], 'outer')),
-    'empty projection is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidCurrentNext81([], [], 'option_value', 'json_each', [], null, [])),
-    'empty prefix is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidCurrentNext81([], [], 'option_value', 'json_each', [], null, ['atom'], 'inner', '')),
+    'missing json host column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidComparison([['option_name' => 'missing']], [], 'option_value', 'json_each')),
+    'missing root host column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidComparison([['option_value' => '{}']], [], 'option_value', 'json_each', [], 'scan_root')),
+    'empty json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidComparison([], [], '', 'json_each')),
+    'empty root column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidComparison([], [], 'option_value', 'json_each', [], '')),
+    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidComparison([], [], 'option_value', 'json_bad')),
+    'bad join type is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidComparison([], [], 'option_value', 'json_each', [], null, ['atom'], 'outer')),
+    'empty projection is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidComparison([], [], 'option_value', 'json_each', [], null, [])),
+    'empty prefix is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidComparison([], [], 'option_value', 'json_each', [], null, ['atom'], 'inner', '')),
 ];
 
 foreach ($tests as $name => $case) {

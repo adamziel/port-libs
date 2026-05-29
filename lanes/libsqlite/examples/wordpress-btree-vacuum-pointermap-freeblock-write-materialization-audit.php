@@ -28,12 +28,12 @@ $pages[1] = $firstPage;
 $pages[2] = str_repeat("\0", 512);
 $pages[3] = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next211', str_repeat('cache:', 42)])),
+    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next212', str_repeat('cache:', 42)])),
     SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'rewrite_rules', str_repeat('rewrite:', 8)])),
 ]);
 $pages[105] = str_repeat("\0", 512);
 foreach ([106 => 107, 107 => 108, 108 => 109, 109 => 110, 110 => 0] as $pageNumber => $nextPage) {
-    $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(80 + ($pageNumber - 105)), 508);
+    $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(78 + ($pageNumber - 105)), 508);
 }
 
 $putPointerMapEntry = static function (int $pageNumber, int $type, int $parentPageNumber) use (&$pages): void {
@@ -63,7 +63,7 @@ foreach ([
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
 $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext211(
+$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafWriteMaterializationAuditFromDeleteResult(
     $database,
     3,
     [
@@ -72,7 +72,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFrom
         'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
     ],
     2,
-    str_repeat('next211-current-source-apply-', 50),
+    str_repeat('next212-current-source-apply-', 50),
     3,
     true,
     2,
@@ -80,26 +80,26 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFrom
 $summary = $plan->applySummary();
 
 echo json_encode([
-    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-next211',
-    'wordpressUse' => 'After deleting an overflow-backed copied wp_options transient and vacuuming tail pages, replay applies pointer-map barriers before payload/freeblock pages and keeps truncated tail pages fenced.',
+    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-next212',
+    'wordpressUse' => 'After deleting an overflow-backed copied wp_options transient and vacuuming tail pages, apply only the latched current-source pointer-map/freeblock pages in pointer-map-before-payload order.',
     'status' => $summary['status'],
     'apply_pages' => $summary['apply_pages'],
     'pointer_map_apply_pages' => $summary['pointer_map_apply_pages'],
     'payload_apply_pages' => $summary['payload_apply_pages'],
     'apply_row_count' => $summary['apply_row_count'],
     'apply_matches_writer_source_pages' => $summary['apply_matches_writer_source_pages'],
-    'all_pointer_map_barriers_before_payload' => $summary['all_pointer_map_barriers_before_payload'],
-    'all_tail_pages_remain_fenced' => $summary['all_tail_pages_remain_fenced'],
+    'all_pointer_maps_applied_before_payload' => $summary['all_pointer_maps_applied_before_payload'],
+    'all_tail_pages_fenced_for_apply' => $summary['all_tail_pages_fenced_for_apply'],
 ], JSON_PRETTY_PRINT) . PHP_EOL;
 
 if (
-    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-next211-ready'
+    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-next212-ready'
     && $summary['apply_pages'] === [2, 3, 105, 106, 107, 108]
     && $summary['pointer_map_apply_pages'] === [2, 105]
     && $summary['payload_apply_pages'] === [3, 106, 107, 108]
     && $summary['apply_matches_writer_source_pages'] === true
-    && $summary['all_pointer_map_barriers_before_payload'] === true
-    && $summary['all_tail_pages_remain_fenced'] === true
+    && $summary['all_pointer_maps_applied_before_payload'] === true
+    && $summary['all_tail_pages_fenced_for_apply'] === true
 ) {
-    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-next211 self-test passed\n";
+    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-next212 self-test passed\n";
 }

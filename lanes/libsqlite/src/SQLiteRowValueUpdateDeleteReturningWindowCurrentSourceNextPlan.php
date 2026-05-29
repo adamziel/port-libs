@@ -16,7 +16,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext232(
+    public static function executeRetryWindowPlan(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -29,7 +29,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source next232 savepoint must be an identifier');
         }
 
-        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext229(
+        $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -40,7 +40,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         );
 
         $retryRows = $plan['retry_rows_after_release'];
-        $windowRows = self::windowRowsNext232($retryRows, $rowIdColumn);
+        $windowRows = self::retryWindowRows($retryRows, $rowIdColumn);
         $currentRows = $plan['current_source_tables']['wp_options'] ?? [];
 
         return array_merge($plan, [
@@ -50,7 +50,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'window_retry_ids_after_release_next232' => array_column($windowRows, $rowIdColumn),
             'window_retry_row_numbers_next232' => array_column($windowRows, 'row_number'),
             'window_retry_partition_numbers_next232' => array_column($windowRows, 'partition_row_number'),
-            'current_source_window_order_next232' => self::currentSourceOrderNext232($currentRows, $rowIdColumn),
+            'current_source_window_order_next232' => self::currentSourceWindowOrder($currentRows, $rowIdColumn),
             'dependency_closure_next232' => 'no new support component needed; next232 reuses native PHP row-value UPDATE/DELETE RETURNING subquery dispatch, savepoint row images, and bounded window-style row numbering over retry RETURNING rows',
             'dependencies_next232' => [
                 'sqlite-rowvalue-update-returning-window-current-source-next232',
@@ -65,7 +65,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function windowRowsNext232(array $rows, string $rowIdColumn): array
+    private static function retryWindowRows(array $rows, string $rowIdColumn): array
     {
         $numbered = [];
         $partitionCounts = [];
@@ -88,7 +88,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,int|string|null>>
      */
-    private static function currentSourceOrderNext232(array $rows, string $rowIdColumn): array
+    private static function currentSourceWindowOrder(array $rows, string $rowIdColumn): array
     {
         $ordered = [];
         foreach (array_values($rows) as $index => $row) {

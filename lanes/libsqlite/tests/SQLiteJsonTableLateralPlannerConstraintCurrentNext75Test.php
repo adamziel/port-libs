@@ -67,7 +67,7 @@ $constraints75 = [
     ['column' => 'limit', 'operator' => '=', 'value' => 8],
 ];
 
-$plan75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75(
+$plan75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerComparison(
     $currentHosts75,
     $nextHosts75,
     'option_value',
@@ -77,7 +77,7 @@ $plan75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerCu
     [['column' => 'id']],
 );
 
-$stable75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75(
+$stable75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerComparison(
     [$currentHosts75[0]],
     [$currentHosts75[0]],
     'option_value',
@@ -87,7 +87,7 @@ $stable75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlanner
     [['column' => 'id']],
 );
 
-$becomesRunnable75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75(
+$becomesRunnable75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerComparison(
     [$currentHosts75[2]],
     [$nextHosts75[2]],
     'option_value',
@@ -97,7 +97,7 @@ $becomesRunnable75 = static fn (): array => SQLiteJsonTablePlan::lateralConstrai
     [['column' => 'id']],
 );
 
-$becomesUnrunnable75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75(
+$becomesUnrunnable75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerComparison(
     [$nextHosts75[2]],
     [[
         'option_id' => 13,
@@ -112,7 +112,7 @@ $becomesUnrunnable75 = static fn (): array => SQLiteJsonTablePlan::lateralConstr
     [['column' => 'id']],
 );
 
-$withoutRoot75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75(
+$withoutRoot75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPlannerComparison(
     [$currentHosts75[0]],
     [$currentHosts75[0]],
     'option_value',
@@ -122,7 +122,7 @@ $withoutRoot75 = static fn (): array => SQLiteJsonTablePlan::lateralConstraintPl
 
 $tests = [
     'reports json tree function' => static fn (TestRunner $t) => $t->same('json_tree', $plan75()['function']),
-    'dependency marker names current next75' => static fn (TestRunner $t) => $t->same('sqlite-json-table-lateral-planner-constraint-current-next75', $plan75()['dependencies'][0]),
+    'dependency marker names current next75' => static fn (TestRunner $t) => $t->same('sqlite-json-table-lateral-constraint-planner-comparison', $plan75()['dependencies'][0]),
     'current reader policy keeps active host cursor' => static fn (TestRunner $t) => $t->same('keep-current-lateral-json-table-plan-until-host-row-advances', $plan75()['currentReaderPolicy']),
     'next reader policy prepares changed host plan' => static fn (TestRunner $t) => $t->same('prepare-next-lateral-json-table-plan-for-host-row', $plan75()['nextReaderPolicy']),
     'changed host rows require replan' => static fn (TestRunner $t) => $t->same(true, $plan75()['replanRequired']),
@@ -179,14 +179,14 @@ $tests = [
     'without root uses default root value' => static fn (TestRunner $t) => $t->same('$', $withoutRoot75()['current'][0]['rootValue']),
     'without root uses only json and visible argument tape' => static fn (TestRunner $t) => $t->same([$currentHosts75[0]['option_value'], 'rules'], $withoutRoot75()['current'][0]['filterArguments']),
     'without root idx num records json plus visible only' => static fn (TestRunner $t) => $t->same(5, $withoutRoot75()['current'][0]['idxNum']),
-    'added host row transition is reported' => static fn (TestRunner $t) => $t->same('next-host-row-added', SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75([], [$nextHosts75[0]], 'option_value', 'json_tree', $constraints75, 'scan_root')['transitions'][0]['reason']),
-    'removed host row transition is reported' => static fn (TestRunner $t) => $t->same('current-host-row-removed', SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75([$currentHosts75[0]], [], 'option_value', 'json_tree', $constraints75, 'scan_root')['transitions'][0]['reason']),
-    'missing json host column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75([['option_name' => 'missing']], [], 'option_value', 'json_tree')),
-    'missing root host column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75([['option_value' => '{}']], [], 'option_value', 'json_tree', [], 'scan_root')),
-    'empty json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75([], [], '', 'json_tree')),
-    'empty root column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75([], [], 'option_value', 'json_tree', [], '')),
-    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75([], [], 'option_value', 'json_bad')),
-    'bad dynamic root path is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75([['option_value' => '{}', 'scan_root' => '$[']], [], 'option_value', 'json_tree', [], 'scan_root')),
+    'added host row transition is reported' => static fn (TestRunner $t) => $t->same('next-host-row-added', SQLiteJsonTablePlan::lateralConstraintPlannerComparison([], [$nextHosts75[0]], 'option_value', 'json_tree', $constraints75, 'scan_root')['transitions'][0]['reason']),
+    'removed host row transition is reported' => static fn (TestRunner $t) => $t->same('current-host-row-removed', SQLiteJsonTablePlan::lateralConstraintPlannerComparison([$currentHosts75[0]], [], 'option_value', 'json_tree', $constraints75, 'scan_root')['transitions'][0]['reason']),
+    'missing json host column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerComparison([['option_name' => 'missing']], [], 'option_value', 'json_tree')),
+    'missing root host column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerComparison([['option_value' => '{}']], [], 'option_value', 'json_tree', [], 'scan_root')),
+    'empty json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerComparison([], [], '', 'json_tree')),
+    'empty root column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerComparison([], [], 'option_value', 'json_tree', [], '')),
+    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerComparison([], [], 'option_value', 'json_bad')),
+    'bad dynamic root path is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralConstraintPlannerComparison([['option_value' => '{}', 'scan_root' => '$[']], [], 'option_value', 'json_tree', [], 'scan_root')),
 ];
 
 foreach ($tests as $name => $case) {

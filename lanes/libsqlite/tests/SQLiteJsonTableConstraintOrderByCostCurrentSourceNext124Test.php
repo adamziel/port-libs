@@ -75,7 +75,7 @@ $tests = [
     'normalizes function name' => static fn (TestRunner $t) => $t->same('json_tree', $partial124()['function']),
     'records next124 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-orderby-cost-current-source-next124', $partial124()['dependencies'], true)),
     'preserves next120 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-orderby-constraint-current-source-next120', $partial124()['dependencies'], true)),
-    'preserves next113 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-cost-order-current-source-next113', $partial124()['dependencies'], true)),
+    'preserves next113 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-cost-order', $partial124()['dependencies'], true)),
     'pins current partial order reader' => static fn (TestRunner $t) => $t->same('pin-current-json-table-partial-order-cost-source-until-cursor-reset', $partial124()['currentReaderPolicy']),
     'prepares next partial order plan' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-partial-order-cost-source-plan', $partial124()['nextReaderPolicy']),
     'stable complete order reuses current plan' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-partial-order-cost-source-plan', $complete124()['nextReaderPolicy']),

@@ -586,7 +586,7 @@ final class SQLitePagerHotJournalWalRecoveryPlan
             $currentDatabaseBytes = substr_replace($currentDatabaseBytes, $expectedImage, $offset, $pageSize);
         }
 
-        $statementRecovery = $savepoints->rollbackStatementCurrentSourceAndBeginNext86(
+        $statementRecovery = $savepoints->rollbackStatementCurrentSourceAndBeginStatementJournal(
             $currentStatementName,
             $nextStatementName,
             $currentDatabaseBytes,

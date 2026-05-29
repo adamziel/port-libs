@@ -32,7 +32,7 @@ $next = [
     'json_root' => '$.rules',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86(
+$plan = SQLiteJsonTablePlan::currentSourceConstraintPlanner(
     'json_each',
     $current,
     $next,

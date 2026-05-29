@@ -88,7 +88,7 @@ $nullNext88 = static fn (): array => SQLiteJsonTablePlan::currentSourceHiddenCon
 $tests = [
     'normalizes function name' => static fn (TestRunner $t) => $t->same('json_each', $sameRoot88()['function']),
     'adds next88 dependency marker' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-hidden-constraint-planner-current-source-next88', $sameRoot88()['dependencies'], true)),
-    'preserves next86 dependency marker' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-planner-current-source-next86', $sameRoot88()['dependencies'], true)),
+    'preserves next86 dependency marker' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-planner', $sameRoot88()['dependencies'], true)),
     'pins current reader policy' => static fn (TestRunner $t) => $t->same('pin-current-json-table-source-until-cursor-reset', $sameRoot88()['currentReaderPolicy']),
     'prepares next source when source changes' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-source-plan', $sameRoot88()['nextReaderPolicy']),
     'source json change remains reported' => static fn (TestRunner $t) => $t->true(in_array('source-json-changed', $sameRoot88()['next88ReplanReasons'], true)),

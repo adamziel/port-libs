@@ -20,7 +20,7 @@ $constraints113 = [
     ['column' => 'type', 'operator' => '=', 'value' => 'object'],
 ];
 
-$keyDesc113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintCostOrderNext113(
+$keyDesc113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintCostOrder(
     'json_each',
     $current113,
     $next113,
@@ -30,7 +30,7 @@ $keyDesc113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstrain
     [['column' => 'key', 'direction' => 'DESC']],
 );
 
-$idAsc113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintCostOrderNext113(
+$idAsc113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintCostOrder(
     'json_tree',
     $current113,
     $next113,
@@ -40,7 +40,7 @@ $idAsc113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintC
     [['column' => 'rowid']],
 );
 
-$stable113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintCostOrderNext113(
+$stable113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintCostOrder(
     'json_each',
     $current113,
     $current113,
@@ -50,7 +50,7 @@ $stable113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraint
     [['column' => 'key', 'direction' => 'DESC']],
 );
 
-$limit113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintCostOrderNext113(
+$limit113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintCostOrder(
     'json_each',
     $current113,
     $next113,
@@ -60,7 +60,7 @@ $limit113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintC
     [['column' => 'key', 'direction' => 'DESC']],
 );
 
-$unrunnable113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintCostOrderNext113(
+$unrunnable113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintCostOrder(
     'json_each',
     $current113,
     array_replace($current113, ['option_value' => null]),
@@ -72,12 +72,12 @@ $unrunnable113 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstr
 
 $tests = [
     'normalizes function name' => static fn (TestRunner $t) => $t->same('json_each', $keyDesc113()['function']),
-    'records next113 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-cost-order-current-source-next113', $keyDesc113()['dependencies'], true)),
-    'preserves next86 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-planner-current-source-next86', $keyDesc113()['dependencies'], true)),
+    'records next113 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-cost-order', $keyDesc113()['dependencies'], true)),
+    'preserves next86 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-planner', $keyDesc113()['dependencies'], true)),
     'pins current cost order reader' => static fn (TestRunner $t) => $t->same('pin-current-json-table-cost-order-source-until-cursor-reset', $keyDesc113()['currentReaderPolicy']),
     'prepares next cost order plan' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-cost-order-source-plan', $keyDesc113()['nextReaderPolicy']),
     'stable cost order reuses plan' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-cost-order-source-plan', $stable113()['nextReaderPolicy']),
-    'stable cost order has no next113 reasons' => static fn (TestRunner $t) => $t->same([], $stable113()['next113ReplanReasons']),
+    'stable cost order has no next113 reasons' => static fn (TestRunner $t) => $t->same([], $stable113()['costOrderReplanReasons']),
     'key desc current order term normalized' => static fn (TestRunner $t) => $t->same([['column' => 'key', 'direction' => 'DESC']], $keyDesc113()['currentCostOrder']['orderBy']),
     'key desc current order is not consumed' => static fn (TestRunner $t) => $t->same(false, $keyDesc113()['currentCostOrder']['orderByConsumed']),
     'key desc next order is not consumed' => static fn (TestRunner $t) => $t->same(false, $keyDesc113()['nextCostOrder']['orderByConsumed']),
@@ -103,9 +103,9 @@ $tests = [
     'effective cost transition changes' => static fn (TestRunner $t) => $t->same(true, $keyDesc113()['costOrderTransitions'][3]['changed']),
     'row order transition changes' => static fn (TestRunner $t) => $t->same(true, $keyDesc113()['costOrderTransitions'][5]['changed']),
     'cost class transition remains stable' => static fn (TestRunner $t) => $t->same(false, $keyDesc113()['costOrderTransitions'][4]['changed']),
-    'next113 reasons include source json change' => static fn (TestRunner $t) => $t->true(in_array('source-json-changed', $keyDesc113()['next113ReplanReasons'], true)),
-    'next113 reasons include cost class changed' => static fn (TestRunner $t) => $t->true(in_array('json-table-cost-class-changed', $keyDesc113()['next113ReplanReasons'], true)),
-    'next113 reasons include output order changed' => static fn (TestRunner $t) => $t->true(in_array('json-table-output-order-changed', $keyDesc113()['next113ReplanReasons'], true)),
+    'next113 reasons include source json change' => static fn (TestRunner $t) => $t->true(in_array('source-json-changed', $keyDesc113()['costOrderReplanReasons'], true)),
+    'next113 reasons include cost class changed' => static fn (TestRunner $t) => $t->true(in_array('json-table-cost-class-changed', $keyDesc113()['costOrderReplanReasons'], true)),
+    'next113 reasons include output order changed' => static fn (TestRunner $t) => $t->true(in_array('json-table-output-order-changed', $keyDesc113()['costOrderReplanReasons'], true)),
     'rowid order normalizes to id' => static fn (TestRunner $t) => $t->same([['column' => 'id', 'direction' => 'ASC']], $idAsc113()['currentCostOrder']['orderBy']),
     'rowid order is consumed for current' => static fn (TestRunner $t) => $t->same(true, $idAsc113()['currentCostOrder']['orderByConsumed']),
     'rowid order is consumed for next' => static fn (TestRunner $t) => $t->same(true, $idAsc113()['nextCostOrder']['orderByConsumed']),
@@ -117,7 +117,7 @@ $tests = [
     'rowid next cost class is streaming' => static fn (TestRunner $t) => $t->same('runnable-json-table-streaming-order', $idAsc113()['nextCostOrder']['costClass']),
     'rowid current order starts with root id' => static fn (TestRunner $t) => $t->same(1, $idAsc113()['currentCostOrder']['rowOrder'][0]),
     'rowid next order starts with root id' => static fn (TestRunner $t) => $t->same(1, $idAsc113()['nextCostOrder']['rowOrder'][0]),
-    'rowid order emits no sorter reason' => static fn (TestRunner $t) => $t->same(false, in_array('json-table-sorter-requirement-changed', $idAsc113()['next113ReplanReasons'], true)),
+    'rowid order emits no sorter reason' => static fn (TestRunner $t) => $t->same(false, in_array('json-table-sorter-requirement-changed', $idAsc113()['costOrderReplanReasons'], true)),
     'limit one current needs no sorter for single row' => static fn (TestRunner $t) => $t->same(false, $limit113()['currentCostOrder']['requiresSorter']),
     'limit one next needs no sorter for single row' => static fn (TestRunner $t) => $t->same(false, $limit113()['nextCostOrder']['requiresSorter']),
     'limit one current cost is narrow scan' => static fn (TestRunner $t) => $t->same('runnable-json-table-narrow-visible-scan', $limit113()['currentCostOrder']['costClass']),
@@ -127,8 +127,8 @@ $tests = [
     'unrunnable next cost class is unrunnable' => static fn (TestRunner $t) => $t->same('unrunnable-json-table', $unrunnable113()['nextCostOrder']['costClass']),
     'unrunnable next effective cost remains sentinel' => static fn (TestRunner $t) => $t->same(1000000, $unrunnable113()['nextCostOrder']['effectiveEstimatedCost']),
     'unrunnable next row order is empty' => static fn (TestRunner $t) => $t->same([], $unrunnable113()['nextCostOrder']['rowOrder']),
-    'unrunnable next reports plan unrunnable' => static fn (TestRunner $t) => $t->true(in_array('next-source-plan-becomes-unrunnable', $unrunnable113()['next113ReplanReasons'], true)),
-    'bad order direction is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintCostOrderNext113('json_each', $current113, $next113, 'option_value', $constraints113, 'scan_root', [['column' => 'key', 'direction' => 'SIDEWAYS']])),
+    'unrunnable next reports plan unrunnable' => static fn (TestRunner $t) => $t->true(in_array('next-source-plan-becomes-unrunnable', $unrunnable113()['costOrderReplanReasons'], true)),
+    'bad order direction is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintCostOrder('json_each', $current113, $next113, 'option_value', $constraints113, 'scan_root', [['column' => 'key', 'direction' => 'SIDEWAYS']])),
 ];
 
 foreach ($tests as $name => $case) {

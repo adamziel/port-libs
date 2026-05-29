@@ -76,7 +76,7 @@ final class SQLitePagerMasterJournalStatementRecoveryPlan
         }
 
         $statementDatabase = $savepoints->rollbackStatementDatabaseImage($statementName, $recoveredDatabase, $pageSize);
-        $statementRecovery = $savepoints->rollbackStatementAndBeginNextStatementJournal70(
+        $statementRecovery = $savepoints->rollbackStatementAndBeginStatementJournal(
             $statementName,
             $nextStatementName,
             $nextPageNumber,

@@ -25,7 +25,7 @@ $nextRows = [
     ['option_id' => 3, 'option_name' => 'plugin_gamma_settings', 'option_value' => '{"rules":["gallery"]}', 'scan_root' => '$.rules'],
 ];
 
-$plan = SQLiteJsonTablePlan::lateralRowidCurrentNext81(
+$plan = SQLiteJsonTablePlan::lateralRowidComparison(
     $currentRows,
     $nextRows,
     'option_value',

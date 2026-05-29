@@ -17,7 +17,7 @@ $next91 = [
     'json_root' => '$.rules',
 ];
 
-$plan91 = static fn (string $alias, int $rowid, array $next = null, array $orderBy = []): array => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86(
+$plan91 = static fn (string $alias, int $rowid, array $next = null, array $orderBy = []): array => SQLiteJsonTablePlan::currentSourceConstraintPlanner(
     'json_each',
     $current91,
     $next ?? $next91,
@@ -30,7 +30,7 @@ $plan91 = static fn (string $alias, int $rowid, array $next = null, array $order
     $orderBy,
 );
 
-$treePlan91 = static fn (string $alias, int $rowid, array $next = null): array => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86(
+$treePlan91 = static fn (string $alias, int $rowid, array $next = null): array => SQLiteJsonTablePlan::currentSourceConstraintPlanner(
     'json_tree',
     $current91,
     $next ?? $next91,
@@ -98,7 +98,7 @@ $tests = [
     'tree rowid alias next source sees changed fullkey tape' => static fn (TestRunner $t) => $t->same('$.rules[0].enabled', $treePlan91('rowid', 3)['nextRows'][0]['fullkey']),
     'tree rowid alias stable source has equal row counts' => static fn (TestRunner $t) => $t->same(count($treePlan91('rowid', 3, $current91)['currentRows']), count($treePlan91('rowid', 3, $current91)['nextRows'])),
     'tree rowid alias rowid estimate is narrow' => static fn (TestRunner $t) => $t->same(1, $treePlan91('rowid', 3)['current']['estimatedRows']),
-    'rowid alias dependency remains current source planner' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-planner-current-source-next86', $plan91('rowid', 2)['dependencies'], true)),
+    'rowid alias dependency remains current source planner' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-planner', $plan91('rowid', 2)['dependencies'], true)),
 ];
 
 foreach ($tests as $name => $case) {

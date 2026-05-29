@@ -63,8 +63,8 @@ $jsonb121 = static fn (): array => $plan121(
 $tests = [
     'normalizes function' => static fn (TestRunner $t) => $t->same('json_tree', $plan121()['function']),
     'records dependency marker' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-nested-path-planner-current-source-next121', $plan121()['dependencies'], true)),
-    'preserves cost order dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-cost-order-current-source-next113', $plan121()['dependencies'], true)),
-    'preserves current source dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-planner-current-source-next86', $plan121()['dependencies'], true)),
+    'preserves cost order dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-cost-order', $plan121()['dependencies'], true)),
+    'preserves current source dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-planner', $plan121()['dependencies'], true)),
     'pins current nested reader' => static fn (TestRunner $t) => $t->same('pin-current-json-table-nested-path-source-until-cursor-reset', $plan121()['currentReaderPolicy']),
     'prepares next nested reader' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-nested-path-source-plan', $plan121()['nextReaderPolicy']),
     'stable reader reuses nested path plan' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-nested-path-source-plan', $stable121()['nextReaderPolicy']),

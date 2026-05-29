@@ -74,7 +74,7 @@ final class SQLiteWalHotJournalSavepointReplayPlan
             throw new \LogicException('SQLite WAL hot-journal statement current-source replay requires a checkpointable current WAL image');
         }
 
-        $statement = $savepoints->rollbackStatementCurrentSourceAndBeginNext86(
+        $statement = $savepoints->rollbackStatementCurrentSourceAndBeginStatementJournal(
             $currentStatementName,
             $nextStatementName,
             $checkpointBytes,

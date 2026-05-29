@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteWordPressImportJsonSchemaSavepointCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteWordPressImportJsonSchemaSavepointPlan;
 
 $currentRows = static fn (): array => [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -14,10 +14,10 @@ $currentRows = static fn (): array => [
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
-$plan = static fn (array $imports, array $options = []) => SQLiteWordPressImportJsonSchemaSavepointCurrentNextPlan::plan(
+$plan = static fn (array $imports, array $options = []) => SQLiteWordPressImportJsonSchemaSavepointPlan::plan(
     $currentRows(),
     $imports,
-    $options + ['database_path' => '/tmp/wp-import-json-schema-savepoint-current-next53.sqlite', 'page_size' => 1024],
+    $options + ['database_path' => '/tmp/wp-import-json-schema-savepoint.sqlite', 'page_size' => 1024],
 );
 
 $tests = [
@@ -29,7 +29,7 @@ $tests = [
         ]);
 
         $t->same('planned', $result['status']);
-        $t->same(true, $result['current_next53']);
+        $t->same(true, $result['schema_savepoint_import']);
         $t->same(['defaults'], $result['released_batches']);
         $t->same(['plugin_default_settings'], $result['batches'][0]['json']['option_names']);
         $t->same(71, $result['batches'][0]['schema_generated_ids'][0]['option_id']);
@@ -112,7 +112,7 @@ $tests = [
         $blob = new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
             ['option_name' => 'jsonb_schema_settings', 'option_value' => '{"mode":"jsonb"}'],
         ]]));
-        $result = SQLiteWordPressImportJsonSchemaSavepointCurrentNextPlan::plan($currentRows(), [
+        $result = SQLiteWordPressImportJsonSchemaSavepointPlan::plan($currentRows(), [
             ['name' => 'jsonb_schema', 'json' => $blob, 'path' => '$.rows'],
         ]);
 
@@ -122,7 +122,7 @@ $tests = [
     },
     'accepts JSON subtype schema import sources' => static function (TestRunner $t) use ($currentRows): void {
         $subtype = new SQLiteJsonSubtypeValue('{"rows":[{"option_name":"subtype_schema_settings","option_value":"{\"mode\":\"subtype\"}"}]}');
-        $result = SQLiteWordPressImportJsonSchemaSavepointCurrentNextPlan::plan($currentRows(), [
+        $result = SQLiteWordPressImportJsonSchemaSavepointPlan::plan($currentRows(), [
             ['name' => 'subtype_schema', 'json' => $subtype, 'path' => '$.rows'],
         ]);
 
@@ -145,12 +145,12 @@ $tests = [
         ]));
     },
     'rejects empty import lists' => static function (TestRunner $t) use ($currentRows): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressImportJsonSchemaSavepointCurrentNextPlan::plan($currentRows(), []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressImportJsonSchemaSavepointPlan::plan($currentRows(), []));
     },
 ];
 
 foreach (range(1, 18) as $batch) {
-    $tests["generated schema import batch {$batch} advances current-next frame once"] = static function (TestRunner $t) use ($plan, $jsonRows, $batch): void {
+    $tests["generated schema import batch {$batch} advances schema-savepoint frame once"] = static function (TestRunner $t) use ($plan, $jsonRows, $batch): void {
         $result = $plan([
             ['name' => 'generated_' . $batch, 'json' => $jsonRows([
                 ['name' => 'generated_' . $batch . '_settings', 'value' => '{"rank":' . $batch . '}'],
@@ -171,7 +171,7 @@ foreach ([
     'bad widget json text' => [['option_name' => 'widget_text', 'option_value' => 'plain']],
     'bad theme mods json text' => [['option_name' => 'theme_mods_current', 'option_value' => '{bad']],
 ] as $label => $rows) {
-    $tests["schema current-next rollback for {$label}"] = static function (TestRunner $t) use ($plan, $jsonRows, $label, $rows): void {
+    $tests["schema savepoint rollback for {$label}"] = static function (TestRunner $t) use ($plan, $jsonRows, $label, $rows): void {
         $result = $plan([
             ['name' => 'reject_' . preg_replace('/[^a-z0-9]+/', '_', $label), 'json' => $jsonRows($rows), 'path' => '$.rows'],
         ]);
@@ -210,11 +210,11 @@ foreach ([
 foreach ([64 => 2, 65 => 3, 128 => 3, 129 => 4, 192 => 4, 193 => 5] as $optionId => $pageNumber) {
     $tests["explicit schema option {$optionId} maps to WAL page {$pageNumber}"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $optionId, $pageNumber): void {
         $rows = $currentRows();
-        $result = SQLiteWordPressImportJsonSchemaSavepointCurrentNextPlan::plan($rows, [
+        $result = SQLiteWordPressImportJsonSchemaSavepointPlan::plan($rows, [
             ['name' => 'explicit_' . $optionId, 'json' => $jsonRows([
                 ['option_id' => $optionId, 'option_name' => 'explicit_' . $optionId . '_settings', 'option_value' => '{"id":' . $optionId . '}'],
             ]), 'path' => '$.rows'],
-        ], ['database_path' => '/tmp/wp-schema-explicit-current-next53.sqlite']);
+        ], ['database_path' => '/tmp/wp-schema-explicit-savepoint.sqlite']);
 
         $t->same([$pageNumber], $result['batches'][0]['dirty_pages']);
         $t->same($pageNumber, $result['wal']['frames'][0]['page_number']);
@@ -223,7 +223,7 @@ foreach ([64 => 2, 65 => 3, 128 => 3, 129 => 4, 192 => 4, 193 => 5] as $optionId
 }
 
 foreach (['$', '$.rows', '$.payload.rows'] as $pathIndex => $path) {
-    $tests["schema import current-next extracts rows from {$path}"] = static function (TestRunner $t) use ($plan, $path, $pathIndex): void {
+    $tests["schema import savepoint extracts rows from {$path}"] = static function (TestRunner $t) use ($plan, $path, $pathIndex): void {
         $row = ['option_name' => 'path_' . $pathIndex . '_settings', 'option_value' => '{"path":' . $pathIndex . '}'];
         $json = match ($path) {
             '$' => json_encode([$row], JSON_THROW_ON_ERROR),
@@ -239,15 +239,15 @@ foreach (['$', '$.rows', '$.payload.rows'] as $pathIndex => $path) {
     };
 }
 
-$tests['dependency marker names current-next53 schema import'] = static function (TestRunner $t) use ($plan, $jsonRows): void {
+$tests['dependency marker names schema savepoint import'] = static function (TestRunner $t) use ($plan, $jsonRows): void {
     $result = $plan([
         ['name' => 'deps', 'json' => $jsonRows([
             ['option_name' => 'deps_settings', 'option_value' => '{"ok":true}'],
         ]), 'path' => '$.rows'],
     ]);
 
-    $t->same(true, in_array('sqlite-wordpress-import-json-schema-savepoint-current-next53', $result['dependencies'], true));
-    $t->same(true, $result['wal']['current_next53']);
+    $t->same(true, in_array('sqlite-wordpress-import-json-schema-savepoint', $result['dependencies'], true));
+    $t->same(true, $result['wal']['schema_savepoint_import']);
 };
 
 return $tests;

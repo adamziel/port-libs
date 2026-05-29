@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheTransactionPlan;
 
 $schemas = [
     'main' => [
@@ -51,7 +51,7 @@ $statements = [
     ['name' => 'unqualified-options-reader', 'sql' => 'SELECT option_value FROM [wp_options] WHERE option_name = ?', 'active' => true],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan($schemas, $operations, $statements);
+$plan = SQLiteAttachWalTempSchemaCacheTransactionPlan::plan($schemas, $operations, $statements);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'schema_cache_expired');
@@ -62,12 +62,12 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['3']['schema_transitions']['0']['next_schema'] === 'temp');
     assert($plan['statements']['3']['next_step_action'] === 'finish_current_snapshot_then_sqlite_schema_on_reset');
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next88 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-current-transaction-source self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-attach-temp-wal-schema-cache-current-source-next88',
+    'scenario' => 'wordpress-attach-temp-wal-schema-cache-current-transaction-source',
     'status' => $plan['status'],
     'changed_schemas' => $plan['changed_schemas'],
     'expired_statements' => $plan['expired_statements'],

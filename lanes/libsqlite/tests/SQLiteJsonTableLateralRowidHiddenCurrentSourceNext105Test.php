@@ -104,7 +104,7 @@ $tests = [
     'records next105 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-lateral-rowid-hidden-current-source-next105', $plan105()['dependencies'], true)),
     'preserves next103 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-lateral-hidden-constraint-current-source-next103', $plan105()['dependencies'], true)),
     'preserves next99 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-rowid-hidden-constraint-current-source-next99', $plan105()['dependencies'], true)),
-    'preserves next81 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-lateral-rowid-current-next81', $plan105()['dependencies'], true)),
+    'preserves next81 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-lateral-rowid-comparison', $plan105()['dependencies'], true)),
     'pins current hidden rowid reader policy' => static fn (TestRunner $t) => $t->same('pin-current-lateral-hidden-rowid-source-until-host-key-advances', $plan105()['currentReaderPolicy']),
     'prepares next hidden rowid source tape' => static fn (TestRunner $t) => $t->same('prepare-next-lateral-hidden-rowid-source-tape', $plan105()['nextReaderPolicy']),
     'requires replan for changed rowid tape' => static fn (TestRunner $t) => $t->same(true, $plan105()['replanRequired']),

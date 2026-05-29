@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheTransactionPlan;
 
 $tests = [];
 
@@ -67,7 +67,7 @@ $statements = [
     ['name' => 'plugin-state-reader', 'sql' => 'SELECT option_name FROM main.wp_plugin_state'],
 ];
 
-$plan = static fn (?string $outcome = null, ?array $overrideSchemas = null, ?array $overrideOperations = null, ?array $overrideStatements = null): array => SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan(
+$plan = static fn (?string $outcome = null, ?array $overrideSchemas = null, ?array $overrideOperations = null, ?array $overrideStatements = null): array => SQLiteAttachWalTempSchemaCacheTransactionPlan::plan(
     $overrideSchemas ?? $schemas,
     $overrideOperations ?? $operations,
     $overrideStatements ?? $statements,
@@ -85,7 +85,7 @@ $value = static function (array $data, string $path): mixed {
 
 $cases = [
     'status expired after commit' => ['status', 'schema_cache_expired'],
-    'operation marker' => ['operation', 'attach-wal-temp-schema-cache-current-next77'],
+    'operation marker' => ['operation', 'attach-wal-temp-schema-cache-transaction'],
     'outcome commit' => ['outcome', 'commit'],
     'source main' => ['source', 'main'],
     'transaction committed' => ['transaction_status', 'committed'],
@@ -120,7 +120,7 @@ $cases = [
     'main update write action' => ['statements.4.next_step_action', 'sqlite_schema_before_write_retry'],
     'plugin state current missing' => ['statements.5.schema_transitions.0.current_found', false],
     'plugin state next found' => ['statements.5.schema_transitions.0.next_found', true],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cache-current-next77'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cache-transaction'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
@@ -155,14 +155,14 @@ foreach ($rollbackCases as $name => [$path, $expected]) {
 }
 
 $tests['attach wal temp schema cache current next77 source can be attached schema'] = static function (TestRunner $t) use ($plan): void {
-    $result = SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan($GLOBALS['schemas'] ?? [], [], []);
+    $result = SQLiteAttachWalTempSchemaCacheTransactionPlan::plan($GLOBALS['schemas'] ?? [], [], []);
     $t->same('unused', $result['source']);
 };
 
 unset($tests['attach wal temp schema cache current next77 source can be attached schema']);
 
 $tests['attach wal temp schema cache current next77 archive source accepted'] = static function (TestRunner $t) use ($schemas, $operations, $statements): void {
-    $result = SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan($schemas, $operations, $statements, 'commit', 'archive');
+    $result = SQLiteAttachWalTempSchemaCacheTransactionPlan::plan($schemas, $operations, $statements, 'commit', 'archive');
     $t->same('archive', $result['source']);
 };
 
@@ -175,7 +175,7 @@ $tests['attach wal temp schema cache current next77 committed temp write expires
     $ops = $operations;
     unset($ops[4]);
     $ops = array_values($ops);
-    $result = SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan($schemas, $ops, $statements);
+    $result = SQLiteAttachWalTempSchemaCacheTransactionPlan::plan($schemas, $ops, $statements);
     $t->same(['temp', 'main', 'archive', 'network'], $result['changed_schemas']);
 };
 
@@ -183,7 +183,7 @@ $tests['attach wal temp schema cache current next77 committed temp write makes w
     $ops = $operations;
     unset($ops[4]);
     $ops = array_values($ops);
-    $result = SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan($schemas, $ops, $statements);
+    $result = SQLiteAttachWalTempSchemaCacheTransactionPlan::plan($schemas, $ops, $statements);
     $t->same('temp', $result['statements']['0']['schema_transitions']['0']['next_schema']);
 };
 
@@ -191,12 +191,12 @@ $tests['attach wal temp schema cache current next77 committed archive write expi
     $ops = $operations;
     unset($ops[4]);
     $ops = array_values($ops);
-    $result = SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan($schemas, $ops, $statements);
+    $result = SQLiteAttachWalTempSchemaCacheTransactionPlan::plan($schemas, $ops, $statements);
     $t->same(true, $result['statements']['2']['requires_reprepare']);
 };
 
 $tests['attach wal temp schema cache current next77 rejects empty statements'] = static function (TestRunner $t) use ($schemas, $operations): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan($schemas, $operations, []));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachWalTempSchemaCacheTransactionPlan::plan($schemas, $operations, []));
 };
 
 $tests['attach wal temp schema cache current next77 rejects missing transaction schema'] = static function (TestRunner $t) use ($schemas, $operations, $statements): void {
@@ -204,7 +204,7 @@ $tests['attach wal temp schema cache current next77 rejects missing transaction 
     $bad['ghost'] = ['schema_cookie' => 1, 'tables' => ['wp_ghost']];
     $ops = $operations;
     $ops[] = ['op' => 'schema_write', 'schema' => 'ghost', 'object' => 'wp_ghost'];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan($bad, $ops, $statements, 'commit', 'missing'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachWalTempSchemaCacheTransactionPlan::plan($bad, $ops, $statements, 'commit', 'missing'));
 };
 
 return $tests;

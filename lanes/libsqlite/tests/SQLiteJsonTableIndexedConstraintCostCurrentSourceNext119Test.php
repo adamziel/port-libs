@@ -74,7 +74,7 @@ $unrunnable119 = static fn (): array => SQLiteJsonTablePlan::currentSourceIndexe
 $tests = [
     'normalizes function name' => static fn (TestRunner $t) => $t->same('json_tree', $fullkey119()['function']),
     'records next119 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-indexed-constraint-cost-current-source-next119', $fullkey119()['dependencies'], true)),
-    'preserves next113 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-cost-order-current-source-next113', $fullkey119()['dependencies'], true)),
+    'preserves next113 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-cost-order', $fullkey119()['dependencies'], true)),
     'pins current indexed constraint reader' => static fn (TestRunner $t) => $t->same('pin-current-json-table-indexed-constraint-cost-until-cursor-reset', $fullkey119()['currentReaderPolicy']),
     'prepares next indexed constraint plan' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-indexed-constraint-cost-plan', $fullkey119()['nextReaderPolicy']),
     'stable indexed constraint reuses plan' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-indexed-constraint-cost-plan', $stable119()['nextReaderPolicy']),

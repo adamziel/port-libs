@@ -19,7 +19,7 @@ $nextOption = [
     'scan_root' => '$.rules',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceConstraintCostOrderNext113(
+$plan = SQLiteJsonTablePlan::currentSourceConstraintCostOrder(
     'json_each',
     $currentOption,
     $nextOption,
@@ -38,7 +38,7 @@ $payload = [
     'nextEffectiveCost' => $plan['nextCostOrder']['effectiveEstimatedCost'],
     'currentRowOrder' => $plan['currentCostOrder']['rowOrder'],
     'nextRowOrder' => $plan['nextCostOrder']['rowOrder'],
-    'replanReasons' => $plan['next113ReplanReasons'],
+    'replanReasons' => $plan['costOrderReplanReasons'],
     'dependencyClosure' => 'no new support component needed; reuses native JSON table planner, residual filtering, and row-array ordering',
 ];
 

@@ -23,7 +23,7 @@ $constraints86 = [
     ['column' => 'key', 'operator' => 'IN', 'value' => [0, 1, 2, 3]],
     ['column' => 'limit', 'operator' => '=', 'value' => 4],
 ];
-$plan86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86(
+$plan86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlanner(
     'json_tree',
     $currentSource86,
     $nextSource86,
@@ -32,7 +32,7 @@ $plan86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPla
     'json_root',
     [['column' => 'id']],
 );
-$stable86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86(
+$stable86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlanner(
     'json_each',
     $currentSource86,
     $currentSource86,
@@ -40,7 +40,7 @@ $stable86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintP
     [['column' => 'key', 'operator' => '=', 'value' => 0]],
     'json_root',
 );
-$rootChange86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86(
+$rootChange86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlanner(
     'json_tree',
     $currentSource86,
     array_replace($currentSource86, ['json_root' => '$.meta']),
@@ -48,7 +48,7 @@ $rootChange86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstra
     [['column' => 'type', 'operator' => '=', 'value' => 'text']],
     'json_root',
 );
-$malformedNext86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86(
+$malformedNext86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlanner(
     'json_tree',
     $currentSource86,
     array_replace($currentSource86, ['option_value' => new SQLiteBlobValue("\x1c\x00")]),
@@ -56,7 +56,7 @@ $malformedNext86 = static fn (): array => SQLiteJsonTablePlan::currentSourceCons
     [['column' => 'type', 'operator' => '=', 'value' => 'object']],
     'json_root',
 );
-$jsonbNext86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86(
+$jsonbNext86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlanner(
     'json_each',
     $currentSource86,
     array_replace($currentSource86, ['option_value' => new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($nextSource86['option_value'])))]),
@@ -64,7 +64,7 @@ $jsonbNext86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstrai
     [['column' => 'key', 'operator' => '=', 'value' => 0]],
     'json_root',
 );
-$nullNext86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86(
+$nullNext86 = static fn (): array => SQLiteJsonTablePlan::currentSourceConstraintPlanner(
     'json_each',
     $currentSource86,
     array_replace($currentSource86, ['option_value' => null]),
@@ -81,7 +81,7 @@ $tests = [
     'keeps estimates stable for same root and limit' => static fn (TestRunner $t) => $t->same(false, in_array('source-estimate-changed', $plan86()['replanReasons'], true)),
     'current reader policy pins active source' => static fn (TestRunner $t) => $t->same('pin-current-json-table-source-until-cursor-reset', $plan86()['currentReaderPolicy']),
     'next reader policy prepares next source plan' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-source-plan', $plan86()['nextReaderPolicy']),
-    'dependency marker names current source next86' => static fn (TestRunner $t) => $t->same('sqlite-json-table-constraint-planner-current-source-next86', $plan86()['dependencies'][0]),
+    'dependency marker names current source next86' => static fn (TestRunner $t) => $t->same('sqlite-json-table-current-source-constraint-planner', $plan86()['dependencies'][0]),
     'current source row is preserved' => static fn (TestRunner $t) => $t->same('wp_plugin_settings', $plan86()['current']['source']['option_name']),
     'next source row is preserved' => static fn (TestRunner $t) => $t->same('wp_plugin_settings', $plan86()['next']['source']['option_name']),
     'current json column is recorded' => static fn (TestRunner $t) => $t->same('option_value', $plan86()['current']['jsonColumn']),
@@ -147,11 +147,11 @@ $tests = [
     'jsonb next rows are runnable' => static fn (TestRunner $t) => $t->same(true, $jsonbNext86()['next']['runnable']),
     'sql null next becomes unrunnable' => static fn (TestRunner $t) => $t->true(in_array('next-source-plan-becomes-unrunnable', $nullNext86()['replanReasons'], true)),
     'sql null next rows are empty' => static fn (TestRunner $t) => $t->same([], $nullNext86()['nextRows']),
-    'missing json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86('json_each', [], $nextSource86, 'option_value')),
-    'missing root column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86('json_each', $currentSource86, $nextSource86, 'option_value', [], 'missing_root')),
-    'empty json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86('json_each', $currentSource86, $nextSource86, '')),
-    'empty root column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86('json_each', $currentSource86, $nextSource86, 'option_value', [], '')),
-    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86('json_bad', $currentSource86, $nextSource86, 'option_value')),
+    'missing json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintPlanner('json_each', [], $nextSource86, 'option_value')),
+    'missing root column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintPlanner('json_each', $currentSource86, $nextSource86, 'option_value', [], 'missing_root')),
+    'empty json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintPlanner('json_each', $currentSource86, $nextSource86, '')),
+    'empty root column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintPlanner('json_each', $currentSource86, $nextSource86, 'option_value', [], '')),
+    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceConstraintPlanner('json_bad', $currentSource86, $nextSource86, 'option_value')),
 ];
 
 foreach ($tests as $name => $case) {

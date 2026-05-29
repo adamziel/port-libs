@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteAttachWalTempTransactionCurrentNextPlan
+final class SQLiteAttachWalTempTransactionPlan
 {
     /**
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, temp?:bool, file?:string|null}> $schemas
@@ -14,7 +14,7 @@ final class SQLiteAttachWalTempTransactionCurrentNextPlan
     public static function plan(array $schemas, array $operations, string $outcome = 'commit'): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite ATTACH WAL temp transaction current/next plan requires operations');
+            throw new \InvalidArgumentException('SQLite ATTACH WAL temp transaction plan requires operations');
         }
         if ($outcome !== 'commit' && $outcome !== 'rollback') {
             throw new \InvalidArgumentException('SQLite ATTACH WAL temp transaction outcome must be commit or rollback');
@@ -99,7 +99,7 @@ final class SQLiteAttachWalTempTransactionCurrentNextPlan
 
         return [
             'status' => $outcome === 'commit' ? 'committed' : 'rolled_back',
-            'operation' => 'attach-wal-temp-transaction-current',
+            'operation' => 'attach-wal-temp-transaction',
             'outcome' => $outcome,
             'schema_count' => count($state),
             'operation_count' => count($operations),
@@ -114,7 +114,7 @@ final class SQLiteAttachWalTempTransactionCurrentNextPlan
             'requires_reprepare' => $outcome === 'commit' && $changedSchemas !== [],
             'reprepare_schemas' => $outcome === 'commit' ? $changedSchemas : [],
             'dependencies' => [
-                'sqlite-attach-wal-temp-transaction-current',
+                'sqlite-attach-wal-temp-transaction',
                 'sqlite-attach-wal-temp-transaction-schema-cookie-visibility',
                 'sqlite-savepoint-rollback-restores-uncommitted-schema-cookies',
             ],

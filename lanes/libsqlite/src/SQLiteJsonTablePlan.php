@@ -205,7 +205,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{function:string,current:array<string,mixed>,next:array<string,mixed>,replanRequired:bool,replanReason:string,currentArguments:list<mixed>,nextArguments:list<mixed>,argumentTransitions:list<array{index:int,current:mixed,next:mixed,changed:bool}>,usageTransitions:list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,changed:bool}>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
      */
-    public static function constraintPlannerCurrentNext72(
+    public static function constraintPlannerComparison(
         string $function,
         array $currentConstraints,
         array $nextConstraints,
@@ -230,7 +230,7 @@ final class SQLiteJsonTablePlan
             'usageTransitions' => $usageTransitions,
             'currentReaderPolicy' => 'keep-current-json-table-plan-until-statement-reset',
             'nextReaderPolicy' => $replanRequired ? 'prepare-next-json-table-xbestindex-plan' : 'reuse-current-json-table-plan',
-            'dependencies' => ['sqlite-json-table-constraint-planner-current-next72'],
+            'dependencies' => ['sqlite-json-table-constraint-planner-comparison'],
         ];
     }
 
@@ -810,7 +810,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{function:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,replanRequired:bool,replanReasons:list<string>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
      */
-    public static function lateralConstraintPlannerCurrentNext75(
+    public static function lateralConstraintPlannerComparison(
         array $currentHostRows,
         array $nextHostRows,
         string $jsonColumn,
@@ -867,7 +867,7 @@ final class SQLiteJsonTablePlan
             'nextReaderPolicy' => $replanReasons === []
                 ? 'reuse-current-lateral-json-table-plan'
                 : 'prepare-next-lateral-json-table-plan-for-host-row',
-            'dependencies' => ['sqlite-json-table-lateral-planner-constraint-current-next75'],
+            'dependencies' => ['sqlite-json-table-lateral-constraint-planner-comparison'],
         ];
     }
 
@@ -878,7 +878,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $jsonColumns
      * @return array{function:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
      */
-    public static function lateralRowidCurrentNext81(
+    public static function lateralRowidComparison(
         array $currentHostRows,
         array $nextHostRows,
         string $jsonColumn,
@@ -929,7 +929,7 @@ final class SQLiteJsonTablePlan
             'nextReaderPolicy' => self::lateralRowidRowsSignature($current, $jsonPrefix) === self::lateralRowidRowsSignature($next, $jsonPrefix)
                 ? 'reuse-current-lateral-json-rowid-tape'
                 : 'materialize-next-lateral-json-rowid-tape',
-            'dependencies' => ['sqlite-json-table-lateral-rowid-current-next81'],
+            'dependencies' => ['sqlite-json-table-lateral-rowid-comparison'],
         ];
     }
 
@@ -940,7 +940,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{function:string,current:array<string,mixed>,next:array<string,mixed>,replanRequired:bool,replanReasons:list<string>,sourceTransitions:list<array{field:string,current:mixed,next:mixed,changed:bool}>,argumentTransitions:list<array{index:int,current:mixed,next:mixed,changed:bool}>,usageTransitions:list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,changed:bool}>,currentRows:list<array<string,mixed>>,nextRows:list<array<string,mixed>>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
      */
-    public static function currentSourceConstraintPlannerNext86(
+    public static function currentSourceConstraintPlanner(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -957,12 +957,12 @@ final class SQLiteJsonTablePlan
         }
 
         $function = self::normalizeFunction($function);
-        $current = self::sourceConstraintPlan86($function, $currentSource, $jsonColumn, $constraints, $rootColumn, $orderBy);
-        $next = self::sourceConstraintPlan86($function, $nextSource, $jsonColumn, $constraints, $rootColumn, $orderBy);
-        $sourceTransitions = self::sourceTransitions86($current, $next);
+        $current = self::sourceConstraintPlan($function, $currentSource, $jsonColumn, $constraints, $rootColumn, $orderBy);
+        $next = self::sourceConstraintPlan($function, $nextSource, $jsonColumn, $constraints, $rootColumn, $orderBy);
+        $sourceTransitions = self::sourceTransitions($current, $next);
         $argumentTransitions = self::argumentTransitions($current['filterArguments'], $next['filterArguments']);
         $usageTransitions = self::usageTransitions($current['constraintUsage'], $next['constraintUsage']);
-        $replanReasons = self::currentSourceReplanReasons86($current, $next, $sourceTransitions, $argumentTransitions, $usageTransitions);
+        $replanReasons = self::currentSourceReplanReasons($current, $next, $sourceTransitions, $argumentTransitions, $usageTransitions);
 
         return [
             'function' => $function,
@@ -979,7 +979,7 @@ final class SQLiteJsonTablePlan
             'nextReaderPolicy' => $replanReasons === []
                 ? 'reuse-current-json-table-source-plan'
                 : 'prepare-next-json-table-source-plan',
-            'dependencies' => ['sqlite-json-table-constraint-planner-current-source-next86'],
+            'dependencies' => ['sqlite-json-table-current-source-constraint-planner'],
         ];
     }
 
@@ -990,7 +990,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceConstraintCostOrderNext113(
+    public static function currentSourceConstraintCostOrder(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -999,7 +999,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceConstraintPlannerNext86(
+        $plan = self::currentSourceConstraintPlanner(
             $function,
             $currentSource,
             $nextSource,
@@ -1009,22 +1009,22 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableCostOrderProfile113($plan['current'], $orderBy);
-        $nextProfile = self::jsonTableCostOrderProfile113($plan['next'], $orderBy);
-        $transitions = self::jsonTableCostOrderTransitions113($currentProfile, $nextProfile);
-        $reasons = self::jsonTableCostOrderReplanReasons113($transitions);
+        $currentProfile = self::jsonTableCostOrderProfile($plan['current'], $orderBy);
+        $nextProfile = self::jsonTableCostOrderProfile($plan['next'], $orderBy);
+        $transitions = self::jsonTableCostOrderTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableCostOrderReplanReasons($transitions);
 
         $plan['currentCostOrder'] = $currentProfile;
         $plan['nextCostOrder'] = $nextProfile;
         $plan['costOrderTransitions'] = $transitions;
-        $plan['next113ReplanReasons'] = array_values(array_unique(array_merge($plan['replanReasons'], $reasons)));
+        $plan['costOrderReplanReasons'] = array_values(array_unique(array_merge($plan['replanReasons'], $reasons)));
         $plan['currentReaderPolicy'] = 'pin-current-json-table-cost-order-source-until-cursor-reset';
-        $plan['nextReaderPolicy'] = $plan['next113ReplanReasons'] === []
+        $plan['nextReaderPolicy'] = $plan['costOrderReplanReasons'] === []
             ? 'reuse-current-json-table-cost-order-source-plan'
             : 'prepare-next-json-table-cost-order-source-plan';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-constraint-cost-order-current-source-next113'],
+            ['sqlite-json-table-current-source-constraint-cost-order'],
         )));
 
         return $plan;
@@ -1231,7 +1231,7 @@ final class SQLiteJsonTablePlan
         $nextRoot = self::composeNestedRootPath121($nextSource, $baseRootColumn, $nestedPathColumn, 'next');
         $current = $currentSource + ['__sqlite_json_table_nested_root_next121' => $currentRoot['root']];
         $next = $nextSource + ['__sqlite_json_table_nested_root_next121' => $nextRoot['root']];
-        $plan = self::currentSourceConstraintCostOrderNext113(
+        $plan = self::currentSourceConstraintCostOrder(
             $function,
             $current,
             $next,
@@ -1278,7 +1278,7 @@ final class SQLiteJsonTablePlan
             'nestedPath' => $nestedPathTransition,
             'composedRoot' => $rootTransition,
         ];
-        $plan['next121ReplanReasons'] = array_values(array_unique(array_merge($plan['next113ReplanReasons'], $nestedReasons)));
+        $plan['next121ReplanReasons'] = array_values(array_unique(array_merge($plan['costOrderReplanReasons'], $nestedReasons)));
         $plan['replanRequired'] = $plan['next121ReplanReasons'] !== [];
         $plan['currentReaderPolicy'] = 'pin-current-json-table-nested-path-source-until-cursor-reset';
         $plan['nextReaderPolicy'] = $plan['next121ReplanReasons'] === []
@@ -7271,7 +7271,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceConstraintCostOrderNext113(
+        $plan = self::currentSourceConstraintCostOrder(
             $function,
             $currentSource,
             $nextSource,
@@ -7289,7 +7289,7 @@ final class SQLiteJsonTablePlan
             $plan['next']['used'],
             $orderBy,
         );
-        $plan['next120ReplanReasons'] = $plan['next113ReplanReasons'];
+        $plan['next120ReplanReasons'] = $plan['costOrderReplanReasons'];
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
             ['sqlite-json-table-orderby-constraint-current-source-next120'],
@@ -7314,7 +7314,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceConstraintCostOrderNext113(
+        $plan = self::currentSourceConstraintCostOrder(
             $function,
             $currentSource,
             $nextSource,
@@ -7332,7 +7332,7 @@ final class SQLiteJsonTablePlan
         $plan['currentIndexedConstraintCost'] = $currentProfile;
         $plan['nextIndexedConstraintCost'] = $nextProfile;
         $plan['indexedConstraintTransitions'] = $transitions;
-        $plan['next119ReplanReasons'] = array_values(array_unique(array_merge($plan['next113ReplanReasons'], $reasons)));
+        $plan['next119ReplanReasons'] = array_values(array_unique(array_merge($plan['costOrderReplanReasons'], $reasons)));
         $plan['currentReaderPolicy'] = 'pin-current-json-table-indexed-constraint-cost-until-cursor-reset';
         $plan['nextReaderPolicy'] = $plan['next119ReplanReasons'] === []
             ? 'reuse-current-json-table-indexed-constraint-cost-plan'
@@ -7361,7 +7361,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceConstraintPlannerNext86(
+        $plan = self::currentSourceConstraintPlanner(
             $function,
             $currentSource,
             $nextSource,
@@ -7763,7 +7763,7 @@ final class SQLiteJsonTablePlan
             $nextPlan = null;
 
             if ($currentEntry !== null && $nextEntry !== null) {
-                $pair = self::currentSourceConstraintPlannerNext86(
+                $pair = self::currentSourceConstraintPlanner(
                     $function,
                     $currentEntry['row'],
                     $nextEntry['row'],
@@ -7775,7 +7775,7 @@ final class SQLiteJsonTablePlan
                 $currentPlan = self::lateralCurrentSourceHostPlan($currentEntry['index'], $key, $currentEntry['row'], $pair, 'current');
                 $nextPlan = self::lateralCurrentSourceHostPlan($nextEntry['index'], $key, $nextEntry['row'], $pair, 'next');
             } elseif ($currentEntry !== null) {
-                $single = self::currentSourceConstraintPlannerNext86(
+                $single = self::currentSourceConstraintPlanner(
                     $function,
                     $currentEntry['row'],
                     $currentEntry['row'],
@@ -7786,7 +7786,7 @@ final class SQLiteJsonTablePlan
                 );
                 $currentPlan = self::lateralCurrentSourceHostPlan($currentEntry['index'], $key, $currentEntry['row'], $single, 'current');
             } elseif ($nextEntry !== null) {
-                $single = self::currentSourceConstraintPlannerNext86(
+                $single = self::currentSourceConstraintPlanner(
                     $function,
                     $nextEntry['row'],
                     $nextEntry['row'],
@@ -7847,7 +7847,7 @@ final class SQLiteJsonTablePlan
                 ? 'reuse-current-lateral-json-source-by-host-key'
                 : 'prepare-next-lateral-json-source-by-host-key',
             'dependencies' => [
-                'sqlite-json-table-constraint-planner-current-source-next86',
+                'sqlite-json-table-current-source-constraint-planner',
                 'sqlite-json-table-lateral-planner-current-source-next100',
             ],
         ];
@@ -8088,7 +8088,7 @@ final class SQLiteJsonTablePlan
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
             [
-                'sqlite-json-table-lateral-rowid-current-next81',
+                'sqlite-json-table-lateral-rowid-comparison',
                 'sqlite-json-table-rowid-hidden-constraint-current-source-next99',
                 'sqlite-json-table-lateral-rowid-hidden-current-source-next105',
             ],
@@ -8397,7 +8397,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    private static function sourceConstraintPlan86(
+    private static function sourceConstraintPlan(
         string $function,
         array $source,
         string $jsonColumn,
@@ -8519,13 +8519,13 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{orderBy:list<array{column:string,direction:string}>,orderByConsumed:bool,requiresSorter:bool,baseEstimatedCost:int,baseEstimatedRows:int,sortPenalty:int,effectiveEstimatedCost:int,costClass:string,rowOrder:list<int|null>,firstOrderKey:mixed,lastOrderKey:mixed}
      */
-    private static function jsonTableCostOrderProfile113(array $plan, array $orderBy): array
+    private static function jsonTableCostOrderProfile(array $plan, array $orderBy): array
     {
-        $normalizedOrderBy = self::normalizeOrderByTerms113($orderBy);
+        $normalizedOrderBy = self::normalizeOrderByTerms($orderBy);
         $rows = $plan['rows'];
         $rowCount = count($rows);
         $requiresSorter = $normalizedOrderBy !== [] && !$plan['orderByConsumed'] && $rowCount > 1;
-        $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty113($rowCount, $normalizedOrderBy) : 0;
+        $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty($rowCount, $normalizedOrderBy) : 0;
         $baseCost = (int) $plan['estimatedCost'];
         $effectiveCost = $baseCost >= 1000000 ? $baseCost : $baseCost + $sortPenalty;
 
@@ -8537,13 +8537,13 @@ final class SQLiteJsonTablePlan
             'baseEstimatedRows' => (int) $plan['estimatedRows'],
             'sortPenalty' => $sortPenalty,
             'effectiveEstimatedCost' => $effectiveCost,
-            'costClass' => self::jsonTableCostClass113($plan, $requiresSorter, $effectiveCost),
+            'costClass' => self::jsonTableCostClass($plan, $requiresSorter, $effectiveCost),
             'rowOrder' => array_map(
                 static fn (array $row): ?int => isset($row['id']) ? (int) $row['id'] : null,
                 $rows,
             ),
-            'firstOrderKey' => self::jsonTableOrderKey113($rows[0] ?? null, $normalizedOrderBy),
-            'lastOrderKey' => self::jsonTableOrderKey113($rows[$rowCount - 1] ?? null, $normalizedOrderBy),
+            'firstOrderKey' => self::jsonTableOrderKey($rows[0] ?? null, $normalizedOrderBy),
+            'lastOrderKey' => self::jsonTableOrderKey($rows[$rowCount - 1] ?? null, $normalizedOrderBy),
         ];
     }
 
@@ -8551,7 +8551,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return list<array{column:string,direction:string}>
      */
-    private static function normalizeOrderByTerms113(array $orderBy): array
+    private static function normalizeOrderByTerms(array $orderBy): array
     {
         $terms = [];
         foreach ($orderBy as $term) {
@@ -8569,7 +8569,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{column:string,direction:string}> $orderBy
      */
-    private static function jsonTableSortPenalty113(int $rowCount, array $orderBy): int
+    private static function jsonTableSortPenalty(int $rowCount, array $orderBy): int
     {
         $width = max(1, count($orderBy));
         $comparisons = max(1, $rowCount * max(1, (int) ceil(log(max(2, $rowCount), 2))));
@@ -8577,7 +8577,7 @@ final class SQLiteJsonTablePlan
         return $comparisons * $width;
     }
 
-    private static function jsonTableCostClass113(array $plan, bool $requiresSorter, int $effectiveCost): string
+    private static function jsonTableCostClass(array $plan, bool $requiresSorter, int $effectiveCost): string
     {
         if (!$plan['runnable']) {
             return 'unrunnable-json-table';
@@ -8600,7 +8600,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction:string}> $orderBy
      * @return list<mixed>
      */
-    private static function jsonTableOrderKey113(?array $row, array $orderBy): array
+    private static function jsonTableOrderKey(?array $row, array $orderBy): array
     {
         if ($row === null || $orderBy === []) {
             return [];
@@ -8620,7 +8620,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableCostOrderTransitions113(array $current, array $next): array
+    private static function jsonTableCostOrderTransitions(array $current, array $next): array
     {
         return [
             [
@@ -8666,7 +8666,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableCostOrderReplanReasons113(array $transitions): array
+    private static function jsonTableCostOrderReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -8936,7 +8936,7 @@ final class SQLiteJsonTablePlan
         }
 
         $pathCost = (int) ($pathOrder['effectiveEstimatedCost'] ?? 1000000);
-        $generatedSortPenalty = $rowCount > 1 ? self::jsonTableSortPenalty113($rowCount, $terms) : 0;
+        $generatedSortPenalty = $rowCount > 1 ? self::jsonTableSortPenalty($rowCount, $terms) : 0;
         $effectiveCost = $pathCost >= 1000000 ? $pathCost : $pathCost + $generatedSortPenalty;
 
         return [
@@ -9087,7 +9087,7 @@ final class SQLiteJsonTablePlan
         }
 
         $hiddenSortPenalty = $requiresHiddenSorter
-            ? self::jsonTableSortPenalty113($rowCount, $hiddenOrderBy)
+            ? self::jsonTableSortPenalty($rowCount, $hiddenOrderBy)
             : 0;
         $indexedEffectiveCost = (int) $indexedCost['indexedEstimatedCost'];
         $effectiveEstimatedCost = $indexedEffectiveCost >= 1000000
@@ -9118,7 +9118,7 @@ final class SQLiteJsonTablePlan
     private static function jsonTableHiddenOrderTerms122(array $orderBy): array
     {
         $terms = [];
-        foreach (self::normalizeOrderByTerms113($orderBy) as $term) {
+        foreach (self::normalizeOrderByTerms($orderBy) as $term) {
             if ($term['column'] === 'json' || $term['column'] === 'root') {
                 $terms[] = $term;
             }
@@ -9279,7 +9279,7 @@ final class SQLiteJsonTablePlan
             );
         }
 
-        $generatedSortPenalty = $rowCount > 1 ? self::jsonTableSortPenalty113($rowCount, $terms) : 0;
+        $generatedSortPenalty = $rowCount > 1 ? self::jsonTableSortPenalty($rowCount, $terms) : 0;
         $hiddenEffectiveCost = (int) ($hiddenOrder['effectiveEstimatedCost'] ?? 1000000);
         $effectiveEstimatedCost = $hiddenEffectiveCost >= 1000000
             ? $hiddenEffectiveCost
@@ -9690,7 +9690,7 @@ final class SQLiteJsonTablePlan
 
         $filteredCount = count($entries);
         $requiresSorter = $filteredCount > 1;
-        $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty113($filteredCount, $terms) : 0;
+        $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty($filteredCount, $terms) : 0;
         $filterCost = (int) $generatedHidden['effectiveEstimatedCost'];
         $effectiveCost = $filterCost >= 1000000 ? $filterCost : $filterCost + $sortPenalty;
 
@@ -18295,7 +18295,7 @@ final class SQLiteJsonTablePlan
 
         $rowCount = count($entries);
         $requiresSorter = $rowCount > 1;
-        $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty113($rowCount, $terms) : 0;
+        $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty($rowCount, $terms) : 0;
         $rowidCost = (int) $generatedRowid['effectiveEstimatedCost'];
         $effectiveCost = $rowidCost >= 1000000 ? 1000000 : $rowidCost + $sortPenalty;
 
@@ -18766,7 +18766,7 @@ final class SQLiteJsonTablePlan
      */
     private static function jsonTableHiddenRowidOrderProfile135(array $plan, array $orderBy): array
     {
-        $normalizedOrderBy = self::normalizeOrderByTerms113($orderBy);
+        $normalizedOrderBy = self::normalizeOrderByTerms($orderBy);
         $rows = $plan['rows'];
         if ($normalizedOrderBy !== []) {
             usort($rows, static fn (array $left, array $right): int => self::compareRowsForOrderBy($left, $right, $normalizedOrderBy));
@@ -18777,7 +18777,7 @@ final class SQLiteJsonTablePlan
         $rowidTieBreakConsumed = $rowidTieBreakColumns !== [] && self::rowidTieBreakIsStreaming135($normalizedOrderBy);
         $orderByConsumed = (bool) $plan['orderByConsumed'];
         $requiresSorter = $normalizedOrderBy !== [] && !$orderByConsumed && $rowCount > 1;
-        $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty113($rowCount, $normalizedOrderBy) : 0;
+        $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty($rowCount, $normalizedOrderBy) : 0;
         $baseCost = (int) $plan['estimatedCost'];
         $effectiveCost = $baseCost >= 1000000 ? $baseCost : $baseCost + $sortPenalty;
         $orderKeyTape = self::hiddenRowidOrderKeyTape135($rows, $normalizedOrderBy);
@@ -19192,7 +19192,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function sourceTransitions86(array $current, array $next): array
+    private static function sourceTransitions(array $current, array $next): array
     {
         return [
             [
@@ -19230,7 +19230,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,changed:bool}> $usageTransitions
      * @return list<string>
      */
-    private static function currentSourceReplanReasons86(
+    private static function currentSourceReplanReasons(
         array $current,
         array $next,
         array $sourceTransitions,
@@ -20273,7 +20273,7 @@ final class SQLiteJsonTablePlan
     private static function orderByConstraintCoverage120(array $used, array $orderBy): array
     {
         $coverage = [];
-        foreach (self::normalizeOrderByTerms113($orderBy) as $term) {
+        foreach (self::normalizeOrderByTerms($orderBy) as $term) {
             $column = $term['column'];
             $reason = 'not-consumed';
             $constraintOperator = null;
@@ -20328,7 +20328,7 @@ final class SQLiteJsonTablePlan
         $suffixOrderBy = array_slice($orderBy, $prefixCount);
         $rowCount = count($plan['rows']);
         $blockSortRequired = $suffixOrderBy !== [] && !$plan['orderByConsumed'] && $rowCount > 1;
-        $blockSortPenalty = $blockSortRequired ? self::jsonTableSortPenalty113($rowCount, $suffixOrderBy) : 0;
+        $blockSortPenalty = $blockSortRequired ? self::jsonTableSortPenalty($rowCount, $suffixOrderBy) : 0;
         $baseCost = (int) $costOrder['baseEstimatedCost'];
         $effectiveCost = $baseCost >= 1000000 ? $baseCost : $baseCost + $blockSortPenalty;
         $baseSortPenalty = (int) $costOrder['sortPenalty'];
@@ -20350,8 +20350,8 @@ final class SQLiteJsonTablePlan
             'costClass' => self::jsonTablePartialOrderCostClass124($plan, $costOrder, $blockSortRequired, $prefixCount, $effectiveCost),
             'rowCount' => $rowCount,
             'rowOrder' => $costOrder['rowOrder'],
-            'firstSuffixKey' => self::jsonTableOrderKey113($plan['rows'][0] ?? null, $suffixOrderBy),
-            'lastSuffixKey' => self::jsonTableOrderKey113($plan['rows'][$rowCount - 1] ?? null, $suffixOrderBy),
+            'firstSuffixKey' => self::jsonTableOrderKey($plan['rows'][0] ?? null, $suffixOrderBy),
+            'lastSuffixKey' => self::jsonTableOrderKey($plan['rows'][$rowCount - 1] ?? null, $suffixOrderBy),
         ];
     }
 

@@ -32,7 +32,7 @@ $stack->recordStatementPageImageWrite('insert-transient', 5, $cleanIndex);
 $stack->recordStatementWalFrameWrite('insert-transient', 4, 4);
 $stack->recordStatementWalFrameWrite('insert-transient', 5, 5, true);
 
-$plan = $stack->rollbackStatementCurrentSourceAndBeginNext86(
+$plan = $stack->rollbackStatementCurrentSourceAndBeginStatementJournal(
     'insert-transient',
     'retry-transient',
     $databaseBytes,
@@ -44,7 +44,7 @@ $plan = $stack->rollbackStatementCurrentSourceAndBeginNext86(
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-statement-journal-savepoint-current-source-next86',
+    'scenario' => 'wordpress-pager-statement-journal-savepoint-current-source',
     'currentSourceVerified' => $plan['current_source_verified'],
     'sourcePages' => $plan['current_source_page_numbers'],
     'restoredPages' => $plan['rollback_restored_page_numbers'],
@@ -55,7 +55,7 @@ $summary = [
 ];
 
 if (!$summary['currentSourceVerified'] || $summary['restoredPages'] !== [4, 5] || $summary['nextWalFrame'] !== 4) {
-    fwrite(STDERR, "wordpress-pager-statement-journal-savepoint-current-source-next86 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-statement-journal-savepoint-current-source self-test failed\n");
     exit(1);
 }
 

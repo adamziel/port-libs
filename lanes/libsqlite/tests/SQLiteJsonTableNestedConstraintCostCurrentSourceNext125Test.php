@@ -62,7 +62,7 @@ $tests = [
     'normalizes function name' => static fn (TestRunner $t) => $t->same('json_tree', $plan125()['function']),
     'records next125 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-nested-constraint-cost-current-source-next125', $plan125()['dependencies'], true)),
     'preserves nested next121 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-nested-path-planner-current-source-next121', $plan125()['dependencies'], true)),
-    'preserves cost order next113 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-cost-order-current-source-next113', $plan125()['dependencies'], true)),
+    'preserves cost order next113 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-cost-order', $plan125()['dependencies'], true)),
     'pins current nested constraint reader' => static fn (TestRunner $t) => $t->same('pin-current-json-table-nested-constraint-cost-until-cursor-reset', $plan125()['currentReaderPolicy']),
     'prepares changed nested constraint plan' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-nested-constraint-cost-plan', $plan125()['nextReaderPolicy']),
     'stable nested constraint plan is reused' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-nested-constraint-cost-plan', $stable125()['nextReaderPolicy']),

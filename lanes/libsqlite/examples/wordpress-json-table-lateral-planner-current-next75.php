@@ -32,7 +32,7 @@ $nextOptions = [
     ],
 ];
 
-$plan = SQLiteJsonTablePlan::lateralConstraintPlannerCurrentNext75(
+$plan = SQLiteJsonTablePlan::lateralConstraintPlannerComparison(
     $currentOptions,
     $nextOptions,
     'option_value',
@@ -63,7 +63,7 @@ echo json_encode($summary, JSON_PRETTY_PRINT) . PHP_EOL;
 if (
     $summary['replanRequired'] !== true
     || $summary['transitionReasons'] !== ['lateral-filter-argument-tape-changed', 'next-lateral-plan-becomes-runnable']
-    || $summary['dependency'] !== 'sqlite-json-table-lateral-planner-constraint-current-next75'
+    || $summary['dependency'] !== 'sqlite-json-table-lateral-constraint-planner-comparison'
 ) {
     fwrite(STDERR, "wordpress-json-table-lateral-planner-current-next75 self-test failed\n");
     exit(1);

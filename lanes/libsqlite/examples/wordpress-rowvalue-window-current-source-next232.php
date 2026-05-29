@@ -28,7 +28,7 @@ $attemptUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('attemp
 $retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry232', option_value || ':retry232', bytes + 1) WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'retry' ORDER BY priority LIMIT 3) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'retry_delete' ORDER BY priority LIMIT 1) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext232(
+$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRetryWindowPlan(
     ['wp_options' => $rows, 'wp_import_targets' => $targets],
     [$yieldUpdate],
     [$attemptUpdate],

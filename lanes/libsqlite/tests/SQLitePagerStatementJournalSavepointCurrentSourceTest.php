@@ -43,7 +43,7 @@ $makeStack = static function () use ($clean): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (): array => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86(
+$plan = static fn (): array => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal(
     'insert-transient',
     'retry-transient',
     $databaseBytes,
@@ -53,7 +53,7 @@ $plan = static fn (): array => $makeStack()->rollbackStatementCurrentSourceAndBe
     $pageSize,
     true
 );
-$plainPlan = static fn (): array => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86(
+$plainPlan = static fn (): array => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal(
     'insert-transient',
     'retry-autoload',
     $databaseBytes,
@@ -99,9 +99,9 @@ $cases = [
     'rolled back byte length unchanged' => [static fn (): mixed => strlen($plan()['rolled_back_database_bytes']), strlen($databaseBytes)],
     'savepoint active after' => [static fn (): mixed => $plan()['savepoint_active_after'], true],
     'transaction active after' => [static fn (): mixed => $plan()['transaction_active_after'], true],
-    'dependency current source' => [static fn (): mixed => in_array('sqlite-pager-statement-journal-savepoint-current-source-next86', $plan()['dependencies'], true), true],
+    'dependency current source' => [static fn (): mixed => in_array('sqlite-pager-statement-journal-savepoint-current-source', $plan()['dependencies'], true), true],
     'dependency source guard' => [static fn (): mixed => in_array('sqlite-statement-journal-current-source-guard', $plan()['dependencies'], true), true],
-    'dependency inherited rollback' => [static fn (): mixed => in_array('sqlite-statement-journal-rollback-current-next70', $plan()['dependencies'], true), true],
+    'dependency inherited rollback' => [static fn (): mixed => in_array('sqlite-statement-journal-rollback-retry', $plan()['dependencies'], true), true],
     'plain plan source pages sorted' => [static fn (): mixed => $plainPlan()['current_source_page_numbers'], [4, 5]],
     'plain plan next frame reused' => [static fn (): mixed => $plainPlan()['next_wal_frame_index'], 4],
     'plain plan next commit false' => [static fn (): mixed => $plainPlan()['next_commit_frame'], false],
@@ -109,7 +109,7 @@ $cases = [
     'plain plan next journal page' => [static fn (): mixed => $plainPlan()['statement_journals_after_next'][0]['page_numbers'], [7]],
     'stack state after next' => [static function () use ($makeStack, $databaseBytes, $dirty, $nextBeforeImage, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
+        $stack->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
         return $stack->statementJournalState();
     }, [[
         'name' => 'retry-transient',
@@ -120,64 +120,64 @@ $cases = [
     ]]],
     'stack can rollback retry statement' => [static function () use ($makeStack, $databaseBytes, $dirty, $nextBeforeImage, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
+        $stack->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
         return $stack->rollbackStatementOnErrorWithPlan('retry-transient', $pageSize)['restored_page_numbers'];
     }, [6]],
     'stack rollback retry clears journal' => [static function () use ($makeStack, $databaseBytes, $dirty, $nextBeforeImage, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
+        $stack->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
         $stack->rollbackStatementOnErrorWithPlan('retry-transient', $pageSize);
         return $stack->statementJournalState();
     }, []],
     'stack rollback retry restores pending pages' => [static function () use ($makeStack, $databaseBytes, $dirty, $nextBeforeImage, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
+        $stack->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
         $stack->rollbackStatementOnErrorWithPlan('retry-transient', $pageSize);
         return $stack->pendingPageNumbers();
     }, [1, 2, 3]],
     'stack rollback retry restores wal prefix' => [static function () use ($makeStack, $databaseBytes, $dirty, $nextBeforeImage, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
+        $stack->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
         $stack->rollbackStatementOnErrorWithPlan('retry-transient', $pageSize);
         return $stack->pendingWalFrameIndexes();
     }, [1, 2, 3]],
     'stack commit includes retry page' => [static function () use ($makeStack, $databaseBytes, $dirty, $nextBeforeImage, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
+        $stack->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
         return $stack->commitWithPlan()['committed_page_numbers'];
     }, [1, 2, 3, 6]],
     'stack release merges retry page' => [static function () use ($makeStack, $databaseBytes, $dirty, $nextBeforeImage, $pageSize): mixed {
         $stack = $makeStack();
-        $stack->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
+        $stack->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize);
         return $stack->releaseWithPlan('plugin-batch')['merged_page_numbers'];
     }, [3, 6]],
     'same statement name reuse after current rollback' => [static function () use ($makeStack, $databaseBytes, $dirty, $nextBeforeImage, $pageSize): mixed {
-        return $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'insert-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize)['statement_journals_after_next'][0]['name'];
+        return $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'insert-transient', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize)['statement_journals_after_next'][0]['name'];
     }, 'insert-transient'],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['pager statement journal savepoint current source next86 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['pager statement journal savepoint current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
 $throws = [
-    'stale page rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry', $databaseBytes, [4 => $clean[4]], 6, $nextBeforeImage, $pageSize),
-    'outside page rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry', $databaseBytes, [6 => $page('missing')], 7, $nextBeforeImage, $pageSize),
-    'empty source pages rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry', $databaseBytes, [], 6, $nextBeforeImage, $pageSize),
-    'bad source page number rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry', $databaseBytes, [0 => $dirty[4]], 6, $nextBeforeImage, $pageSize),
-    'bad source image rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry', $databaseBytes, [4 => 'short'], 6, $nextBeforeImage, $pageSize),
-    'unaligned database rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry', $databaseBytes . 'x', [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize),
-    'missing statement rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('missing', 'retry', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize),
-    'empty next statement rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', '', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize),
-    'zero next page rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry', $databaseBytes, [4 => $dirty[4]], 0, $nextBeforeImage, $pageSize),
-    'bad next image rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry', $databaseBytes, [4 => $dirty[4]], 6, 'short', $pageSize),
-    'zero page size rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginNext86('insert-transient', 'retry', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, 0),
+    'stale page rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry', $databaseBytes, [4 => $clean[4]], 6, $nextBeforeImage, $pageSize),
+    'outside page rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry', $databaseBytes, [6 => $page('missing')], 7, $nextBeforeImage, $pageSize),
+    'empty source pages rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry', $databaseBytes, [], 6, $nextBeforeImage, $pageSize),
+    'bad source page number rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry', $databaseBytes, [0 => $dirty[4]], 6, $nextBeforeImage, $pageSize),
+    'bad source image rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry', $databaseBytes, [4 => 'short'], 6, $nextBeforeImage, $pageSize),
+    'unaligned database rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry', $databaseBytes . 'x', [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize),
+    'missing statement rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('missing', 'retry', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize),
+    'empty next statement rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', '', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, $pageSize),
+    'zero next page rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry', $databaseBytes, [4 => $dirty[4]], 0, $nextBeforeImage, $pageSize),
+    'bad next image rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry', $databaseBytes, [4 => $dirty[4]], 6, 'short', $pageSize),
+    'zero page size rejected' => static fn () => $makeStack()->rollbackStatementCurrentSourceAndBeginStatementJournal('insert-transient', 'retry', $databaseBytes, [4 => $dirty[4]], 6, $nextBeforeImage, 0),
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['pager statement journal savepoint current source next86 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['pager statement journal savepoint current source ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(Throwable::class, $callback);
     };
 }

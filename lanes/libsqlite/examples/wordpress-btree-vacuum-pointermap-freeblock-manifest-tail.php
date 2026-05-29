@@ -20,8 +20,6 @@ $firstPage[21] = "\x40";
 $firstPage[22] = "\x20";
 $firstPage[23] = "\x20";
 $firstPage = substr_replace($firstPage, pack('N', 110), 28, 4);
-$firstPage = substr_replace($firstPage, pack('N', 0), 32, 4);
-$firstPage = substr_replace($firstPage, pack('N', 0), 36, 4);
 $firstPage = substr_replace($firstPage, pack('N', 3), 52, 4);
 $firstPage = substr_replace($firstPage, pack('N', 1), 56, 4);
 
@@ -30,12 +28,12 @@ $pages[1] = $firstPage;
 $pages[2] = str_repeat("\0", 512);
 $pages[3] = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next194', str_repeat('cache:', 42)])),
+    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next193', str_repeat('cache:', 42)])),
     SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'rewrite_rules', str_repeat('rewrite:', 8)])),
 ]);
 $pages[105] = str_repeat("\0", 512);
 foreach ([106 => 107, 107 => 108, 108 => 109, 109 => 110, 110 => 0] as $pageNumber => $nextPage) {
-    $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(80 + ($pageNumber - 105)), 508);
+    $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(74 + ($pageNumber - 105)), 508);
 }
 
 $putPointerMapEntry = static function (int $pageNumber, int $type, int $parentPageNumber) use (&$pages): void {
@@ -65,7 +63,7 @@ foreach ([
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
 $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext194(
+$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafManifestTailFromDeleteResult(
     $database,
     3,
     [
@@ -73,26 +71,30 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFrom
         'rowid' => 2,
         'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
     ],
-    4,
-    str_repeat('next194-writer-admission-current-source-', 48),
+    2,
+    str_repeat('next193-current-source-', 50),
     3,
     true,
+    2,
 );
-$summary = $plan->writerSummary();
+$summary = $plan->manifestSummary();
 
 echo json_encode([
-    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-next194',
+    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-next193',
+    'wordpressUse' => 'After deleting an overflow-backed copied wp_options transient and vacuuming tail pages, the published current-source manifest exposes only readable pointer-map/freeblock/overflow pages while fencing truncated tail pages.',
     'status' => $summary['status'],
-    'admitted_leaf_freeblock_pages' => $summary['admitted_leaf_freeblock_pages'],
-    'admitted_overflow_freelist_pages' => $summary['admitted_overflow_freelist_pages'],
+    'published_pages' => $summary['published_pages'],
     'fenced_tail_pages' => $summary['fenced_tail_pages'],
-    'writer_admission_token' => $summary['writer_admission_token'],
+    'final_visible_page_count' => $summary['final_visible_page_count'],
+    'all_published_pages_readable' => $summary['all_published_pages_readable'],
+    'manifest_count' => count($summary['manifest_tokens']),
 ], JSON_PRETTY_PRINT) . PHP_EOL;
 
 if (
-    $summary['admitted_leaf_freeblock_pages'] === [3]
-    && $summary['admitted_overflow_freelist_pages'] === [109]
-    && $summary['fenced_tail_pages'] === [110]
+    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-next193-ready'
+    && $summary['published_pages'] === [1, 2, 3, 105, 106, 107, 108]
+    && $summary['fenced_tail_pages'] === [109, 110]
+    && $summary['all_published_pages_readable'] === true
 ) {
-    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-next194 self-test passed\n";
+    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-next193 self-test passed\n";
 }

@@ -48,14 +48,14 @@ $attemptUpdateResult232 = static fn (): array => SQLiteUpdateDeleteReturningSql:
 $attemptDeleteResult232 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptDelete232, $attemptUpdateResult232()['tables'], 'option_id', $unique232);
 $retryUpdateResult232 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate232, $tables232, 'option_id', $unique232);
 $retryDeleteResult232 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete232, $retryUpdateResult232()['tables'], 'option_id', $unique232);
-$plan232 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext232(
+$plan232 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRetryWindowPlan(
     $tables232,
     [$yieldUpdate232, $yieldDelete232],
     [$attemptUpdate232, $attemptDelete232],
     [$retryUpdate232, $retryDelete232],
     $unique232,
 );
-$customPlan232 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext232(
+$customPlan232 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRetryWindowPlan(
     $tables232,
     [$yieldUpdate232],
     [$attemptUpdate232],
@@ -129,12 +129,12 @@ $cases232 = [
     'custom plan savepoint' => [static fn (): mixed => $customPlan232()['savepoint'], 'custom_rowvalue_window_232'],
     'custom window ids' => [static fn (): mixed => $customPlan232()['window_retry_ids_after_release_next232'], [4, 5, 6, 8]],
     'custom window row numbers' => [static fn (): mixed => $customPlan232()['window_retry_row_numbers_next232'], [1, 2, 3, 4]],
-    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext232($tables232, [], [$attemptUpdate232], [$retryUpdate232], $unique232), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext232($tables232, [$yieldUpdate232], [], [$retryUpdate232], $unique232), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext232($tables232, [$yieldUpdate232], [$attemptUpdate232], [], $unique232), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext232($tables232, [$yieldUpdate232], [$attemptUpdate232], [$retryUpdate232], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext232($tables232, [$yieldUpdate232], [$attemptUpdate232], [$retryUpdate232], $unique232, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext232(['wp_options' => ['bad']], [$yieldUpdate232], [$attemptUpdate232], [$retryUpdate232], $unique232), InvalidArgumentException::class],
+    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRetryWindowPlan($tables232, [], [$attemptUpdate232], [$retryUpdate232], $unique232), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRetryWindowPlan($tables232, [$yieldUpdate232], [], [$retryUpdate232], $unique232), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRetryWindowPlan($tables232, [$yieldUpdate232], [$attemptUpdate232], [], $unique232), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRetryWindowPlan($tables232, [$yieldUpdate232], [$attemptUpdate232], [$retryUpdate232], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRetryWindowPlan($tables232, [$yieldUpdate232], [$attemptUpdate232], [$retryUpdate232], $unique232, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRetryWindowPlan(['wp_options' => ['bad']], [$yieldUpdate232], [$attemptUpdate232], [$retryUpdate232], $unique232), InvalidArgumentException::class],
 ];
 
 $tests = [];

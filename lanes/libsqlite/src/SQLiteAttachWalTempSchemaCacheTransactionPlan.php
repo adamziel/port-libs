@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteAttachWalTempSchemaCacheCurrentNextPlan
+final class SQLiteAttachWalTempSchemaCacheTransactionPlan
 {
     /**
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, next_tables?:list<string>|null, indexes?:list<string>, next_indexes?:list<string>|null, temp?:bool, file?:string|null, cache?:string|null}> $schemas
@@ -18,7 +18,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentNextPlan
             throw new \InvalidArgumentException('SQLite attach WAL temp schema-cache current source requires statements');
         }
 
-        $transaction = SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, $operations, $outcome);
+        $transaction = SQLiteAttachWalTempTransactionPlan::plan($schemas, $operations, $outcome);
         $cacheSchemas = self::schemasAfterTransaction($schemas, $transaction, $outcome);
         $lifecycle = SQLiteAttachWalTempStatementLifecyclePlan::plan($cacheSchemas, $statements, $sourceSchema);
 
@@ -39,7 +39,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentNextPlan
 
         return [
             'status' => $lifecycle['requires_reprepare'] ? 'schema_cache_expired' : 'schema_cache_stable',
-            'operation' => 'attach-wal-temp-schema-cache-current',
+            'operation' => 'attach-wal-temp-schema-cache-transaction',
             'outcome' => $outcome,
             'source' => $lifecycle['source'],
             'transaction_status' => $transaction['status'],
@@ -57,8 +57,8 @@ final class SQLiteAttachWalTempSchemaCacheCurrentNextPlan
             'statements' => $lifecycle['statements'],
             'requires_reprepare' => $lifecycle['requires_reprepare'],
             'dependencies' => [
-                'sqlite-attach-wal-temp-schema-cache-current',
-                'sqlite-attach-wal-temp-transaction-current',
+                'sqlite-attach-wal-temp-schema-cache-transaction',
+                'sqlite-attach-wal-temp-transaction',
                 'sqlite-schema-cookie-expire-prepared-statements',
             ],
         ];

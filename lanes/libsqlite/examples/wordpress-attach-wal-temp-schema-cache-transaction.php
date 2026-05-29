@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteAttachTempMainWalSchemaCachePlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
-require_once __DIR__ . '/../src/SQLiteAttachWalTempTransactionCurrentNextPlan.php';
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempTransactionPlan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheTransactionPlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheTransactionPlan;
 
 $schemas = [
     'main' => [
@@ -69,7 +69,7 @@ $statements = [
     ['name' => 'plugin-state-reader', 'sql' => 'SELECT option_name FROM main.wp_plugin_state'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan($schemas, $operations, $statements);
+$plan = SQLiteAttachWalTempSchemaCacheTransactionPlan::plan($schemas, $operations, $statements);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'schema_cache_expired');
@@ -77,7 +77,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['active_current_snapshot_statements'] === ['active-options-reader']);
     assert($plan['retryable_read_statements'] === ['active-options-reader', 'network-reader', 'plugin-state-reader']);
     assert($plan['write_statements_blocked_before_retry'] === []);
-    echo "wordpress-attach-wal-temp-schema-cache-current self-test passed\n";
+    echo "wordpress-attach-wal-temp-schema-cache-transaction self-test passed\n";
     return;
 }
 

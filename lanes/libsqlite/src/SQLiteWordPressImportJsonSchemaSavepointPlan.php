@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteWordPressImportJsonSchemaSavepointCurrentNextPlan
+final class SQLiteWordPressImportJsonSchemaSavepointPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows
@@ -97,8 +97,8 @@ final class SQLiteWordPressImportJsonSchemaSavepointCurrentNextPlan
 
         return [
             'status' => 'planned',
-            'current_next53' => true,
-            'database_path' => (string) ($options['database_path'] ?? '/tmp/wp-import-json-schema-savepoint-current-next53.sqlite'),
+            'schema_savepoint_import' => true,
+            'database_path' => (string) ($options['database_path'] ?? '/tmp/wp-import-json-schema-savepoint.sqlite'),
             'schema' => $schema,
             'batch_count' => count($batches),
             'released_batches' => $released,
@@ -111,14 +111,14 @@ final class SQLiteWordPressImportJsonSchemaSavepointCurrentNextPlan
             'final_option_names' => array_column(array_values($visibleRows), 'option_name'),
             'released_option_names' => array_column(array_values($releasedRows), 'option_name'),
             'wal' => [
-                'path' => (string) ($options['database_path'] ?? '/tmp/wp-import-json-schema-savepoint-current-next53.sqlite') . '-wal',
+                'path' => (string) ($options['database_path'] ?? '/tmp/wp-import-json-schema-savepoint.sqlite') . '-wal',
                 'current_frame' => $currentWalFrame,
                 'frame_count' => count($walFrames),
                 'frames' => $walFrames,
-                'current_next53' => true,
+                'schema_savepoint_import' => true,
             ],
             'dependencies' => [
-                'sqlite-wordpress-import-json-schema-savepoint-current-next53',
+                'sqlite-wordpress-import-json-schema-savepoint',
                 'sqlite-wordpress-json-import-wal-savepoint-current-next35',
                 'sqlite-wordpress-import-transaction-current',
                 'sqlite-json-extract',

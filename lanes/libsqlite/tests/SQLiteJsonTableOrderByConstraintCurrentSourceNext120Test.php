@@ -70,8 +70,8 @@ $notConsumed120 = static fn (): array => SQLiteJsonTablePlan::currentSourceOrder
 
 $tests = [
     'records next120 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-orderby-constraint-current-source-next120', $constantKey120()['dependencies'], true)),
-    'preserves cost order dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-cost-order-current-source-next113', $constantKey120()['dependencies'], true)),
-    'preserves current source dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-planner-current-source-next86', $constantKey120()['dependencies'], true)),
+    'preserves cost order dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-cost-order', $constantKey120()['dependencies'], true)),
+    'preserves current source dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-planner', $constantKey120()['dependencies'], true)),
     'constant key current consumes order' => static fn (TestRunner $t) => $t->same(true, $constantKey120()['current']['orderByConsumed']),
     'constant key next consumes order' => static fn (TestRunner $t) => $t->same(true, $constantKey120()['next']['orderByConsumed']),
     'constant key current profile consumes order' => static fn (TestRunner $t) => $t->same(true, $constantKey120()['currentCostOrder']['orderByConsumed']),

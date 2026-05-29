@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempTransactionCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempTransactionPlan;
 
 $tests = [];
 
@@ -30,7 +30,7 @@ $operations = [
     ['op' => 'release', 'savepoint' => 'plugin_import'],
 ];
 
-$plan = static fn (?string $outcome = null, ?array $overrideSchemas = null, ?array $overrideOperations = null): array => SQLiteAttachWalTempTransactionCurrentNextPlan::plan(
+$plan = static fn (?string $outcome = null, ?array $overrideSchemas = null, ?array $overrideOperations = null): array => SQLiteAttachWalTempTransactionPlan::plan(
     $overrideSchemas ?? $schemas,
     $overrideOperations ?? $operations,
     $outcome ?? 'commit',
@@ -47,7 +47,7 @@ $value = static function (array $data, string $path): mixed {
 
 $cases = [
     'status committed' => ['status', 'committed'],
-    'operation marker' => ['operation', 'attach-wal-temp-transaction-current'],
+    'operation marker' => ['operation', 'attach-wal-temp-transaction'],
     'outcome commit' => ['outcome', 'commit'],
     'schema count' => ['schema_count', 4],
     'operation count' => ['operation_count', 7],
@@ -93,7 +93,7 @@ $cases = [
     'rollback restores archive cookie' => ['steps.4.next_cookies.archive', 11],
     'network write action' => ['steps.5.action', 'wal'],
     'release step action' => ['steps.6.action', 'savepoint_release'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-transaction-current'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-transaction'],
     'dependency visibility' => ['dependencies.1', 'sqlite-attach-wal-temp-transaction-schema-cookie-visibility'],
     'dependency rollback' => ['dependencies.2', 'sqlite-savepoint-rollback-restores-uncommitted-schema-cookies'],
 ];
@@ -122,30 +122,30 @@ $predicateCases = [
         $copy = $schemas;
         unset($copy['main']['wal_frames']);
         $copy['main']['wal_schema_cookie'] = 44;
-        return SQLiteAttachWalTempTransactionCurrentNextPlan::plan($copy, [$operations[0]])['schemas']['main']['current_cookie'] === 44;
+        return SQLiteAttachWalTempTransactionPlan::plan($copy, [$operations[0]])['schemas']['main']['current_cookie'] === 44;
     },
     'uncommitted wal frame does not become current cookie' => static function () use ($schemas, $operations): bool {
         $copy = $schemas;
         $copy['archive']['wal_frames'] = [['page' => 1, 'schema_cookie' => 15, 'commit' => false]];
-        return SQLiteAttachWalTempTransactionCurrentNextPlan::plan($copy, [$operations[3]])['schemas']['archive']['current_cookie'] === 10;
+        return SQLiteAttachWalTempTransactionPlan::plan($copy, [$operations[3]])['schemas']['archive']['current_cookie'] === 10;
     },
     'temp schema is routed to temp rollback journal' => static fn (): bool => $plan()['schemas']['temp']['journal'] === 'temp-rollback',
     'attached schema is routed to wal journal' => static fn (): bool => $plan()['schemas']['archive']['journal'] === 'wal',
     'quoted schema names normalize before lookup' => static function () use ($schemas): bool {
-        $result = SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, [
+        $result = SQLiteAttachWalTempTransactionPlan::plan($schemas, [
             ['op' => 'schema_write', 'schema' => '"MAIN"', 'object' => 'wp_options_idx'],
         ]);
         return $result['schemas']['main']['transaction_next_cookie'] === 42;
     },
     'bracketed temp schema names normalize before lookup' => static function () use ($schemas): bool {
-        $result = SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, [
+        $result = SQLiteAttachWalTempTransactionPlan::plan($schemas, [
             ['op' => 'schema_write', 'schema' => '[TEMP]', 'object' => 'scratch'],
         ]);
         return $result['schemas']['temp']['transaction_next_cookie'] === 7;
     },
     'empty operations rejected' => static function () use ($schemas): bool {
         try {
-            SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, []);
+            SQLiteAttachWalTempTransactionPlan::plan($schemas, []);
             return false;
         } catch (InvalidArgumentException) {
             return true;
@@ -153,7 +153,7 @@ $predicateCases = [
     },
     'unknown outcome rejected' => static function () use ($schemas, $operations): bool {
         try {
-            SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, $operations, 'abort');
+            SQLiteAttachWalTempTransactionPlan::plan($schemas, $operations, 'abort');
             return false;
         } catch (InvalidArgumentException) {
             return true;
@@ -161,7 +161,7 @@ $predicateCases = [
     },
     'missing schema rejected' => static function () use ($schemas): bool {
         try {
-            SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, [
+            SQLiteAttachWalTempTransactionPlan::plan($schemas, [
                 ['op' => 'schema_write', 'schema' => 'missing', 'object' => 'x'],
             ]);
             return false;
@@ -171,7 +171,7 @@ $predicateCases = [
     },
     'missing savepoint rejected' => static function () use ($schemas): bool {
         try {
-            SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, [
+            SQLiteAttachWalTempTransactionPlan::plan($schemas, [
                 ['op' => 'rollback_to', 'savepoint' => 'missing'],
             ]);
             return false;
@@ -181,7 +181,7 @@ $predicateCases = [
     },
     'unsupported operation rejected' => static function () use ($schemas): bool {
         try {
-            SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, [
+            SQLiteAttachWalTempTransactionPlan::plan($schemas, [
                 ['op' => 'select', 'schema' => 'main'],
             ]);
             return false;
@@ -193,7 +193,7 @@ $predicateCases = [
         $copy = $schemas;
         $copy['main']['schema_cookie'] = '40';
         try {
-            SQLiteAttachWalTempTransactionCurrentNextPlan::plan($copy, [$operations[0]]);
+            SQLiteAttachWalTempTransactionPlan::plan($copy, [$operations[0]]);
             return false;
         } catch (InvalidArgumentException) {
             return true;
@@ -201,7 +201,7 @@ $predicateCases = [
     },
     'empty savepoint name rejected' => static function () use ($schemas): bool {
         try {
-            SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, [
+            SQLiteAttachWalTempTransactionPlan::plan($schemas, [
                 ['op' => 'savepoint', 'savepoint' => ''],
             ]);
             return false;

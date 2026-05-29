@@ -19,7 +19,7 @@ $nextOption = [
     'json_root' => '$.plugins',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceConstraintPlannerNext86(
+$plan = SQLiteJsonTablePlan::currentSourceConstraintPlanner(
     'json_tree',
     $currentOption,
     $nextOption,

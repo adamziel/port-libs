@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheTransactionPlan;
 
 $schemas = [
     'main' => [
@@ -67,7 +67,7 @@ $statements = [
     ['name' => 'bracket-analytics-reader', 'sql' => 'SELECT event_name FROM [analytics].[wp_events] WHERE event_name GLOB ?'],
 ];
 
-$plan = static fn (?array $ops = null, ?array $stmts = null, string $outcome = 'commit'): array => SQLiteAttachWalTempSchemaCacheCurrentNextPlan::plan(
+$plan = static fn (?array $ops = null, ?array $stmts = null, string $outcome = 'commit'): array => SQLiteAttachWalTempSchemaCacheTransactionPlan::plan(
     $schemas,
     $ops ?? $operations,
     $stmts ?? $statements,
@@ -85,7 +85,7 @@ $value = static function (array $data, string $path): mixed {
 
 $cases = [
     'status expired' => ['status', 'schema_cache_expired'],
-    'operation remains current engine' => ['operation', 'attach-wal-temp-schema-cache-current'],
+    'operation remains current engine' => ['operation', 'attach-wal-temp-schema-cache-transaction'],
     'source remains main' => ['source', 'main'],
     'statement count' => ['statement_count', 8],
     'changed schemas follow sqlite search order' => ['changed_schemas', ['temp', 'main', 'archive']],
@@ -135,24 +135,24 @@ $cases = [
     'analytics table parsed with bracket schema' => ['statements.7.tables', ['analytics.wp_events']],
     'analytics stable action' => ['statements.7.next_step_action', 'reuse_prepared_statement'],
     'analytics sqlite ok' => ['statements.7.sqlite_result', 'SQLITE_OK'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cache-current'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cache-transaction'],
 ];
 
 $tests = [];
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['attach temp wal schema cache current source next88 ' . $name] = static function (TestRunner $t) use ($plan, $value, $path, $expected): void {
+    $tests['attach temp wal schema cache current transaction source transaction-source ' . $name] = static function (TestRunner $t) use ($plan, $value, $path, $expected): void {
         $t->same($expected, $value($plan(), $path));
     };
 }
 
-$tests['attach temp wal schema cache current source next88 rollback keeps bracket statements reusable'] = static function (TestRunner $t) use ($plan): void {
+$tests['attach temp wal schema cache current transaction source transaction-source rollback keeps bracket statements reusable'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan(null, null, 'rollback');
     $t->same('schema_cache_stable', $result['status']);
     $t->same([], $result['expired_statements']);
     $t->same(['bracket-main-reader', 'bracket-temp-insert', 'bracket-archive-delete', 'bracket-archive-join', 'bracket-main-update', 'bracket-main-new-reader', 'bracket-unqualified-reader', 'bracket-analytics-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next88 bracket temp commit shadows unqualified reader'] = static function (TestRunner $t) use ($plan): void {
+$tests['attach temp wal schema cache current transaction source transaction-source bracket temp commit shadows unqualified reader'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan([
         ['op' => 'schema_write', 'schema' => 'temp', 'object' => 'wp_options'],
     ]);
@@ -160,7 +160,7 @@ $tests['attach temp wal schema cache current source next88 bracket temp commit s
     $t->same('temp', $result['statements']['6']['schema_transitions']['0']['next_schema']);
 };
 
-$tests['attach temp wal schema cache current source next88 bracket main only commit keeps temp insert reusable'] = static function (TestRunner $t) use ($plan): void {
+$tests['attach temp wal schema cache current transaction source transaction-source bracket main only commit keeps temp insert reusable'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan([
         ['op' => 'schema_write', 'schema' => 'main', 'object' => 'wp_plugin_state'],
     ]);
@@ -168,7 +168,7 @@ $tests['attach temp wal schema cache current source next88 bracket main only com
     $t->same('reuse_prepared_statement', $result['statements']['1']['next_step_action']);
 };
 
-$tests['attach temp wal schema cache current source next88 bracket archive only commit expires archive join'] = static function (TestRunner $t) use ($plan): void {
+$tests['attach temp wal schema cache current transaction source transaction-source bracket archive only commit expires archive join'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan([
         ['op' => 'schema_write', 'schema' => 'archive', 'object' => 'wp_archive_state'],
     ]);
@@ -176,7 +176,7 @@ $tests['attach temp wal schema cache current source next88 bracket archive only 
     $t->same(['archive'], $result['statements']['3']['current_schemas']);
 };
 
-$tests['attach temp wal schema cache current source next88 rejects empty bracket identifier'] = static function (TestRunner $t) use ($plan, $statements): void {
+$tests['attach temp wal schema cache current transaction source transaction-source rejects empty bracket identifier'] = static function (TestRunner $t) use ($plan, $statements): void {
     $bad = $statements;
     $bad[] = ['name' => 'bad', 'sql' => 'SELECT * FROM []'];
     $t->throws(InvalidArgumentException::class, static fn () => $plan(null, $bad));

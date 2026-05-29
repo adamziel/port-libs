@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempTransactionCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempTransactionPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 40, 'wal_schema_cookie' => 41, 'file' => '/srv/wp/current.sqlite'],
@@ -27,8 +27,8 @@ $operations = [
     ['op' => 'release', 'savepoint' => 'plugin_import'],
 ];
 
-$committed = SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, $operations);
-$rolledBack = SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, $operations, 'rollback');
+$committed = SQLiteAttachWalTempTransactionPlan::plan($schemas, $operations);
+$rolledBack = SQLiteAttachWalTempTransactionPlan::plan($schemas, $operations, 'rollback');
 
 echo json_encode([
     'commit_status' => $committed['status'],

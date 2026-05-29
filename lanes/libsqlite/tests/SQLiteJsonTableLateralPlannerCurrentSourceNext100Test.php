@@ -93,7 +93,7 @@ $rootShift100 = static fn (): array => $plan100($current100, [
 
 $tests = [
     'function is normalized' => static fn (TestRunner $t) => $t->same('json_each', $plan100()['function']),
-    'dependency includes current source planner' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-constraint-planner-current-source-next86', $plan100()['dependencies'], true)),
+    'dependency includes current source planner' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-current-source-constraint-planner', $plan100()['dependencies'], true)),
     'dependency includes next100 planner' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-lateral-planner-current-source-next100', $plan100()['dependencies'], true)),
     'current reader policy pins by host key' => static fn (TestRunner $t) => $t->same('pin-current-lateral-json-source-by-host-key-until-cursor-reset', $plan100()['currentReaderPolicy']),
     'changed next reader prepares keyed source tape' => static fn (TestRunner $t) => $t->same('prepare-next-lateral-json-source-by-host-key', $plan100()['nextReaderPolicy']),

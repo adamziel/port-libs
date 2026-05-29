@@ -23,14 +23,14 @@ $baseNext72 = [
     ['column' => 'limit', 'operator' => '=', 'value' => 8],
 ];
 
-$plan72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerCurrentNext72(
+$plan72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerComparison(
     'json_tree',
     $baseCurrent72,
     $baseNext72,
     [['column' => 'id']],
 );
 
-$stable72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerCurrentNext72(
+$stable72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerComparison(
     'json_each',
     [
         ['column' => 'json', 'operator' => '=', 'value' => '{"a":1,"b":2}'],
@@ -42,7 +42,7 @@ $stable72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerCurrent
     ],
 );
 
-$becomesRunnable72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerCurrentNext72(
+$becomesRunnable72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerComparison(
     'json_each',
     [
         ['column' => 'key', 'operator' => '=', 'value' => 'plugin'],
@@ -53,7 +53,7 @@ $becomesRunnable72 = static fn (): array => SQLiteJsonTablePlan::constraintPlann
     ],
 );
 
-$becomesUnrunnable72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerCurrentNext72(
+$becomesUnrunnable72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerComparison(
     'json_each',
     [
         ['column' => 'json', 'operator' => '=', 'value' => '{"plugin":true}'],
@@ -65,7 +65,7 @@ $becomesUnrunnable72 = static fn (): array => SQLiteJsonTablePlan::constraintPla
     ],
 );
 
-$operatorChanged72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerCurrentNext72(
+$operatorChanged72 = static fn (): array => SQLiteJsonTablePlan::constraintPlannerComparison(
     'json_tree',
     [
         ['column' => 'json', 'operator' => '=', 'value' => $currentSettings72],
@@ -83,7 +83,7 @@ $tests = [
     'added visible constraint changes operator tape before argument changes' => static fn (TestRunner $t) => $t->same('constraint-operator-tape-changed', $plan72()['replanReason']),
     'current reader policy preserves active cursor' => static fn (TestRunner $t) => $t->same('keep-current-json-table-plan-until-statement-reset', $plan72()['currentReaderPolicy']),
     'next reader policy prepares changed plan' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-xbestindex-plan', $plan72()['nextReaderPolicy']),
-    'dependency marker names current next72' => static fn (TestRunner $t) => $t->same('sqlite-json-table-constraint-planner-current-next72', $plan72()['dependencies'][0]),
+    'dependency marker names current next72' => static fn (TestRunner $t) => $t->same('sqlite-json-table-constraint-planner-comparison', $plan72()['dependencies'][0]),
     'current plan remains runnable' => static fn (TestRunner $t) => $t->same(true, $plan72()['current']['runnable']),
     'next plan remains runnable' => static fn (TestRunner $t) => $t->same(true, $plan72()['next']['runnable']),
     'current idx num records json root visible limit' => static fn (TestRunner $t) => $t->same(15, $plan72()['current']['idxNum']),
@@ -143,9 +143,9 @@ $tests = [
     'operator change records usage transition' => static fn (TestRunner $t) => $t->same(true, $operatorChanged72()['usageTransitions'][1]['changed']),
     'operator change keeps current pattern' => static fn (TestRunner $t) => $t->same('$.plugins.%', $operatorChanged72()['argumentTransitions'][1]['current']),
     'operator change keeps next pattern' => static fn (TestRunner $t) => $t->same('$.plugins.*', $operatorChanged72()['argumentTransitions'][1]['next']),
-    'invalid current function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::constraintPlannerCurrentNext72('bad_json', [], [])),
-    'invalid next root is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::constraintPlannerCurrentNext72('json_tree', [['column' => 'json', 'operator' => '=', 'value' => '{}']], [['column' => 'json', 'operator' => '=', 'value' => '{}'], ['column' => 'root', 'operator' => '=', 'value' => '$[']])),
-    'invalid next limit is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::constraintPlannerCurrentNext72('json_each', [['column' => 'json', 'operator' => '=', 'value' => '{}']], [['column' => 'json', 'operator' => '=', 'value' => '{}'], ['column' => 'limit', 'operator' => '=', 'value' => -1]])),
+    'invalid current function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::constraintPlannerComparison('bad_json', [], [])),
+    'invalid next root is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::constraintPlannerComparison('json_tree', [['column' => 'json', 'operator' => '=', 'value' => '{}']], [['column' => 'json', 'operator' => '=', 'value' => '{}'], ['column' => 'root', 'operator' => '=', 'value' => '$[']])),
+    'invalid next limit is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::constraintPlannerComparison('json_each', [['column' => 'json', 'operator' => '=', 'value' => '{}']], [['column' => 'json', 'operator' => '=', 'value' => '{}'], ['column' => 'limit', 'operator' => '=', 'value' => -1]])),
     'current plan filter arguments remain separate from next' => static fn (TestRunner $t) => $t->same(['seo', 'cache', 'forms'], $plan72()['current']['filterArguments'][2]),
     'next plan filter arguments remain separate from current' => static fn (TestRunner $t) => $t->same(['seo', 'cache', 'forms', 'shop'], $plan72()['next']['filterArguments'][2]),
     'current next wrapper exposes current plan idx string' => static fn (TestRunner $t) => $t->same($plan72()['current']['idxStr'], SQLiteJsonTablePlan::xBestIndexPlan('json_tree', $baseCurrent72, [['column' => 'id']])['idxStr']),
