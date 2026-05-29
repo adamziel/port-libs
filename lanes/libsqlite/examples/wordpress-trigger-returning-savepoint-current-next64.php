@@ -14,7 +14,7 @@ $children = [
     ['meta_id' => 10, 'option_id' => 1, 'meta_key' => '_origin'],
     ['meta_id' => 11, 'option_id' => 2, 'meta_key' => '_origin'],
 ];
-$plan = SQLiteTriggerReturningForeignKeySavepointPlan::currentNextYield(
+$plan = SQLiteTriggerReturningForeignKeySavepointPlan::savepointBoundaryYield(
     $parents,
     $children,
     [

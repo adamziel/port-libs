@@ -95,7 +95,7 @@ final class SQLiteTriggerReturningForeignKeySavepointPlan
      * @param array{operation:string,where:callable(array<string,mixed>):bool,assignments?:array<string,mixed|callable(array<string,mixed>):mixed>,returning?:list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,string):mixed>,savepoint?:string,rollback_on_deferred_violation?:bool,page_images?:array<int,string>,dirty_pages?:array<int,string>,wal_start_frame?:int,wal_frames?:list<array<string,mixed>>,rowid_column?:string} $statement
      * @return array<string,mixed>
      */
-    public static function currentNextYield(array $parents, array $children, array $foreignKey, array $triggers, array $statement): array
+    public static function savepointBoundaryYield(array $parents, array $children, array $foreignKey, array $triggers, array $statement): array
     {
         $plan = self::run($parents, $children, $foreignKey, $triggers, $statement);
         $currentYielded = $plan['attempted_yielded'];
@@ -125,6 +125,19 @@ final class SQLiteTriggerReturningForeignKeySavepointPlan
         )));
 
         return $out;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param array{parent_key:string,child_key:string,on_update?:string,on_delete?:string,deferred?:bool,child_default?:mixed,child_defaults?:array<string,mixed>} $foreignKey
+     * @param list<array<string,mixed>> $triggers
+     * @param array{operation:string,where:callable(array<string,mixed>):bool,assignments?:array<string,mixed|callable(array<string,mixed>):mixed>,returning?:list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,string):mixed>,savepoint?:string,rollback_on_deferred_violation?:bool,page_images?:array<int,string>,dirty_pages?:array<int,string>,wal_start_frame?:int,wal_frames?:list<array<string,mixed>>,rowid_column?:string} $statement
+     * @return array<string,mixed>
+     */
+    public static function currentNextYield(array $parents, array $children, array $foreignKey, array $triggers, array $statement): array
+    {
+        return self::savepointBoundaryYield($parents, $children, $foreignKey, $triggers, $statement);
     }
 
     /**

@@ -66,7 +66,7 @@ $returning = [
     static fn (array $row, array $old, string $event): string => $event . ':' . $old['option_id'] . '>' . $row['option_id'],
 ];
 
-$rollbackPlan = static fn (): array => SQLiteTriggerReturningForeignKeySavepointPlan::currentNextYield(
+$rollbackPlan = static fn (): array => SQLiteTriggerReturningForeignKeySavepointPlan::savepointBoundaryYield(
     $parents,
     $children,
     $deferredNoAction,
@@ -83,7 +83,7 @@ $rollbackPlan = static fn (): array => SQLiteTriggerReturningForeignKeySavepoint
         'rollback_on_deferred_violation' => true,
     ],
 );
-$blockedPlan = static fn (): array => SQLiteTriggerReturningForeignKeySavepointPlan::currentNextYield(
+$blockedPlan = static fn (): array => SQLiteTriggerReturningForeignKeySavepointPlan::savepointBoundaryYield(
     $parents,
     $children,
     $deferredNoAction,
@@ -96,7 +96,7 @@ $blockedPlan = static fn (): array => SQLiteTriggerReturningForeignKeySavepointP
         'returning' => [['expr' => 'old.option_id', 'as' => 'old_id'], ['expr' => 'new.option_id', 'as' => 'new_id']],
     ],
 );
-$commitPlan = static fn (): array => SQLiteTriggerReturningForeignKeySavepointPlan::currentNextYield(
+$commitPlan = static fn (): array => SQLiteTriggerReturningForeignKeySavepointPlan::savepointBoundaryYield(
     $parents,
     $children,
     $cascade,
@@ -295,19 +295,19 @@ $tests = [
         $t->same(2, $commitPlan()['next_changes']);
     },
     'trigger returning savepoint current next64 bad rowid column throws' => static function (TestRunner $t) use ($parents, $children, $cascade): void {
-        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTriggerReturningForeignKeySavepointPlan::currentNextYield($parents, $children, $cascade, [], [
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTriggerReturningForeignKeySavepointPlan::savepointBoundaryYield($parents, $children, $cascade, [], [
             'operation' => 'delete',
             'where' => static fn (): bool => true,
             'rowid_column' => 'bad-name',
         ]));
     },
     'trigger returning savepoint current next64 missing where throws' => static function (TestRunner $t) use ($parents, $children, $cascade): void {
-        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTriggerReturningForeignKeySavepointPlan::currentNextYield($parents, $children, $cascade, [], [
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTriggerReturningForeignKeySavepointPlan::savepointBoundaryYield($parents, $children, $cascade, [], [
             'operation' => 'delete',
         ]));
     },
     'trigger returning savepoint current next64 malformed wal frame throws' => static function (TestRunner $t) use ($parents, $children, $deferredNoAction): void {
-        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTriggerReturningForeignKeySavepointPlan::currentNextYield($parents, $children, $deferredNoAction, [], [
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTriggerReturningForeignKeySavepointPlan::savepointBoundaryYield($parents, $children, $deferredNoAction, [], [
             'operation' => 'update',
             'where' => static fn (): bool => true,
             'assignments' => ['option_id' => 9],
