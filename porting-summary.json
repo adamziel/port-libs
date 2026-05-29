@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 17:46:09 UTC",
-    "sourceCommit": "a63a99e28ae2c0c3fd6f3a883d97029872a3ef13",
-    "sourceCommitShort": "a63a99e28ae2",
+    "generated": "2026-05-29 17:50:52 UTC",
+    "sourceCommit": "e8b3511592d6dfc218727b3f14486879f408e70a",
+    "sourceCommitShort": "e8b3511592d6",
     "sourceBranch": "unknown",
-    "dashboardCommit": "a63a99e28ae2c0c3fd6f3a883d97029872a3ef13",
-    "dashboardCommitShort": "a63a99e28ae2",
+    "dashboardCommit": "e8b3511592d6dfc218727b3f14486879f408e70a",
+    "dashboardCommitShort": "e8b3511592d6",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted seven ready-marked BY/BZ consoli...",
-            "currentWork": "Consolidated seven BY/BZ numbered helper cleanup handoffs across pager master-journal rea...",
-            "nextTarget": "Keep the visible pool at 10-11 active current-base libsqlite lanes, triage current CA rea...",
+            "audit": "Accepted four ready-marked CA consolidati...",
+            "currentWork": "Consolidated four CA numbered helper cleanup handoffs across compound UNION limit-affinit...",
+            "nextTarget": "Keep the visible pool at 10-11 active current-base libsqlite lanes, triage current CB rea...",
             "blocker": "No blocker for the accepted reduced consolidation slice.",
-            "commit": "sixty-t"
+            "commit": "sixty-f"
         },
         {
             "library": "LightningCSS",
