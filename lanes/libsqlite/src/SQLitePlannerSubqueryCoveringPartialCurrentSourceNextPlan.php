@@ -16,18 +16,18 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext115(array $preparedSource, array $currentSource, array $predicate, array $neededColumns): array
+        public static function materializeSubqueryCoveringPartialCurrentSource(array $preparedSource, array $currentSource, array $predicate, array $neededColumns): array
         {
-            $normalizedPredicate = self::normalizeSubqueryPredicateNext115($predicate);
-            $prepared = self::sourcePlanNext115($preparedSource, $normalizedPredicate, $neededColumns);
-            $current = self::sourcePlanNext115($currentSource, $normalizedPredicate, $neededColumns);
+            $normalizedPredicate = self::normalizeSubqueryPredicate($predicate);
+            $prepared = self::sourcePlan($preparedSource, $normalizedPredicate, $neededColumns);
+            $current = self::sourcePlan($currentSource, $normalizedPredicate, $neededColumns);
 
-            $preparedCookie = self::nonNegativeIntNext115($preparedSource, 'schemaCookie');
-            $currentCookie = self::nonNegativeIntNext115($currentSource, 'schemaCookie');
-            $preparedGeneration = self::nonNegativeIntNext115($preparedSource, 'stat4Generation');
-            $currentGeneration = self::nonNegativeIntNext115($currentSource, 'stat4Generation');
-            $preparedSignature = self::indexSignatureNext115($preparedSource);
-            $currentSignature = self::indexSignatureNext115($currentSource);
+            $preparedCookie = self::nonNegativeInt($preparedSource, 'schemaCookie');
+            $currentCookie = self::nonNegativeInt($currentSource, 'schemaCookie');
+            $preparedGeneration = self::nonNegativeInt($preparedSource, 'stat4Generation');
+            $currentGeneration = self::nonNegativeInt($currentSource, 'stat4Generation');
+            $preparedSignature = self::indexSignature($preparedSource);
+            $currentSignature = self::indexSignature($currentSource);
             $stale = $preparedCookie !== $currentCookie
                 || $preparedGeneration !== $currentGeneration
                 || $preparedSignature !== $currentSignature;
@@ -45,8 +45,8 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
                 'schemaCookieChanged' => $preparedCookie !== $currentCookie,
                 'stat4GenerationChanged' => $preparedGeneration !== $currentGeneration,
                 'indexSignatureChanged' => $preparedSignature !== $currentSignature,
-                'preparedSource' => self::sourceSummaryNext115($preparedSource, $prepared, $preparedSignature),
-                'currentSource' => self::sourceSummaryNext115($currentSource, $current, $currentSignature),
+                'preparedSource' => self::sourceSummary($preparedSource, $prepared, $preparedSignature),
+                'currentSource' => self::sourceSummary($currentSource, $current, $currentSignature),
                 'selectedPlan' => $selected,
                 'subquery' => [
                     'source' => $normalizedPredicate['subquery']['sourceName'],
@@ -59,16 +59,16 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
                     'duplicatesRemoved' => $normalizedPredicate['subquery']['duplicatesRemoved'],
                     'correlatedOuterColumns' => $normalizedPredicate['subquery']['correlatedOuterColumns'],
                 ],
-                'cursorTape' => self::cursorTapeNext115($selected, $normalizedPredicate, $stale ? 'current' : 'prepared', $usable, $neededColumns),
+                'cursorTape' => self::cursorTape($selected, $normalizedPredicate, $stale ? 'current' : 'prepared', $usable, $neededColumns),
                 'currentSourceFence' => [
                     'schemaCookie' => $currentCookie,
                     'stat4Generation' => $currentGeneration,
                     'indexSignature' => $currentSignature,
-                    'subquerySignature' => self::subquerySignatureNext115($normalizedPredicate),
+                    'subquerySignature' => self::subquerySignature($normalizedPredicate),
                 ],
                 'detail' => ($stale ? 'REPREPARE' : 'REUSE')
                     . ' SUBQUERY COVERING PARTIAL INDEX USING '
-                    . ($stale ? self::stringValueNext115($currentSource, 'name') : self::stringValueNext115($preparedSource, 'name'))
+                    . ($stale ? self::stringValue($currentSource, 'name') : self::stringValue($preparedSource, 'name'))
                     . ' ' . (string) ($selected['detail'] ?? 'NO PLAN'),
                 'dependencies' => [
                     'SQLiteSelectExpressionIndexPlan',
@@ -86,9 +86,9 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function sourcePlanNext115(array $source, array $predicate, array $neededColumns): array
+        private static function sourcePlan(array $source, array $predicate, array $neededColumns): array
         {
-            $indexes = self::listValueNext115($source, 'indexes');
+            $indexes = self::listValue($source, 'indexes');
             $plans = SQLiteSelectExpressionIndexPlan::rankedPlans($indexes, $predicate, [], [$predicate['indexColumn']]);
             $plan = null;
             foreach ($plans as $candidate) {
@@ -114,7 +114,7 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
             $plan['subqueryValueCount'] = count($predicate['values']);
             $plan['subqueryNullBlocked'] = (bool) ($predicate['subquery']['nullSeen'] ?? false);
             $plan['partialPredicateImplied'] = ($plan['partial'] ?? false) === true && $plan['subqueryNullBlocked'] === false;
-            $coveringColumns = self::stringListNext115($plan, 'coveringColumns');
+            $coveringColumns = self::stringList($plan, 'coveringColumns');
             $indexCoversRequested = array_diff($neededColumns, $coveringColumns) === [];
             $plan['coveringColumnsRequested'] = $neededColumns;
             $plan['subqueryProjectedColumns'] = $predicate['subquery']['projectedColumns'];
@@ -137,9 +137,9 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
          * @param array<string,mixed> $predicate
          * @return array<string,mixed>
          */
-        private static function normalizeSubqueryPredicateNext115(array $predicate): array
+        private static function normalizeSubqueryPredicate(array $predicate): array
         {
-            $operator = strtoupper(self::stringValueNext115($predicate, 'operator'));
+            $operator = strtoupper(self::stringValue($predicate, 'operator'));
             if ($operator !== 'IN_SUBQUERY') {
                 throw new \InvalidArgumentException('SQLite subquery covering partial-index planner needs IN_SUBQUERY predicate');
             }
@@ -148,16 +148,16 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
             if (!is_array($left)) {
                 throw new \InvalidArgumentException('SQLite subquery covering partial-index planner needs expression left operand');
             }
-            $indexColumn = self::expressionColumnNext115($left);
+            $indexColumn = self::expressionColumn($left);
 
             $subquery = $predicate['subquery'] ?? null;
             if (!is_array($subquery)) {
                 throw new \InvalidArgumentException('SQLite subquery covering partial-index planner needs subquery metadata');
             }
 
-            $rows = self::listValueNext115($subquery, 'rows');
-            $column = self::stringValueNext115($subquery, 'column', 'value');
-            $projectedColumns = self::stringListNext115($subquery, 'projectedColumns');
+            $rows = self::listValue($subquery, 'rows');
+            $column = self::stringValue($subquery, 'column', 'value');
+            $projectedColumns = self::stringList($subquery, 'projectedColumns');
             if (!in_array($column, $projectedColumns, true)) {
                 throw new \InvalidArgumentException('SQLite subquery covering partial-index projected columns must include the key column');
             }
@@ -207,13 +207,13 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
                 'values' => $values,
                 'coveringRows' => $coveringRows,
                 'subquery' => [
-                    'sourceName' => self::stringValueNext115($subquery, 'sourceName', 'subquery'),
+                    'sourceName' => self::stringValue($subquery, 'sourceName', 'subquery'),
                     'column' => $column,
                     'projectedColumns' => $projectedColumns,
                     'rows' => $rows,
                     'nullSeen' => $nullSeen,
                     'duplicatesRemoved' => $duplicates,
-                    'correlatedOuterColumns' => self::stringListNext115($subquery, 'correlatedOuterColumns'),
+                    'correlatedOuterColumns' => self::stringList($subquery, 'correlatedOuterColumns'),
                 ],
             ];
         }
@@ -224,7 +224,7 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function cursorTapeNext115(array $plan, array $predicate, string $source, bool $usable, array $neededColumns): array
+        private static function cursorTape(array $plan, array $predicate, string $source, bool $usable, array $neededColumns): array
         {
             $program = [
                 ['opcode' => 'OpenRead', 'source' => 'index', 'name' => $plan['name'] ?? null, 'rootPage' => $plan['rootPage'] ?? null],
@@ -267,12 +267,12 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function sourceSummaryNext115(array $source, array $plan, string $signature): array
+        private static function sourceSummary(array $source, array $plan, string $signature): array
         {
             return [
-                'name' => self::stringValueNext115($source, 'name'),
-                'schemaCookie' => self::nonNegativeIntNext115($source, 'schemaCookie'),
-                'stat4Generation' => self::nonNegativeIntNext115($source, 'stat4Generation'),
+                'name' => self::stringValue($source, 'name'),
+                'schemaCookie' => self::nonNegativeInt($source, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeInt($source, 'stat4Generation'),
                 'indexSignature' => $signature,
                 'usable' => ($plan['usable'] ?? false) === true,
                 'nameSelected' => $plan['name'] ?? null,
@@ -288,17 +288,17 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function indexSignatureNext115(array $source): string
+        private static function indexSignature(array $source): string
         {
             $parts = [];
-            foreach (self::listValueNext115($source, 'indexes') as $index) {
+            foreach (self::listValue($source, 'indexes') as $index) {
                 if (!is_array($index)) {
                     throw new \InvalidArgumentException('SQLite subquery covering partial-index source indexes must be arrays');
                 }
                 $parts[] = implode("\n", [
-                    self::stringValueNext115($index, 'name', ''),
-                    (string) self::nonNegativeIntNext115($index, 'rootPage'),
-                    self::stringValueNext115($index, 'sql'),
+                    self::stringValue($index, 'name', ''),
+                    (string) self::nonNegativeInt($index, 'rootPage'),
+                    self::stringValue($index, 'sql'),
                     json_encode($index['stat4Samples'] ?? [], JSON_THROW_ON_ERROR),
                 ]);
             }
@@ -309,7 +309,7 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $predicate
          */
-        private static function subquerySignatureNext115(array $predicate): string
+        private static function subquerySignature(array $predicate): string
         {
             return hash('sha256', json_encode($predicate['subquery'], JSON_THROW_ON_ERROR) . "\n" . json_encode($predicate['coveringRows'], JSON_THROW_ON_ERROR));
         }
@@ -317,7 +317,7 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $expression
          */
-        private static function expressionColumnNext115(array $expression): string
+        private static function expressionColumn(array $expression): string
         {
             $column = $expression['column'] ?? null;
             if (!is_string($column) || $column === '') {
@@ -330,7 +330,7 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $array
          */
-        private static function stringValueNext115(array $array, string $key, ?string $default = null): string
+        private static function stringValue(array $array, string $key, ?string $default = null): string
         {
             $value = $array[$key] ?? $default;
             if (!is_string($value) || $value === '') {
@@ -343,7 +343,7 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $array
          */
-        private static function nonNegativeIntNext115(array $array, string $key): int
+        private static function nonNegativeInt(array $array, string $key): int
         {
             $value = $array[$key] ?? null;
             if (!is_int($value) || $value < 0) {
@@ -357,7 +357,7 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
          * @param array<string,mixed> $array
          * @return list<mixed>
          */
-        private static function listValueNext115(array $array, string $key): array
+        private static function listValue(array $array, string $key): array
         {
             $value = $array[$key] ?? null;
             if (!is_array($value) || !array_is_list($value)) {
@@ -371,7 +371,7 @@ final class SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan
          * @param array<string,mixed> $array
          * @return list<string>
          */
-        private static function stringListNext115(array $array, string $key): array
+        private static function stringList(array $array, string $key): array
         {
             $value = $array[$key] ?? [];
             if (!is_array($value) || !array_is_list($value)) {

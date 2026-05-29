@@ -25,7 +25,7 @@ $current['schemaCookie'] = 115;
 $current['stat4Generation'] = 52;
 $current['indexes'][0]['rootPage'] = 11510;
 
-$plan = SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan::materializeNext115(
+$plan = SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan::materializeSubqueryCoveringPartialCurrentSource(
     $prepared,
     $current,
     [

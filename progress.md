@@ -2742,3 +2742,22 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Public libsqlite counts remain 154,019 pass / 0 fail and 830 / 1,589 mapped
   coverage because this is a consolidation-only slice. The visible worker pool
   continues on current-base CB consolidation lanes.
+
+## Supervisor Rolling Integration 2026-05-29T18:47Z Shell Sample
+
+- Preflighted two current-base consolidation markers against dashboard head
+  `cba1a72b`: subquery covering partial current-source suffix cleanup and
+  planner STAT4 expression-partial prepared-handoff bridge cleanup. Both
+  patches applied cleanly together.
+- Validation for the sixty-seventh reduced consolidation follow-up passed: 6
+  changed PHP files linted, direct tests passed with 3 files / 135 assertions /
+  0 failures, the broader affected planner family passed with 164 files /
+  9,632 assertions / 0 failures, changed WordPress examples/self-tests passed,
+  `git diff --check` passed, exact user-named 150 suffix scan stayed clean in
+  src/tests/examples, production numbered file/class audits stayed at 0,
+  numbered production helper methods reduced to 1,818, and unique numbered
+  production symbols reduced to 2,053.
+- Public libsqlite counts remain 154,019 pass / 0 fail and 830 / 1,589 mapped
+  coverage because this is consolidation-only. The visible worker pool remains
+  active on current-base and stale-base consolidation lanes; stale markers must
+  be rebased or rejected instead of applied directly.

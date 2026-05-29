@@ -68,7 +68,7 @@ $plan115 = static fn (
     ?array $current = null,
     ?array $predicate = null,
     array $needed = ['option_name', 'autoload', 'option_value'],
-): array => SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan::materializeNext115(
+): array => SQLitePlannerSubqueryCoveringPartialCurrentSourceNextPlan::materializeSubqueryCoveringPartialCurrentSource(
     $prepared ?? $GLOBALS['prepared_source_next115'](),
     $current ?? $GLOBALS['current_source_next115'](),
     $predicate ?? $GLOBALS['predicate_next115'](),
