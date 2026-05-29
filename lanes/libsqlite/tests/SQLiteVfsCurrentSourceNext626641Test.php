@@ -557,6 +557,34 @@ $next898913Plan = static function () use ($next898913Current): array {
 $next898913OldAckCurrent = $next898913Current;
 $next898913OldAckCurrent['sources']['main']['published'][] = ['token' => 'late-publish-next898', 'data_version' => 20];
 
+$next914929Current = $next898913Current;
+$next914929Current['sources']['main']['published'][] = ['token' => 'shared-cache-next913', 'data_version' => 20];
+$next914929Digest = hash('sha256', 'publish-next217|shared-cache-next229|shared-cache-next237|shared-cache-next245|shared-cache-next257|shared-cache-next265|shared-cache-next273|shared-cache-next281|shared-cache-next289|shared-cache-next297|shared-cache-next313|shared-cache-next321|shared-cache-next337|shared-cache-next353|shared-cache-next369|shared-cache-next385|shared-cache-next401|shared-cache-next417|shared-cache-next433|shared-cache-next449|shared-cache-next465|shared-cache-next481|shared-cache-next497|shared-cache-next513|shared-cache-next529|shared-cache-next545|shared-cache-next561|shared-cache-next577|shared-cache-next593|shared-cache-next625|shared-cache-next641|shared-cache-next657|shared-cache-next673|shared-cache-next689|shared-cache-next705|shared-cache-next721|shared-cache-next737|shared-cache-next753|shared-cache-next769|shared-cache-next785|shared-cache-next801|shared-cache-next817|shared-cache-next833|shared-cache-next849|shared-cache-next865|shared-cache-next881|shared-cache-next897|shared-cache-next913');
+$next914929Current['snapshots']['reader-ready-next913'] = [
+    'source' => 'main',
+    'handle' => 'vfs214217-1',
+    'path' => '/srv/www/wp-content/database/wp.sqlite',
+    'owner' => '/srv/www/wp-content/database/wp.sqlite',
+    'data_version' => 20,
+    'published_count' => 48,
+    'receipt_digest' => $next914929Digest,
+];
+
+$next914929Plan = static function () use ($next914929Current): array {
+    static $result = null;
+    if ($result === null) {
+        $result = SQLiteVfsCurrentSourceNext626641Plan::run([
+            'snapshot(reader-ready-next929,shared-cache-next913)',
+            'claim(reader-ready-next929,shared-cache-next913,reader-reuse-next929)',
+            'publish(reader-ready-next929,reader-reuse-next929,shared-cache-next929)',
+        ], ['current' => $next914929Current]);
+    }
+    return $result;
+};
+
+$next914929OldAckCurrent = $next914929Current;
+$next914929OldAckCurrent['sources']['main']['published'][] = ['token' => 'late-publish-next914', 'data_version' => 20];
+
 $dirtyCurrent = $readyCurrent;
 $dirtyCurrent['sources']['main']['dirty_pages'] = [
     ['page' => 12, 'bytes' => 4096, 'digest' => 'dirty-next626'],
@@ -802,4 +830,15 @@ return [
     'vfs current source next898-913 publish count advances' => static fn (TestRunner $t) => $t->same(48, $next898913Plan()['events'][2]['published_count']),
     'vfs current source next898-913 blocks stale next897 handoff' => static fn (TestRunner $t) => $t->same(true, in_array('ack-not-latest-publish', SQLiteVfsCurrentSourceNext626641Plan::run(['snapshot(reader-ready-next913,shared-cache-next897)'], ['current' => $next898913OldAckCurrent])['events'][0]['blocked_reasons'], true)),
     'vfs current source next898-913 notes non-overlap handoff' => static fn (TestRunner $t) => $t->same(true, str_contains($next898913Plan()['non_overlap'], 'next898-913 follows the integrated next882-897 handoff')),
+    'vfs current source next914-929 dependency marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-snapshot-reuse-publish-next914-929', $next914929Plan()['dependencies'], true)),
+    'vfs current source next914-929 records next898-913 prerequisite' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-snapshot-reuse-publish-next898-913', $next914929Plan()['dependencies'], true)),
+    'vfs current source next914-929 snapshots from next913 handoff' => static fn (TestRunner $t) => $t->same('shared-cache-next913', $next914929Plan()['events'][0]['ack']),
+    'vfs current source next914-929 requires shared-cache-next913 as latest handoff' => static fn (TestRunner $t) => $t->same([], $next914929Plan()['events'][0]['blocked_reasons']),
+    'vfs current source next914-929 claims reusable snapshot' => static fn (TestRunner $t) => $t->same('claimed-reusable-current-source', $next914929Plan()['events'][1]['status']),
+    'vfs current source next914-929 records claim token' => static fn (TestRunner $t) => $t->same('reader-reuse-next929', $next914929Plan()['events'][1]['claim']),
+    'vfs current source next914-929 publishes shared cache handoff' => static fn (TestRunner $t) => $t->same('shared-cache-next929', $next914929Plan()['events'][2]['token']),
+    'vfs current source next914-929 publish preserves next913 ack' => static fn (TestRunner $t) => $t->same('shared-cache-next913', $next914929Plan()['events'][2]['reuse_ack']),
+    'vfs current source next914-929 publish count advances' => static fn (TestRunner $t) => $t->same(49, $next914929Plan()['events'][2]['published_count']),
+    'vfs current source next914-929 blocks stale next913 handoff' => static fn (TestRunner $t) => $t->same(true, in_array('ack-not-latest-publish', SQLiteVfsCurrentSourceNext626641Plan::run(['snapshot(reader-ready-next929,shared-cache-next913)'], ['current' => $next914929OldAckCurrent])['events'][0]['blocked_reasons'], true)),
+    'vfs current source next914-929 notes non-overlap handoff' => static fn (TestRunner $t) => $t->same(true, str_contains($next914929Plan()['non_overlap'], 'next914-929 follows the integrated next898-913 handoff')),
 ];
