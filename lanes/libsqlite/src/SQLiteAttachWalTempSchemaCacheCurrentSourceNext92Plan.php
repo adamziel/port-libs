@@ -576,6 +576,75 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
     /**
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
      * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
+     * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext165168(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    {
+        return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next165-168', [
+            'sqlite-attach-temp-wal-schema-cache-current-source-next165',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next166',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next167',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next168',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next161',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next162',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next163',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next164',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next157',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next158',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next159',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next160',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next153',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next154',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next155',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next156',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next149',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next150',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next151',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next152',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next145',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next146',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next147',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next148',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next141',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next142',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next143',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next144',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next137',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next138',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next139',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next140',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next133',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next134',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next135',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next136',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next129',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next130',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next131',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next132',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next125',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next126',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next127',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next128',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next121',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next122',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next123',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next124',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next118',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next119',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next120',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next117',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next116',
+            'sqlite-indexed-by-schema-cache-expiry',
+            'sqlite-attach-wal-temp-schema-cache-current-source-next92',
+            'sqlite-wal-page-one-schema-cookie-current-source',
+            'sqlite-temp-schema-shadow-cache-expiry',
+        ]);
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
+     * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, file?:string|null, commit?:bool}> $events
      * @param list<string> $dependencies
      * @return array<string,mixed>
