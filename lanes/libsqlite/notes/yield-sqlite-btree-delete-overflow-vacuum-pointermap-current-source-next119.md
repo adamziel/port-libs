@@ -1,6 +1,6 @@
 # btree delete overflow vacuum pointer-map current-source next119
 
-- Implemented `SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan`, a current-source wrapper over native overflow freelist release plus incremental-vacuum truncation.
+- Implemented `SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan`, a current-source wrapper over native overflow freelist release plus incremental-vacuum truncation.
 - Focused behavior: a copied `wp_options` table delete and option-name index delete release obsolete overflow chains, rewrite auto-vacuum pointer-map entries to `free-page`, then truncate only tail freed overflow pages while preserving lower freed pages behind a live page.
 - Added `SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Test.php`: `1 test files / 159 assertions / 0 failures`.
 - Added WordPress smoke `wordpress-btree-delete-overflow-vacuum-pointermap-current-source-next119.php`.

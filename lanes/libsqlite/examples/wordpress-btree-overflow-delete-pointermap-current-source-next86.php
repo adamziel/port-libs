@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowDeletePointerMapCurrentSourceNext86Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -62,7 +62,7 @@ $putPointerMapEntry($pages, 3, SQLitePointerMapEntry::ROOT_PAGE, 0);
 $putPointerMapEntry($pages, 6, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
 $putPointerMapEntry($pages, 8, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
 
-$plan = SQLiteBTreeOverflowDeletePointerMapCurrentSourceNext86Plan::tableLeafCurrentNext(
+$plan = SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan::tableLeafCurrentNext(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     11,

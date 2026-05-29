@@ -23,8 +23,8 @@ auto-vacuum page count.
 
 ## Non-Overlap
 
-Avoids accepted `SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan`,
-`SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNext118Plan`,
+Avoids accepted `SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan`,
+`SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan`,
 `SQLiteOverflowFreelistReleasePlan` release-only coverage, and bulk overflow
 freeblock/freelist release slices. This patch does not add another freeblock or
 overflow-release primitive; it adds the missing merge-facing row projection

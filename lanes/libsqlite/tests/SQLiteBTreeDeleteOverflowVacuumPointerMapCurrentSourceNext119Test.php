@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan;
+use PortLibs\LibSqlite\SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -36,7 +36,7 @@ $putPointerMapEntry119 = static function (array &$pages, int $pageNumber, int $t
     );
 };
 
-$fixture119 = static function (int $maxTruncatedPages = 2, bool $secureDelete = true) use ($makeFirstPage119, $putPointerMapEntry119): SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan {
+$fixture119 = static function (int $maxTruncatedPages = 2, bool $secureDelete = true) use ($makeFirstPage119, $putPointerMapEntry119): SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan {
     $pages = array_fill(1, 12, str_repeat("\0", 512));
     $pages[1] = $makeFirstPage119(12);
     $pages[2] = str_repeat("\0", 512);
@@ -60,7 +60,7 @@ $fixture119 = static function (int $maxTruncatedPages = 2, bool $secureDelete = 
         $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(80 + $pageNumber), 508);
     }
 
-    return SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan::fromDeleteResults(
+    return SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan::fromDeleteResults(
         SQLiteDatabase::fromBytes(implode('', $pages)),
         [
             [
@@ -83,41 +83,41 @@ $fixture119 = static function (int $maxTruncatedPages = 2, bool $secureDelete = 
     );
 };
 
-$rows119 = static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): array => $plan->deleteOverflowVacuumPointerMapRows();
+$rows119 = static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): array => $plan->deleteOverflowVacuumPointerMapRows();
 
 $cases = [
-    'action names next119 behavior' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => $plan->toArray()['action'],
-    'released overflow pages preserve delete order' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => $plan->releasedOverflowPages(),
-    'surviving freed pointer-map pages stay below live tail' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => $plan->survivingFreedPointerMapPages(),
-    'truncated freed pointer-map pages consume tail chain' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => $plan->truncatedFreedPointerMapPages(),
-    'row pages include both table and index overflow chains' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'page_number'),
-    'row sources distinguish table and index deletes' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'source'),
-    'leaf page numbers are threaded from delete results' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'leaf_page'),
-    'chain positions reset per delete result' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'chain_position'),
-    'current overflow next pages match source chains' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'current_overflow_next_page'),
-    'current pointer-map types preserve overflow ownership' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'current_pointer_map_type'),
-    'current pointer-map parents preserve owner pages' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'current_pointer_map_parent'),
-    'vacuum statuses split survivors from truncated tail' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'vacuum_status'),
-    'surviving rows expose next free pointer-map type' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'next_pointer_map_type'),
-    'truncated rows preserve truncated free pointer-map type' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'truncated_pointer_map_type'),
-    'materialized flags only mark surviving freed pages' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'materialized'),
-    'truncated flags only mark omitted tail pages' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($rows119($plan), 'truncated'),
-    'current leaf hashes are stable per source' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_values(array_unique(array_column($rows119($plan), 'current_leaf_page_hash'))),
-    'deleted leaf hashes are stable per source' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_values(array_unique(array_column($rows119($plan), 'deleted_leaf_page_hash'))),
-    'table current and deleted hashes match for fixture delete image' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => $rows119($plan)[0]['current_leaf_page_hash'] === $rows119($plan)[0]['deleted_leaf_page_hash'],
-    'index current and deleted hashes match for fixture delete image' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => $rows119($plan)[2]['current_leaf_page_hash'] === $rows119($plan)[2]['deleted_leaf_page_hash'],
-    'summary embeds next119 rows' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($plan->toArray()['delete_overflow_vacuum_pointermap_current_source_next119'], 'page_number'),
-    'summary embeds vacuum transitions' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => array_column($plan->toArray()['pointer_map_vacuum_transitions'], 'status'),
-    'final page count keeps live page ten' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => $plan->toArray()['final_database_page_count'],
-    'final freelist count keeps surviving pages only' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => $plan->toArray()['final_freelist_page_count'],
-    'materialized bytes are truncated after page ten' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => $plan->materializedApplySummary()['byte_length'],
-    'materialized apply omits only tail overflow pages' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => $plan->materializedApplySummary()['omitted_truncated_page_numbers'],
-    'materialized database keeps surviving pointer-map entries free' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => [
+    'action names next119 behavior' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['action'],
+    'released overflow pages preserve delete order' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->releasedOverflowPages(),
+    'surviving freed pointer-map pages stay below live tail' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->survivingFreedPointerMapPages(),
+    'truncated freed pointer-map pages consume tail chain' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->truncatedFreedPointerMapPages(),
+    'row pages include both table and index overflow chains' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'page_number'),
+    'row sources distinguish table and index deletes' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'source'),
+    'leaf page numbers are threaded from delete results' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'leaf_page'),
+    'chain positions reset per delete result' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'chain_position'),
+    'current overflow next pages match source chains' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'current_overflow_next_page'),
+    'current pointer-map types preserve overflow ownership' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'current_pointer_map_type'),
+    'current pointer-map parents preserve owner pages' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'current_pointer_map_parent'),
+    'vacuum statuses split survivors from truncated tail' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'vacuum_status'),
+    'surviving rows expose next free pointer-map type' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'next_pointer_map_type'),
+    'truncated rows preserve truncated free pointer-map type' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'truncated_pointer_map_type'),
+    'materialized flags only mark surviving freed pages' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'materialized'),
+    'truncated flags only mark omitted tail pages' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows119($plan), 'truncated'),
+    'current leaf hashes are stable per source' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_values(array_unique(array_column($rows119($plan), 'current_leaf_page_hash'))),
+    'deleted leaf hashes are stable per source' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_values(array_unique(array_column($rows119($plan), 'deleted_leaf_page_hash'))),
+    'table current and deleted hashes match for fixture delete image' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $rows119($plan)[0]['current_leaf_page_hash'] === $rows119($plan)[0]['deleted_leaf_page_hash'],
+    'index current and deleted hashes match for fixture delete image' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $rows119($plan)[2]['current_leaf_page_hash'] === $rows119($plan)[2]['deleted_leaf_page_hash'],
+    'summary embeds next119 rows' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->toArray()['delete_overflow_vacuum_pointermap_current_source_next119'], 'page_number'),
+    'summary embeds vacuum transitions' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->toArray()['pointer_map_vacuum_transitions'], 'status'),
+    'final page count keeps live page ten' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['final_database_page_count'],
+    'final freelist count keeps surviving pages only' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['final_freelist_page_count'],
+    'materialized bytes are truncated after page ten' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->materializedApplySummary()['byte_length'],
+    'materialized apply omits only tail overflow pages' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->materializedApplySummary()['omitted_truncated_page_numbers'],
+    'materialized database keeps surviving pointer-map entries free' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => [
         $plan->vacuumPlan->materializedDatabase()->pointerMapEntryForPage(6)->typeName(),
         $plan->vacuumPlan->materializedDatabase()->pointerMapEntryForPage(7)->typeName(),
     ],
-    'materialized database preserves live tail page' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): mixed => strlen($plan->vacuumPlan->materializedDatabase()->page(10)),
-    'materialized database rejects truncated page eleven' => static function (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan $plan): string {
+    'materialized database preserves live tail page' => static fn (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): mixed => strlen($plan->vacuumPlan->materializedDatabase()->page(10)),
+    'materialized database rejects truncated page eleven' => static function (SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan $plan): string {
         try {
             $plan->vacuumPlan->materializedDatabase()->page(11);
         } catch (Throwable) {

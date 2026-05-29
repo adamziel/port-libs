@@ -1,12 +1,12 @@
 # B-tree Overflow Freelist Rootpage Current Source Next126
 
-This slice adds `SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan`, a bounded current-source transition for the SQLite path where obsolete overflow pages from a deleted WordPress-sized option payload are released to the freelist, then one of those pages is immediately reused as a new schema root page.
+This slice adds `SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan`, a bounded current-source transition for the SQLite path where obsolete overflow pages from a deleted WordPress-sized option payload are released to the freelist, then one of those pages is immediately reused as a new schema root page.
 
 The behavior is intentionally narrower than earlier overflow/freelist reuse work: it records the schema-rootpage handoff and asserts that auto-vacuum pointer-map ownership moves from `first-overflow-page` to `free-page` to `root-page` with parent `0`, while the unreused overflow page remains on the freelist.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-overflow-freelist-rootpage-current-source-next126.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Test.php`

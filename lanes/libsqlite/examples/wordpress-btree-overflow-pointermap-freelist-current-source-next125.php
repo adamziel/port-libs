@@ -13,9 +13,9 @@ require_once __DIR__ . '/../src/SQLiteOverflowPage.php';
 require_once __DIR__ . '/../src/SQLiteOverflowFreelistReleasePlan.php';
 require_once __DIR__ . '/../src/SQLitePointerMapEntry.php';
 require_once __DIR__ . '/../src/SQLiteTableLeafPage.php';
-require_once __DIR__ . '/../src/SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -73,7 +73,7 @@ $putPointerMapEntry($pages, 7, SQLitePointerMapEntry::OVERFLOW_PAGE, 6);
 $putPointerMapEntry($pages, 8, SQLitePointerMapEntry::FREE_PAGE, 0);
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
-$plan = SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan::fromOverflowChains(
+$plan = SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan::fromOverflowChains(
     $database,
     [[
         'source' => 'wp-options-large-transient-rewrite',

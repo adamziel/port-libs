@@ -10,7 +10,7 @@ final class SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan
      * @param list<array<string, mixed>> $pointerMapTransitions
      */
     private function __construct(
-        public readonly SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan $rebalanceFreelistPlan,
+        public readonly SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan $rebalanceFreelistPlan,
         public readonly SQLiteDatabase $sourceDatabase,
         public readonly SQLiteDatabase $deleteDatabase,
         public readonly SQLiteDatabase $rebalanceDatabase,
@@ -68,7 +68,7 @@ final class SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan
         );
         $rebalanceDatabase = self::databaseWithPageImages($database, $rebalancePlan->pageImages);
 
-        $rebalanceFreelistPlan = SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan::deleteFromLeftAndRebalanceRight(
+        $rebalanceFreelistPlan = SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan::deleteFromLeftAndRebalanceRight(
             $database,
             $parentPageNumber,
             $leftPageNumber,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreepageApplyCurrentSourceNext116Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreepageApplyCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -61,7 +61,7 @@ $putPointerMapEntry($pages, 8, SQLitePointerMapEntry::OVERFLOW_PAGE, 7);
 $putPointerMapEntry($pages, 9, SQLitePointerMapEntry::OVERFLOW_PAGE, 8);
 $putPointerMapEntry($pages, 10, SQLitePointerMapEntry::OVERFLOW_PAGE, 9);
 
-$plan = SQLiteBTreeOverflowFreepageApplyCurrentSourceNext116Plan::tableLeaf(
+$plan = SQLiteBTreeOverflowFreepageApplyCurrentSourceNextPlan::tableLeaf(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [801, 802],

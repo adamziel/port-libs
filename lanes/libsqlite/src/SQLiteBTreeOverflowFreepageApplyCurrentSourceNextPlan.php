@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeOverflowFreepageApplyCurrentSourceNext116Plan
+final class SQLiteBTreeOverflowFreepageApplyCurrentSourceNextPlan
 {
     /**
      * @param list<SQLiteBTreeDeleteRebalanceFreeblockApplyPlan|SQLiteBTreeEmptyLeafFreePlan> $steps

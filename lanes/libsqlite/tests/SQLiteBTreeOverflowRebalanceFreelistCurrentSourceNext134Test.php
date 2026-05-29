@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNext134Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -67,7 +67,7 @@ $database134 = static function () use ($makeFirstPage134, $putPointerMapEntry134
 
 $payload134 = str_repeat('wordpress-option-replacement-next134-', 35);
 
-$plan134 = static fn (bool $secureDelete = true): SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNext134Plan => SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNext134Plan::tableLeafReplacement(
+$plan134 = static fn (bool $secureDelete = true): SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan => SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan::tableLeafReplacement(
     $database134(),
     3,
     [13401],
@@ -132,9 +132,9 @@ $cases134 = [
     'summary final freelist pages' => static fn (): mixed => $plan134()->toArray()['final_freelist_page_numbers'],
     'secure delete cleared pages' => static fn (): mixed => $plan134(true)->deletePlan->steps[0]->freePlan->clearedPageNumbers,
     'without secure delete keeps old overflow byte before allocation remainder' => static fn (): mixed => strpos($plan134(false)->deletePlan->databaseAfter()->page(7), 'a') !== false,
-    'empty payload rejected' => static fn (): mixed => $throwMessage134(static fn () => SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNext134Plan::tableLeafReplacement($database134(), 3, [13401], '', 4)),
-    'bad parent rejected' => static fn (): mixed => $throwMessage134(static fn () => SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNext134Plan::tableLeafReplacement($database134(), 3, [13401], 'abc', 1)),
-    'bad rowid rejected' => static fn (): mixed => $throwMessage134(static fn () => SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNext134Plan::tableLeafReplacement($database134(), 3, [404], 'abc', 4)),
+    'empty payload rejected' => static fn (): mixed => $throwMessage134(static fn () => SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan::tableLeafReplacement($database134(), 3, [13401], '', 4)),
+    'bad parent rejected' => static fn (): mixed => $throwMessage134(static fn () => SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan::tableLeafReplacement($database134(), 3, [13401], 'abc', 1)),
+    'bad rowid rejected' => static fn (): mixed => $throwMessage134(static fn () => SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan::tableLeafReplacement($database134(), 3, [404], 'abc', 4)),
 ];
 
 $expected134 = [

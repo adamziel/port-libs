@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNext118Plan
+final class SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan
 {
     private function __construct(
         public readonly SQLiteBTreeFreeblockRebalanceCellOverflowCurrentNext76Plan $rebalancePlan,

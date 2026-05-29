@@ -10,7 +10,7 @@ final class SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNext85Plan
      * @param array<int, string> $pageImages
      */
     private function __construct(
-        public readonly SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan $rebalanceFreelistPlan,
+        public readonly SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan $rebalanceFreelistPlan,
         public readonly SQLiteBTreePageMovePlan $pageMovePlan,
         public readonly array $pageImages,
         public readonly SQLiteDatabase $database,
@@ -35,7 +35,7 @@ final class SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNext85Plan
         ?callable $overflowReader = null,
         int $textEncoding = 1,
     ): self {
-        $rebalanceFreelistPlan = SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan::deleteFromLeftAndRebalanceRight(
+        $rebalanceFreelistPlan = SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan::deleteFromLeftAndRebalanceRight(
             $database,
             $parentPageNumber,
             $leftPageNumber,

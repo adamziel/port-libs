@@ -1,6 +1,6 @@
 # B-tree overflow freeblock coalesce current-source next89
 
-This slice adds `SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNext89Plan`.
+This slice adds `SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan`.
 It materializes one delete step that coalesces current/next leaf freeblock
 fragments and releases the same row's obsolete overflow pages into the full
 freelist with auto-vacuum pointer-map entries rewritten to free-page.

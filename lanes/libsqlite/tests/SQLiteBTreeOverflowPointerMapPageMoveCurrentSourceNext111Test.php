@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteHeader;
@@ -70,7 +70,7 @@ $buildFixture = static function (
     }
 
     $database = SQLiteDatabase::fromBytes(implode('', $pages));
-    $plan = SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan::moveLastOverflowPageIntoFreelistSlot(
+    $plan = SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan::moveLastOverflowPageIntoFreelistSlot(
         $database,
         $sourcePageNumber,
         $previousOverflowPageNumber,
@@ -120,7 +120,7 @@ $cases = [
 ];
 
 $expected = [
-    'plan class' => SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan::class,
+    'plan class' => SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan::class,
     'action label' => 'btree-overflow-pointermap-page-move-current-source-next111',
     'source page' => 12,
     'target page' => 7,
@@ -188,13 +188,13 @@ for ($index = 0; $index < 24; $index++) {
 $tests['btree overflow pointermap page move current source next111 rejects non last source'] = static function (TestRunner $t) use ($buildFixture): void {
     [$database] = $buildFixture();
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan::moveLastOverflowPageIntoFreelistSlot($database, 10, 6));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan::moveLastOverflowPageIntoFreelistSlot($database, 10, 6));
 };
 
 $tests['btree overflow pointermap page move current source next111 rejects wrong previous owner'] = static function (TestRunner $t) use ($buildFixture): void {
     [$database] = $buildFixture();
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan::moveLastOverflowPageIntoFreelistSlot($database, 12, 6));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan::moveLastOverflowPageIntoFreelistSlot($database, 12, 6));
 };
 
 $tests['btree overflow pointermap page move current source next111 rejects stale previous next pointer'] = static function (TestRunner $t) use ($buildFixture): void {
@@ -209,7 +209,7 @@ $tests['btree overflow pointermap page move current source next111 rejects stale
     }
     $stale = SQLiteDatabase::fromBytes(implode('', $pages));
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan::moveLastOverflowPageIntoFreelistSlot($stale, 12, 10));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan::moveLastOverflowPageIntoFreelistSlot($stale, 12, 10));
 };
 
 $tests['btree overflow pointermap page move current source next111 rejects first overflow source'] = static function (TestRunner $t) use ($buildFixture, $putPointerMapEntry): void {
@@ -221,7 +221,7 @@ $tests['btree overflow pointermap page move current source next111 rejects first
     $putPointerMapEntry($pages, 12, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
     $bad = SQLiteDatabase::fromBytes(implode('', $pages));
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan::moveLastOverflowPageIntoFreelistSlot($bad, 12, 10));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan::moveLastOverflowPageIntoFreelistSlot($bad, 12, 10));
 };
 
 return $tests;

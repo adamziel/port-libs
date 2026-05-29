@@ -11,7 +11,7 @@ final class SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan
      * @param list<array<string, mixed>> $vacuumRows
      */
     private function __construct(
-        public readonly SQLiteBTreeOverflowVacuumPointerMapCurrentSourceNext145Plan $basePlan,
+        public readonly SQLiteBTreeOverflowVacuumPointerMapCurrentSourceNextPlan $basePlan,
         private readonly array $currentSourceRows,
         private readonly array $vacuumRows,
     ) {
@@ -30,7 +30,7 @@ final class SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan
         int $parentBtreePageNumber,
         bool $secureDelete = true,
     ): self {
-        $basePlan = SQLiteBTreeOverflowVacuumPointerMapCurrentSourceNext145Plan::fromCurrentSourceOverflowChains(
+        $basePlan = SQLiteBTreeOverflowVacuumPointerMapCurrentSourceNextPlan::fromCurrentSourceOverflowChains(
             $database,
             $currentOverflowChains,
             $deleteResults,
@@ -43,7 +43,7 @@ final class SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan
         return self::fromBasePlan($basePlan);
     }
 
-    public static function fromBasePlan(SQLiteBTreeOverflowVacuumPointerMapCurrentSourceNext145Plan $basePlan): self
+    public static function fromBasePlan(SQLiteBTreeOverflowVacuumPointerMapCurrentSourceNextPlan $basePlan): self
     {
         $currentSourceRows = $basePlan->currentSourceRows();
         if ($currentSourceRows === []) {

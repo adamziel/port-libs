@@ -10,7 +10,7 @@ final class SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNext90Plan
      * @param array<int, string> $pageImages
      */
     private function __construct(
-        public readonly SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan $rebalanceFreelistPlan,
+        public readonly SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan $rebalanceFreelistPlan,
         public readonly SQLiteFreelistTruncatePlan $truncatePlan,
         public readonly SQLiteDatabase $sourceDatabase,
         public readonly SQLiteDatabase $releasedDatabase,
@@ -41,7 +41,7 @@ final class SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNext90Plan
             throw new \InvalidArgumentException('SQLite btree freelist rebalance truncate current-source next90 requires a positive truncation limit');
         }
 
-        $rebalanceFreelistPlan = SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan::deleteFromLeftAndRebalanceRight(
+        $rebalanceFreelistPlan = SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan::deleteFromLeftAndRebalanceRight(
             $database,
             $parentPageNumber,
             $leftPageNumber,

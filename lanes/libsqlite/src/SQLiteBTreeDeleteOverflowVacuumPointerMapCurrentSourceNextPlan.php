@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan
+final class SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan
 {
     /**
      * @param list<array<string, mixed>> $deleteResults

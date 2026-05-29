@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -51,7 +51,7 @@ $setPointerMap(5, SQLitePointerMapEntry::OVERFLOW_PAGE, 8);
 ksort($pages);
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
-$plan = SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan::tableLeafCurrentSource(
+$plan = SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan::tableLeafCurrentSource(
     $database,
     3,
     20,

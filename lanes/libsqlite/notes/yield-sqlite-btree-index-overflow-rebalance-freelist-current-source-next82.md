@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan` for the index-leaf side of delete/rebalance: delete an overflow-backed index record from the current leaf, rebalance with the next sibling, release obsolete overflow pages into the freelist, rewrite auto-vacuum pointer-map entries to free-page, and materialize one current-source page-image set.
+Adds `SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan` for the index-leaf side of delete/rebalance: delete an overflow-backed index record from the current leaf, rebalance with the next sibling, release obsolete overflow pages into the freelist, rewrite auto-vacuum pointer-map entries to free-page, and materialize one current-source page-image set.
 
 This intentionally avoids accepted table overflow/freeblock/reuse, bulk overflow freeblock materialization, overflow freelist release, page relocation, root collapse, and index-interior merge surfaces.
 

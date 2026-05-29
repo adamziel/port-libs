@@ -1,6 +1,6 @@
 # B-tree Overflow Rebalance Freelist Current Source Next134
 
-Behavior slice: adds `SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNext134Plan`, a current-source composition for the SQLite path where deleting a WordPress-sized table leaf cell derives obsolete overflow pages from the current database image, applies the delete/rebalance/free-list transition, then immediately reuses those pages for a replacement overflow chain with pointer-map rewrites.
+Behavior slice: adds `SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan`, a current-source composition for the SQLite path where deleting a WordPress-sized table leaf cell derives obsolete overflow pages from the current database image, applies the delete/rebalance/free-list transition, then immediately reuses those pages for a replacement overflow chain with pointer-map rewrites.
 
 Non-overlap: this is not the accepted next132 standalone overflow-chain release/reuse wrapper and not the accepted next120 delete/rebalance wrapper alone. The new behavior verifies the combined current-source delete/rebalance plus replacement allocation transition and records before/free/next pointer-map states for reused deleted overflow pages.
 

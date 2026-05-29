@@ -10,7 +10,7 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Test.php`
 - `php lanes/libsqlite/examples/wordpress-overflow-rebalance-cell-apply-current-source-next107.php`
-- `php -l lanes/libsqlite/src/SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-overflow-rebalance-cell-apply-current-source-next107.php`
 - `git diff --check -- lanes/libsqlite`

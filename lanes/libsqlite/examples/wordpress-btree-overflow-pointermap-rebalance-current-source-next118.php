@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNext118Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -84,7 +84,7 @@ $overflowPageNumbers = static function (int $firstOverflowPage, int $byteCount) 
     return $pageNumbers;
 };
 
-$plan = SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNext118Plan::tableDeleteRebalanceThenReplaceOverflow(
+$plan = SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan::tableDeleteRebalanceThenReplaceOverflow(
     $database,
     3,
     4,

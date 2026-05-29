@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan
+final class SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan
 {
     /**
      * @param array<int, string> $allocatedPageImages

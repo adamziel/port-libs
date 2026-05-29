@@ -1,6 +1,6 @@
 # B-tree overflow freepage apply current-source next116
 
-This slice adds `SQLiteBTreeOverflowFreepageApplyCurrentSourceNext116Plan` for
+This slice adds `SQLiteBTreeOverflowFreepageApplyCurrentSourceNextPlan` for
 the table-leaf path where obsolete overflow page numbers are derived from the
 current database image before freepage application. The plan deletes the target
 rowids in order, follows each overflow next-page chain from the live cell,

@@ -1,6 +1,6 @@
 # B-tree Overflow Pointer-map Rebalance Current Source Next118
 
-Adds `SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNext118Plan`, a bounded
+Adds `SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan`, a bounded
 native PHP current-source/next view over the applied table-leaf delete rebalance
 path where obsolete overflow pages are released and then reused for a replacement
 overflow chain.

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -59,7 +59,7 @@ $database = SQLiteDatabase::fromBytes(implode('', $pages));
 $leafPage = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(12102, SQLiteRecord::encode([null, '_transient_reused_overflow_page_next121', 'reused', 'yes'])),
 ]);
-$plan = SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan::fromOverflowChains(
+$plan = SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowChains(
     $database,
     [[
         'source' => 'wp-options-delete-large-transient',

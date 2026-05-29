@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -70,8 +70,8 @@ $databaseFixture125 = static function () use ($makeFirstPage125, $putPointerMapE
 
 $payload125 = static fn (): string => str_repeat('N', 508) . str_repeat('Q', 192);
 
-$planFixture125 = static function (bool $secureDelete = false) use ($databaseFixture125, $payload125): SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan {
-    return SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan::fromOverflowChains(
+$planFixture125 = static function (bool $secureDelete = false) use ($databaseFixture125, $payload125): SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan {
+    return SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan::fromOverflowChains(
         $databaseFixture125(),
         [[
             'source' => 'wp-options-large-transient-rewrite',
@@ -96,7 +96,7 @@ $throwsMessage125 = static function (callable $callback): string {
     return 'not rejected';
 };
 
-$rows125 = static fn (SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan $plan): array => $plan->transitionRows();
+$rows125 = static fn (SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan $plan): array => $plan->transitionRows();
 
 $cases125 = [
     'action label' => static fn (): mixed => $planFixture125()->toArray()['action'],
@@ -154,16 +154,16 @@ $cases125 = [
     'secure delete cleared image length' => static fn (): mixed => strlen($planFixture125(true)->releasePlan->freePlan->clearedPageImages[6]),
     'final integrity check reports ok' => static fn (): mixed => SQLitePragmaIntegrityCheck::execute('PRAGMA integrity_check', $planFixture125()->databaseAfterAllocation)['rows'],
     'zero payload rejected' => static function () use ($databaseFixture125, $payload125, $throwsMessage125): mixed {
-        return $throwsMessage125(static fn () => SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan::fromOverflowChains($databaseFixture125(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 0, 3, $payload125()));
+        return $throwsMessage125(static fn () => SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan::fromOverflowChains($databaseFixture125(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 0, 3, $payload125()));
     },
     'short payload rejected' => static function () use ($databaseFixture125, $throwsMessage125): mixed {
-        return $throwsMessage125(static fn () => SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan::fromOverflowChains($databaseFixture125(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 700, 3, 'short'));
+        return $throwsMessage125(static fn () => SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan::fromOverflowChains($databaseFixture125(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 700, 3, 'short'));
     },
     'invalid parent rejected' => static function () use ($databaseFixture125, $payload125, $throwsMessage125): mixed {
-        return $throwsMessage125(static fn () => SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan::fromOverflowChains($databaseFixture125(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 700, 1, $payload125()));
+        return $throwsMessage125(static fn () => SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan::fromOverflowChains($databaseFixture125(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 700, 1, $payload125()));
     },
     'insufficient freelist rejected' => static function () use ($databaseFixture125, $payload125, $throwsMessage125): mixed {
-        return $throwsMessage125(static fn () => SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan::fromOverflowChains($databaseFixture125(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 1718, 3, $payload125() . str_repeat('Z', 1018)));
+        return $throwsMessage125(static fn () => SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan::fromOverflowChains($databaseFixture125(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 1718, 3, $payload125() . str_repeat('Z', 1018)));
     },
 ];
 

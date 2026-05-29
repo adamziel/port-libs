@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNext89Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -52,7 +52,7 @@ $database = SQLiteDatabase::fromBytes(
     . pack('N', 0) . str_repeat('P', $pageSize - 4),
 );
 
-$plan = SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNext89Plan::fromDatabaseDeleteResults(
+$plan = SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan::fromDatabaseDeleteResults(
     $database,
     3,
     [

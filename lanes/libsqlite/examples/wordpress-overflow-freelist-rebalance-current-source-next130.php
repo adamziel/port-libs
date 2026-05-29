@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNext130Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -53,7 +53,7 @@ foreach ([3 => [SQLitePointerMapEntry::ROOT_PAGE, 0], 4 => [SQLitePointerMapEntr
 $putPointerMapEntry($pages, 6, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
 $putPointerMapEntry($pages, 7, SQLitePointerMapEntry::OVERFLOW_PAGE, 6);
 
-$plan = SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNext130Plan::fromDeleteResults(
+$plan = SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNextPlan::fromDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [[
         'source' => 'wp_options transient shrink after cache cleanup',

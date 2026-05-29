@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNext118Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -91,7 +91,7 @@ $fixture = static function (string $replacementPayload = '') use ($makeFirstPage
         return $pageNumbers;
     };
     $replacementPayload = $replacementPayload !== '' ? $replacementPayload : str_repeat('replacement-current-next118:', 42);
-    $plan = SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNext118Plan::tableDeleteRebalanceThenReplaceOverflow(
+    $plan = SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan::tableDeleteRebalanceThenReplaceOverflow(
         $database,
         3,
         4,
@@ -238,7 +238,7 @@ $tests['btree overflow pointermap rebalance current source next118 reads replace
 
 $tests['btree overflow pointermap rebalance current source next118 rejects empty replacement payload'] = static function (TestRunner $t) use ($fixture): void {
     [$database] = $fixture();
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNext118Plan::tableDeleteRebalanceThenReplaceOverflow(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan::tableDeleteRebalanceThenReplaceOverflow(
         $database,
         3,
         4,
@@ -252,7 +252,7 @@ $tests['btree overflow pointermap rebalance current source next118 rejects empty
 
 $tests['btree overflow pointermap rebalance current source next118 rejects missing delete row'] = static function (TestRunner $t) use ($fixture): void {
     [$database] = $fixture();
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNext118Plan::tableDeleteRebalanceThenReplaceOverflow(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowPointerMapRebalanceCurrentSourceNextPlan::tableDeleteRebalanceThenReplaceOverflow(
         $database,
         3,
         4,

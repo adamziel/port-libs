@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNext134Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -64,7 +64,7 @@ foreach ([
     $putPointerMapEntry($pages, $pageNumber, $type, $parent);
 }
 
-$plan = SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNext134Plan::tableLeafReplacement(
+$plan = SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan::tableLeafReplacement(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [13401],

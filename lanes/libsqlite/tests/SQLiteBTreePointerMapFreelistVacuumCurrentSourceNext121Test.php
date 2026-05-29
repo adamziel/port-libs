@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
@@ -81,8 +81,8 @@ $allocatedImages121 = static fn (): array => [
     ]),
 ];
 
-$planFixture121 = static function (?int $parentPage = 3, bool $secureDelete = false) use ($databaseFixture121, $allocatedImages121): SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan {
-    return SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan::fromOverflowChains(
+$planFixture121 = static function (?int $parentPage = 3, bool $secureDelete = false) use ($databaseFixture121, $allocatedImages121): SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan {
+    return SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowChains(
         $databaseFixture121(),
         [[
             'source' => 'wp-option-delete-overflow-chain',
@@ -107,7 +107,7 @@ $throwsMessage121 = static function (callable $callback): string {
     return 'not rejected';
 };
 
-$rows121 = static fn (SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan $plan): array => $plan->reuseRows;
+$rows121 = static fn (SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan $plan): array => $plan->reuseRows;
 
 $cases121 = [
     'action label' => static fn (): mixed => $planFixture121()->toArray()['action'],
@@ -167,13 +167,13 @@ $cases121 = [
     'secure delete cleared page image length' => static fn (): mixed => strlen($planFixture121(3, true)->releasePlan->freePlan->clearedPageImages[6]),
     'final integrity check reports ok' => static fn (): mixed => SQLitePragmaIntegrityCheck::execute('PRAGMA integrity_check', $planFixture121()->databaseAfterReuse)['rows'],
     'zero allocation rejected' => static function () use ($databaseFixture121, $throwsMessage121): mixed {
-        return $throwsMessage121(static fn () => SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan::fromOverflowChains($databaseFixture121(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 0, 3));
+        return $throwsMessage121(static fn () => SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowChains($databaseFixture121(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 0, 3));
     },
     'duplicate chain pages rejected' => static function () use ($databaseFixture121, $throwsMessage121): mixed {
-        return $throwsMessage121(static fn () => SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan::fromOverflowChains($databaseFixture121(), [['first_page' => 6, 'overflow_payload_bytes' => 700], ['first_page' => 6, 'overflow_payload_bytes' => 700]], 2, 3));
+        return $throwsMessage121(static fn () => SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowChains($databaseFixture121(), [['first_page' => 6, 'overflow_payload_bytes' => 700], ['first_page' => 6, 'overflow_payload_bytes' => 700]], 2, 3));
     },
     'non allocated supplied image rejected' => static function () use ($databaseFixture121, $allocatedImages121, $throwsMessage121): mixed {
-        return $throwsMessage121(static fn () => SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan::fromOverflowChains($databaseFixture121(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 2, 3, $allocatedImages121() + [9 => str_repeat("\0", 512)]));
+        return $throwsMessage121(static fn () => SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowChains($databaseFixture121(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 2, 3, $allocatedImages121() + [9 => str_repeat("\0", 512)]));
     },
 ];
 

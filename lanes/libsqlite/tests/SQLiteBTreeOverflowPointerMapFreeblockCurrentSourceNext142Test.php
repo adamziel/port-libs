@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
@@ -85,7 +85,7 @@ $database142 = static function (int $firstFreelistTrunkPage = 10, int $freelistP
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$plan142 = static fn (bool $secureDelete = true): SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNext142Plan => SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNext142Plan::tableLeafFromCurrentSourceDeleteResult(
+$plan142 = static fn (bool $secureDelete = true): SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNextPlan => SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult(
     $database142(),
     3,
     [[
@@ -159,9 +159,9 @@ $cases142 = [
     'without secure delete keeps released payload before allocation overwrite' => static fn (): mixed => substr($plan142(false)->databaseAfterRelease->page(7), 4, 1),
     'summary current pages' => static fn (): mixed => array_column($plan142()->toArray()['current_source_overflow_chain_rows'], 'page_number'),
     'summary next pages' => static fn (): mixed => array_column($plan142()->toArray()['btree_overflow_pointermap_freeblock_current_source_next142'], 'page_number'),
-    'empty chain rejected' => static fn (): mixed => $throwsMessage142(static fn () => SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNext142Plan::tableLeafFromCurrentSourceDeleteResult($database142(), 3, [], ['obsolete_overflow_page_numbers' => [5]], 3, 'x')),
-    'empty payload rejected' => static fn (): mixed => $throwsMessage142(static fn () => SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNext142Plan::tableLeafFromCurrentSourceDeleteResult($database142(), 3, [['first_page' => 5, 'overflow_payload_bytes' => 508]], ['obsolete_overflow_page_numbers' => [5]], 3, '')),
-    'bad parent rejected' => static fn (): mixed => $throwsMessage142(static fn () => SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNext142Plan::tableLeafFromCurrentSourceDeleteResult($database142(), 3, [['first_page' => 5, 'overflow_payload_bytes' => 508]], ['obsolete_overflow_page_numbers' => [5]], 1, 'x')),
+    'empty chain rejected' => static fn (): mixed => $throwsMessage142(static fn () => SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult($database142(), 3, [], ['obsolete_overflow_page_numbers' => [5]], 3, 'x')),
+    'empty payload rejected' => static fn (): mixed => $throwsMessage142(static fn () => SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult($database142(), 3, [['first_page' => 5, 'overflow_payload_bytes' => 508]], ['obsolete_overflow_page_numbers' => [5]], 3, '')),
+    'bad parent rejected' => static fn (): mixed => $throwsMessage142(static fn () => SQLiteBTreeOverflowPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult($database142(), 3, [['first_page' => 5, 'overflow_payload_bytes' => 508]], ['obsolete_overflow_page_numbers' => [5]], 1, 'x')),
 ];
 
 $expected142 = [

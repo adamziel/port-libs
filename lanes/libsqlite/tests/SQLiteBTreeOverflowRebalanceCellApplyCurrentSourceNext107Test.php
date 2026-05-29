@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
@@ -100,7 +100,7 @@ $tests = [];
 
 $tests['btree overflow rebalance cell apply current source next107 table leaf applies replacement on current page'] = static function (TestRunner $t) use ($tableFixture): void {
     [$database, $newPayload] = $tableFixture();
-    $plan = SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan::tableLeafCurrentSource(
+    $plan = SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan::tableLeafCurrentSource(
         $database,
         3,
         20,
@@ -136,7 +136,7 @@ $tests['btree overflow rebalance cell apply current source next107 table leaf ap
 
 $tests['btree overflow rebalance cell apply current source next107 index leaf applies replacement on current page'] = static function (TestRunner $t) use ($indexFixture): void {
     [$database, $oldValues, $newValues, $overflowReader] = $indexFixture();
-    $plan = SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan::indexLeafCurrentSource(
+    $plan = SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan::indexLeafCurrentSource(
         $database,
         4,
         $oldValues,
@@ -169,17 +169,17 @@ $tests['btree overflow rebalance cell apply current source next107 index leaf ap
 $tests['btree overflow rebalance cell apply current source next107 rejects corrupt inputs'] = static function (TestRunner $t) use ($tableFixture): void {
     [$database, $newPayload] = $tableFixture();
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan::tableLeafCurrentSource($database, 99, 20, 21, $newPayload, static fn (): array => [8]));
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan::tableLeafCurrentSource($database, 3, 999, 21, $newPayload, static fn (): array => [8]));
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan::tableLeafCurrentSource($database, 3, 20, 1, $newPayload, static fn (): array => [8]));
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan::tableLeafCurrentSource($database, 3, 20, 21, str_repeat('x', 470), static fn (): array => [8]));
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan::tableLeafCurrentSource($database, 3, 20, 21, $newPayload, static fn (): array => [8, 8]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan::tableLeafCurrentSource($database, 99, 20, 21, $newPayload, static fn (): array => [8]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan::tableLeafCurrentSource($database, 3, 999, 21, $newPayload, static fn (): array => [8]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan::tableLeafCurrentSource($database, 3, 20, 1, $newPayload, static fn (): array => [8]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan::tableLeafCurrentSource($database, 3, 20, 21, str_repeat('x', 470), static fn (): array => [8]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan::tableLeafCurrentSource($database, 3, 20, 21, $newPayload, static fn (): array => [8, 8]));
 };
 
-$tablePlan = static function () use ($tableFixture): SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan {
+$tablePlan = static function () use ($tableFixture): SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan {
     [$database, $newPayload] = $tableFixture();
 
-    return SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan::tableLeafCurrentSource(
+    return SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan::tableLeafCurrentSource(
         $database,
         3,
         20,
@@ -190,10 +190,10 @@ $tablePlan = static function () use ($tableFixture): SQLiteBTreeOverflowRebalanc
     );
 };
 
-$indexPlan = static function () use ($indexFixture): SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan {
+$indexPlan = static function () use ($indexFixture): SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan {
     [$database, $oldValues, $newValues, $overflowReader] = $indexFixture();
 
-    return SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan::indexLeafCurrentSource(
+    return SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan::indexLeafCurrentSource(
         $database,
         4,
         $oldValues,
@@ -205,34 +205,34 @@ $indexPlan = static function () use ($indexFixture): SQLiteBTreeOverflowRebalanc
 };
 
 $caseRows = [
-    'table summary action' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->toArray()['action'], 'btree-overflow-rebalance-cell-apply-current-source-next107'],
-    'table nested action' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->toArray()['cell_apply']['action'], 'btree-overflow-cell-reuse-delete-apply'],
-    'table leaf type' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->cellApplyPlan->leafPageType, 'table-leaf'],
-    'table released pages' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->releasedOverflowPageNumbers(), [8, 5, 12]],
-    'table materialized pages' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->materializedPageNumbers(), [1, 2, 3, 5, 8, 12]],
-    'table freelist after' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->databaseAfter->freelistPageNumbers(), [8, 5, 12]],
-    'table pointer types before' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => array_column($plan->releasedPageRows(), 'before_pointer_map_type'), ['first-overflow-page', 'overflow-page', 'overflow-page']],
-    'table pointer types after' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => array_column($plan->releasedPageRows(), 'after_pointer_map_type'), ['free-page', 'free-page', 'free-page']],
-    'table secure delete rows' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => array_column($plan->releasedPageRows(), 'secure_delete_cleared'), [false, true, true]],
-    'table rows after' => [$tablePlan, static function (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed {
+    'table summary action' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->toArray()['action'], 'btree-overflow-rebalance-cell-apply-current-source-next107'],
+    'table nested action' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->toArray()['cell_apply']['action'], 'btree-overflow-cell-reuse-delete-apply'],
+    'table leaf type' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->cellApplyPlan->leafPageType, 'table-leaf'],
+    'table released pages' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->releasedOverflowPageNumbers(), [8, 5, 12]],
+    'table materialized pages' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->materializedPageNumbers(), [1, 2, 3, 5, 8, 12]],
+    'table freelist after' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter->freelistPageNumbers(), [8, 5, 12]],
+    'table pointer types before' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => array_column($plan->releasedPageRows(), 'before_pointer_map_type'), ['first-overflow-page', 'overflow-page', 'overflow-page']],
+    'table pointer types after' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => array_column($plan->releasedPageRows(), 'after_pointer_map_type'), ['free-page', 'free-page', 'free-page']],
+    'table secure delete rows' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => array_column($plan->releasedPageRows(), 'secure_delete_cleared'), [false, true, true]],
+    'table rows after' => [$tablePlan, static function (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed {
         $header = SQLiteBTreePageHeader::parsePage($plan->databaseAfter->page(3), 512);
         return array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, SQLiteTableLeafCell::parsePageCells($plan->databaseAfter->page(3), $header, 512));
     }, [1, 21, 30]],
-    'table first trunk after' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->databaseAfter->header->firstFreelistTrunkPage, 8],
-    'table freelist count after' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->databaseAfter->header->freelistPageCount, 3],
-    'index leaf type' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->cellApplyPlan->leafPageType, 'index-leaf'],
-    'index released pages' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->releasedOverflowPageNumbers(), [6, 7, 8]],
-    'index materialized pages' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->materializedPageNumbers(), [1, 2, 4, 6, 7, 8]],
-    'index freelist after' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->databaseAfter->freelistPageNumbers(), [6, 7, 8]],
-    'index secure delete pages' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->toArray()['cell_apply']['secure_delete_cleared_pages'], [7, 8]],
-    'index pointer types before' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => array_column($plan->releasedPageRows(), 'before_pointer_map_type'), ['first-overflow-page', 'overflow-page', 'overflow-page']],
-    'index pointer types after' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => array_column($plan->releasedPageRows(), 'after_pointer_map_type'), ['free-page', 'free-page', 'free-page']],
-    'index records after' => [$indexPlan, static function (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed {
+    'table first trunk after' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter->header->firstFreelistTrunkPage, 8],
+    'table freelist count after' => [$tablePlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter->header->freelistPageCount, 3],
+    'index leaf type' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->cellApplyPlan->leafPageType, 'index-leaf'],
+    'index released pages' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->releasedOverflowPageNumbers(), [6, 7, 8]],
+    'index materialized pages' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->materializedPageNumbers(), [1, 2, 4, 6, 7, 8]],
+    'index freelist after' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter->freelistPageNumbers(), [6, 7, 8]],
+    'index secure delete pages' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->toArray()['cell_apply']['secure_delete_cleared_pages'], [7, 8]],
+    'index pointer types before' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => array_column($plan->releasedPageRows(), 'before_pointer_map_type'), ['first-overflow-page', 'overflow-page', 'overflow-page']],
+    'index pointer types after' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => array_column($plan->releasedPageRows(), 'after_pointer_map_type'), ['free-page', 'free-page', 'free-page']],
+    'index records after' => [$indexPlan, static function (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed {
         $header = SQLiteBTreePageHeader::parsePage($plan->databaseAfter->page(4), 512);
         return array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, SQLiteIndexCell::parsePageCells($plan->databaseAfter->page(4), $header, 512))[1];
     }, ['option_name', 'autoload', 78]],
-    'index first trunk after' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->databaseAfter->header->firstFreelistTrunkPage, 6],
-    'index freelist count after' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan $plan): mixed => $plan->databaseAfter->header->freelistPageCount, 3],
+    'index first trunk after' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter->header->firstFreelistTrunkPage, 6],
+    'index freelist count after' => [$indexPlan, static fn (SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter->header->freelistPageCount, 3],
 ];
 
 foreach ($caseRows as $name => [$fixture, $callback, $expected]) {

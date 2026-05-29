@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreepageApplyCurrentSourceNext116Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreepageApplyCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -74,7 +74,7 @@ $throwsMessage116 = static function (callable $callback): string {
 
 $fixture116 = static fn (): array => [
     $databaseFixture116(),
-    SQLiteBTreeOverflowFreepageApplyCurrentSourceNext116Plan::tableLeaf($databaseFixture116(), 3, [301, 302], true),
+    SQLiteBTreeOverflowFreepageApplyCurrentSourceNextPlan::tableLeaf($databaseFixture116(), 3, [301, 302], true),
 ];
 
 $cases116 = [
@@ -115,14 +115,14 @@ $cases116 = [
     'header database size stable' => static fn (array $fx): mixed => $fx[1]->databaseAfter()->header->databaseSizePages,
     'survivor page remains' => static fn (array $fx): mixed => $fx[1]->databaseAfter()->page(4) === $fx[0]->page(4),
     'tail overflow cleared' => static fn (array $fx): mixed => $fx[1]->databaseAfter()->page(10) === str_repeat("\0", 512),
-    'rejects empty rowids' => static fn (array $fx): mixed => $throwsMessage116(static fn () => SQLiteBTreeOverflowFreepageApplyCurrentSourceNext116Plan::tableLeaf($fx[0], 3, [])),
-    'rejects bad rowid' => static fn (array $fx): mixed => $throwsMessage116(static fn () => SQLiteBTreeOverflowFreepageApplyCurrentSourceNext116Plan::tableLeaf($fx[0], 3, ['301'])),
-    'rejects missing rowid' => static fn (array $fx): mixed => $throwsMessage116(static fn () => SQLiteBTreeOverflowFreepageApplyCurrentSourceNext116Plan::tableLeaf($fx[0], 3, [999])),
+    'rejects empty rowids' => static fn (array $fx): mixed => $throwsMessage116(static fn () => SQLiteBTreeOverflowFreepageApplyCurrentSourceNextPlan::tableLeaf($fx[0], 3, [])),
+    'rejects bad rowid' => static fn (array $fx): mixed => $throwsMessage116(static fn () => SQLiteBTreeOverflowFreepageApplyCurrentSourceNextPlan::tableLeaf($fx[0], 3, ['301'])),
+    'rejects missing rowid' => static fn (array $fx): mixed => $throwsMessage116(static fn () => SQLiteBTreeOverflowFreepageApplyCurrentSourceNextPlan::tableLeaf($fx[0], 3, [999])),
     'rejects stale chain loop' => static function (array $fx) use ($throwsMessage116): mixed {
         $bytes = $fx[0]->toBytes();
         $bytes = substr_replace($bytes, pack('N', 5), (5 - 1) * 512, 4);
 
-        return $throwsMessage116(static fn () => SQLiteBTreeOverflowFreepageApplyCurrentSourceNext116Plan::tableLeaf(SQLiteDatabase::fromBytes($bytes), 3, [301]));
+        return $throwsMessage116(static fn () => SQLiteBTreeOverflowFreepageApplyCurrentSourceNextPlan::tableLeaf(SQLiteDatabase::fromBytes($bytes), 3, [301]));
     },
 ];
 

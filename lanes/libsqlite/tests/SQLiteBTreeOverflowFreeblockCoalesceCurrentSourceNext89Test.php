@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNext89Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteHeader;
@@ -61,7 +61,7 @@ $fixture89 = static function (bool $secureDelete = true, bool $clearCoalescedFra
         . pack('N', 0) . str_repeat('P', $pageSize - 4),
     );
 
-    $plan = SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNext89Plan::fromDatabaseDeleteResults(
+    $plan = SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan::fromDatabaseDeleteResults(
         $database,
         3,
         [
@@ -138,7 +138,7 @@ $cases = [
     'throws on empty delete results' => static function () use ($fixture89): string {
         [$database] = $fixture89();
         try {
-            SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNext89Plan::fromDatabaseDeleteResults($database, 3, []);
+            SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan::fromDatabaseDeleteResults($database, 3, []);
         } catch (InvalidArgumentException $exception) {
             return $exception->getMessage();
         }
@@ -148,7 +148,7 @@ $cases = [
     'throws on invalid leaf page' => static function () use ($fixture89): string {
         [$database] = $fixture89();
         try {
-            SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNext89Plan::fromDatabaseDeleteResults($database, 9, [['obsolete_overflow_page_numbers' => [5]]]);
+            SQLiteBTreeOverflowFreeblockCoalesceCurrentSourceNextPlan::fromDatabaseDeleteResults($database, 9, [['obsolete_overflow_page_numbers' => [5]]]);
         } catch (InvalidArgumentException $exception) {
             return $exception->getMessage();
         }

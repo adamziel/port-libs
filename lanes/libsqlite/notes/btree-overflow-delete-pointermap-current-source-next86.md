@@ -1,6 +1,6 @@
 # B-tree Overflow Delete Pointer-map Current-source Next86
 
-This slice adds `SQLiteBTreeOverflowDeletePointerMapCurrentSourceNext86Plan`, a
+This slice adds `SQLiteBTreeOverflowDeletePointerMapCurrentSourceNextPlan`, a
 bounded current/next delete helper that derives obsolete overflow page chains
 from the current database image for each table/index leaf delete instead of
 requiring callers to pass the next delete's overflow page list by hand.

@@ -10,9 +10,9 @@ require_once __DIR__ . '/../src/SQLiteFreelistAllocationPlan.php';
 require_once __DIR__ . '/../src/SQLiteOverflowPage.php';
 require_once __DIR__ . '/../src/SQLitePointerMapEntry.php';
 require_once __DIR__ . '/../src/SQLiteBTreePageHeader.php';
-require_once __DIR__ . '/../src/SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
@@ -59,7 +59,7 @@ foreach ([
 }
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
-$plan = SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan::moveLastOverflowPageIntoFreelistSlot($database, 12, 10);
+$plan = SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan::moveLastOverflowPageIntoFreelistSlot($database, 12, 10);
 $summary = [
     'scenario' => 'wordpress-btree-overflow-pointermap-page-move-current-source-next111',
     'wordpressUse' => 'During copied wp_options autoload cache cleanup, autovacuum can move the final overflow page into a lower freelist slot; the previous overflow page next pointer and pointer-map parent must both retarget the moved page.',

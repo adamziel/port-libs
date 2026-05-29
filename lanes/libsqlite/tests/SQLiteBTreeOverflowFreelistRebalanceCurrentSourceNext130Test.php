@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNext130Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -68,8 +68,8 @@ $databaseFixture130 = static function () use ($makeFirstPage130, $putPointerMapE
 
 $payload130 = static fn (): string => str_repeat('current-source-next130:', 22);
 
-$fixture130 = static function (bool $secureDelete = true) use ($databaseFixture130, $payload130): SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNext130Plan {
-    return SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNext130Plan::fromDeleteResults(
+$fixture130 = static function (bool $secureDelete = true) use ($databaseFixture130, $payload130): SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNextPlan {
+    return SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNextPlan::fromDeleteResults(
         $databaseFixture130(),
         [[
             'source' => 'wp-options-transient-overflow-shrink-next130',
@@ -148,8 +148,8 @@ $cases130 = [
     'secure delete clears released pages before allocation' => static fn (): mixed => $fixture130(true)->releasePlan->freePlan->clearedPageNumbers,
     'without secure delete leaves cleared list empty' => static fn (): mixed => $fixture130(false)->releasePlan->freePlan->clearedPageNumbers,
     'final integrity ok' => static fn (): mixed => SQLitePragmaIntegrityCheck::execute('PRAGMA integrity_check', $fixture130()->databaseAfterAllocation)['rows'],
-    'empty payload rejected' => static fn () => $throwsMessage130(static fn () => SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNext130Plan::fromDeleteResults($databaseFixture130(), [['obsolete_overflow_page_numbers' => [6, 7]]], 3, '')),
-    'bad parent rejected' => static fn () => $throwsMessage130(static fn () => SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNext130Plan::fromDeleteResults($databaseFixture130(), [['obsolete_overflow_page_numbers' => [6, 7]]], 1, 'x')),
+    'empty payload rejected' => static fn () => $throwsMessage130(static fn () => SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNextPlan::fromDeleteResults($databaseFixture130(), [['obsolete_overflow_page_numbers' => [6, 7]]], 3, '')),
+    'bad parent rejected' => static fn () => $throwsMessage130(static fn () => SQLiteBTreeOverflowFreelistRebalanceCurrentSourceNextPlan::fromDeleteResults($databaseFixture130(), [['obsolete_overflow_page_numbers' => [6, 7]]], 1, 'x')),
 ];
 
 $expected130 = [

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan
+final class SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan
 {
     /**
      * @param list<array<string, mixed>> $rootpageRows
      */
     private function __construct(
-        public readonly SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan $reusePlan,
+        public readonly SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan $reusePlan,
         public readonly string $objectType,
         public readonly string $objectName,
         public readonly string $tableName,
@@ -38,7 +38,7 @@ final class SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan
             throw new \InvalidArgumentException('SQLite overflow freelist rootpage reuse requires at least one root page image');
         }
 
-        $reusePlan = SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan::fromOverflowChains(
+        $reusePlan = SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowChains(
             $database,
             $chains,
             count($rootPageImages),
@@ -115,7 +115,7 @@ final class SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan
      * @return list<array<string, mixed>>
      */
     private static function rootpageRows(
-        SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNext121Plan $reusePlan,
+        SQLiteBTreeOverflowFreelistVacuumReuseCurrentSourceNextPlan $reusePlan,
         string $objectType,
         string $objectName,
         string $tableName,

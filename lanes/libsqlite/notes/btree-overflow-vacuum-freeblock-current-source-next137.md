@@ -1,6 +1,6 @@
 # B-tree Overflow Vacuum Freeblock Current Source Next137
 
-This slice adds `SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan`.
+This slice adds `SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNextPlan`.
 It composes an existing leaf freeblock coalesce plus overflow-vacuum truncation
 with the next overflow allocation. The covered current-source boundary is:
 
@@ -14,7 +14,7 @@ with the next overflow allocation. The covered current-source boundary is:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-overflow-vacuum-freeblock-current-source-next137.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Test.php`

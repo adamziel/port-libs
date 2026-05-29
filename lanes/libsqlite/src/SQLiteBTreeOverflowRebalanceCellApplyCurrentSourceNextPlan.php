@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNext107Plan
+final class SQLiteBTreeOverflowRebalanceCellApplyCurrentSourceNextPlan
 {
     private function __construct(
         public readonly SQLiteBTreeOverflowCellReuseDeleteApplyPlan $cellApplyPlan,

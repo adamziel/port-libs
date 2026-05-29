@@ -4,7 +4,7 @@ Date: 2026-05-28T07:03:34Z
 
 ## Behavior
 
-Adds `SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNext125Plan` for the
+Adds `SQLiteBTreeOverflowPointerMapFreelistCurrentSourceNextPlan` for the
 WordPress large-option rewrite path where obsolete overflow pages are released
 to an auto-vacuum freelist and then immediately reused as the next overflow
 chain. The covered transition is:

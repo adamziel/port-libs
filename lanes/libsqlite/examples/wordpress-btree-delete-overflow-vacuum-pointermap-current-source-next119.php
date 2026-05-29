@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan;
+use PortLibs\LibSqlite\SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -52,7 +52,7 @@ foreach ([6 => 7, 7 => 0, 11 => 12, 12 => 0] as $pageNumber => $nextPage) {
     $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(80 + $pageNumber), 508);
 }
 
-$plan = SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNext119Plan::fromDeleteResults(
+$plan = SQLiteBTreeDeleteOverflowVacuumPointerMapCurrentSourceNextPlan::fromDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         [

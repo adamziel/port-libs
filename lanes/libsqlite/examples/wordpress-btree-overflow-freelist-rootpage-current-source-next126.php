@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -59,7 +59,7 @@ $putPointerMap($pages, 7, SQLitePointerMapEntry::OVERFLOW_PAGE, 6);
 $putPointerMap($pages, 8, SQLitePointerMapEntry::FREE_PAGE, 0);
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
-$plan = SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan::fromOverflowChains(
+$plan = SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan::fromOverflowChains(
     $database,
     [[
         'source' => 'deleted _transient import payload overflow',

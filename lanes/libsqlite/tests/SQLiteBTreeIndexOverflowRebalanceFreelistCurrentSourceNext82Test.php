@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan;
+use PortLibs\LibSqlite\SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
@@ -131,7 +131,7 @@ $fixture = static function (bool $secureDelete = true) use ($makeFirstPage, $put
     }
 
     $database = SQLiteDatabase::fromBytes(implode('', $pages));
-    $plan = SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan::deleteFromLeftAndRebalanceRight(
+    $plan = SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan::deleteFromLeftAndRebalanceRight(
         $database,
         3,
         4,
@@ -204,7 +204,7 @@ $cases = [
 ];
 
 $expected = [
-    'plan class' => SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan::class,
+    'plan class' => SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan::class,
     'action label' => 'btree-index-overflow-rebalance-freelist-current-source-next82',
     'obsolete overflow pages' => [7, 8, 9, 10],
     'free plan freed pages' => [7, 8, 9, 10],
@@ -278,7 +278,7 @@ $tests['btree index overflow rebalance freelist current source next82 can skip s
 $tests['btree index overflow rebalance freelist current source next82 rejects missing overflow reader'] = static function (TestRunner $t) use ($fixture): void {
     [$database, , $deletedValues] = $fixture();
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan::deleteFromLeftAndRebalanceRight(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan::deleteFromLeftAndRebalanceRight(
         $database,
         3,
         4,
@@ -292,7 +292,7 @@ $tests['btree index overflow rebalance freelist current source next82 rejects mi
 $tests['btree index overflow rebalance freelist current source next82 rejects absent index key'] = static function (TestRunner $t) use ($fixture): void {
     [$database] = $fixture();
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNext82Plan::deleteFromLeftAndRebalanceRight(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeIndexOverflowRebalanceFreelistCurrentSourceNextPlan::deleteFromLeftAndRebalanceRight(
         $database,
         3,
         4,

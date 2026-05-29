@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteBTreeOverflowVacuumPointerMapCurrentSourceNext145Plan` for a current-source auto-vacuum path where copied `wp_options` deletes obsolete overflow chains at the database tail, incremental vacuum truncates part of that tail, and a subsequent oversized option rewrite allocates a new overflow chain.
+Adds `SQLiteBTreeOverflowVacuumPointerMapCurrentSourceNextPlan` for a current-source auto-vacuum path where copied `wp_options` deletes obsolete overflow chains at the database tail, incremental vacuum truncates part of that tail, and a subsequent oversized option rewrite allocates a new overflow chain.
 
 The slice records:
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -77,8 +77,8 @@ $rootImage126 = static fn (): array => [
     ]),
 ];
 
-$fixture126 = static function (string $objectType = 'table', bool $secureDelete = false) use ($databaseFixture126, $rootImage126): SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan {
-    return SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan::fromOverflowChains(
+$fixture126 = static function (string $objectType = 'table', bool $secureDelete = false) use ($databaseFixture126, $rootImage126): SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan {
+    return SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan::fromOverflowChains(
         $databaseFixture126(),
         [[
             'source' => 'wp-option-delete-rootpage-overflow-chain',
@@ -107,7 +107,7 @@ $throwsMessage126 = static function (callable $callback): string {
     return 'not rejected';
 };
 
-$rows126 = static fn (SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan $plan): array => $plan->rootpageRows;
+$rows126 = static fn (SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan $plan): array => $plan->rootpageRows;
 
 $cases126 = [
     'action label' => static fn (): mixed => $fixture126()->toArray()['action'],
@@ -150,10 +150,10 @@ $cases126 = [
     'summary root rows' => static fn (): mixed => array_column($fixture126()->toArray()['btree_overflow_freelist_rootpage_current_source_next126'], 'schema_rootpage'),
     'summary updated pages' => static fn (): mixed => $fixture126()->toArray()['updated_page_numbers'],
     'integrity check reports missing schema rewrite boundary' => static fn (): mixed => SQLitePragmaIntegrityCheck::execute('PRAGMA integrity_check', $fixture126()->reusePlan->databaseAfterReuse)['rows'],
-    'bad object type rejected' => static fn () => $throwsMessage126(static fn () => SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan::fromOverflowChains($databaseFixture126(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 'view', 'v', 'v', 'CREATE VIEW v AS SELECT 1', $rootImage126())),
-    'empty name rejected' => static fn () => $throwsMessage126(static fn () => SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan::fromOverflowChains($databaseFixture126(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 'table', '', 't', 'CREATE TABLE t(x)', $rootImage126())),
-    'empty root image rejected' => static fn () => $throwsMessage126(static fn () => SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan::fromOverflowChains($databaseFixture126(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 'table', 't', 't', 'CREATE TABLE t(x)', [])),
-    'non reused root image rejected' => static fn () => $throwsMessage126(static fn () => SQLiteBTreeOverflowFreelistRootpageCurrentSourceNext126Plan::fromOverflowChains($databaseFixture126(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 'table', 't', 't', 'CREATE TABLE t(x)', [7 => SQLiteTableLeafPage::assemble([])])),
+    'bad object type rejected' => static fn () => $throwsMessage126(static fn () => SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan::fromOverflowChains($databaseFixture126(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 'view', 'v', 'v', 'CREATE VIEW v AS SELECT 1', $rootImage126())),
+    'empty name rejected' => static fn () => $throwsMessage126(static fn () => SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan::fromOverflowChains($databaseFixture126(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 'table', '', 't', 'CREATE TABLE t(x)', $rootImage126())),
+    'empty root image rejected' => static fn () => $throwsMessage126(static fn () => SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan::fromOverflowChains($databaseFixture126(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 'table', 't', 't', 'CREATE TABLE t(x)', [])),
+    'non reused root image rejected' => static fn () => $throwsMessage126(static fn () => SQLiteBTreeOverflowFreelistRootpageCurrentSourceNextPlan::fromOverflowChains($databaseFixture126(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 'table', 't', 't', 'CREATE TABLE t(x)', [7 => SQLiteTableLeafPage::assemble([])])),
 ];
 
 $expected126 = [

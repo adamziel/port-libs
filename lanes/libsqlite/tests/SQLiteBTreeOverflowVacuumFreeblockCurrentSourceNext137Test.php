@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -90,7 +90,7 @@ $deleteResults137 = [[
 
 $payload137 = str_repeat('next137-wordpress-overflow-vacuum-freeblock-', 24);
 
-$plan137 = static fn (int $limit = 3, string $payload = null): SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan => SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan::fromDeleteResults(
+$plan137 = static fn (int $limit = 3, string $payload = null): SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNextPlan => SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNextPlan::fromDeleteResults(
     $database137(),
     3,
     $deleteResults137,
@@ -153,8 +153,8 @@ $cases137 = [
     'page image keys' => static fn (): mixed => array_keys($plan137()->pageImages()),
     'summary rows' => static fn (): mixed => array_column($plan137()->toArray()['btree_overflow_vacuum_freeblock_current_source_next137'], 'page_number'),
     'summary final freelist pages' => static fn (): mixed => $plan137()->toArray()['final_freelist_page_numbers'],
-    'empty payload rejected' => static fn (): mixed => $throwMessage137(static fn () => SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan::fromDeleteResults($database137(), 3, $deleteResults137, 3, 5, '')),
-    'bad parent rejected' => static fn (): mixed => $throwMessage137(static fn () => SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan::fromDeleteResults($database137(), 3, $deleteResults137, 3, 1, 'abc')),
+    'empty payload rejected' => static fn (): mixed => $throwMessage137(static fn () => SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNextPlan::fromDeleteResults($database137(), 3, $deleteResults137, 3, 5, '')),
+    'bad parent rejected' => static fn (): mixed => $throwMessage137(static fn () => SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNextPlan::fromDeleteResults($database137(), 3, $deleteResults137, 3, 1, 'abc')),
 ];
 
 $expected137 = [

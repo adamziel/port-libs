@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNext111Plan
+final class SQLiteBTreeOverflowPointerMapPageMoveCurrentSourceNextPlan
 {
     /**
      * @param array<int, string> $pageImages

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNext134Plan
+final class SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan
 {
     /**
      * @param array<int, string> $overflowPageImages
