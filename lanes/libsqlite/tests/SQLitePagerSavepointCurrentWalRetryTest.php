@@ -47,7 +47,8 @@ $cases = [
     'plugin plan keeps current savepoint active' => [static fn (): mixed => $pluginPlan()['current_savepoint_active_after'], true],
     'plugin plan keeps transaction active' => [static fn (): mixed => $pluginPlan()['transaction_active_after'], true],
     'plugin plan dependency keeps savepoint marker' => [static fn (): mixed => in_array('sqlite-savepoint-rollback-to-current-keeps-savepoint', $pluginPlan()['dependencies'], true), true],
-    'plugin plan dependency keeps pager marker' => [static fn (): mixed => in_array('sqlite-pager-current-next-wal-frame64', $pluginPlan()['dependencies'], true), true],
+    'plugin plan dependency keeps stable pager marker' => [static fn (): mixed => in_array('sqlite-pager-savepoint-wal-retry-current', $pluginPlan()['dependencies'], true), true],
+    'plugin plan dependency keeps legacy pager marker alias' => [static fn (): mixed => in_array('sqlite-pager-current-next-wal-frame64', $pluginPlan()['dependencies'], true), true],
     'plugin stack names after next write' => [static function () use ($makeStack): mixed {
         $stack = $makeStack();
         $stack->rollbackToCurrentAndRecordWalFrame('plugin-settings', 6, true);
@@ -171,7 +172,7 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['pager savepoint current next64 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['pager savepoint current wal retry ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }

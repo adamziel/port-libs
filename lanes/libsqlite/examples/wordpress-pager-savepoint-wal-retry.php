@@ -22,7 +22,8 @@ $savepoints->recordWalFrameWrite(5, 5, true);
 $plan = $savepoints->rollbackToCurrentAndRecordWalFrame('plugin_settings', 6, true);
 
 echo json_encode([
-    'scenario' => 'wordpress-pager-savepoint-current-next64',
+    'scenario' => 'wordpress-pager-savepoint-wal-retry',
+    'legacyScenario' => 'wordpress-pager-savepoint-current-next64',
     'wordpressUse' => 'A copied wp_options plugin-settings import rolls back to the current savepoint, discards failed WAL tail frames, keeps the savepoint active, and records the next retry frame immediately after the retained WAL prefix without ext/sqlite.',
     'savepoint' => $plan['savepoint'],
     'rollbackToFrame' => $plan['rollback_to_frame'],

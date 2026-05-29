@@ -282,6 +282,7 @@ final class SQLiteSavepointStack
             'transaction_active_after' => $this->transactionActive(),
             'dependencies' => [
                 'sqlite-savepoint-rollback-to-current-keeps-savepoint',
+                'sqlite-pager-savepoint-wal-retry-current',
                 'sqlite-pager-current-next-wal-frame64',
             ],
         ];

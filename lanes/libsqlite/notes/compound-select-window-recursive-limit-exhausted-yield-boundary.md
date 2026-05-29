@@ -1,9 +1,11 @@
-# Compound SELECT Window Recursive LIMIT Current Source Next184
+# Compound SELECT Window Recursive LIMIT Exhausted Yield Boundary
 
 ## Behavior
 
-This slice adds `SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan`
-for a bounded current-source SELECT executor edge:
+This consolidation keeps the historical proof keys but moves the direct
+production/test/example surface to the stable
+`SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveLimitExhaustedYieldBoundary()`
+entry point for a bounded current-source SELECT executor edge:
 
 - `WITH RECURSIVE` queue execution with `LIMIT ... OFFSET` exhaustion.
 - Window function arms before compound reduction (`lag()` and `lead()`).
@@ -17,7 +19,7 @@ current/next source boundary shift in the compound yield tape.
 
 ## WordPress Scenario
 
-`examples/wordpress-compound-select-window-recursive-limit-current-source-next184.php`
+`examples/wordpress-compound-select-window-recursive-limit-exhausted-yield-boundary.php`
 models a `wp_options` migration/import query that ranks current recursive seed
 rows beside autoloaded option rows. Adding plugin/theme option rows changes the
 final LIMIT boundary, so the native SELECT executor must keep recursive CTE
@@ -29,13 +31,15 @@ LIMIT/OFFSET ordering aligned.
 Focused command:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext184Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectWindowRecursiveLimitExhaustedYieldBoundaryTest.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 354 assertions, 0 failures
 ```
 
-PASS-line delta: `+62` focused PASS cases in the new test file.
+Consolidation delta: no public pass counter movement; this removes the
+numbered production entry/helper surface while preserving the existing direct
+assertion coverage.
 
 ## Non-Overlap
 

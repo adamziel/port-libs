@@ -89,7 +89,7 @@ $terms169 = static fn (): array => [
     $eq169('autoload', 'yes'),
     $notNull169('option_name'),
 ];
-$plan169 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext169(
+$plan169 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4PartialCostFence(
     $prepared ?? $source169(),
     $current ?? $current169(),
     $terms ?? $terms169(),

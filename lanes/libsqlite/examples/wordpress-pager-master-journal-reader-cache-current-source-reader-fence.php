@@ -14,7 +14,7 @@ $members = [
     '/tmp/wp-content/database/wp_comments.sqlite-journal',
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext160(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceReaderFence(
     $database,
     '/tmp/wp-content/database/.ht.sqlite-mj160',
     $database . "-journal\n/tmp/wp-content/database/old-cache.sqlite-journal\n",
@@ -36,7 +36,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext160
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next160',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-reader-fence',
     'wordpressUse' => 'A copied WordPress options reader re-reads the current master journal and rejects stale pager-cache pages before serving active_plugins and plugin settings pages.',
     'status' => $plan['status'],
     'cacheStaleRejected' => $plan['cache_stale_rejected'],
@@ -47,13 +47,13 @@ $summary = [
 ];
 
 if (
-    $summary['status'] !== 'pager_master_journal_reader_cache_current_source_next160'
+    $summary['status'] !== 'pager_master_journal_reader_cache_current_source_reader_fence'
     || $summary['cacheStaleRejected'] !== true
     || $summary['retainedPages'] !== [1]
     || $summary['invalidatedPages'] !== [2, 3]
     || $summary['readCacheHits'] !== [1 => true, 2 => false, 3 => false]
 ) {
-    fwrite(STDERR, "unexpected pager master-journal reader-cache current-source next160 summary\n");
+    fwrite(STDERR, "unexpected pager master-journal reader-cache current-source-reader-fence summary\n");
     exit(1);
 }
 

@@ -4315,7 +4315,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext169(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
+        public static function materializeStat4PartialCostFence(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
         {
             $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4CurrentRange(
                 $preparedSource,
@@ -4325,9 +4325,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             );
             $selectedSource = ($base['selectedSource'] ?? 'prepared') === 'current' ? $currentSource : $preparedSource;
             $selected = is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [];
-            $competitors = self::competingExpressionIndexesNext169($selectedSource, (string) ($selected['name'] ?? ''));
-            $partialCost = self::intValueNext169($selected, 'estimatedCost');
-            $bestFullCost = self::bestFullCostNext169($competitors);
+            $competitors = self::competingExpressionIndexesForStat4PartialCostFence($selectedSource, (string) ($selected['name'] ?? ''));
+            $partialCost = self::intValueForStat4PartialCostFence($selected, 'estimatedCost');
+            $bestFullCost = self::bestFullCostForStat4PartialCostFence($competitors);
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4-current-range-ready'
                 && $competitors !== []
                 && $bestFullCost !== null
@@ -4351,8 +4351,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'selectedPartialCost' => $partialCost,
                     'bestFullExpressionCost' => $bestFullCost,
                     'costDelta' => $bestFullCost === null ? null : $bestFullCost - $partialCost,
-                    'sourceSignature' => self::signatureNext169($selectedSource),
-                    'candidateSignature' => self::signatureNext169($competitors),
+                    'sourceSignature' => self::signatureForStat4PartialCostFence($selectedSource),
+                    'candidateSignature' => self::signatureForStat4PartialCostFence($competitors),
                 ],
                 'detail' => (($base['reprepareRequired'] ?? false) ? 'REPREPARE' : 'REUSE')
                     . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT169 COST-FENCE '
@@ -4367,7 +4367,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<array<string,mixed>>
          */
-        private static function competingExpressionIndexesNext169(array $source, string $selectedName): array
+        private static function competingExpressionIndexesForStat4PartialCostFence(array $source, string $selectedName): array
         {
             $out = [];
             foreach (($source['indexes'] ?? []) as $index) {
@@ -4376,11 +4376,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
                 $stat4 = is_array($index['stat4Samples'] ?? null) ? $index['stat4Samples'] : [];
                 $rows = max(1, array_sum(array_map(
-                    static fn (mixed $sample): int => is_array($sample) ? self::firstStatIntNext169($sample['neq'] ?? 1) : 1,
+                    static fn (mixed $sample): int => is_array($sample) ? self::firstStatIntForStat4PartialCostFence($sample['neq'] ?? 1) : 1,
                     $stat4,
                 )));
                 $partial = (($index['partialPredicateTerms'] ?? []) !== []);
-                $covering = self::coversNext169($index['coveringColumns'] ?? [], ['option_name', 'option_value', 'updated_at']);
+                $covering = self::coversForStat4PartialCostFence($index['coveringColumns'] ?? [], ['option_name', 'option_value', 'updated_at']);
                 $out[] = [
                     'name' => (string) ($index['name'] ?? ''),
                     'selected' => (string) ($index['name'] ?? '') === $selectedName,
@@ -4398,21 +4398,21 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plans */
-        private static function bestFullCostNext169(array $plans): ?int
+        private static function bestFullCostForStat4PartialCostFence(array $plans): ?int
         {
             $cost = null;
             foreach ($plans as $plan) {
                 if (($plan['partial'] ?? false) === true) {
                     continue;
                 }
-                $value = self::intValueNext169($plan, 'estimatedCost');
+                $value = self::intValueForStat4PartialCostFence($plan, 'estimatedCost');
                 $cost = $cost === null ? $value : min($cost, $value);
             }
 
             return $cost;
         }
 
-        private static function coversNext169(mixed $available, array $needed): bool
+        private static function coversForStat4PartialCostFence(mixed $available, array $needed): bool
         {
             $set = array_flip(array_map('strval', is_array($available) ? $available : []));
             foreach ($needed as $column) {
@@ -4425,7 +4425,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $source */
-        private static function intValueNext169(array $source, string $key): int
+        private static function intValueForStat4PartialCostFence(array $source, string $key): int
         {
             $value = $source[$key] ?? 0;
             if (!is_int($value) && !ctype_digit((string) $value)) {
@@ -4435,7 +4435,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return (int) $value;
         }
 
-        private static function firstStatIntNext169(mixed $value): int
+        private static function firstStatIntForStat4PartialCostFence(mixed $value): int
         {
             if (is_string($value)) {
                 $value = preg_split('/\s+/', trim($value))[0] ?? '0';
@@ -4447,7 +4447,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return (int) $value;
         }
 
-        private static function signatureNext169(mixed $value): string
+        private static function signatureForStat4PartialCostFence(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }

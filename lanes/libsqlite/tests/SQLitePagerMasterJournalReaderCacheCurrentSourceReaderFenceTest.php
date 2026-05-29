@@ -24,21 +24,21 @@ $cachedBytes = implode("\n", $cachedMembers) . "\n";
 $sourceId = 'master-reader-current:160';
 $epoch = 160;
 $currentPages = [
-    1 => $page('next160 schema page current'),
-    2 => $page('next160 active_plugins recovered current'),
-    3 => $page('next160 plugin settings current'),
-    4 => $page('next160 autoload index current'),
-    5 => $page('next160 comments attachment current'),
-    6 => $page('next160 options meta current'),
+    1 => $page('reader fence schema page current'),
+    2 => $page('reader fence active_plugins recovered current'),
+    3 => $page('reader fence plugin settings current'),
+    4 => $page('reader fence autoload index current'),
+    5 => $page('reader fence comments attachment current'),
+    6 => $page('reader fence options meta current'),
 ];
 $cache = [
     1 => ['image' => $currentPages[1], 'source' => 'reader-cache', 'source_id' => $sourceId, 'epoch' => $epoch, 'master_members' => $currentMembers],
-    2 => ['image' => $page('next160 stale active_plugins reader'), 'source' => 'reader-cache', 'source_id' => $sourceId, 'epoch' => $epoch, 'master_members' => $currentMembers],
+    2 => ['image' => $page('reader fence stale active_plugins reader'), 'source' => 'reader-cache', 'source_id' => $sourceId, 'epoch' => $epoch, 'master_members' => $currentMembers],
     3 => ['image' => $currentPages[3], 'source' => 'pinned-reader-cache', 'source_id' => $sourceId, 'epoch' => $epoch, 'pinned' => true, 'master_members' => $cachedMembers],
     4 => ['image' => $currentPages[4], 'source' => 'dirty-reader-cache', 'source_id' => $sourceId, 'epoch' => $epoch, 'dirty' => true, 'master_members' => $currentMembers],
     5 => ['image' => $currentPages[5], 'source' => 'old-source-reader-cache', 'source_id' => 'master-reader-old:159', 'epoch' => $epoch, 'master_members' => $currentMembers],
     6 => ['image' => $currentPages[6], 'source' => 'old-epoch-reader-cache', 'source_id' => $sourceId, 'epoch' => 159, 'master_members' => $currentMembers],
-    7 => ['image' => $page('next160 ghost reader cache page'), 'source' => 'ghost-reader-cache', 'source_id' => $sourceId, 'epoch' => $epoch, 'master_members' => $currentMembers],
+    7 => ['image' => $page('reader fence ghost reader cache page'), 'source' => 'ghost-reader-cache', 'source_id' => $sourceId, 'epoch' => $epoch, 'master_members' => $currentMembers],
 ];
 $readPages = [1, 2, 3, 4, 5, 6];
 
@@ -50,7 +50,7 @@ $plan = static fn (
     ?array $reads = null,
     string $source = 'master-reader-current:160',
     int $epochArg = 160,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext160(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceReaderFence(
     $database,
     $master,
     $cached ?? $cachedBytes,
@@ -64,7 +64,7 @@ $plan = static fn (
 );
 
 $cases = [
-    'status' => [static fn (): mixed => $plan()['status'], 'pager_master_journal_reader_cache_current_source_next160'],
+    'status' => [static fn (): mixed => $plan()['status'], 'pager_master_journal_reader_cache_current_source_reader_fence'],
     'reason' => [static fn (): mixed => $plan()['reason'], 'reader_cache_pages_are_fenced_by_current_master_journal_membership_and_page_digests'],
     'database path' => [static fn (): mixed => $plan()['database_path'], $database],
     'master path' => [static fn (): mixed => $plan()['master_journal_path'], $master],
@@ -92,7 +92,7 @@ $cases = [
     'read one cache hit' => [static fn (): mixed => $plan()['reads'][0]['cache_hit'], true],
     'read two cache miss' => [static fn (): mixed => $plan()['reads'][1]['cache_hit'], false],
     'read three source' => [static fn (): mixed => $plan()['reads'][2]['source'], 'current-master-journal-reader-source'],
-    'read prefix current' => [static fn (): mixed => $plan()['read_prefixes'][2], 'next160 active_plugins recovered current'],
+    'read prefix current' => [static fn (): mixed => $plan()['read_prefixes'][2], 'reader fence active_plugins recovered current'],
     'read digest match' => [static fn (): mixed => $plan()['reads'][5]['matches_current_source_digest'], true],
     'cache hit map retained' => [static fn (): mixed => $plan()['read_cache_hits'][1], true],
     'cache hit map stale miss' => [static fn (): mixed => $plan()['read_cache_hits'][2], false],
@@ -103,7 +103,7 @@ $cases = [
     'read hit operation' => [static fn (): mixed => $plan()['operations'][9]['op'], 'read_master_journal_reader_cache_hit'],
     'read miss operation' => [static fn (): mixed => $plan()['operations'][10]['op'], 'read_master_journal_reader_cache_miss_current_source'],
     'operation count' => [static fn (): mixed => count($plan()['operations']), 15],
-    'dependency marker' => [static fn (): mixed => in_array('sqlite-pager-master-journal-reader-cache-current-source-next160', $plan()['dependencies'], true), true],
+    'dependency marker' => [static fn (): mixed => in_array('sqlite-pager-master-journal-reader-cache-current-source-reader-fence', $plan()['dependencies'], true), true],
     'dependency source fence' => [static fn (): mixed => in_array('sqlite-master-journal-current-source-reader-fence', $plan()['dependencies'], true), true],
     'dependency digest fence' => [static fn (): mixed => in_array('sqlite-pager-cache-current-source-digest', $plan()['dependencies'], true), true],
     'fresh cached members are not stale' => [static fn (): mixed => $plan($currentBytes, null)['cache_stale_rejected'], false],
@@ -119,17 +119,17 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['pager master journal reader cache current source next160 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['pager master journal reader cache current source reader fence ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
 $throws = [
-    'rejects empty database path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext160('', $master, $cachedBytes, $currentBytes, $pageSize, $currentPages, $cache, $readPages, $sourceId, $epoch),
-    'rejects empty master path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext160($database, '', $cachedBytes, $currentBytes, $pageSize, $currentPages, $cache, $readPages, $sourceId, $epoch),
+    'rejects empty database path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceReaderFence('', $master, $cachedBytes, $currentBytes, $pageSize, $currentPages, $cache, $readPages, $sourceId, $epoch),
+    'rejects empty master path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceReaderFence($database, '', $cachedBytes, $currentBytes, $pageSize, $currentPages, $cache, $readPages, $sourceId, $epoch),
     'rejects empty source id' => static fn () => $plan(null, null, null, null, null, '', 160),
     'rejects blank current master' => static fn () => $plan(null, " \n"),
-    'rejects bad page size' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext160($database, $master, $cachedBytes, $currentBytes, 0, $currentPages, $cache, $readPages, $sourceId, $epoch),
+    'rejects bad page size' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceReaderFence($database, $master, $cachedBytes, $currentBytes, 0, $currentPages, $cache, $readPages, $sourceId, $epoch),
     'rejects bad epoch' => static fn () => $plan(null, null, null, null, null, $sourceId, 0),
     'rejects empty current pages' => static fn () => $plan(null, null, []),
     'rejects empty cache' => static fn () => $plan(null, null, null, []),
@@ -146,7 +146,7 @@ $throws = [
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['pager master journal reader cache current source next160 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['pager master journal reader cache current source reader fence ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(Throwable::class, $callback);
     };
 }
