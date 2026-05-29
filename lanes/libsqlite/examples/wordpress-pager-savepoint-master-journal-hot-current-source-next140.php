@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalHotCurrentSourceNext140Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalHotCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalHotCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalHotCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next140.sqlite';
 $masterPath = '/srv/wp-content/database/wp-next140.sqlite-mj';
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
-$plan = SQLitePagerSavepointMasterJournalHotCurrentSourceNext140Plan::plan(
+$plan = SQLitePagerSavepointMasterJournalHotCurrentSourceNextPlan::plan(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n/srv/wp-content/database/site-next140.sqlite-journal\n",

@@ -6,9 +6,9 @@ require_once __DIR__ . '/../src/SQLiteRollbackJournalHeader.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalPage.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournal.php';
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalHotRollbackCurrentSourceNext89Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 
@@ -35,7 +35,7 @@ $mainDirty2 = $page('wp next92 dirty active_plugins after crashed plugin savepoi
 $siteClean1 = $page('wp next92 clean site schema before attached retry');
 $siteDirty1 = $page('wp next92 dirty site schema after attached retry');
 
-$plan = SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext(
+$plan = SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext(
     $masterPath,
     $mainPath . "-journal\n" . $sitePath . "-journal\n",
     [

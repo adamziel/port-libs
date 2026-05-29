@@ -5,9 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteRollbackJournalHeader.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalPage.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournal.php';
-require_once __DIR__ . '/../src/SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 
@@ -36,7 +36,7 @@ $siteJournal = $journal([
     2 => $page('clean site upload_path before network option import'),
 ], 0x10610002);
 
-$plan = SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext(
+$plan = SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext(
     $superPath,
     $mainPath . "-journal\n" . $sitePath . "-journal\n",
     [

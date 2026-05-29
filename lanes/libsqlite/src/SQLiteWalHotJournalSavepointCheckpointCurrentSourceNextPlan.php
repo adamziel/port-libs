@@ -56,7 +56,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                     bool $superJournalRequired = false,
                     bool $superJournalExists = false,
                 ): array {
-                    $base = SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan::plan(
+                    $base = SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan::plan(
                         $databasePath,
                         $databaseBytes,
                         $pageSize,
@@ -266,7 +266,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
                         throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next159 reader frame is outside the current WAL range');
                     }
 
-                    $base = SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan::plan(
+                    $base = SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan::plan(
                         $databasePath,
                         $databaseBytes,
                         $pageSize,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerRollbackCacheSpillMasterCurrentSourceNext121Plan;
+use PortLibs\LibSqlite\SQLitePagerRollbackCacheSpillMasterCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
@@ -82,7 +82,7 @@ $plan = static fn (
     array $reads = null,
     string $mode = 'delete',
     bool $synced = true,
-): array => SQLitePagerRollbackCacheSpillMasterCurrentSourceNext121Plan::currentSourceNext(
+): array => SQLitePagerRollbackCacheSpillMasterCurrentSourceNextPlan::currentSourceNext(
     $masterPath,
     func_num_args() >= 2 ? $master : $masterBytes,
     $databases,

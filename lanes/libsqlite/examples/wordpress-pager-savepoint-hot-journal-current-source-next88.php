@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePagerSavepointHotJournalCurrentSourceNext88Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointHotJournalCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerSavepointHotJournalCurrentSourceNext88Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointHotJournalCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -21,7 +21,7 @@ $clean = [
     4 => $page('transient clean hot-journal image'),
 ];
 
-$plan = SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan(
+$plan = SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan(
     $databasePath,
     implode('', $dirty),
     $pageSize,

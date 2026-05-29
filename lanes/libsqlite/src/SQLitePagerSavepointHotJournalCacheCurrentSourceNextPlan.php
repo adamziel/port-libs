@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan
+final class SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan
 {
     /**
      * @param array<int,array{image:string,source?:string,epoch?:int,source_id?:string,dirty?:bool}> $currentCache

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
@@ -64,7 +64,7 @@ $plan = static fn (
     ?SQLiteWal $overrideNextWal = null,
     ?string $overrideNextWalBytes = null,
     bool $reservedLock = false
-): array => SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan::plan(
+): array => SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan::plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -191,8 +191,8 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty current wal bytes rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, '', $nextWal, $nextWalBytes, [1], 1),
-    'empty next wal bytes rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, $currentWalBytes, $nextWal, '', [1], 1),
+    'empty current wal bytes rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, '', $nextWal, $nextWalBytes, [1], 1),
+    'empty next wal bytes rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, $currentWalBytes, $nextWal, '', [1], 1),
     'empty reader pages rejected' => static fn () => $plan(1, []),
     'negative reader frame rejected' => static fn () => $plan(-1, [1]),
     'past reader frame rejected' => static fn () => $plan(6, [1]),
@@ -206,10 +206,10 @@ $throws = [
         $bytes = $makeWalBytes([[2, 6, 'next148 same salt wal']], 149, 0x14800101, 0x14800102);
         return $plan(1, [1], SQLiteWal::parse($bytes, $pageSize, true), $bytes);
     },
-    'mismatched current bytes rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, $currentWalBytes . 'x', $nextWal, $nextWalBytes, [1], 1),
-    'mismatched next bytes rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, $currentWalBytes, $nextWal, $nextWalBytes . 'x', [1], 1),
-    'base empty path rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan::plan('', $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, [1], 1),
-    'base stale source rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $clean[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, [1], 1),
+    'mismatched current bytes rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, $currentWalBytes . 'x', $nextWal, $nextWalBytes, [1], 1),
+    'mismatched next bytes rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, $currentWalBytes, $nextWal, $nextWalBytes . 'x', [1], 1),
+    'base empty path rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan::plan('', $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, [1], 1),
+    'base stale source rejected' => static fn () => SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $clean[1]], [1 => $clean[1]], [1 => $dirty[1]], $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, [1], 1),
 ];
 
 foreach ($throws as $name => $callback) {

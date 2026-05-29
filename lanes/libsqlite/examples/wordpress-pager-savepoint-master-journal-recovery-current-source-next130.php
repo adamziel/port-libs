@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNextPlan;
 
 $pageSize = 512;
 $main = '/srv/wp-content/database/wp-options-next130.sqlite';
@@ -12,7 +12,7 @@ $stats = '/srv/wp-content/database/wp-options-next130-stats.sqlite';
 $master = '/srv/wp-content/database/wp-options-next130.sqlite-mj';
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.');
 
-$plan = SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Plan::currentSourceNext(
+$plan = SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNextPlan::currentSourceNext(
     $pageSize,
     $master,
     'plugin-import-next130',

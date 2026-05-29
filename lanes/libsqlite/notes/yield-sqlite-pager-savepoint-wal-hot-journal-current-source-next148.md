@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan` for a bounded pager/WAL durability edge:
+Adds `SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan` for a bounded pager/WAL durability edge:
 
 - recover a hot rollback journal before retrying a savepoint;
 - preserve the current WAL reader snapshot against the recovered current source;

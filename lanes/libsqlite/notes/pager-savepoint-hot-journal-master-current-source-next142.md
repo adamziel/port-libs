@@ -2,14 +2,14 @@
 
 Status: focused PHP behavior growth for a pager savepoint retry after the current master journal names the hot rollback journal.
 
-This slice adds `SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan`. It models the current-source ordering where the master journal first validates the hot rollback journal, hot-journal pages restore the database image, and a retry savepoint captures before-images from that recovered image rather than from dirty crashed database bytes. `ROLLBACK TO` then restores the hot-journal current source for the next pager reads.
+This slice adds `SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan`. It models the current-source ordering where the master journal first validates the hot rollback journal, hot-journal pages restore the database image, and a retry savepoint captures before-images from that recovered image rather than from dirty crashed database bytes. `ROLLBACK TO` then restores the hot-journal current source for the next pager reads.
 
 WordPress smoke: `wordpress-pager-savepoint-hot-journal-master-current-source-next142.php` covers a copied `wp_options` plugin activation retry. The smoke proves `active_plugins` is restored from the hot journal before the retry savepoint captures its before-image.
 
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan.php
+php -l lanes/libsqlite/src/SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Test.php
 php -l lanes/libsqlite/examples/wordpress-pager-savepoint-hot-journal-master-current-source-next142.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Test.php

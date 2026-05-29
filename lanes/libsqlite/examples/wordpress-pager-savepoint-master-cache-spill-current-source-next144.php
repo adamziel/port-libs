@@ -3,14 +3,14 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLitePagerDirtyPageCacheSpillPlan.php';
-require_once __DIR__ . '/../src/SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointMasterCacheSpillCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointMasterCacheSpillCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
-$plan = SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Plan::plan(
+$plan = SQLitePagerSavepointMasterCacheSpillCurrentSourceNextPlan::plan(
     '/srv/wp-content/database/wp-options.sqlite',
     '/srv/wp-content/database/wp-options.sqlite-mj',
     'wp_options_import_batch',

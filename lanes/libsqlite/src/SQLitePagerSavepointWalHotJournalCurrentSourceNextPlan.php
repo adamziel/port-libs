@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan
+final class SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan
 {
     /**
      * @param array<int,string> $hotJournalPages
@@ -59,7 +59,7 @@ final class SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan
             throw new \InvalidArgumentException('SQLite pager savepoint WAL hot-journal current-source next148 next WAL salt pair must change');
         }
 
-        $base = SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan(
+        $base = SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan(
             $databasePath,
             $databaseBytes,
             $pageSize,

@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `pager-savepoint-master-journal-reader-current-source-next146`.
 
-This slice adds `SQLitePagerSavepointMasterJournalReaderCurrentSourceNext146Plan`. It models the pager boundary where hot master-journal recovery establishes a recovered current source, `ROLLBACK TO` restores savepoint before-images on top of that source, and readers pinned to either the pre-recovery source or the pre-rollback source must reopen before the next read/write can proceed. Fresh readers admitted after reopen inherit the savepoint current-source token, and the next write journals the savepoint-restored before-image rather than stale or merely hot-recovered bytes.
+This slice adds `SQLitePagerSavepointMasterJournalReaderCurrentSourceNextPlan`. It models the pager boundary where hot master-journal recovery establishes a recovered current source, `ROLLBACK TO` restores savepoint before-images on top of that source, and readers pinned to either the pre-recovery source or the pre-rollback source must reopen before the next read/write can proceed. Fresh readers admitted after reopen inherit the savepoint current-source token, and the next write journals the savepoint-restored before-image rather than stale or merely hot-recovered bytes.
 
 WordPress smoke: `wordpress-pager-savepoint-master-journal-reader-current-source-next146.php` covers copied `wp_options` plugin import recovery where a crashed reader predates master-journal recovery, a reopened reader sees the savepoint-restored plugin option page, and the next plugin option write captures the savepoint current-source before-image.
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerSavepointMasterJournalReaderCurrentSourceNext146Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerSavepointMasterJournalReaderCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerSavepointMasterJournalReaderCurrentSourceNext146Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-savepoint-master-journal-reader-current-source-next146.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSavepointMasterJournalReaderCurrentSourceNext146Test.php`

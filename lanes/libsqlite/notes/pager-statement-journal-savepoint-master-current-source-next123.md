@@ -2,15 +2,15 @@
 
 Status: focused PHP behavior growth for `pager-statement-journal-savepoint-master-current-source-next123`.
 
-This slice adds `SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Plan`. It models the pager boundary where master-journal recovery first establishes the current database source, a failed statement inside an active savepoint writes dirty pages, statement-journal rollback restores only that statement's before-images, and the next statement journal captures retry before-images from the recovered statement-rollback source.
+This slice adds `SQLitePagerStatementJournalSavepointMasterCurrentSourceNextPlan`. It models the pager boundary where master-journal recovery first establishes the current database source, a failed statement inside an active savepoint writes dirty pages, statement-journal rollback restores only that statement's before-images, and the next statement journal captures retry before-images from the recovered statement-rollback source.
 
 WordPress smoke: `wordpress-pager-statement-savepoint-master-current-source-next123.php` covers a copied `wp_options` plugin import retry after master-journal recovery restores the root/autoload pages and the failed `active_plugins` statement rolls back inside the still-open savepoint.
 
 Verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Plan.php
+php -l lanes/libsqlite/src/SQLitePagerStatementJournalSavepointMasterCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLitePagerStatementJournalSavepointMasterCurrentSourceNextPlan.php
 
 php -l lanes/libsqlite/tests/SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Test.php

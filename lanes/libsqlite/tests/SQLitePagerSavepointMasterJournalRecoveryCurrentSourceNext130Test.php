@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -86,7 +86,7 @@ $plan = static fn (
     ?array $writes = null,
     ?array $retry = null,
     bool $release = true,
-): array => SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Plan::currentSourceNext(
+): array => SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNextPlan::currentSourceNext(
     $size ?? $pageSize,
     $masterPath ?? $master,
     $savepoint ?? 'plugin-import-next130',

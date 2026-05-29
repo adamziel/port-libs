@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Plan
+final class SQLitePagerStatementJournalSavepointMasterCurrentSourceNextPlan
 {
     /**
      * @param array<int,string> $masterRecoveredPages

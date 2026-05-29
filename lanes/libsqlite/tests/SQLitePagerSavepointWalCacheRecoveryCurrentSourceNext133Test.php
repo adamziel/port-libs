@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointWalCacheRecoveryCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointWalCacheRecoveryCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 
 $tests = [];
@@ -56,7 +56,7 @@ $plan = static fn (
     string $savepoint = 'plugin-options',
     ?string $db = null,
     ?int $size = null,
-): array => SQLitePagerSavepointWalCacheRecoveryCurrentSourceNext133Plan::plan(
+): array => SQLitePagerSavepointWalCacheRecoveryCurrentSourceNextPlan::plan(
     $db ?? $databaseBytes,
     $size ?? $pageSize,
     $savepoint,

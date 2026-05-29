@@ -1,12 +1,12 @@
 # Pager Statement Journal WAL Savepoint Current Source Next112
 
-This slice adds `SQLitePagerStatementJournalWalSavepointCurrentSourceNext112Plan` for the pager edge where a failed statement writes WAL frames inside an active savepoint, then rolls back through its statement journal before the retry statement appends new WAL frames.
+This slice adds `SQLitePagerStatementJournalWalSavepointCurrentSourceNextPlan` for the pager edge where a failed statement writes WAL frames inside an active savepoint, then rolls back through its statement journal before the retry statement appends new WAL frames.
 
 The planner keeps the outer savepoint WAL frames retained, discards failed statement frames after the retained savepoint prefix, restores statement before-images into the retry current source, and verifies that retry frames restart after the retained savepoint frame rather than building on stale failed statement pages. The WordPress smoke models a copied `wp_options` plugin import retry.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerStatementJournalWalSavepointCurrentSourceNext112Plan.php && php -l lanes/libsqlite/tests/SQLitePagerStatementJournalWalSavepointCurrentSourceNext112Test.php && php -l lanes/libsqlite/examples/wordpress-pager-statement-journal-wal-savepoint-current-source-next112.php`
+- `php -l lanes/libsqlite/src/SQLitePagerStatementJournalWalSavepointCurrentSourceNextPlan.php && php -l lanes/libsqlite/tests/SQLitePagerStatementJournalWalSavepointCurrentSourceNext112Test.php && php -l lanes/libsqlite/examples/wordpress-pager-statement-journal-wal-savepoint-current-source-next112.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerStatementJournalWalSavepointCurrentSourceNext112Test.php`
   - `1 test files, 102 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-pager-statement-journal-wal-savepoint-current-source-next112.php`

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerWalSavepointHotCacheCurrentSourceNext139Plan;
+use PortLibs\LibSqlite\SQLitePagerWalSavepointHotCacheCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -59,7 +59,7 @@ $plan = static fn (
     int $generation = 11,
     bool $refresh = true,
     string $path = '/srv/wp-content/database/wp-next139.sqlite',
-): array => SQLitePagerWalSavepointHotCacheCurrentSourceNext139Plan::plan(
+): array => SQLitePagerWalSavepointHotCacheCurrentSourceNextPlan::plan(
     $path,
     $db ?? $databaseBytes,
     $size ?? $pageSize,

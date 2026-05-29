@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePagerWalSavepointHotCacheCurrentSourceNext139Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerWalSavepointHotCacheCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerWalSavepointHotCacheCurrentSourceNext139Plan;
+use PortLibs\LibSqlite\SQLitePagerWalSavepointHotCacheCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -18,7 +18,7 @@ $base = [
     4 => $page('wp next139 base transient option'),
 ];
 
-$plan = SQLitePagerWalSavepointHotCacheCurrentSourceNext139Plan::plan(
+$plan = SQLitePagerWalSavepointHotCacheCurrentSourceNextPlan::plan(
     $databasePath,
     implode('', $base),
     $pageSize,

@@ -10,7 +10,7 @@ use PortLibs\LibSqlite\SQLiteSavepointStack;
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalCacheRecoveryCurrentSourceNext122Plan.php';
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalCacheCurrentNextPlan.php';
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalSavepointCurrentSourceNext108Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalHotRollbackCurrentSourceNext89Plan.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournal.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalHeader.php';

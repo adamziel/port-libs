@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for pager rollback recovery followed by cach
 
 ## Implementation
 
-- Added `SQLitePagerRollbackCacheSpillMasterCurrentSourceNext121Plan`.
+- Added `SQLitePagerRollbackCacheSpillMasterCurrentSourceNextPlan`.
 - The planner composes accepted master-journal/savepoint/cache-spill recovery, then advances the pager cache source token after rollback recovery.
 - Dirty pages are admitted for cache spill only when their image matches the recovered current source or rollback preview and their cache source id has advanced to the recovered generation.
 - Stale dirty cache pages are expired before retry reads so a crashed writer cannot seed the next write transaction with pre-rollback page images.

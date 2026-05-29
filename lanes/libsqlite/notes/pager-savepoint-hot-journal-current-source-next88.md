@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePagerSavepointHotJournalCurrentSourceNext88Plan`, a bounded pager
+Adds `SQLitePagerSavepointHotJournalCurrentSourceNextPlan`, a bounded pager
 plan for the rollback-journal path where hot-journal recovery must refresh the
 current page source before a transaction savepoint captures before-images,
 rolls back the current attempt, and opens a next retry savepoint.

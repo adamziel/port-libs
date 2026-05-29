@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
@@ -73,7 +73,7 @@ $databases = [
 ];
 $retryWrites = [2 => $retry2, 4 => $retry4];
 
-$plan = static fn (?string $master = null, array $input = null, array $writes = null): array => SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext(
+$plan = static fn (?string $master = null, array $input = null, array $writes = null): array => SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext(
     $masterPath,
     func_num_args() >= 1 ? $master : $masterBytes,
     $input ?? $databases,
@@ -86,7 +86,7 @@ $missing = static fn (): array => $plan(null);
 $reserved = static function () use ($databases, $masterBytes, $masterPath, $pageSize, $mainPath, $retryWrites): array {
     $copy = $databases;
     $copy[0]['reserved_lock'] = true;
-    return SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext(
+    return SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext(
         $masterPath,
         $masterBytes,
         $copy,
@@ -251,13 +251,13 @@ foreach ($cases as $name => $callback) {
 }
 
 $throws = [
-    'empty primary rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, '', 's', $retryWrites),
-    'empty savepoint rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, $mainPath, '', $retryWrites),
-    'empty writes rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, $mainPath, 's', []),
-    'bad page size rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext($masterPath, $masterBytes, $databases, 500, $mainPath, 's', $retryWrites),
-    'zero page rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, $mainPath, 's', [0 => $retry2]),
-    'short page rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, $mainPath, 's', [2 => 'short']),
-    'missing primary rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, '/missing.sqlite', 's', $retryWrites),
+    'empty primary rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, '', 's', $retryWrites),
+    'empty savepoint rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, $mainPath, '', $retryWrites),
+    'empty writes rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, $mainPath, 's', []),
+    'bad page size rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext($masterPath, $masterBytes, $databases, 500, $mainPath, 's', $retryWrites),
+    'zero page rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, $mainPath, 's', [0 => $retry2]),
+    'short page rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, $mainPath, 's', [2 => 'short']),
+    'missing primary rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, '/missing.sqlite', 's', $retryWrites),
     'writer missing database rejected' => static function () use ($masterPath, $pageSize, $mainPath, $retryWrites): void {
         $root = sys_get_temp_dir() . '/port-libsqlite-savepoint-master-92-' . bin2hex(random_bytes(4));
         (new SQLiteVfsFileWriter($root))->applySavepointMasterJournalCurrentSourceNext92($masterPath, [['database_path' => $mainPath]], $pageSize, $mainPath, 's', $retryWrites);

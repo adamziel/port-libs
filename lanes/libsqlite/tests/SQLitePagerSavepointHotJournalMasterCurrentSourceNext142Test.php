@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -22,7 +22,7 @@ $retry2 = $page('next142 retry active_plugins value inside savepoint');
 $retry4 = $page('next142 retry autoload index inside savepoint');
 $retry5 = $page('next142 retry newly allocated option overflow page');
 
-$plan = static fn (): array => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan(
+$plan = static fn (): array => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan(
     $pageSize,
     $databasePath,
     $journalPath,
@@ -111,26 +111,26 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'rejects empty database path' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, '', $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
-    'rejects empty journal path' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, '', $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
-    'rejects empty master path' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, '', $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
-    'rejects empty savepoint' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, '', [1 => $clean1], [1 => $retry2], [1]),
-    'rejects read only' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1], false, true),
-    'rejects reserved lock' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1], true),
-    'rejects missing master bytes' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, null, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
-    'rejects master without member' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, '/tmp/other-journal', $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
-    'rejects empty database bytes' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, '', 'sp', [1 => $clean1], [1 => $retry2], [1]),
-    'rejects misaligned database bytes' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, 'short', 'sp', [1 => $clean1], [1 => $retry2], [1]),
-    'rejects small page size' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan(128, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
-    'rejects non power page size' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan(768, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1 . str_repeat('.', 256), 'sp', [1 => str_pad('x', 768, '.')], [1 => str_pad('y', 768, '.')], [1]),
-    'rejects empty hot pages' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [], [1 => $retry2], [1]),
-    'rejects empty retry writes' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [], [1]),
-    'rejects empty read pages' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], []),
-    'rejects zero hot page' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [0 => $clean1], [1 => $retry2], [1]),
-    'rejects short hot page' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => 'short'], [1 => $retry2], [1]),
-    'rejects zero retry page' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [0 => $retry2], [1]),
-    'rejects short retry page' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => 'short'], [1]),
-    'rejects zero read page' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [0]),
+    'rejects empty database path' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, '', $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
+    'rejects empty journal path' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, '', $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
+    'rejects empty master path' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, '', $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
+    'rejects empty savepoint' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, '', [1 => $clean1], [1 => $retry2], [1]),
+    'rejects read only' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1], false, true),
+    'rejects reserved lock' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1], true),
+    'rejects missing master bytes' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, null, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
+    'rejects master without member' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, '/tmp/other-journal', $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
+    'rejects empty database bytes' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, '', 'sp', [1 => $clean1], [1 => $retry2], [1]),
+    'rejects misaligned database bytes' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, 'short', 'sp', [1 => $clean1], [1 => $retry2], [1]),
+    'rejects small page size' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan(128, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [1]),
+    'rejects non power page size' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan(768, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1 . str_repeat('.', 256), 'sp', [1 => str_pad('x', 768, '.')], [1 => str_pad('y', 768, '.')], [1]),
+    'rejects empty hot pages' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [], [1 => $retry2], [1]),
+    'rejects empty retry writes' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [], [1]),
+    'rejects empty read pages' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], []),
+    'rejects zero hot page' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [0 => $clean1], [1 => $retry2], [1]),
+    'rejects short hot page' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => 'short'], [1 => $retry2], [1]),
+    'rejects zero retry page' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [0 => $retry2], [1]),
+    'rejects short retry page' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => 'short'], [1]),
+    'rejects zero read page' => static fn () => SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan($pageSize, $databasePath, $journalPath, $masterPath, $journalPath, $dirty1, 'sp', [1 => $clean1], [1 => $retry2], [0]),
 ];
 
 foreach ($throws as $name => $callback) {

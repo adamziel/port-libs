@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLitePagerRollbackCacheSpillMasterCurrentSourceNext121Plan
+final class SQLitePagerRollbackCacheSpillMasterCurrentSourceNextPlan
 {
     /**
      * @param list<array{database_path:string,current_database_bytes:string,current_journal_bytes:string,stale_database_bytes?:string,stale_journal_bytes?:string,reserved_lock?:bool}> $databases

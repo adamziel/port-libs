@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePagerRollbackCacheSpillMasterCurrentSourceNext121Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerRollbackCacheSpillMasterCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalCacheSpillSavepointCurrentSourceNext114Plan.php';
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalSavepointCurrentSourceNext108Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalHotRollbackCurrentSourceNext89Plan.php';
 require_once __DIR__ . '/../src/SQLitePagerDirtyPageCacheSpillPlan.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournal.php';
@@ -13,7 +13,7 @@ require_once __DIR__ . '/../src/SQLiteRollbackJournalHeader.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalPage.php';
 require_once __DIR__ . '/../src/SQLiteSavepointStack.php';
 
-use PortLibs\LibSqlite\SQLitePagerRollbackCacheSpillMasterCurrentSourceNext121Plan;
+use PortLibs\LibSqlite\SQLitePagerRollbackCacheSpillMasterCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
@@ -48,7 +48,7 @@ $stack->recordPageImageWrite(1, $cleanOptionsRoot);
 $stack->savepoint('active-plugins-retry');
 $stack->recordPageImageWrite(3, $cleanSetting);
 
-$plan = SQLitePagerRollbackCacheSpillMasterCurrentSourceNext121Plan::currentSourceNext(
+$plan = SQLitePagerRollbackCacheSpillMasterCurrentSourceNextPlan::currentSourceNext(
     $masterPath,
     $mainPath . "-journal\n" . $sitePath . "-journal\n",
     [

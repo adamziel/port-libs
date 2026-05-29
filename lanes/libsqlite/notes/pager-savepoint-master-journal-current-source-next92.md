@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for pager savepoint retry after current-source master-journal hot rollback.
 
-This slice adds `SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan` and a VFS writer entrypoint that compose the accepted current-source master-journal hot rollback path with the next savepoint retry. The retry savepoint captures before-images from the recovered database image, not from stale dirty current bytes, and can append a new page after attached-database master-journal recovery.
+This slice adds `SQLitePagerSavepointMasterJournalCurrentSourceNextPlan` and a VFS writer entrypoint that compose the accepted current-source master-journal hot rollback path with the next savepoint retry. The retry savepoint captures before-images from the recovered database image, not from stale dirty current bytes, and can append a new page after attached-database master-journal recovery.
 
 WordPress path: `wordpress-pager-savepoint-master-journal-current-source-next92.php` models a copied `wp_options` plugin import that crashes with a master journal across main and attached site databases, then retries the plugin savepoint after recovery.
 

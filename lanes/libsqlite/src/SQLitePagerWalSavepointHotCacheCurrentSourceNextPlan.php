@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLitePagerWalSavepointHotCacheCurrentSourceNext139Plan
+final class SQLitePagerWalSavepointHotCacheCurrentSourceNextPlan
 {
     /**
      * @param array<int,string> $hotRecoveredPages

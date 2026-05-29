@@ -2,15 +2,15 @@
 
 Status: focused PHP behavior growth for `pager-savepoint-hot-journal-cache-current-source-next128`.
 
-This slice adds `SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan`. It models the pager boundary where hot rollback-journal recovery changes the current page-cache source, `ROLLBACK TO` restores savepoint before-images while keeping the savepoint active, and the next statement subjournal must capture retry before-images from the hot-journal recovered current source instead of stale cached or dirty aborted pages.
+This slice adds `SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan`. It models the pager boundary where hot rollback-journal recovery changes the current page-cache source, `ROLLBACK TO` restores savepoint before-images while keeping the savepoint active, and the next statement subjournal must capture retry before-images from the hot-journal recovered current source instead of stale cached or dirty aborted pages.
 
 WordPress smoke: `wordpress-pager-savepoint-hot-journal-cache-current-source-next128.php` covers a copied `wp_options` plugin import retry after a hot journal restores `active_plugins` and autoload index pages, discards stale/dirty page-cache entries, rolls back the failed savepoint write, and retries from the recovered current source.
 
 Verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan.php
+php -l lanes/libsqlite/src/SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan.php
 
 php -l lanes/libsqlite/tests/SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Test.php

@@ -2,11 +2,11 @@
 
 ## Behavior
 
-Adds `SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Plan` for the pager edge where a master-journal recovery establishes the current database source before a savepoint transaction is allowed to spill dirty cache pages. The plan only spills dirty pages whose savepoint before-images match the current source id/epoch, blocks dirty pages without a savepoint before-image, and reports rollback-to reads that restore the recovered before-image even after the spill wrote the dirty page.
+Adds `SQLitePagerSavepointMasterCacheSpillCurrentSourceNextPlan` for the pager edge where a master-journal recovery establishes the current database source before a savepoint transaction is allowed to spill dirty cache pages. The plan only spills dirty pages whose savepoint before-images match the current source id/epoch, blocks dirty pages without a savepoint before-image, and reports rollback-to reads that restore the recovered before-image even after the spill wrote the dirty page.
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerSavepointMasterCacheSpillCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-savepoint-master-cache-spill-current-source-next144.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Test.php`

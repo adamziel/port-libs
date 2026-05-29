@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `pager-savepoint-master-journal-recovery-current-source-next130`.
 
-This slice adds `SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Plan`. It models an already-open savepoint after a crash where pager recovery must discard stale cached master-journal membership, re-read the current master-journal member list, restore current pages for all current member databases, capture savepoint before-images from that recovered source, and make `ROLLBACK TO` feed the next retry write from the recovered current source rather than dirty savepoint pages.
+This slice adds `SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNextPlan`. It models an already-open savepoint after a crash where pager recovery must discard stale cached master-journal membership, re-read the current master-journal member list, restore current pages for all current member databases, capture savepoint before-images from that recovered source, and make `ROLLBACK TO` feed the next retry write from the recovered current source rather than dirty savepoint pages.
 
 WordPress smoke: `wordpress-pager-savepoint-master-journal-recovery-current-source-next130.php` covers a copied `wp_options` plugin import touching a main database and an attached stats/audit database. It proves a stale detached cached master-journal member is ignored, the current attached journal is recovered, failed savepoint writes roll back to recovered pages, and retry writes are based on that rollback source.
 
@@ -16,8 +16,8 @@ Focused test run: 1 selected test files (root lock skipped)
 ```
 
 ```text
-php -l lanes/libsqlite/src/SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Plan.php
+php -l lanes/libsqlite/src/SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNextPlan.php
 
 php -l lanes/libsqlite/tests/SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Test.php

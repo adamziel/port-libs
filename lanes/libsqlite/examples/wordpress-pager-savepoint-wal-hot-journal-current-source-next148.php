@@ -5,10 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLitePagerSavepointHotJournalCurrentSourceNext88Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointHotJournalCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
@@ -50,7 +50,7 @@ $nextWalBytes = $makeWalBytes([
     [4, 4, 'wp next148 next retry autoload commit'],
 ], 149, 0x14914901, 0x14914902);
 
-$plan = SQLitePagerSavepointWalHotJournalCurrentSourceNext148Plan::plan(
+$plan = SQLitePagerSavepointWalHotJournalCurrentSourceNextPlan::plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

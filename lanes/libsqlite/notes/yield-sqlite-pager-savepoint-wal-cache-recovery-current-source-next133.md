@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice adds `SQLitePagerSavepointWalCacheRecoveryCurrentSourceNext133Plan`, a bounded native PHP pager/WAL recovery planner for cache entries after `ROLLBACK TO` in WAL mode.
+This slice adds `SQLitePagerSavepointWalCacheRecoveryCurrentSourceNextPlan`, a bounded native PHP pager/WAL recovery planner for cache entries after `ROLLBACK TO` in WAL mode.
 
 The behavior modeled here is current-source pager cache validation: cache pages sourced from WAL frames discarded by savepoint rollback are refreshed from the retained WAL prefix or base database image before later reads/checkpoint-style consumers use them. Retained cache pages remain valid when their WAL frame survives the rollback.
 

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePagerSavepointWalCacheRecoveryCurrentSourceNext133Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointWalCacheRecoveryCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteSavepointStack.php';
 
-use PortLibs\LibSqlite\SQLitePagerSavepointWalCacheRecoveryCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointWalCacheRecoveryCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 
 $pageSize = 512;
@@ -29,7 +29,7 @@ $savepoints->savepoint('plugin-options');
 $savepoints->recordWalFrameWrite(2, 2);
 $savepoints->recordWalFrameWrite(3, 3);
 
-$plan = SQLitePagerSavepointWalCacheRecoveryCurrentSourceNext133Plan::plan(
+$plan = SQLitePagerSavepointWalCacheRecoveryCurrentSourceNextPlan::plan(
     $databaseBytes,
     $pageSize,
     'plugin-options',

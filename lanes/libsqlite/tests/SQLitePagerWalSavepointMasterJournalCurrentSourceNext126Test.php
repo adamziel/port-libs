@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerWalSavepointMasterJournalCurrentSourceNext126Plan;
+use PortLibs\LibSqlite\SQLitePagerWalSavepointMasterJournalCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
@@ -96,7 +96,7 @@ $plan = static fn (
     ?string $path = null,
     array $pages = [1, 2, 3],
     bool $reserved = false,
-): array => SQLitePagerWalSavepointMasterJournalCurrentSourceNext126Plan::plan(
+): array => SQLitePagerWalSavepointMasterJournalCurrentSourceNextPlan::plan(
     $master ?? $masterPath,
     func_num_args() >= 1 ? $cached : $cachedMaster,
     func_num_args() >= 2 ? $current : $currentMaster,

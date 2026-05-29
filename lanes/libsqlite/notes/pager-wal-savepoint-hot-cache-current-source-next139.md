@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `pager-wal-savepoint-hot-cache-current-source-next139`.
 
-This slice adds `SQLitePagerWalSavepointHotCacheCurrentSourceNext139Plan`. It models the pager boundary after hot recovery establishes the current database source, a WAL savepoint rollback discards newer frames, and the hot pager cache must be validated before the next read/write. Cache entries are retained only when source id, generation, frame prefix, and image match the recovered current source; clean stale pages can refresh, dirty/pinned stale pages are invalidated, and next writes journal before-images from the current source instead of stale cache bytes.
+This slice adds `SQLitePagerWalSavepointHotCacheCurrentSourceNextPlan`. It models the pager boundary after hot recovery establishes the current database source, a WAL savepoint rollback discards newer frames, and the hot pager cache must be validated before the next read/write. Cache entries are retained only when source id, generation, frame prefix, and image match the recovered current source; clean stale pages can refresh, dirty/pinned stale pages are invalidated, and next writes journal before-images from the current source instead of stale cache bytes.
 
 WordPress smoke: `wordpress-pager-wal-savepoint-hot-cache-current-source-next139.php` covers copied `wp_options` plugin-import retry behavior where `active_plugins` refreshes from hot recovery, dirty plugin-setting cache is invalidated, and the next retry write captures the recovered current-source page.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerWalSavepointHotCacheCurrentSourceNext139Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerWalSavepointHotCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerWalSavepointHotCacheCurrentSourceNext139Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-wal-savepoint-hot-cache-current-source-next139.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerWalSavepointHotCacheCurrentSourceNext139Test.php`

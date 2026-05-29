@@ -1,6 +1,6 @@
 # Pager Savepoint Master-Journal Hot Current Source Next140
 
-This slice adds `SQLitePagerSavepointMasterJournalHotCurrentSourceNext140Plan`, a bounded pager planner for the non-WAL edge where a hot rollback journal is admitted through the current master journal while a savepoint remains open.
+This slice adds `SQLitePagerSavepointMasterJournalHotCurrentSourceNextPlan`, a bounded pager planner for the non-WAL edge where a hot rollback journal is admitted through the current master journal while a savepoint remains open.
 
 Behavior covered:
 
@@ -13,7 +13,7 @@ WordPress smoke: `wordpress-pager-savepoint-master-journal-hot-current-source-ne
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerSavepointMasterJournalHotCurrentSourceNext140Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerSavepointMasterJournalHotCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerSavepointMasterJournalHotCurrentSourceNext140Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-savepoint-master-journal-hot-current-source-next140.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerSavepointMasterJournalHotCurrentSourceNext140Test.php`

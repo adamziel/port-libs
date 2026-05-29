@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerWalSavepointMasterJournalCurrentSourceNext126Plan;
+use PortLibs\LibSqlite\SQLitePagerWalSavepointMasterJournalCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
@@ -63,7 +63,7 @@ $stack->savepoint('plugin_batch');
 $stack->recordWalFrameWrite(3, 3);
 $stack->recordWalFrameWrite(4, 2, true);
 
-$plan = SQLitePagerWalSavepointMasterJournalCurrentSourceNext126Plan::plan(
+$plan = SQLitePagerWalSavepointMasterJournalCurrentSourceNextPlan::plan(
     $masterPath,
     "/srv/wp/wp-content/database/stale.sqlite-journal\n",
     $journalPath . "\n",

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
@@ -97,7 +97,7 @@ $partialDatabases = [$databases[0], $databases[1], [
     'current_journal_bytes' => $orphanJournalBytes,
 ]];
 
-$plan = static fn (?string $bytes = null, array $input = null): array => SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext(
+$plan = static fn (?string $bytes = null, array $input = null): array => SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext(
     $superPath,
     $bytes,
     $input ?? $databases,
@@ -109,7 +109,7 @@ $partial = static fn (): array => $plan($partialSuperBytes, $partialDatabases);
 $reserved = static function () use ($databases, $superBytes, $superPath, $pageSize): array {
     $copy = $databases;
     $copy[1]['reserved_lock'] = true;
-    return SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext($superPath, $superBytes, $copy, $pageSize);
+    return SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext($superPath, $superBytes, $copy, $pageSize);
 };
 $writeCurrentSourceFiles = static function (string $root, ?string $super = null, array $entries = null) use ($local, $superPath, $superBytes, $databases): void {
     @mkdir(dirname($local($root, $superPath)), 0777, true);
@@ -228,7 +228,7 @@ $cases = [
     },
     'empty super path rejected' => static function () use ($superBytes, $databases, $pageSize): mixed {
         try {
-            SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext('', $superBytes, $databases, $pageSize);
+            SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext('', $superBytes, $databases, $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -236,7 +236,7 @@ $cases = [
     },
     'empty database list rejected' => static function () use ($superPath, $superBytes, $pageSize): mixed {
         try {
-            SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext($superPath, $superBytes, [], $pageSize);
+            SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext($superPath, $superBytes, [], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -244,7 +244,7 @@ $cases = [
     },
     'bad page size rejected' => static function () use ($superPath, $superBytes, $databases): mixed {
         try {
-            SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext($superPath, $superBytes, $databases, 513);
+            SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext($superPath, $superBytes, $databases, 513);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -252,7 +252,7 @@ $cases = [
     },
     'duplicate database rejected' => static function () use ($superPath, $superBytes, $databases, $pageSize): mixed {
         try {
-            SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext($superPath, $superBytes, [$databases[0], $databases[0]], $pageSize);
+            SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext($superPath, $superBytes, [$databases[0], $databases[0]], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -260,7 +260,7 @@ $cases = [
     },
     'read only rejected' => static function () use ($superPath, $superBytes, $databases, $pageSize): mixed {
         try {
-            SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext($superPath, $superBytes, $databases, $pageSize, true);
+            SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext($superPath, $superBytes, $databases, $pageSize, true);
         } catch (LogicException) {
             return 'rejected';
         }
@@ -270,7 +270,7 @@ $cases = [
         $copy = $databases;
         $copy[0]['current_database_bytes'] = 'short';
         try {
-            SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext($superPath, $superBytes, $copy, $pageSize);
+            SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext($superPath, $superBytes, $copy, $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }

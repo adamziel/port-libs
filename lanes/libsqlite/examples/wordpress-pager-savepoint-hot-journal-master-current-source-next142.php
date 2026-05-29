@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -12,7 +12,7 @@ $databasePath = '/srv/wp/database/wp.sqlite';
 $journalPath = $databasePath . '-journal';
 $masterPath = $databasePath . '-mj142';
 
-$plan = SQLitePagerSavepointHotJournalMasterCurrentSourceNext142Plan::plan(
+$plan = SQLitePagerSavepointHotJournalMasterCurrentSourceNextPlan::plan(
     $pageSize,
     $databasePath,
     $journalPath,

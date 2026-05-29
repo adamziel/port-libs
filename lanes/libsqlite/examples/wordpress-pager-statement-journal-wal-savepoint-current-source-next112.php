@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePagerStatementJournalWalSavepointCurrentSourceNext112Plan;
+use PortLibs\LibSqlite\SQLitePagerStatementJournalWalSavepointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/wp-content/database/wp-next112.sqlite';
@@ -23,7 +23,7 @@ $statementBefore = [
     5 => $page('next112 before failed plugin index'),
 ];
 
-$plan = SQLitePagerStatementJournalWalSavepointCurrentSourceNext112Plan::plan(
+$plan = SQLitePagerStatementJournalWalSavepointCurrentSourceNextPlan::plan(
     $databasePath,
     implode('', $current),
     $pageSize,

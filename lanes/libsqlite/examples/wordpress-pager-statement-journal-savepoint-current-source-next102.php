@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePagerStatementJournalSavepointCurrentSourceNext102Plan;
+use PortLibs\LibSqlite\SQLitePagerStatementJournalSavepointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -18,7 +18,7 @@ $current = [
     6 => $page('next102 current untouched comments page'),
 ];
 
-$plan = SQLitePagerStatementJournalSavepointCurrentSourceNext102Plan::plan(
+$plan = SQLitePagerStatementJournalSavepointCurrentSourceNextPlan::plan(
     '/wp-content/database/wp-next102.sqlite',
     implode('', $current),
     $pageSize,

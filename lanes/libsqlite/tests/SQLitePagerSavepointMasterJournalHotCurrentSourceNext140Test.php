@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalHotCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalHotCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -51,7 +51,7 @@ $plan = static fn (
     ?int $size = null,
     string $savepointName = 'wp_import_next140',
     string $retryName = 'retry_options_next140',
-): array => SQLitePagerSavepointMasterJournalHotCurrentSourceNext140Plan::plan(
+): array => SQLitePagerSavepointMasterJournalHotCurrentSourceNextPlan::plan(
     $path ?? $databasePath,
     $masterJournalPath ?? $masterPath,
     func_num_args() >= 9 ? $master : $masterBytes,

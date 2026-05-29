@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalReaderCurrentSourceNext146Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalReaderCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalReaderCurrentSourceNext146Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalReaderCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next146.sqlite';
@@ -27,7 +27,7 @@ $savepoint = [
 $recoveredSourceId = 'master-savepoint-reader:' . hash('sha256', $masterPath . '|' . $databasePath . '-journal');
 $savepointSourceId = $recoveredSourceId . ':rollback-to:plugin-import';
 
-$plan = SQLitePagerSavepointMasterJournalReaderCurrentSourceNext146Plan::plan(
+$plan = SQLitePagerSavepointMasterJournalReaderCurrentSourceNextPlan::plan(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n",

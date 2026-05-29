@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerStatementJournalSavepointCurrentSourceNext102Plan;
+use PortLibs\LibSqlite\SQLitePagerStatementJournalSavepointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -58,7 +58,7 @@ $plan = static fn (
     string $savepointName = 'plugin-batch-next102',
     string $statementName = 'insert-active-plugin-next102',
     string $nextName = 'retry-active-plugin-next102',
-): array => SQLitePagerStatementJournalSavepointCurrentSourceNext102Plan::plan(
+): array => SQLitePagerStatementJournalSavepointCurrentSourceNextPlan::plan(
     $path ?? $databasePath,
     $bytes ?? $databaseBytes,
     $size ?? $pageSize,

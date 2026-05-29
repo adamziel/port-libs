@@ -1233,7 +1233,7 @@ final class SQLiteVfsFileWriter
             $sourceJournalBytes[$databasePath . '-journal'] = strlen($journalBytes);
         }
 
-        $plan = SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext(
+        $plan = SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext(
             $masterJournalPath,
             $masterJournalBytes,
             $hydrated,
@@ -1365,7 +1365,7 @@ final class SQLiteVfsFileWriter
             $sourceJournalBytes[$databasePath . '-journal'] = strlen($journalBytes);
         }
 
-        $plan = SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext(
+        $plan = SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext(
             $superJournalPath,
             $superJournalBytes,
             $hydrated,

@@ -29,7 +29,7 @@ final class SQLitePagerMasterJournalSavepointCurrentSourceNext108Plan
 
         $beforeStack = clone $savepoints;
         $beforePlan = $beforeStack->rollbackToPlan($savepointName);
-        $retry = SQLitePagerSavepointMasterJournalCurrentSourceNext92Plan::currentSourceNext(
+        $retry = SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext(
             $masterJournalPath,
             $masterJournalBytes,
             $databases,

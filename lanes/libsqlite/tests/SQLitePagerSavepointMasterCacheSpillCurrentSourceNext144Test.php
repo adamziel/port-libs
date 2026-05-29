@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointMasterCacheSpillCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -49,7 +49,7 @@ $plan = static fn (
     string $savepoint = 'wp_import_page',
     string $source = 'pager-next144-current-source',
     int $epoch = 14,
-): array => SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Plan::plan(
+): array => SQLitePagerSavepointMasterCacheSpillCurrentSourceNextPlan::plan(
     $path,
     $master,
     $savepoint,

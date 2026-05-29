@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNext130Plan
+final class SQLitePagerSavepointMasterJournalRecoveryCurrentSourceNextPlan
 {
     /**
      * @param list<string> $cachedMasterMembers

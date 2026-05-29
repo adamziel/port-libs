@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointHotJournalCurrentSourceNext88Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointHotJournalCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -24,7 +24,7 @@ $clean = [
 ];
 $databaseBytes = implode('', $dirty);
 
-$plan = static fn (): array => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan(
+$plan = static fn (): array => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -45,7 +45,7 @@ $plan = static fn (): array => SQLitePagerSavepointHotJournalCurrentSourceNext88
     true,
 );
 
-$blocked = static fn (): array => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan(
+$blocked = static fn (): array => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -134,18 +134,18 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty database path rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan('', $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
-    'bad page size rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes, 500, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
-    'unaligned database rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes . 'x', $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
-    'empty savepoint rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes, $pageSize, '', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
-    'empty hot journal rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
-    'empty source rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [], [1 => $clean[1]], [1 => $dirty[1]]),
-    'empty current write rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [], [1 => $dirty[1]]),
-    'empty next write rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], []),
-    'zero epoch rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], 0),
-    'zero hot page rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [0 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
-    'short hot page rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => 'short'], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
-    'stale source page rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNext88Plan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $clean[1]], [1 => $clean[1]], [1 => $dirty[1]]),
+    'empty database path rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan('', $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
+    'bad page size rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, 500, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
+    'unaligned database rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes . 'x', $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
+    'empty savepoint rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, '', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
+    'empty hot journal rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
+    'empty source rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [], [1 => $clean[1]], [1 => $dirty[1]]),
+    'empty current write rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [], [1 => $dirty[1]]),
+    'empty next write rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], []),
+    'zero epoch rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]], 0),
+    'zero hot page rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [0 => $clean[1]], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
+    'short hot page rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => 'short'], [1 => $dirty[1]], [1 => $clean[1]], [1 => $dirty[1]]),
+    'stale source page rejected' => static fn () => SQLitePagerSavepointHotJournalCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $pageSize, 's', [1 => $clean[1]], [1 => $clean[1]], [1 => $clean[1]], [1 => $dirty[1]]),
 ];
 
 foreach ($throws as $name => $callback) {

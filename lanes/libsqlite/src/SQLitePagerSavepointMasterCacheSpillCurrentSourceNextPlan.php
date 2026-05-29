@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLitePagerSavepointMasterCacheSpillCurrentSourceNext144Plan
+final class SQLitePagerSavepointMasterCacheSpillCurrentSourceNextPlan
 {
     /**
      * @param array<int,string> $databasePages

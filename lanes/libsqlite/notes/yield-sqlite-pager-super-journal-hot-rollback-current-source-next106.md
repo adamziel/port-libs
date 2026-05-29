@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext()` for hot rollback-journal recovery when a WordPress multi-database import crashes under a SQLite super-journal. The planner hydrates current database and journal bytes, ignores stale candidate snapshots, restores only participant journals listed by the current super-journal, and deletes the super-journal only after every named participant journal is cleared.
+Adds `SQLitePagerSuperJournalHotRollbackCurrentSourceNextPlan::currentSourceNext()` for hot rollback-journal recovery when a WordPress multi-database import crashes under a SQLite super-journal. The planner hydrates current database and journal bytes, ignores stale candidate snapshots, restores only participant journals listed by the current super-journal, and deletes the super-journal only after every named participant journal is cleared.
 
 `SQLiteVfsFileWriter::applySuperJournalHotRollbackCurrentSource106()` wires the plan to current VFS file handles with atomic operation rollback.
 

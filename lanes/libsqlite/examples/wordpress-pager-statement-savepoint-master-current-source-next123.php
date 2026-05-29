@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerStatementJournalSavepointMasterCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Plan;
+use PortLibs\LibSqlite\SQLitePagerStatementJournalSavepointMasterCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-options-next123.sqlite';
@@ -24,7 +24,7 @@ $recoveredPages = [
     4 => $page('wp next123 recovered autoload index current source'),
 ];
 
-$plan = SQLitePagerStatementJournalSavepointMasterCurrentSourceNext123Plan::plan(
+$plan = SQLitePagerStatementJournalSavepointMasterCurrentSourceNextPlan::plan(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n",

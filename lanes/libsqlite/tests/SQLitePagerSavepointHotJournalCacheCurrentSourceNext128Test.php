@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan;
+use PortLibs\LibSqlite\SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan;
 
 $tests = [];
 
 $pageSize = 80;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
-$plan = static fn (): array => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(
+$plan = static fn (): array => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(
     $pageSize,
     'wp_plugin_import',
     'retry-active-plugins',
@@ -120,43 +120,43 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['pager savepoint hot journal cache current source next128 rejects bad page size'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(0, 's', 'stmt', 'a', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(0, 's', 'stmt', 'a', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
 };
 
 $tests['pager savepoint hot journal cache current source next128 rejects empty savepoint'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(80, '', 'stmt', 'a', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(80, '', 'stmt', 'a', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
 };
 
 $tests['pager savepoint hot journal cache current source next128 rejects empty statement'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(80, 's', '', 'a', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(80, 's', '', 'a', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
 };
 
 $tests['pager savepoint hot journal cache current source next128 rejects empty source'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(80, 's', 'stmt', '', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(80, 's', 'stmt', '', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
 };
 
 $tests['pager savepoint hot journal cache current source next128 rejects unchanged source'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(80, 's', 'stmt', 'a', 'a', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(80, 's', 'stmt', 'a', 'a', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
 };
 
 $tests['pager savepoint hot journal cache current source next128 rejects zero epoch'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(80, 's', 'stmt', 'a', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1], 0));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(80, 's', 'stmt', 'a', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1], 0));
 };
 
 $tests['pager savepoint hot journal cache current source next128 rejects empty hot pages'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(80, 's', 'stmt', 'a', 'b', [], [], [1 => $page('b')], [1 => $page('c')], [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(80, 's', 'stmt', 'a', 'b', [], [], [1 => $page('b')], [1 => $page('c')], [1]));
 };
 
 $tests['pager savepoint hot journal cache current source next128 rejects bad cache page'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(80, 's', 'stmt', 'a', 'b', [0 => ['image' => $page('cache')]], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(80, 's', 'stmt', 'a', 'b', [0 => ['image' => $page('cache')]], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [1]));
 };
 
 $tests['pager savepoint hot journal cache current source next128 rejects short hot page'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(80, 's', 'stmt', 'a', 'b', [], [1 => 'short'], [1 => $page('b')], [1 => $page('c')], [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(80, 's', 'stmt', 'a', 'b', [], [1 => 'short'], [1 => $page('b')], [1 => $page('c')], [1]));
 };
 
 $tests['pager savepoint hot journal cache current source next128 rejects bad read page'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNext128Plan::currentSourceNext(80, 's', 'stmt', 'a', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [0]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerSavepointHotJournalCacheCurrentSourceNextPlan::currentSourceNext(80, 's', 'stmt', 'a', 'b', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], [0]));
 };
 
 return $tests;
