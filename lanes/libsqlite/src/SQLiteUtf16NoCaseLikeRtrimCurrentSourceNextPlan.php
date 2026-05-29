@@ -356,7 +356,7 @@ final class SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl
         int $currentSchemaCookie = 161,
         int $nextSchemaCookie = 162,
     ): array {
-        $base = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan::wordpressOptionNamePatternPlan(
+        $base = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::wordpressOptionNamePatternPlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,

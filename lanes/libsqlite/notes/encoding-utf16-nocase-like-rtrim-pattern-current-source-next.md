@@ -4,20 +4,20 @@ Status: focused PHP behavior growth for prepared UTF-16 LIKE pattern bytes feedi
 
 Behavior:
 
-- Adds `SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan`.
+- Adds `SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan`.
 - Decodes current and next prepared LIKE pattern/ESCAPE bytes from UTF-8, UTF-16LE, or UTF-16BE before delegating row matching to the accepted next156 UTF-16 NOCASE/RTRIM scanner.
 - Reports pattern text, pattern encoding, raw pattern bytes, escape bytes, candidate rowset, matched rowset, RTRIM false-positive rowset, malformed-row, source, and schema-cookie reasons for cursor invalidation.
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextTest.php`
   - `51` PASS lines
   - `1 test files, 58 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-pattern-current-source-next160.php --self-test`
-  - `wordpress-utf16-nocase-like-rtrim-pattern-current-source-next160 self-test passed`
-- `php -l lanes/libsqlite/src/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-pattern-current-source-next160.php`
+- `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-pattern-current-source-next.php --self-test`
+  - `wordpress-utf16-nocase-like-rtrim-pattern-current-source-next self-test passed`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-pattern-current-source-next.php`
 
 Expected dashboard movement: `phpPass +51`, from `70891` to `70942`. Mapped upstream coverage remains `608 / 1589`; this reuses already mapped encoding/collation/LIKE current-source inventory rather than claiming a fresh upstream manifest row.
 

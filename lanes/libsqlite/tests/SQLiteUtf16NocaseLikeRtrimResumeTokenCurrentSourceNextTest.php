@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNext170Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -49,7 +49,7 @@ $plan = static function (
     int $currentCookie = 11,
     int $nextCookie = 11,
 ) use ($currentRows, $nextRows, $enc): array {
-    return SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNext170Plan::wordpressOptionNameResumeTokenPlan(
+    return SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::wordpressOptionNameResumeTokenPlan(
         $current ?? $currentRows,
         $next ?? $nextRows,
         $enc('plugin\\_cache%', 2),
@@ -171,7 +171,7 @@ $tests['utf16 nocase like rtrim resume token current source next170 ascii case t
 };
 
 $tests['utf16 nocase like rtrim resume token current source next170 malformed current token throws'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNext170Plan::wordpressOptionNameResumeTokenPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::wordpressOptionNameResumeTokenPlan(
         $currentRows,
         $nextRows,
         $enc('plugin\\_cache%', 2),

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNext159Plan;
+use PortLibs\LibSqlite\SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -56,7 +56,7 @@ $plan = static fn (
     ?string $nextEscapeEncoding = 'UTF-16BE',
     ?array $current = null,
     ?array $next = null,
-): array => SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNext159Plan::wordpressOptionNamePlan(
+): array => SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $enc($currentPattern, $currentPatternEncoding),
@@ -160,7 +160,7 @@ $tests['utf16 pattern nocase like rtrim current source next159 stable same patte
         $row(1, 'Plugin_Cache', 'UTF-16LE'),
         $row(2, 'plugin_cache  ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNext159Plan::wordpressOptionNamePlan(
+    $result = SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
         $rows,
         $rows,
         $enc('plugin\\_cache%', 'UTF-16LE'),
@@ -184,7 +184,7 @@ $tests['utf16 pattern nocase like rtrim current source next159 stable same patte
 
 $tests['utf16 pattern nocase like rtrim current source next159 pattern encoding change with same text invalidates bytes only'] = static function (TestRunner $t) use ($row, $enc): void {
     $rows = [$row(1, 'Plugin_Cache', 'UTF-16LE')];
-    $result = SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNext159Plan::wordpressOptionNamePlan(
+    $result = SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
         $rows,
         $rows,
         $enc('plugin\\_cache%', 'UTF-16LE'),
@@ -220,7 +220,7 @@ $tests['utf16 pattern nocase like rtrim current source next159 null escape uses 
 };
 
 $tests['utf16 pattern nocase like rtrim current source next159 rejects malformed pattern bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNext159Plan::wordpressOptionNamePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
         $currentRows,
         $nextRows,
         "p\0l",
@@ -231,7 +231,7 @@ $tests['utf16 pattern nocase like rtrim current source next159 rejects malformed
 };
 
 $tests['utf16 pattern nocase like rtrim current source next159 rejects malformed escape bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNext159Plan::wordpressOptionNamePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
         $currentRows,
         $nextRows,
         $enc('plugin%', 'UTF-16LE'),
@@ -244,7 +244,7 @@ $tests['utf16 pattern nocase like rtrim current source next159 rejects malformed
 };
 
 $tests['utf16 pattern nocase like rtrim current source next159 rejects multi character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNext159Plan::wordpressOptionNamePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
         $currentRows,
         $nextRows,
         $enc('plugin%', 'UTF-16LE'),

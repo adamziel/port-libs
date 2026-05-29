@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -53,7 +53,7 @@ $plan = static fn (
     string $currentEscapeEncoding = 'UTF-16LE',
     ?string $nextEscape = '\\',
     string $nextEscapeEncoding = 'UTF-16BE',
-): array => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan::wordpressOptionNamePatternPlan(
+): array => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::wordpressOptionNamePatternPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $enc($currentPattern, $currentPatternEncoding),
@@ -150,7 +150,7 @@ $tests['utf16 nocase like rtrim pattern current source next160 stable pattern by
         $row(1, 'Plugin_Cache', 'UTF-16LE'),
         $row(2, 'plugin_cache  ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan::wordpressOptionNamePatternPlan(
+    $result = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::wordpressOptionNamePatternPlan(
         $rows,
         $rows,
         $enc('plugin\\_cache%', 'UTF-16LE'),
@@ -187,11 +187,11 @@ $tests['utf16 nocase like rtrim pattern current source next160 null escape disab
 };
 
 $tests['utf16 nocase like rtrim pattern current source next160 rejects malformed pattern bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan::wordpressOptionNamePatternPlan($currentRows, $nextRows, "p\0x", 2, "p\0%", 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::wordpressOptionNamePatternPlan($currentRows, $nextRows, "p\0x", 2, "p\0%", 2));
 };
 
 $tests['utf16 nocase like rtrim pattern current source next160 rejects multi-character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan::wordpressOptionNamePatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::wordpressOptionNamePatternPlan(
         $currentRows,
         $nextRows,
         $enc('plugin%', 'UTF-8'),

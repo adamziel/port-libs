@@ -3,16 +3,16 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNext170Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan;
 
 require_once dirname(__DIR__) . '/src/SQLiteEncodingCollationSourceCursor.php';
 require_once dirname(__DIR__) . '/src/SQLiteDatabase.php';
 require_once dirname(__DIR__) . '/src/SQLiteLikeCollationPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
-require_once dirname(__DIR__) . '/src/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan.php';
+require_once dirname(__DIR__) . '/src/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
-require_once dirname(__DIR__) . '/src/SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNext170Plan.php';
+require_once dirname(__DIR__) . '/src/SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan.php';
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
@@ -35,7 +35,7 @@ $nextRows = [
     $row(4, "plugin_cache_tab\t", 3),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNext170Plan::wordpressOptionNameResumeTokenPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan::wordpressOptionNameResumeTokenPlan(
     $currentRows,
     $nextRows,
     $enc('plugin\\_cache%', 2),
@@ -64,7 +64,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['byteOnlyTokenReprepare'] === true);
     assert($plan['safeToResumeFromToken'] === true);
     assert($plan['resumePlanRowids'] === [3, 7, 4]);
-    echo "wordpress-utf16-nocase-like-rtrim-resume-token-current-source-next170 self-test passed\n";
+    echo "wordpress-utf16-nocase-like-rtrim-resume-token-current-source-next self-test passed\n";
     return;
 }
 

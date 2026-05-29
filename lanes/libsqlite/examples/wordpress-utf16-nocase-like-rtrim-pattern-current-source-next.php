@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan;
 
 $enc = static fn (string $text, string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static function (int $id, string $name, string $encoding) use ($enc): array {
@@ -20,7 +20,7 @@ $row = static function (int $id, string $name, string $encoding) use ($enc): arr
     ];
 };
 
-$plan = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan::wordpressOptionNamePatternPlan(
+$plan = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::wordpressOptionNamePatternPlan(
     [
         $row(1, 'Plugin_Cache', 'UTF-16LE'),
         $row(2, 'plugin_cache  ', 'UTF-16BE'),
@@ -46,7 +46,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentMatchedRowids'] === [1]);
     assert($plan['nextMatchedRowids'] === [4, 1, 2]);
     assert(in_array('pattern-encoding', $plan['invalidationReasons'], true));
-    echo "wordpress-utf16-nocase-like-rtrim-pattern-current-source-next160 self-test passed\n";
+    echo "wordpress-utf16-nocase-like-rtrim-pattern-current-source-next self-test passed\n";
     return;
 }
 

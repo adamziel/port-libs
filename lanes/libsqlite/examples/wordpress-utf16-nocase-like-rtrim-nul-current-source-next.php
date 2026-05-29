@@ -5,10 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNext174Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNext174Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
@@ -29,7 +29,7 @@ $nextRows = [
     $row(4, 'PLUGIN_CACHE', 2),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNext174Plan::wordpressOptionNameEmbeddedNulPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
     $currentRows,
     $nextRows,
     'plugin!_cache',
@@ -42,12 +42,12 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentCstringFalseMatchRowids'] === [2, 3]);
     assert($plan['nextCstringFalseMatchRowids'] === [3]);
     assert(in_array('embedded-nul-full-text-recheck', $plan['invalidationReasons'], true));
-    echo "wordpress-utf16-nocase-like-rtrim-nul-current-source-next174 self-test passed\n";
+    echo "wordpress-utf16-nocase-like-rtrim-nul-current-source-next self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-utf16-nocase-like-rtrim-nul-current-source-next174',
+    'scenario' => 'wordpress-utf16-nocase-like-rtrim-nul-current-source-next',
     'wordpressUse' => 'Copied wp_options scans must compare full decoded UTF-16 text with embedded NUL bytes instead of truncating option_name at a C-string boundary before LIKE/RTRIM/NOCASE rechecks.',
     'currentMatchedRowids' => $plan['currentMatchedRowids'],
     'nextMatchedRowids' => $plan['nextMatchedRowids'],

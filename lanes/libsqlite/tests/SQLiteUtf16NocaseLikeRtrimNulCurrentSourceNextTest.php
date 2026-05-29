@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNext174Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -49,7 +49,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@174',
     int $currentCookie = 173,
     int $nextCookie = 174,
-): array => SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNext174Plan::wordpressOptionNameEmbeddedNulPlan(
+): array => SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -151,7 +151,7 @@ $tests['utf16 nocase like rtrim nul current source next174 invalidation reason o
 
 $tests['utf16 nocase like rtrim nul current source next174 stable embedded nul false positive is reusable after recheck'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 2), $row(2, "plugin_cache\0disabled", 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNext174Plan::wordpressOptionNameEmbeddedNulPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -170,7 +170,7 @@ $tests['utf16 nocase like rtrim nul current source next174 stable embedded nul f
 
 $tests['utf16 nocase like rtrim nul current source next174 wildcard pattern can match nul suffixes'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, "plugin_cache\0disabled", 2), $row(2, "plugin_cache\0", 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNext174Plan::wordpressOptionNameEmbeddedNulPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -187,7 +187,7 @@ $tests['utf16 nocase like rtrim nul current source next174 wildcard pattern can 
 
 $tests['utf16 nocase like rtrim nul current source next174 ascii case folds around embedded nul'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, "PLUGIN_CACHE\0disabled", 2), $row(2, 'Plugin_Cache', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNext174Plan::wordpressOptionNameEmbeddedNulPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -204,7 +204,7 @@ $tests['utf16 nocase like rtrim nul current source next174 ascii case folds arou
 
 $tests['utf16 nocase like rtrim nul current source next174 non ascii prefix remains unplanned'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, "Æther\0plugin", 2), $row(2, 'æther', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNext174Plan::wordpressOptionNameEmbeddedNulPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
         $rows,
         $rows,
         'Æther%',
@@ -221,7 +221,7 @@ $tests['utf16 nocase like rtrim nul current source next174 non ascii prefix rema
 
 $tests['utf16 nocase like rtrim nul current source next174 rejects bad row shape'] = static function (TestRunner $t) use ($enc): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc('plugin_cache', 2)]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNext174Plan::wordpressOptionNameEmbeddedNulPlan($rows, $rows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan($rows, $rows, 'plugin%'));
 };
 
 return $tests;
