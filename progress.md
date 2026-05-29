@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 20:00 UTC):
+  Seventy-sixth safe consolidation follow-up is integrated and pushed as
+  `fc5b9771a`. The batch accepts 4 handoffs while excluding stale worker
+  status edits: rowvalue savepoint proof-surface rename on current source
+  `407606d`, STAT4 expression-partial prepared-handoff helper unification
+  replayed from `f878b316`, rowvalue RETURNING window after-ready publication
+  helper consolidation replayed from `f878b316`, and JSON-table hidden-rowid
+  helper cleanup replayed from `41f7b31b`. Validation passed PHP lint for 18
+  changed PHP files, `git diff --check`, direct combined tests `6 files / 289
+  assertions / 0 failures`, rowvalue savepoint family `49 files / 3125
+  assertions / 0 failures`, rowvalue RETURNING window family `94 files / 2938
+  assertions / 0 failures`, STAT4 expression-partial family `133 files / 7537
+  assertions / 0 failures`, JSON table family `305 files / 20187 assertions /
+  0 failures`, 17 changed WordPress/self-test examples, exact user-named 150
+  suffix scan clean in `src`/`tests`/`examples`, production numbered file/class
+  audits at `0`, numbered production helper-method audit `1731`, and unique
+  numbered production symbol audit `1963`. Public pass/mapped counters remain
+  `154019 pass / 0 fail` and `830 / 1589` because this is consolidation-only.
+  Pager-master and B-tree cleanup remain deferred until broad-family failures
+  are baseline-compared or repaired.
+
 - 2026-05-29 supervisor continuation (shell samples 19:50 UTC):
   Seventy-fifth safe consolidation follow-up is integrated and pushed as
   `407606d03`. The batch accepts 5 clean replay handoffs on top of
