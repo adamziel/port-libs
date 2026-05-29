@@ -7532,4 +7532,175 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     {
         return hash('sha256', json_encode($rows, JSON_THROW_ON_ERROR));
     }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @param list<string>|null $acknowledgedPeerTokens
+     * @param list<string> $peerColumns
+     * @return array<string,mixed>
+     */
+    public static function executeNext263(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next263',
+        string $rowIdColumn = 'option_id',
+        ?array $acknowledgedPeerTokens = null,
+        array $peerColumns = ['status'],
+        ?string $resumeAfterPeerToken = null,
+    ): array {
+        $base = self::executeNext262(
+            $tables,
+            $yieldStatements,
+            $attemptStatements,
+            $retryStatements,
+            $uniqueConstraints,
+            $savepoint,
+            $rowIdColumn,
+            null,
+            null,
+            null,
+            null,
+            $acknowledgedPeerTokens,
+            $peerColumns,
+        );
+
+        $checkpoints = [];
+        foreach ($base['peer_groups_next262'] as $ordinal => $group) {
+            $checkpoints[] = [
+                'peer_checkpoint_ordinal_next263' => $ordinal + 1,
+                'peer_token_next263' => $group['peer_token_next262'],
+                'peer_key_next263' => $group['peer_key_next262'],
+                'rowids_next263' => $group['rowids_next262'],
+                'crosses_source_next263' => $group['crosses_source_next262'],
+                'checkpoint_receipt_next263' => hash('sha256', $savepoint . '|next263|' . $group['peer_token_next262']),
+            ];
+        }
+
+        $resume = self::resumePeerCheckpointsNext263($checkpoints, $resumeAfterPeerToken);
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next263',
+            'peer_checkpoint_admission_next263' => [
+                'savepoint' => $savepoint,
+                'checkpoint_count' => count($checkpoints),
+                'resume_count' => $resume['remaining_count'],
+                'crossing_checkpoint_count' => count(array_filter($checkpoints, static fn (array $row): bool => $row['crosses_source_next263'] === true)),
+                'checkpoint_digest' => self::digestNext262($checkpoints),
+            ],
+            'peer_checkpoints_next263' => $checkpoints,
+            'peer_checkpoint_resume_next263' => $resume,
+            'dependency_closure_next263' => 'no new support component needed; next263 reuses next262 row-value RETURNING peer groups and records restartable peer checkpoints for current-source copied wp_options batches',
+            'dependencies_next263' => [
+                'sqlite-rowvalue-returning-peer-checkpoint-next263',
+                'sqlite-rowvalue-returning-window-peer-groups-next262',
+                'wordpress-rowvalue-returning-peer-checkpoint-next263',
+            ],
+            'non_overlap_next263' => 'adds restart checkpoints over admitted peer groups after next262; avoids broad suite evidence, next262 peer admission, next260 boundary receipts, savepoint-only row-value RETURNING, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
+        ]);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @param list<string>|null $acknowledgedFinalReceipts
+     * @return array<string,mixed>
+     */
+    public static function executeNext264(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next264',
+        string $rowIdColumn = 'option_id',
+        ?array $acknowledgedFinalReceipts = null,
+    ): array {
+        $base = self::executeNext263(
+            $tables,
+            $yieldStatements,
+            $attemptStatements,
+            $retryStatements,
+            $uniqueConstraints,
+            $savepoint,
+            $rowIdColumn,
+        );
+
+        $receipts = [];
+        foreach ($base['peer_ready_rows_next262'] as $row) {
+            $receipt = hash('sha256', $savepoint . '|next264|' . $row['ticket'] . '|' . (string) $row['peer_rowid_next262']);
+            $receipts[] = [
+                'final_ordinal_next264' => count($receipts) + 1,
+                'rowid_next264' => $row['peer_rowid_next262'],
+                'ticket_next264' => $row['ticket'],
+                'source_epoch_next264' => $row['next_row_source_epoch_next255'] ?? $row['source_epoch_next251'] ?? null,
+                'final_receipt_next264' => $receipt,
+            ];
+        }
+
+        $expected = array_column($receipts, 'final_receipt_next264');
+        $acknowledged = $acknowledgedFinalReceipts === null ? $expected : self::tokenSetNext262($acknowledgedFinalReceipts);
+        $missing = array_values(array_diff($expected, $acknowledged));
+        $unexpected = array_values(array_diff($acknowledged, $expected));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next264',
+            'final_receipt_admission_next264' => [
+                'savepoint' => $savepoint,
+                'final_receipt_count' => count($receipts),
+                'acknowledged_final_receipt_count' => count($acknowledged),
+                'missing_final_receipts' => $missing,
+                'unexpected_final_receipts' => $unexpected,
+                'final_receipts_complete' => $missing === [] && $unexpected === [],
+                'final_receipt_digest' => self::digestNext262($receipts),
+            ],
+            'final_receipts_next264' => $receipts,
+            'expected_final_receipts_next264' => $expected,
+            'acknowledged_final_receipts_next264' => $acknowledged,
+            'final_state_next264' => $missing === [] && $unexpected === []
+                ? 'rowvalue-returning-current-source-final-receipts-complete-next264'
+                : 'rowvalue-returning-current-source-final-receipts-held-next264',
+            'dependency_closure_next264' => 'no new support component needed; next264 reuses next263 peer checkpoints and records final current-source UPDATE/DELETE RETURNING receipts before handoff completion',
+            'dependencies_next264' => [
+                'sqlite-rowvalue-returning-final-receipts-next264',
+                'sqlite-rowvalue-returning-peer-checkpoint-next263',
+                'wordpress-rowvalue-returning-final-receipts-next264',
+            ],
+            'non_overlap_next264' => 'adds final receipt completeness over next263 checkpoints; avoids broad suite evidence, next263 checkpoint creation, next262 peer admission, next260 boundary receipts, savepoint-only row-value RETURNING, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
+        ]);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $checkpoints
+     * @return array<string,mixed>
+     */
+    private static function resumePeerCheckpointsNext263(array $checkpoints, ?string $afterToken): array
+    {
+        if ($afterToken === null) {
+            return ['after_peer_token' => null, 'remaining_count' => count($checkpoints), 'rows' => $checkpoints, 'exhausted' => $checkpoints === []];
+        }
+
+        $index = null;
+        foreach ($checkpoints as $offset => $checkpoint) {
+            if ($checkpoint['peer_token_next263'] === $afterToken) {
+                $index = $offset;
+                break;
+            }
+        }
+        if ($index === null) {
+            throw new \InvalidArgumentException('SQLite row-value returning window next263 resume peer token is not checkpointed');
+        }
+
+        $rows = array_slice($checkpoints, $index + 1);
+        return ['after_peer_token' => $afterToken, 'remaining_count' => count($rows), 'rows' => $rows, 'exhausted' => $rows === []];
+    }
 }
