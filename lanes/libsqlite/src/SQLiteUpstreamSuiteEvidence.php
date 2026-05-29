@@ -11823,6 +11823,358 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
+    public function upstreamVeryquickShardCurrentSourceNext485(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(485, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext486(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(486, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext487(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(487, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext488(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(488, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext489(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(489, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext490(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(490, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext491(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(491, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext492(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(492, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext493(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(493, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext494(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(494, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext495(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(495, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext496(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(496, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext497(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(497, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext498(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(498, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext499(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(499, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext500(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        return $this->upstreamVeryquickShardCurrentSourceNextEvidence(500, $rows, $currentMapped, $currentPhpPass, $launcherBaseHead, $dashboardSourceHead, $statusSourceHead, $implementationSourceHead, $nextSourceHead, $focusedPath, $focusedTestOutput, $nonOverlapNote, $expectedPassDelta, $processSnapshot);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
     private function upstreamVeryquickShardCurrentSourceNextEvidence(
         int $next,
         array $rows,
@@ -11860,7 +12212,7 @@ final class SQLiteUpstreamSuiteEvidence
         $record['status'] = str_replace('next116-full-suite-countability', $statusLabel, (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_' . $label] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
-        foreach ([484, 483, 482, 481, 480, 479, 478, 477, 476, 475, 474, 473, 472, 471, 470, 469, 468, 467, 466, 465, 464, 463, 462, 461, 460, 459, 458, 457, 456, 455, 454, 453, 452, 451, 450, 449, 448, 447, 446, 445, 444, 443, 442, 441, 440, 439, 438, 437, 436, 435, 434, 433, 432, 398, 397, 396, 395, 394, 393, 392, 391, 390, 389, 388, 387, 386, 385, 384, 383, 382, 381, 380, 379, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 361, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 343, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
+        foreach ([500, 499, 498, 497, 496, 495, 494, 493, 492, 491, 490, 489, 488, 487, 486, 485, 484, 483, 482, 481, 480, 479, 478, 477, 476, 475, 474, 473, 472, 471, 470, 469, 468, 467, 466, 465, 464, 463, 462, 461, 460, 459, 458, 457, 456, 455, 454, 453, 452, 451, 450, 449, 448, 447, 446, 445, 444, 443, 442, 441, 440, 439, 438, 437, 436, 435, 434, 433, 432, 398, 397, 396, 395, 394, 393, 392, 391, 390, 389, 388, 387, 386, 385, 384, 383, 382, 381, 380, 379, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 361, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 343, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             if ($priorShard === $next) {
                 continue;
             }
