@@ -69,8 +69,10 @@ foreach (range(665, 680) as $next) {
     };
 }
 
-$tests['json table generated path rowid cost current source next680 no later alias yet'] = static function (TestRunner $t) use ($plan665680): void {
-    $t->throws(Error::class, static fn () => $plan665680(681));
+$tests['json table generated path rowid cost current source next680 hands off to next681'] = static function (TestRunner $t) use ($plan665680): void {
+    $plan = $plan665680(681);
+    $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next681', $plan['dependencies'], true));
+    $t->same('cost-select-current-json-table-generated-path-rowid-next681', $plan['currentReaderPolicy']);
 };
 
 return $tests;
