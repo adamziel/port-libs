@@ -6,10 +6,10 @@ require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
 require_once __DIR__ . '/../src/SQLiteWalAppendPlan.php';
-require_once __DIR__ . '/../src/SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $pageSize = 512;
@@ -37,7 +37,7 @@ foreach ([
     $walBytes .= $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
 }
 
-$plan = SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan(
+$plan = SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan(
     SQLiteWal::parse($walBytes, $pageSize, true),
     $walBytes,
     $walBytes,

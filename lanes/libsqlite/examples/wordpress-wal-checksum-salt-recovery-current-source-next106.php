@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -43,7 +43,7 @@ $nextWal = $makeWal(107, $newSalt1, $newSalt2, [
     [3, 4, 'wp next106 restarted plugin settings commit'],
 ]) . substr($currentWal, 32 + (2 * (24 + $pageSize)));
 
-$plan = SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan::currentSourceNext(
+$plan = SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan::currentSourceNext(
     $currentWal,
     $nextWal,
     $databaseBytes,

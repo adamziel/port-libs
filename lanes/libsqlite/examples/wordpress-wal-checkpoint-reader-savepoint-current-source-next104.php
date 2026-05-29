@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $pageSize = 512;
@@ -49,7 +49,7 @@ $stack->recordWalFrameWrite(5, 4, true);
 $stack->recordWalFrameWrite(6, 5, true);
 $stack->recordWalFrameWrite(7, 2, true);
 
-$plan = SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan::plan(
+$plan = SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan::plan(
     $stack,
     'plugin-settings-next104',
     SQLiteWal::parse($walBytes, $pageSize, true),

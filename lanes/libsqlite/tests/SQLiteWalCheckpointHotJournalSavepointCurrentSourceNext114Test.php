@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $tests = [];
@@ -87,7 +87,7 @@ $plan = static fn (
     bool $reservedLock = false,
     bool $requiresSuper = false,
     ?bool $superExists = null,
-): array => SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Plan::plan(
+): array => SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan::plan(
     $journalInput ?? $journal,
     $dirtyDatabase,
     $journalBytesInput ?? $journalBytes,
@@ -197,15 +197,15 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty savepoint rejected' => static fn () => SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Plan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), '', $wal, $walBytes, $databasePath, [1], 'restart', null, $pageSize),
-    'empty path rejected' => static fn () => SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Plan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next114', $wal, $walBytes, '', [1], 'restart', null, $pageSize),
-    'empty pages rejected' => static fn () => SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Plan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next114', $wal, $walBytes, $databasePath, [], 'restart', null, $pageSize),
+    'empty savepoint rejected' => static fn () => SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), '', $wal, $walBytes, $databasePath, [1], 'restart', null, $pageSize),
+    'empty path rejected' => static fn () => SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next114', $wal, $walBytes, '', [1], 'restart', null, $pageSize),
+    'empty pages rejected' => static fn () => SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next114', $wal, $walBytes, $databasePath, [], 'restart', null, $pageSize),
     'zero page rejected' => static fn () => $plan('restart', null, [0]),
     'string page rejected' => static fn () => $plan('restart', null, ['1']),
     'bad mode rejected' => static fn () => $plan('passive'),
     'stale journal bytes rejected' => static fn () => $plan('restart', null, [1], null, substr($journalBytes, 0, -1) . 'x'),
     'stale parsed journal rejected' => static fn () => $plan('restart', null, [1], SQLiteRollbackJournal::parse($makeJournalBytes([1 => $page('next114 stale page')]), true)),
-    'stale wal bytes rejected' => static fn () => SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Plan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next114', $wal, substr($walBytes, 0, -1) . 'x', $databasePath, [1], 'restart', null, $pageSize),
+    'stale wal bytes rejected' => static fn () => SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next114', $wal, substr($walBytes, 0, -1) . 'x', $databasePath, [1], 'restart', null, $pageSize),
 ];
 
 foreach ($throws as $name => $callback) {

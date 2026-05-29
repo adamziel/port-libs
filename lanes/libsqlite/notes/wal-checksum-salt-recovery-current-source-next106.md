@@ -1,6 +1,6 @@
 # wal-checksum-salt-recovery-current-source-next106
 
-This slice adds `SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan`, a bounded WAL current-source recovery planner for copied WordPress SQLite databases:
+This slice adds `SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan`, a bounded WAL current-source recovery planner for copied WordPress SQLite databases:
 
 - recover the current WAL to its committed prefix before the next open uses it as the database source;
 - recover the next restarted WAL generation with a changed salt;
@@ -9,7 +9,7 @@ This slice adds `SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan`, a bound
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-wal-checksum-salt-recovery-current-source-next106.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Test.php`

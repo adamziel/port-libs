@@ -8,7 +8,7 @@ require_once __DIR__ . '/../src/SQLiteRollbackJournal.php';
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteRollbackJournal;

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Adds `SQLiteWalCheckpointSavepointHotJournalCurrentSourceNext126Plan`, a bounded current-source composition for the upstream ordering where a hot rollback journal is recovered before a WAL savepoint rollback truncates the in-memory WAL prefix and the retained prefix is checkpointed.
+Adds `SQLiteWalCheckpointSavepointHotJournalCurrentSourceNextPlan`, a bounded current-source composition for the upstream ordering where a hot rollback journal is recovered before a WAL savepoint rollback truncates the in-memory WAL prefix and the retained prefix is checkpointed.
 
 This intentionally avoids the accepted next122 hot-journal reader checkpoint surface, next123/124 reader restart/truncate surfaces, accepted WAL byte truncation helpers, VFS writer/apply wrappers, and rollback-journal commit/super-journal paths. The new behavior is the combined ordering and source accounting across hot journal recovery, savepoint WAL prefix selection, pinned checkpoint preservation, and released restart/truncate handling.
 

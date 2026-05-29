@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice adds `SQLiteWalHotJournalCheckpointSavepointCurrentSourceNext141Plan`
+This slice adds `SQLiteWalHotJournalCheckpointSavepointCurrentSourceNextPlan`
 for the current-source WAL path where:
 
 - a copied WordPress database image first recovers a hot rollback journal;

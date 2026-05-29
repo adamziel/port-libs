@@ -5,10 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLiteWalCheckpointReaderRestartCurrentSourceNext140Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalCheckpointReaderRestartCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointReaderRestartCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointReaderRestartCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $pageSize = 512;
@@ -52,7 +52,7 @@ $pathRestartWalBytes = $makeWal([
     [7, 7, 'wp session path restart tail'],
 ], 141, 0x14000102, 0x14000103);
 
-$plan = SQLiteWalCheckpointReaderRestartCurrentSourceNext140Plan::plan(
+$plan = SQLiteWalCheckpointReaderRestartCurrentSourceNextPlan::plan(
     $databasePath,
     SQLiteWal::parse($currentWalBytes, $pageSize, true),
     $currentWalBytes,

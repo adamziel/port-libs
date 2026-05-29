@@ -40,7 +40,7 @@ final class SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan
                         throw new \InvalidArgumentException('SQLite WAL hot-journal reader restart next131 reader frame is outside the WAL frame range');
                     }
 
-                    $base = SQLiteWalHotJournalCheckpointRestartCurrentSourceNext129Plan::plan(
+                    $base = SQLiteWalHotJournalCheckpointRestartCurrentSourceNextPlan::plan(
                         $databasePath,
                         $databaseBytes,
                         $journalBytes,

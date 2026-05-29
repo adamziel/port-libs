@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $tests = [];
@@ -65,7 +65,7 @@ $staleReaderWalBytes = $makeWalBytes([
 ], 131, 0x13113101, 0x13113102);
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 
-$plan = static fn (string $readerWalBytes = null, ?int $readerEndFrame = 4, bool $reservedLock = false): array => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan(
+$plan = static fn (string $readerWalBytes = null, ?int $readerEndFrame = 4, bool $reservedLock = false): array => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -143,18 +143,18 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty path rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan('', $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], 1),
-    'empty database rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, '', $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], 1),
-    'empty journal rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, $dirtyDatabase, '', $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], 1),
-    'empty current wal rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, '', $staleReaderWalBytes, [1], 1),
-    'empty reader wal rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, '', [1], 1),
-    'empty pages rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [], 1),
-    'source mismatch rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, substr_replace($currentWalBytes, 'x', 100, 1), $staleReaderWalBytes, [1], 1),
-    'unaligned database rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, $dirtyDatabase . 'x', $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], 1),
-    'negative reader rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], -1),
-    'reader past wal rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], 5),
-    'zero page rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [0], 1),
-    'string page rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, ['1'], 1),
+    'empty path rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan('', $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], 1),
+    'empty database rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, '', $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], 1),
+    'empty journal rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, '', $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], 1),
+    'empty current wal rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, '', $staleReaderWalBytes, [1], 1),
+    'empty reader wal rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, '', [1], 1),
+    'empty pages rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [], 1),
+    'source mismatch rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, substr_replace($currentWalBytes, 'x', 100, 1), $staleReaderWalBytes, [1], 1),
+    'unaligned database rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase . 'x', $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], 1),
+    'negative reader rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], -1),
+    'reader past wal rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [1], 5),
+    'zero page rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, [0], 1),
+    'string page rejected' => static fn () => SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $staleReaderWalBytes, ['1'], 1),
 ];
 
 foreach ($throws as $name => $callback) {

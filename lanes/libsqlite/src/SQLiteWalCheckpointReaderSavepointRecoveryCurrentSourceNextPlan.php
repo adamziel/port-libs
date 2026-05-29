@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNext118Plan
+final class SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNextPlan
 {
     /**
      * @param list<int> $pageNumbers
@@ -27,7 +27,7 @@ final class SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNext118Plan
             throw new \InvalidArgumentException('SQLite WAL checkpoint reader savepoint recovery current-source next118 requires a database path');
         }
 
-        $checkpoint = SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan::plan(
+        $checkpoint = SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan::plan(
             $savepoints,
             $savepoint,
             $wal,

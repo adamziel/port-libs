@@ -29,7 +29,7 @@ final class SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite WAL hot-journal reader truncate current-source next137 requires next transactions');
         }
 
-        $reader = SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan(
+        $reader = SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan(
             $databasePath,
             $databaseBytes,
             $journalBytes,
@@ -66,7 +66,7 @@ final class SQLiteWalHotJournalReaderTruncateCurrentSourceNextPlan
             ];
         }
 
-        $truncate = SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan(
+        $truncate = SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan(
             $currentWal,
             $currentWalBytes,
             $readerWalBytes,

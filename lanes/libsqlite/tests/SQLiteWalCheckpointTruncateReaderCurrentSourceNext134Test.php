@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $tests = [];
@@ -52,7 +52,7 @@ $transactions = [[
 ]];
 
 $plan = static function (string $readerBytes = null, int $readerEndFrame = 4, array $pages = [1, 2, 3, 4, 5], array $next = null) use ($wal, $walBytes, $databaseBytes, $transactions): array {
-    return SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan(
+    return SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan(
         $wal,
         $walBytes,
         $readerBytes ?? $walBytes,
@@ -139,40 +139,40 @@ foreach ($cases as $name => [$actual, $expected]) {
 }
 
 $tests['wal checkpoint truncate reader current source next134 rejects empty wal bytes'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan($wal, '', $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, [1], 1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan($wal, '', $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, [1], 1));
 };
 
 $tests['wal checkpoint truncate reader current source next134 rejects empty database'] = static function (TestRunner $t) use ($wal, $walBytes, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan($wal, $walBytes, $walBytes, '', '/tmp/wp.sqlite', $transactions, [1], 1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan($wal, $walBytes, $walBytes, '', '/tmp/wp.sqlite', $transactions, [1], 1));
 };
 
 $tests['wal checkpoint truncate reader current source next134 rejects empty path'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan($wal, $walBytes, $walBytes, $databaseBytes, '', $transactions, [1], 1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan($wal, $walBytes, $walBytes, $databaseBytes, '', $transactions, [1], 1));
 };
 
 $tests['wal checkpoint truncate reader current source next134 rejects empty next transaction list'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan($wal, $walBytes, $walBytes, $databaseBytes, '/tmp/wp.sqlite', [], [1], 1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan($wal, $walBytes, $walBytes, $databaseBytes, '/tmp/wp.sqlite', [], [1], 1));
 };
 
 $tests['wal checkpoint truncate reader current source next134 rejects empty pages'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan($wal, $walBytes, $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, [], 1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan($wal, $walBytes, $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, [], 1));
 };
 
 $tests['wal checkpoint truncate reader current source next134 rejects negative reader'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan($wal, $walBytes, $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, [1], -1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan($wal, $walBytes, $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, [1], -1));
 };
 
 $tests['wal checkpoint truncate reader current source next134 rejects source mismatch'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $transactions): void {
     $bad = substr_replace($walBytes, 'x', 700, 1);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan($wal, $bad, $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, [1], 1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan($wal, $bad, $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, [1], 1));
 };
 
 $tests['wal checkpoint truncate reader current source next134 rejects non integer page'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan($wal, $walBytes, $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, ['1'], 1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan($wal, $walBytes, $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, ['1'], 1));
 };
 
 $tests['wal checkpoint truncate reader current source next134 rejects reader outside wal'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan::plan($wal, $walBytes, $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, [1], 9));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan::plan($wal, $walBytes, $walBytes, $databaseBytes, '/tmp/wp.sqlite', $transactions, [1], 9));
 };
 
 return $tests;

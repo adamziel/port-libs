@@ -1,11 +1,11 @@
 # WAL checkpoint truncate reader current-source next134
 
 - Slice: `wal-checkpoint-truncate-reader-current-source-next134`.
-- Behavior: adds `SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan`, which validates the current reader WAL source before a `TRUNCATE` checkpoint, preserves that reader on the old WAL while reset is blocked, then proves the released checkpoint removes the old sidecar and the next writer/reader starts from a fresh WAL generation.
+- Behavior: adds `SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan`, which validates the current reader WAL source before a `TRUNCATE` checkpoint, preserves that reader on the old WAL while reset is blocked, then proves the released checkpoint removes the old sidecar and the next writer/reader starts from a fresh WAL generation.
 - WordPress path: copied `wp_options` imports can diagnose the boundary where a long-lived current reader still sees the old option pages while the next import transaction writes a fresh WAL generation after checkpoint truncation.
 - Focused evidence:
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Test.php` -> `1 test files, 69 assertions, 0 failures`.
-  - `php -l lanes/libsqlite/src/SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Plan.php`.
+  - `php -l lanes/libsqlite/src/SQLiteWalCheckpointTruncateReaderCurrentSourceNextPlan.php`.
   - `php -l lanes/libsqlite/tests/SQLiteWalCheckpointTruncateReaderCurrentSourceNext134Test.php`.
   - `php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-truncate-reader-current-source-next134.php`.
   - `php lanes/libsqlite/examples/wordpress-wal-checkpoint-truncate-reader-current-source-next134.php --self-test`.

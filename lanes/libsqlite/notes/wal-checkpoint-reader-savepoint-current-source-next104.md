@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan`, a bounded
+Adds `SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan`, a bounded
 current-source audit for WAL checkpointing after `ROLLBACK TO` a savepoint when
 an existing reader was originally pinned inside frames that the savepoint
 rollback discards.

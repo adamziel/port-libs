@@ -7,7 +7,7 @@ require_once __DIR__ . '/../../../tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $pageSize = 512;
@@ -59,7 +59,7 @@ $staleReaderWalBytes = $makeWalBytes([
     [3, 3, 'wp next132 stale reader active_plugins commit'],
 ], 131, 0x13113101, 0x13113102);
 
-$plan = SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan(
+$plan = SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

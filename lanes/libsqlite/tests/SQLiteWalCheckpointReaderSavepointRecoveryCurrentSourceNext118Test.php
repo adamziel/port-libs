@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNext118Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $tests = [];
@@ -70,7 +70,7 @@ $makeStack = static function (): SQLiteSavepointStack {
 };
 
 $retainedWalBytes = static fn (): string => $makeStack()->walRollbackToWalBytes('plugin-settings-next118', $wal, $walBytes);
-$plan = static fn (string $mode = 'restart', string $phase = 'after_database_sync', ?int $reader = 7, array $pages = [1, 2, 3, 4, 5], ?string $persisted = null): array => SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNext118Plan::plan(
+$plan = static fn (string $mode = 'restart', string $phase = 'after_database_sync', ?int $reader = 7, array $pages = [1, 2, 3, 4, 5], ?string $persisted = null): array => SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNextPlan::plan(
     $makeStack(),
     'plugin-settings-next118',
     $wal,
@@ -166,7 +166,7 @@ $tests['wal checkpoint reader savepoint recovery current source next118 accepts 
 };
 
 $tests['wal checkpoint reader savepoint recovery current source next118 rejects stale current source'] = static function (TestRunner $t) use ($makeStack, $wal, $staleWalBytes, $databaseBytes, $databasePath): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNext118Plan::plan($makeStack(), 'plugin-settings-next118', $wal, $staleWalBytes, $databaseBytes, $databasePath, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next118', $wal, $staleWalBytes, $databaseBytes, $databasePath, [1]));
 };
 
 $tests['wal checkpoint reader savepoint recovery current source next118 rejects stale persisted prefix'] = static function (TestRunner $t) use ($plan, $staleWalBytes): void {
@@ -174,7 +174,7 @@ $tests['wal checkpoint reader savepoint recovery current source next118 rejects 
 };
 
 $tests['wal checkpoint reader savepoint recovery current source next118 rejects empty path'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNext118Plan::plan($makeStack(), 'plugin-settings-next118', $wal, $walBytes, $databaseBytes, '', [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next118', $wal, $walBytes, $databaseBytes, '', [1]));
 };
 
 $tests['wal checkpoint reader savepoint recovery current source next118 rejects invalid crash phase'] = static function (TestRunner $t) use ($plan): void {

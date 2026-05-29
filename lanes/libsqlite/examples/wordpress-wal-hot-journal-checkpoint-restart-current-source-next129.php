@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalCheckpointRestartCurrentSourceNext129Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalCheckpointRestartCurrentSourceNextPlan;
 
 $pageSize = 512;
 $sectorSize = 512;
@@ -54,7 +54,7 @@ foreach ([
 }
 $wal = SQLiteWal::parse($walBytes, $pageSize, true);
 
-$plan = SQLiteWalHotJournalCheckpointRestartCurrentSourceNext129Plan::plan(
+$plan = SQLiteWalHotJournalCheckpointRestartCurrentSourceNextPlan::plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

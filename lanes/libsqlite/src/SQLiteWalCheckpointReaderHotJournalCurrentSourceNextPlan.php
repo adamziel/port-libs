@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan
+final class SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan
 {
     /**
      * @param list<int> $pageNumbers
@@ -89,7 +89,7 @@ final class SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan
 
         $restart = null;
         if ($sourceMatches && $hot['recovered']) {
-            $restart = SQLiteWalHotJournalCheckpointRestartCurrentSourceNext129Plan::plan(
+            $restart = SQLiteWalHotJournalCheckpointRestartCurrentSourceNextPlan::plan(
                 $databasePath,
                 $databaseBytes,
                 $journalBytes,

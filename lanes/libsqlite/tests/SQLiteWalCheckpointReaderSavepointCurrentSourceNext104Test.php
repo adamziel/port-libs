@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $tests = [];
@@ -70,7 +70,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (string $mode = 'restart', ?int $reader = 7, array $pages = [1, 2, 3, 4, 5]): array => SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan::plan(
+$plan = static fn (string $mode = 'restart', ?int $reader = 7, array $pages = [1, 2, 3, 4, 5]): array => SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan::plan(
     $makeStack(),
     'plugin-settings-next104',
     $wal,
@@ -150,27 +150,27 @@ foreach ($cases as $name => [$actual, $expected]) {
 }
 
 $tests['wal checkpoint reader savepoint current source next104 rejects empty savepoint'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan::plan($makeStack(), '', $wal, $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan::plan($makeStack(), '', $wal, $walBytes, $databaseBytes, [1]));
 };
 
 $tests['wal checkpoint reader savepoint current source next104 rejects empty pages'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan::plan($makeStack(), 'plugin-settings-next104', $wal, $walBytes, $databaseBytes, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next104', $wal, $walBytes, $databaseBytes, []));
 };
 
 $tests['wal checkpoint reader savepoint current source next104 rejects invalid mode'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan::plan($makeStack(), 'plugin-settings-next104', $wal, $walBytes, $databaseBytes, [1], 'passive'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next104', $wal, $walBytes, $databaseBytes, [1], 'passive'));
 };
 
 $tests['wal checkpoint reader savepoint current source next104 rejects non integer page'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan::plan($makeStack(), 'plugin-settings-next104', $wal, $walBytes, $databaseBytes, ['1']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next104', $wal, $walBytes, $databaseBytes, ['1']));
 };
 
 $tests['wal checkpoint reader savepoint current source next104 rejects negative reader'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan::plan($makeStack(), 'plugin-settings-next104', $wal, $walBytes, $databaseBytes, [1], 'restart', -1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next104', $wal, $walBytes, $databaseBytes, [1], 'restart', -1));
 };
 
 $tests['wal checkpoint reader savepoint current source next104 rejects stale source bytes'] = static function (TestRunner $t) use ($makeStack, $wal, $mutatedWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNext104Plan::plan($makeStack(), 'plugin-settings-next104', $wal, $mutatedWalBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalCheckpointReaderSavepointCurrentSourceNextPlan::plan($makeStack(), 'plugin-settings-next104', $wal, $mutatedWalBytes, $databaseBytes, [1]));
 };
 
 return $tests;

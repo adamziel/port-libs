@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for WAL checkpoint reader savepoint recovery
 
 ## Behavior
 
-- Added `SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNext118Plan`.
+- Added `SQLiteWalCheckpointReaderSavepointRecoveryCurrentSourceNextPlan`.
 - Models a reader-pinned WAL checkpoint after `ROLLBACK TO` trims a savepoint prefix, then crash recovery from the retained WAL source.
 - Verifies that recovery replays only the retained savepoint prefix and never replays discarded savepoint frames.
 - Rejects stale current WAL bytes and stale persisted WAL sidecar bytes that do not match the retained prefix.

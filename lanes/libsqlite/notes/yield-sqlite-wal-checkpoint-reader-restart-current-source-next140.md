@@ -1,9 +1,9 @@
 # WAL checkpoint reader restart current-source next140
 
-- Behavior: `SQLiteWalCheckpointReaderRestartCurrentSourceNext140Plan` covers a reader that restarts its read transaction on the still-open original WAL source after an unpinned `RESTART` checkpoint has replaced the filesystem `-wal` path with a new generation. It contrasts the old reader frame, the restarted current-source reader frame, the checkpoint database image, and a fresh path reader on the restarted generation.
+- Behavior: `SQLiteWalCheckpointReaderRestartCurrentSourceNextPlan` covers a reader that restarts its read transaction on the still-open original WAL source after an unpinned `RESTART` checkpoint has replaced the filesystem `-wal` path with a new generation. It contrasts the old reader frame, the restarted current-source reader frame, the checkpoint database image, and a fresh path reader on the restarted generation.
 - WordPress smoke: `examples/wordpress-wal-checkpoint-reader-restart-current-source-next140.php` models copied `wp_options` / cron / transient / rewrite-session pages so the current WordPress reader can keep its original source while a fresh path reader sees the restarted WAL generation.
 - Focused verification:
-  - `php -l lanes/libsqlite/src/SQLiteWalCheckpointReaderRestartCurrentSourceNext140Plan.php`
+  - `php -l lanes/libsqlite/src/SQLiteWalCheckpointReaderRestartCurrentSourceNextPlan.php`
   - `php -l lanes/libsqlite/tests/SQLiteWalCheckpointReaderRestartCurrentSourceNext140Test.php`
   - `php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-reader-restart-current-source-next140.php`
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointReaderRestartCurrentSourceNext140Test.php`

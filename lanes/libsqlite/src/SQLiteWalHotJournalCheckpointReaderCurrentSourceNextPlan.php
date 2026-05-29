@@ -63,7 +63,7 @@ final class SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan
                         throw new \InvalidArgumentException('SQLite WAL hot-journal checkpoint reader current-source next120 reader frame must be non-negative');
                     }
 
-                    $pinned = SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Plan::plan(
+                    $pinned = SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan::plan(
                         $journal,
                         $databaseBytes,
                         $journalBytes,
@@ -80,7 +80,7 @@ final class SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan
                         $requiresSuperJournal,
                         $superJournalExists
                     );
-                    $released = SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Plan::plan(
+                    $released = SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan::plan(
                         $journal,
                         $databaseBytes,
                         $journalBytes,
@@ -292,7 +292,7 @@ final class SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan
                         throw new \InvalidArgumentException('SQLite WAL hot-journal checkpoint reader current-source next135 requires next WAL bytes');
                     }
 
-                    $base = SQLiteWalCheckpointReaderHotJournalCurrentSourceNext132Plan::plan(
+                    $base = SQLiteWalCheckpointReaderHotJournalCurrentSourceNextPlan::plan(
                         $databasePath,
                         $databaseBytes,
                         $journalBytes,

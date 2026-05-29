@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `wal-checkpoint-hot-journal-savepoint-current-source-next114`.
 
-This slice adds `SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Plan`, a bounded native PHP composition for the pager/WAL edge where hot rollback-journal recovery must establish the current database source before a recovered committed WAL prefix can be used for savepoint rollback and restart/truncate checkpoint decisions.
+This slice adds `SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan`, a bounded native PHP composition for the pager/WAL edge where hot rollback-journal recovery must establish the current database source before a recovered committed WAL prefix can be used for savepoint rollback and restart/truncate checkpoint decisions.
 
 Behavior covered:
 
@@ -15,7 +15,7 @@ Behavior covered:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Plan.php
+php -l lanes/libsqlite/src/SQLiteWalCheckpointHotJournalSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-hot-journal-savepoint-current-source-next114.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointHotJournalSavepointCurrentSourceNext114Test.php

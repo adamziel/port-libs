@@ -33259,7 +33259,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 requires restart or truncate mode');
         }
 
-        $hot = SQLiteWalHotJournalCheckpointRestartCurrentSourceNext129Plan::plan(
+        $hot = SQLiteWalHotJournalCheckpointRestartCurrentSourceNextPlan::plan(
             $databasePath,
             $dirtyDatabaseBytes,
             $journalBytes,
@@ -33489,7 +33489,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next154 savepoint frame is outside the current WAL range');
         }
 
-        $base = SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan::plan(
+        $base = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next144Plan(
             $databasePath,
             $dirtyDatabaseBytes,
             $journalBytes,
@@ -33755,7 +33755,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next155 reader frame must not precede the rollback frame');
         }
 
-        $base = SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan::plan(
+        $base = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next144Plan(
             $databasePath,
             $dirtyDatabaseBytes,
             $journalBytes,

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $tests = [];
@@ -53,11 +53,11 @@ $sameSaltNextWal = $makeWal(108, $oldSalt1, $oldSalt2, [
 ]);
 $headerOnlyNextWal = $makeWal(109, $otherSalt1, $otherSalt2, []);
 
-$plan = static fn (): array => SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan::currentSourceNext($currentWal, $nextWithOldSaltTail, $databaseBytes, [1, 2, 3, 4], $pageSize);
-$clean = static fn (): array => SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan::currentSourceNext($currentWal, $nextCleanWal, $databaseBytes, [2, 3], $pageSize);
-$checksumTail = static fn (): array => SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan::currentSourceNext($currentWal, $nextWithChecksumTail, $databaseBytes, [2, 3], $pageSize);
-$sameSalt = static fn (): array => SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan::currentSourceNext($currentWal, $sameSaltNextWal, $databaseBytes, [2], $pageSize);
-$headerOnly = static fn (): array => SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan::currentSourceNext($currentWal, $headerOnlyNextWal, $databaseBytes, [2, 3], $pageSize);
+$plan = static fn (): array => SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $nextWithOldSaltTail, $databaseBytes, [1, 2, 3, 4], $pageSize);
+$clean = static fn (): array => SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $nextCleanWal, $databaseBytes, [2, 3], $pageSize);
+$checksumTail = static fn (): array => SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $nextWithChecksumTail, $databaseBytes, [2, 3], $pageSize);
+$sameSalt = static fn (): array => SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $sameSaltNextWal, $databaseBytes, [2], $pageSize);
+$headerOnly = static fn (): array => SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $headerOnlyNextWal, $databaseBytes, [2, 3], $pageSize);
 
 $cases = [
     'status reports current source salt recovery' => [static fn (): mixed => $plan()['status'], 'current_source_salt_recovered_next106'],
@@ -123,10 +123,10 @@ $cases = [
     'header only next uses current checkpoint' => [static fn (): mixed => $headerOnly()['next_source']['committed_frame_count'], 0],
     'header only next reads current checkpoint page two' => [static fn (): mixed => str_contains((string) $headerOnly()['next_reader'][0]['image'], 'current active_plugins commit'), true],
     'header only next reads base page three' => [static fn (): mixed => str_contains((string) $headerOnly()['next_reader'][1]['image'], 'base plugin setting page'), true],
-    'rejects empty page list' => [static fn (): mixed => SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan::currentSourceNext($currentWal, $nextCleanWal, $databaseBytes, [], $pageSize), InvalidArgumentException::class],
-    'rejects zero page' => [static fn (): mixed => SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan::currentSourceNext($currentWal, $nextCleanWal, $databaseBytes, [0], $pageSize), InvalidArgumentException::class],
-    'rejects non integer page' => [static fn (): mixed => SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan::currentSourceNext($currentWal, $nextCleanWal, $databaseBytes, [1, '2'], $pageSize), InvalidArgumentException::class],
-    'rejects bad current wal magic' => [static fn (): mixed => SQLiteWalChecksumSaltRecoveryCurrentSourceNext106Plan::currentSourceNext(substr_replace($currentWal, pack('N', 0), 0, 4), $nextCleanWal, $databaseBytes, [1], $pageSize), InvalidArgumentException::class],
+    'rejects empty page list' => [static fn (): mixed => SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $nextCleanWal, $databaseBytes, [], $pageSize), InvalidArgumentException::class],
+    'rejects zero page' => [static fn (): mixed => SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $nextCleanWal, $databaseBytes, [0], $pageSize), InvalidArgumentException::class],
+    'rejects non integer page' => [static fn (): mixed => SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan::currentSourceNext($currentWal, $nextCleanWal, $databaseBytes, [1, '2'], $pageSize), InvalidArgumentException::class],
+    'rejects bad current wal magic' => [static fn (): mixed => SQLiteWalChecksumSaltRecoveryCurrentSourceNextPlan::currentSourceNext(substr_replace($currentWal, pack('N', 0), 0, 4), $nextCleanWal, $databaseBytes, [1], $pageSize), InvalidArgumentException::class],
 ];
 
 foreach ($cases as $name => [$case, $expected]) {
