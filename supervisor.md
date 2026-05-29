@@ -49,3 +49,19 @@
 - Required support libraries are tracked at bounded native component granularity.
 - Public dashboard is current and evidence-based.
 - No unreviewed broad dirty handoffs are treated as accepted progress.
+
+## Libsqlite Numbered Helper Consolidation Rule 2026-05-29T10:08Z
+- User priority update: remove numbered suffixes such as
+  `CurrentSourceNext150Plan.php` from consolidated libsqlite source helpers
+  and merge any remaining duplicate numbered helper families into stable
+  unnumbered classes.
+- Refills must not assign work that creates or extends a new numbered
+  duplicate source helper. Workers may keep numbered test/example range names,
+  but shared source helpers should have stable names.
+- Initial grouped inventory from `1a570158f`: VFS has 55 numbered helpers,
+  PRAGMA/FK 33, B-tree vacuum/freeblock 32, pager reader-cache 29, rowvalue
+  savepoint 11, WAL hot-journal/savepoint/checkpoint 9, planner STAT4 6, and
+  smaller pairs/triples including B-tree `CurrentSourceNext93/150Plan`.
+- One visible lane is active on the B-tree `CurrentSourceNext93/150Plan`
+  duplicate group. As range workers finish, refill windows with non-overlapping
+  consolidation lanes until these suffix groups are gone.

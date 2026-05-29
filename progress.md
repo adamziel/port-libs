@@ -1646,3 +1646,24 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Support-library tracker update 2026-05-24T11:03Z: recorded `audits/support-library-essential-dependency-routing-20260524T105940Z.md`. `dependency-backlog.json` stayed at 34 rows with 0 active rows because the latest Pandoc essential-dependency directive is already covered at bounded component granularity by existing DOC/DOCX, PDF, EPUB, ODT, doctemplates, citations, math, table, ZIP/package, XML/HTML, Unicode/charset, JSON metadata, and archive/compression rows. No support row was activated because current lane evidence remains lane-local/pending rather than accepted from a frozen base-lane slice or accepted-blocked on the support component.
 
 - Support-library tracker follow-up 2026-05-24T11:14Z: expanded `dependency-backlog.json` from 34 to 36 rows by adding inactive candidate/high `git-wire-protocol-core` and `quadrable-proof-transport-codec-core`, and tightened `tree-sitter-grammar-subset` to Difftastic-first ownership with esbuild/LightningCSS kept as future reuse notes only; no row was activated because evidence remains lane-local/pending rather than accepted from a frozen base-lane slice.
+
+## Supervisor Rolling Integration 2026-05-29T10:08Z Shell Sample
+
+- Disk recovery freed generated runner/cache output while preserving source
+  work and dirty lane state. `/home/claude` is now about `234G` free; `/tmp`
+  remains about `4.4G` free.
+- Integrated and pushed five rolling libsqlite batches through
+  `1a570158f libsqlite: extend STAT4 planner handoff next974-989`. The last
+  batch validation was PHP syntax, 11 selected test files, 1,656 assertions,
+  0 failures, changed examples, and `git diff --check`.
+- Current visible active pool is 11 worker lanes: JSON `1049-1064`, attach
+  `1005-1020`, PRAGMA/FK `1167-1182`, rowvalue window `1166-1181`, VFS
+  `1154-1169`, B-tree vacuum/freeblock `1167-1182`, WAL `1156-1171`, suite
+  evidence `933-948`, pager reader-cache `975-990`, planner `990-1005`, plus
+  a suffix-cleanup lane for the B-tree `CurrentSourceNext93/150Plan` duplicate
+  group.
+- New consolidation rule: no new numbered `CurrentSourceNext...Plan.php`
+  helper names. Existing numbered duplicate groups must be merged into stable
+  unnumbered helpers, beginning with exact `CurrentSourceNext150Plan.php`
+  groups and then VFS, PRAGMA/FK, B-tree vacuum/freeblock, pager reader-cache,
+  WAL, rowvalue, planner, and smaller duplicate groups.
