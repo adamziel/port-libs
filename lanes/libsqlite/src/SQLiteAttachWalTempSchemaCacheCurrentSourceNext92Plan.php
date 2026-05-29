@@ -501,6 +501,38 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
     /**
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
      * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
+     * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext253260(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    {
+        return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next253-260', [
+            'sqlite-attach-temp-wal-schema-cache-current-source-next253',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next254',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next255',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next256',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next257',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next258',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next259',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next260',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next245',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next246',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next247',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next248',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next249',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next250',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next251',
+            'sqlite-attach-temp-wal-schema-cache-current-source-next252',
+            'sqlite-indexed-by-schema-cache-expiry',
+            'sqlite-attach-wal-temp-schema-cache-current-source-next92',
+            'sqlite-wal-page-one-schema-cookie-current-source',
+            'sqlite-temp-schema-shadow-cache-expiry',
+        ]);
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
+     * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, file?:string|null, commit?:bool}> $events
      * @return array<string,mixed>
      */
