@@ -10234,7 +10234,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $nextSourceTokenMatches,
         );
 
-        $taggedCurrent = self::tagCurrentNextSourceRows($currentRows, $sequence, $sourceToken, $nextSourceToken, $cursor);
+        $taggedCurrent = self::tagCurrentSourceSequenceFenceRows($currentRows, $sequence, $sourceToken, $nextSourceToken, $cursor);
         $taggedNext = self::tagNextSourceSequenceRows($nextRows, $nextVisible, $sourceToken, $nextSourceToken, $cursor, $blocked);
         $visibleRows = array_values(array_filter(
             array_merge($taggedCurrent, $taggedNext),
@@ -10381,7 +10381,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $sequence
      * @return list<array<string,mixed>>
      */
-    private static function tagCurrentNextSourceRows(array $rows, array $sequence, string $sourceToken, string $nextSourceToken, string $cursor): array
+    private static function tagCurrentSourceSequenceFenceRows(array $rows, array $sequence, string $sourceToken, string $nextSourceToken, string $cursor): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -10834,7 +10834,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $taggedCurrent = self::tagCurrentNextDrainRows($currentRows, $drainKeys, $drainToken, $cursor, $statementToken);
+        $taggedCurrent = self::tagCurrentSourceDrainFenceRows($currentRows, $drainKeys, $drainToken, $cursor, $statementToken);
         $taggedNext = self::tagNextSourceDrainRows($nextRows, $nextVisible, $blocked, $drainToken, $cursor, $statementToken);
         $visibleRows = array_values(array_filter(
             array_merge($taggedCurrent, $taggedNext),
@@ -10981,7 +10981,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $drainKeys
      * @return list<array<string,mixed>>
      */
-    private static function tagCurrentNextDrainRows(array $rows, array $drainKeys, string $drainToken, string $cursor, string $statementToken): array
+    private static function tagCurrentSourceDrainFenceRows(array $rows, array $drainKeys, string $drainToken, string $cursor, string $statementToken): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
