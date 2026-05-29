@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext188Plan
      * @param list<array<string, mixed>> $readerRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext185Plan $basePlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan,
         private readonly array $readerRows,
     ) {
     }
@@ -28,7 +28,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext188Plan
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext185Plan::tableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext185(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -40,7 +40,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext188Plan
         ));
     }
 
-    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext185Plan $basePlan): self
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): self
     {
         $rows = self::buildReaderRows($basePlan);
         $errors = self::readerErrorsForRows($rows, $basePlan);
@@ -179,7 +179,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext188Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildReaderRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext185Plan $basePlan): array
+    private static function buildReaderRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): array
     {
         $rows = [];
         $finalPageCount = (int) $basePlan->receiptSummary()['final_database_page_count'];
@@ -220,7 +220,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext188Plan
      * @param list<array<string, mixed>> $rows
      * @return list<string>
      */
-    private static function readerErrorsForRows(array $rows, SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext185Plan $basePlan): array
+    private static function readerErrorsForRows(array $rows, SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): array
     {
         $errors = [];
         $finalPageCount = (int) $basePlan->receiptSummary()['final_database_page_count'];
