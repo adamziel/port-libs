@@ -2,7 +2,7 @@
 
 ## Slice
 
-- Added `SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext144Plan`.
+- Added `SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan`.
 - Behavior: audits a copied WordPress `wp_options` delete/vacuum flow by pairing the materialized deleted leaf page with the surviving overflow freelist trunk and the truncated overflow tail across an auto-vacuum pointer-map page.
 - Non-overlap: avoids accepted page relocation/root-collapse, overflow freelist release, bulk overflow freeblock materialization, and prior next135/next139 rows by adding current-source materialized/truncated row hashes and pointer-map page/type/parent evidence around the final vacuum image.
 

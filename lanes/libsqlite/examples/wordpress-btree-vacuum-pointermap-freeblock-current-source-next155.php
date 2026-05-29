@@ -21,7 +21,7 @@ require_once __DIR__ . '/../src/SQLiteFreelistFreePlan.php';
 require_once __DIR__ . '/../src/SQLiteFreelistAllocationPlan.php';
 require_once __DIR__ . '/../src/SQLiteFreelistTruncatePlan.php';
 require_once __DIR__ . '/../src/SQLiteBTreeDeleteRebalanceFreeblockApplyPlan.php';
-require_once __DIR__ . '/../src/SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan.php';
 require_once __DIR__ . '/../src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Plan.php';

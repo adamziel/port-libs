@@ -2,7 +2,7 @@
 
 ## Behavior
 
-This slice adds `SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan`, which composes a current-source table/index leaf delete-freeblock apply with freelist tail truncation. It preserves the materialized defragmented leaf page image, releases obsolete overflow pages to free-page pointer-map state, and classifies which released pages survive as freelist pages versus which tail pages are omitted by incremental-vacuum truncation.
+This slice adds `SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan`, which composes a current-source table/index leaf delete-freeblock apply with freelist tail truncation. It preserves the materialized defragmented leaf page image, releases obsolete overflow pages to free-page pointer-map state, and classifies which released pages survive as freelist pages versus which tail pages are omitted by incremental-vacuum truncation.
 
 ## Evidence
 
