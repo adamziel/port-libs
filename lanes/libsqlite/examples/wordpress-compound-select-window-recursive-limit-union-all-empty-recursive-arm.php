@@ -51,27 +51,27 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext182($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllEmptyRecursiveArm($sql, $currentTables, $nextTables);
 
 if (in_array('--self-test', $argv, true)) {
-    if (($plan['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next182-ready') {
-        fwrite(STDERR, "unexpected compound next182 status\n");
+    if (($plan['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-union-all-empty-recursive-arm-ready') {
+        fwrite(STDERR, "unexpected compound union-all-empty-recursive-arm status\n");
         exit(1);
     }
     if (($plan['recursive']['currentRows'] ?? null) !== []) {
-        fwrite(STDERR, "unexpected compound next182 recursive rows\n");
+        fwrite(STDERR, "unexpected compound union-all-empty-recursive-arm recursive rows\n");
         exit(1);
     }
     if (array_column($plan['nextRows'], 'label') !== ['siteurl', 'plugin_alpha', 'plugin_alpha', 'home']) {
-        fwrite(STDERR, "unexpected compound next182 next rows\n");
+        fwrite(STDERR, "unexpected compound union-all-empty-recursive-arm next rows\n");
         exit(1);
     }
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next182 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-union-all-empty-recursive-arm self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next182',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-union-all-empty-recursive-arm',
     'wordpressUse' => 'Copied wp_options import previews can keep a recursive arm syntactically present but exhausted by LIMIT 0, while windowed UNION ALL table arms and the final tail LIMIT/OFFSET determine which changed plugin/theme rows appear.',
     'dependencyClosure' => 'no new support component needed; reuses native PHP SELECT SQL recursive CTE, UNION ALL compound, window, ORDER BY, and LIMIT/OFFSET helpers',
     'status' => $plan['status'],

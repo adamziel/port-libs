@@ -3804,7 +3804,7 @@ final class SQLiteJsonTablePlan
     private static function jsonTableGeneratedPathRowidCurrentSourceCostSelectionAlias(array $plan, int $next): array
     {
         if ($next < 1 || $next > 1064) {
-            throw new \InvalidArgumentException('SQLite JSON table generated path rowid cost alias requires a positive alias through next1064');
+            throw new \InvalidArgumentException('SQLite JSON table generated path rowid cost alias requires a positive configured alias');
         }
 
         $currentKey = "currentGeneratedPathRowidCurrentSourceCostSelection{$next}";

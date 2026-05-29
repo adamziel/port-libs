@@ -41,37 +41,45 @@ $receiptFor = static function (array $base, string $name): array {
 };
 
 $chain = static function () use ($base379, $receiptFor): array {
-    $next380 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next380AfterCurrentCheckpoint(
+    $next380 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage(
         $base379,
-        [$receiptFor($base379, 'next380-restart-salt-source-epoch')]
+        [$receiptFor($base379, 'next380-restart-salt-source-epoch')],
+        'restart-salt-source-epoch'
     );
-    $next381 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next381AfterCurrentCheckpoint(
+    $next381 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage(
         $next380,
-        [$receiptFor($next380, 'next381-reader-mark-release-source')]
+        [$receiptFor($next380, 'next381-reader-mark-release-source')],
+        'reader-mark-release-source'
     );
-    $next382 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next382AfterCurrentCheckpoint(
+    $next382 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage(
         $next381,
-        [$receiptFor($next381, 'next382-page-cache-source-generation')]
+        [$receiptFor($next381, 'next382-page-cache-source-generation')],
+        'page-cache-source-generation'
     );
-    $next383 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next383AfterCurrentCheckpoint(
+    $next383 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage(
         $next382,
-        [$receiptFor($next382, 'next383-schema-cookie-source-epoch')]
+        [$receiptFor($next382, 'next383-schema-cookie-source-epoch')],
+        'schema-cookie-source-epoch'
     );
-    $next384 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next384AfterCurrentCheckpoint(
+    $next384 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage(
         $next383,
-        [$receiptFor($next383, 'next384-commit-generation-source-epoch')]
+        [$receiptFor($next383, 'next384-commit-generation-source-epoch')],
+        'commit-generation-source-epoch'
     );
-    $next385 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next385AfterCurrentCheckpoint(
+    $next385 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage(
         $next384,
-        [$receiptFor($next384, 'next385-hot-journal-delete-source-epoch')]
+        [$receiptFor($next384, 'next385-hot-journal-delete-source-epoch')],
+        'hot-journal-delete-source-epoch'
     );
-    $next386 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next386AfterCurrentCheckpoint(
+    $next386 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage(
         $next385,
-        [$receiptFor($next385, 'next386-wal-index-salt-source-epoch')]
+        [$receiptFor($next385, 'next386-wal-index-salt-source-epoch')],
+        'wal-index-salt-source-epoch'
     );
-    $next387 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next387AfterCurrentCheckpoint(
+    $next387 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage(
         $next386,
-        [$receiptFor($next386, 'next387-current-source-seal')]
+        [$receiptFor($next386, 'next387-current-source-seal')],
+        'current-source-seal'
     );
 
     return [$next380, $next381, $next382, $next383, $next384, $next385, $next386, $next387];
@@ -106,7 +114,7 @@ $tests['wal hot journal savepoint checkpoint current source next380-387 chains a
 $tests['wal hot journal savepoint checkpoint current source next380 blocks unsynced database header'] = static function (TestRunner $t) use ($base379, $receiptFor): void {
     $receipt = $receiptFor($base379, 'next380-unsynced-database-header');
     $receipt['database_header_synced'] = false;
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next380AfterCurrentCheckpoint($base379, [$receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage($base379, [$receipt], 'restart-salt-source-epoch');
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next380', $record['status']);
     $t->same(['checkpoint_database_header_not_synced'], $record['blocked_reasons']);
@@ -115,7 +123,7 @@ $tests['wal hot journal savepoint checkpoint current source next380 blocks unsyn
 $tests['wal hot journal savepoint checkpoint current source next381 blocks duplicate receipt names'] = static function (TestRunner $t) use ($chain, $receiptFor): void {
     [$next380] = $chain();
     $receipt = $receiptFor($next380, 'next381-duplicate-reader-release');
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next381AfterCurrentCheckpoint($next380, [$receipt, $receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage($next380, [$receipt, $receipt], 'reader-mark-release-source');
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next381', $record['status']);
     $t->same(['checkpoint_receipt_name_duplicate:next381-duplicate-reader-release'], $record['blocked_reasons']);
@@ -125,7 +133,7 @@ $tests['wal hot journal savepoint checkpoint current source next382 blocks page 
     [, $next381] = $chain();
     $receipt = $receiptFor($next381, 'next382-stale-page-cache');
     $receipt['page_cache_digest'] = $digest('stale page cache image for next382');
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next382AfterCurrentCheckpoint($next381, [$receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage($next381, [$receipt], 'page-cache-source-generation');
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next382', $record['status']);
     $t->same(['checkpoint_page_cache_digest_mismatch'], $record['blocked_reasons']);
@@ -135,7 +143,7 @@ $tests['wal hot journal savepoint checkpoint current source next384 blocks commi
     [, , , $next383] = $chain();
     $receipt = $receiptFor($next383, 'next384-stale-commit-generation');
     $receipt['commit_generation'] = 386;
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next384AfterCurrentCheckpoint($next383, [$receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage($next383, [$receipt], 'commit-generation-source-epoch');
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next384', $record['status']);
     $t->same(['checkpoint_generation_mismatch'], $record['blocked_reasons']);
@@ -145,16 +153,17 @@ $tests['wal hot journal savepoint checkpoint current source next386 blocks check
     [, , , , , $next385] = $chain();
     $receipt = $receiptFor($next385, 'next386-stale-checkpoint-frame');
     $receipt['checkpoint_frame'] = 186;
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next386AfterCurrentCheckpoint($next385, [$receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage($next385, [$receipt], 'wal-index-salt-source-epoch');
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next386', $record['status']);
     $t->same(['checkpoint_frame_mismatch'], $record['blocked_reasons']);
 };
 
 $tests['wal hot journal savepoint checkpoint current source next387 rejects missing next386 base'] = static function (TestRunner $t) use ($base379, $receiptFor): void {
-    $t->throws(Throwable::class, static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next387AfterCurrentCheckpoint(
+    $t->throws(Throwable::class, static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointSourceEpochStage(
         array_replace($base379, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next385']),
-        [$receiptFor($base379, 'next387-current-source-seal')]
+        [$receiptFor($base379, 'next387-current-source-seal')],
+        'current-source-seal'
     ));
 };
 

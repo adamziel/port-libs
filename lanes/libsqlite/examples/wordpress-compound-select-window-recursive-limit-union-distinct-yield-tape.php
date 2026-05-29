@@ -51,7 +51,14 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-echo json_encode(
-    SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext181($sql, $currentTables, $nextTables),
-    JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR,
-) . PHP_EOL;
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionDistinctYieldTape($sql, $currentTables, $nextTables);
+
+if (in_array('--self-test', $argv, true)) {
+    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-union-distinct-yield-tape-ready');
+    assert(in_array('sqlite-select-sql-union-distinct-yield-tape-union-distinct-yield-tape', $plan['dependencies'], true));
+    assert(in_array('next-source-prelimit-rowset-expanded', $plan['replanReasons'], true));
+    echo "wordpress-compound-select-window-recursive-limit-union-distinct-yield-tape self-test passed\n";
+    return;
+}
+
+echo json_encode($plan, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;

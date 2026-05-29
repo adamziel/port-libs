@@ -7,22 +7,21 @@ use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentOption = [
-    'option_id' => 10491064,
-    'option_name' => 'wp_plugin_generated_rule_lookup_next10491064',
+    'option_id' => 1064,
+    'option_name' => 'wp_plugin_generated_rule_lookup_replay',
     'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"version":1}}',
     'generated_path' => '$.rules',
     'scan_root' => '$.rules',
-    'source_generation' => 'current-10491064',
+    'source_generation' => 'current-cost-selection-replay',
 ];
 $nextOption = array_replace($currentOption, [
     'option_value' => '{"rules":[{"slug":"seo","priority":3},{"slug":"security","priority":9}],"meta":{"version":2}}',
     'generated_path' => '$.rules[1]',
-    'source_generation' => 'next-10491064',
+    'source_generation' => 'next-cost-selection-replay',
 ]);
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionPlan(
     'json_tree',
-    1064,
     $currentOption,
     $nextOption,
     'option_value',
@@ -41,33 +40,33 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
 );
 
 $payload = [
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next1049-1064',
-    'wordpressUse' => 'Generated wp_options JSON path scans keep rowid point-cost admission stable across the next1049-1064 follow-on while changed copied source rows force a next reader reprepare.',
-    'dependency' => 'sqlite-json-table-generated-path-rowid-cost-current-source-next1064',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-selection-replay',
+    'wordpressUse' => 'Generated wp_options JSON path scans keep rowid point-cost admission stable while changed copied source rows force a next reader reprepare.',
+    'dependency' => 'sqlite-json-table-generated-path-rowid-cost-current-source-selection',
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
-    'currentCostClass' => $plan['currentGeneratedPathRowidCurrentSourceCostSelection1064']['costClass'],
-    'currentEstimatedCost' => $plan['currentGeneratedPathRowidCurrentSourceCostSelection1064']['estimatedCost'],
-    'nextCostClass' => $plan['nextGeneratedPathRowidCurrentSourceCostSelection1064']['costClass'],
-    'replanReasons' => $plan['next1064ReplanReasons'],
-    'dependencyClosure' => 'no new support component needed; reuses current-source generated-path rowid yield guard and cost selection aliases',
+    'currentCostClass' => $plan['currentGeneratedPathRowidCurrentSourceCostSelection']['costClass'],
+    'currentEstimatedCost' => $plan['currentGeneratedPathRowidCurrentSourceCostSelection']['estimatedCost'],
+    'nextCostClass' => $plan['nextGeneratedPathRowidCurrentSourceCostSelection']['costClass'],
+    'replanReasons' => $plan['replanReasons'],
+    'dependencyClosure' => 'no new support component needed; reuses current-source generated-path rowid yield guard and canonical cost selection',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
     if (!in_array($payload['dependency'], $plan['dependencies'], true)) {
-        fwrite(STDERR, "missing next1064 dependency\n");
+        fwrite(STDERR, "missing canonical dependency\n");
         exit(1);
     }
     if ($payload['currentEstimatedCost'] !== 1) {
         fwrite(STDERR, "unexpected current generated-path rowid cost\n");
         exit(1);
     }
-    if ($payload['nextReaderPolicy'] !== 'reprepare-cost-select-next-json-table-generated-path-rowid-next1064') {
-        fwrite(STDERR, "unexpected next1064 reader policy\n");
+    if ($payload['nextReaderPolicy'] !== 'reprepare-cost-select-next-json-table-generated-path-rowid') {
+        fwrite(STDERR, "unexpected cost-selection replay reader policy\n");
         exit(1);
     }
 
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next1049-1064 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-cost-selection-replay self-test passed\n";
     return;
 }
 

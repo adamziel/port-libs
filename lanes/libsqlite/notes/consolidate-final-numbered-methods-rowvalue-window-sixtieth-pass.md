@@ -10,6 +10,6 @@ Verification:
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-ready-publication-seal.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationSealTest.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationSealTest.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext10061021Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationSealTest.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationFinalTest.php`
 - `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-ready-publication-seal.php --self-test`
 - `git diff --check -- lanes/libsqlite`

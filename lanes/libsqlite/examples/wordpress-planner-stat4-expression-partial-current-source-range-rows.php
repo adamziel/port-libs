@@ -18,7 +18,7 @@ $prepared = [
         ['rowid' => 11, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'Plugin_Forms', 'option_value' => 'old-forms', 'updated_at' => 11],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_plugin_partial_range_next174',
+        'name' => 'idx_wp_options_lower_plugin_partial_range_rows',
         'rootPage' => 17401,
         'expression' => 'lower(option_name)',
         'partialPredicateTerms' => [
@@ -60,7 +60,7 @@ $next = $current;
 $next['name'] = 'next-wp-options-outside-plugin-range-churn';
 $next['rows'][] = ['rowid' => 40, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'siteurl', 'option_value' => 'https://next.example.test', 'updated_at' => 40];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext174(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeRangeRows(
     $prepared,
     $current,
     [
@@ -75,10 +75,10 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNex
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'stat4-expression-partial-current-source-next174-ready');
-    assert($plan['next174Source']['admitted'] === true);
+    assert($plan['status'] === 'stat4-expression-partial-current-source-range-rows-ready');
+    assert($plan['rangeRowsSource']['admitted'] === true);
     assert($plan['matchedRowids'] === [20, 21, 22, 24, 26]);
-    echo "wordpress-planner-stat4-expression-partial-current-source-next174 self-test passed\n";
+    echo "wordpress-planner-stat4-expression-partial-current-source-range-rows self-test passed\n";
 
     return;
 }
@@ -89,6 +89,6 @@ echo json_encode([
     'index' => $plan['selectedPlan']['name'],
     'range' => [$plan['selectedPlan']['rangeLower'], $plan['selectedPlan']['rangeUpper']],
     'matchedRowids' => $plan['matchedRowids'],
-    'nextSourceAdmitted' => $plan['next174Source']['admitted'],
+    'nextSourceAdmitted' => $plan['rangeRowsSource']['admitted'],
     'detail' => $plan['detail'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

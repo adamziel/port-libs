@@ -48,23 +48,23 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary182 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext182($sql182, $currentTables182, $nextTables182);
+$summary182 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllEmptyRecursiveArm($sql182, $currentTables182, $nextTables182);
 $tests = [];
 
-$tests['compound select window recursive limit next182 status dependencies'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm status dependencies'] = static function (TestRunner $t) use ($summary182): void {
     $plan = $summary182();
-    $t->same('compound-select-window-recursive-limit-current-source-next182-ready', $plan['status']);
+    $t->same('compound-select-window-recursive-limit-current-source-union-all-empty-recursive-arm-ready', $plan['status']);
     $t->same([
-        'sqlite-select-sql-recursive-limit-zero-next182',
-        'sqlite-select-sql-window-before-compound-next182',
-        'sqlite-select-sql-union-all-empty-recursive-arm-next182',
-        'sqlite-select-sql-compound-tail-limit-next182',
-        'sqlite-current-source-next182',
+        'sqlite-select-sql-recursive-limit-zero-union-all-empty-recursive-arm',
+        'sqlite-select-sql-window-before-compound-union-all-empty-recursive-arm',
+        'sqlite-select-sql-union-all-empty-recursive-arm-union-all-empty-recursive-arm',
+        'sqlite-select-sql-compound-tail-limit-union-all-empty-recursive-arm',
+        'sqlite-current-source-union-all-empty-recursive-arm',
     ], $plan['dependencies']);
     $t->contains('no new support component needed', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit next182 compound metadata'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm compound metadata'] = static function (TestRunner $t) use ($summary182): void {
     $compound = $summary182()['compound'];
     $t->same(['UNION ALL', 'UNION ALL'], $compound['operators']);
     $t->same(3, $compound['currentArms']);
@@ -75,21 +75,21 @@ $tests['compound select window recursive limit next182 compound metadata'] = sta
     $t->true($compound['allArmsAreUnionAll']);
 };
 
-$tests['compound select window recursive limit next182 current rows'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm current rows'] = static function (TestRunner $t) use ($summary182): void {
     $rows = $summary182()['currentRows'];
     $t->same([1, 2, 2, 3], array_column($rows, 'id'));
     $t->same(['siteurl', 'home', 'home', 'rewrite_rules'], array_column($rows, 'label'));
     $t->same([1, 2, 2, 3], array_column($rows, 'metric'));
 };
 
-$tests['compound select window recursive limit next182 next rows'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm next rows'] = static function (TestRunner $t) use ($summary182): void {
     $rows = $summary182()['nextRows'];
     $t->same([1, 5, 5, 2], array_column($rows, 'id'));
     $t->same(['siteurl', 'plugin_alpha', 'plugin_alpha', 'home'], array_column($rows, 'label'));
     $t->same([1, 2, 2, 3], array_column($rows, 'metric'));
 };
 
-$tests['compound select window recursive limit next182 prelimit rows'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm prelimit rows'] = static function (TestRunner $t) use ($summary182): void {
     $plan = $summary182();
     $t->same(6, count($plan['currentPreLimitRows']));
     $t->same(10, count($plan['nextPreLimitRows']));
@@ -97,7 +97,7 @@ $tests['compound select window recursive limit next182 prelimit rows'] = static 
     $t->same(['siteurl', 'siteurl', 'plugin_alpha', 'plugin_alpha'], array_slice(array_column($plan['nextPreLimitRows'], 'label'), 0, 4));
 };
 
-$tests['compound select window recursive limit next182 recursive limit zero trace'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm recursive limit zero trace'] = static function (TestRunner $t) use ($summary182): void {
     $recursive = $summary182()['recursive'];
     $t->same('q', $recursive['name']);
     $t->same(['id', 'label', 'score'], $recursive['columns']);
@@ -110,7 +110,7 @@ $tests['compound select window recursive limit next182 recursive limit zero trac
     $t->same(0, $recursive['currentFinalLimitRemaining']);
 };
 
-$tests['compound select window recursive limit next182 window metadata'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm window metadata'] = static function (TestRunner $t) use ($summary182): void {
     $windows = $summary182()['windows'];
     $t->same(['row_number', 'rank', 'dense_rank'], $windows['functions']);
     $t->same(['metric', 'metric', 'metric'], array_column($windows['current'], 'alias'));
@@ -118,7 +118,7 @@ $tests['compound select window recursive limit next182 window metadata'] = stati
     $t->same([1, 2, 1], array_column($windows['current'], 'orderCount'));
 };
 
-$tests['compound select window recursive limit next182 limit trace'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm limit trace'] = static function (TestRunner $t) use ($summary182): void {
     $trace = $summary182()['limitTrace'];
     $t->same(6, $trace['current']['preLimitCount']);
     $t->same(10, $trace['next']['preLimitCount']);
@@ -128,7 +128,7 @@ $tests['compound select window recursive limit next182 limit trace'] = static fu
     $t->same(['home', 'theme_mods', 'theme_mods', 'rewrite_rules', 'rewrite_rules'], array_column($trace['next']['truncatedAfterLimit'], 'label'));
 };
 
-$tests['compound select window recursive limit next182 source classes'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm source classes'] = static function (TestRunner $t) use ($summary182): void {
     $classes = $summary182()['sourceClasses'];
     $t->same(['table' => 4], $classes['current']);
     $t->same(['table' => 4], $classes['next']);
@@ -136,7 +136,7 @@ $tests['compound select window recursive limit next182 source classes'] = static
     $t->same(['table' => 10], $classes['preLimitNext']);
 };
 
-$tests['compound select window recursive limit next182 boundary delta'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm boundary delta'] = static function (TestRunner $t) use ($summary182): void {
     $boundary = $summary182()['boundary'];
     $t->same('siteurl', $boundary['currentFirst']['label']);
     $t->same('siteurl', $boundary['nextFirst']['label']);
@@ -146,7 +146,7 @@ $tests['compound select window recursive limit next182 boundary delta'] = static
     $t->contains('"label":"rewrite_rules"', implode("\n", $boundary['lostRows']));
 };
 
-$tests['compound select window recursive limit next182 replan reasons'] = static function (TestRunner $t) use ($summary182): void {
+$tests['compound select window recursive limit union-all-empty-recursive-arm replan reasons'] = static function (TestRunner $t) use ($summary182): void {
     $plan = $summary182();
     $changed = implode("\n", $plan['changedSignatures']);
     $t->contains('"label":"plugin_alpha"', $changed);
@@ -159,16 +159,16 @@ $tests['compound select window recursive limit next182 replan reasons'] = static
     $t->true(in_array('compound-tail-limit-offset-after-empty-recursive-arm', $plan['replanReasons'], true));
 };
 
-$tests['compound select window recursive limit next182 rejects non zero recursive limit'] = static function (TestRunner $t) use ($currentTables182): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext182(
+$tests['compound select window recursive limit union-all-empty-recursive-arm rejects non zero recursive limit'] = static function (TestRunner $t) use ($currentTables182): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllEmptyRecursiveArm(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 7 LIMIT 1) SELECT id, label, row_number() OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id, option_name, rank() OVER (ORDER BY score) FROM wp_options UNION ALL SELECT option_id, option_name, dense_rank() OVER (ORDER BY score) FROM wp_options ORDER BY metric LIMIT 4 OFFSET 1",
         $currentTables182,
         $currentTables182,
     ));
 };
 
-$tests['compound select window recursive limit next182 rejects distinct union'] = static function (TestRunner $t) use ($currentTables182): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext182(
+$tests['compound select window recursive limit union-all-empty-recursive-arm rejects distinct union'] = static function (TestRunner $t) use ($currentTables182): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllEmptyRecursiveArm(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 7 LIMIT 0) SELECT id, label, row_number() OVER (ORDER BY id) AS metric FROM q UNION SELECT option_id, option_name, rank() OVER (ORDER BY score) FROM wp_options UNION ALL SELECT option_id, option_name, dense_rank() OVER (ORDER BY score) FROM wp_options ORDER BY metric LIMIT 4 OFFSET 1",
         $currentTables182,
         $currentTables182,
@@ -176,7 +176,7 @@ $tests['compound select window recursive limit next182 rejects distinct union'] 
 };
 
 foreach (range(1, 50) as $case) {
-    $tests['compound select window recursive limit next182 generated empty recursive arm ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit union-all-empty-recursive-arm generated empty recursive arm ' . $case] = static function (TestRunner $t) use ($case): void {
         $finalLimit = 3 + ($case % 4);
         $tables = [
             'wp_options' => [

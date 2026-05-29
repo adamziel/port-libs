@@ -8,15 +8,15 @@ publication step is now explicit data passed to the canonical method, while
 the existing continuation payload keys and ready seals are preserved for the
 direct tests and WordPress examples.
 
-Direct WordPress examples for ranges 1006-1181 now call the canonical method
-instead of constructing generated `executeNextNNN` method names.
+Direct WordPress examples for these ranges call canonical descriptive methods
+instead of constructing generated numbered method names.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
-- `php -l` for the 11 changed row-value window WordPress examples
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext10061021Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext10221037Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext10381053Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext10541069Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext10701085Test.php lanes/libsqlite/tests/SQLiteRowValueReadyPublicationContinuationRangeTest.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext11021117Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext11181133Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext11341149Test.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationFinalHandoffTest.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationFinalSealTest.php` => `11 test files, 187 assertions, 0 failures`
-- Changed example `--self-test` runs for all 11 ranges passed
+- `php -l` for changed row-value window WordPress examples
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowReadyPublicationFinalTest.php` => `1 test files, 50 assertions, 0 failures`
+- Changed descriptive example `--self-test` run passed
 - `git diff --check -- lanes/libsqlite`
 
 Dependency closure: no new support component needed; this reuses the existing

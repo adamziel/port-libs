@@ -48,22 +48,22 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 2
 SQL;
 
-$summary183 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext183($sql183, $currentTables183, $nextTables183);
+$summary183 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareTailWindowLimitBoundary($sql183, $currentTables183, $nextTables183);
 $tests = [];
 
-$tests['compound select window recursive limit next183 status dependencies'] = static function (TestRunner $t) use ($summary183): void {
+$tests['compound select window recursive limit tail-window-limit-boundary status dependencies'] = static function (TestRunner $t) use ($summary183): void {
     $plan = $summary183();
-    $t->same('compound-select-window-recursive-limit-current-source-next183-ready', $plan['status']);
+    $t->same('compound-select-window-recursive-limit-current-source-tail-window-limit-boundary-ready', $plan['status']);
     $t->same([
-        'sqlite-select-sql-recursive-limit-offset-next183',
-        'sqlite-select-sql-compound-window-tail-limit-next183',
-        'sqlite-select-sql-current-source-boundary-next183',
-        'sqlite-current-source-next183',
+        'sqlite-select-sql-recursive-limit-offset-tail-window-limit-boundary',
+        'sqlite-select-sql-compound-window-tail-limit-tail-window-limit-boundary',
+        'sqlite-select-sql-current-source-boundary-tail-window-limit-boundary',
+        'sqlite-current-source-tail-window-limit-boundary',
     ], $plan['dependencies']);
     $t->contains('no new support component needed', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit next183 compound metadata'] = static function (TestRunner $t) use ($summary183): void {
+$tests['compound select window recursive limit tail-window-limit-boundary compound metadata'] = static function (TestRunner $t) use ($summary183): void {
     $compound = $summary183()['compound'];
     $t->same(['UNION ALL', 'UNION'], $compound['operators']);
     $t->same(3, $compound['currentArms']);
@@ -75,7 +75,7 @@ $tests['compound select window recursive limit next183 compound metadata'] = sta
     $t->true($compound['hasUnionDistinct']);
 };
 
-$tests['compound select window recursive limit next183 row boundaries'] = static function (TestRunner $t) use ($summary183): void {
+$tests['compound select window recursive limit tail-window-limit-boundary row boundaries'] = static function (TestRunner $t) use ($summary183): void {
     $plan = $summary183();
     $t->same(['siteurl', 'plugin_alpha', 'seed:2:3', 'seed:2:3:4', 'home', 'plugin_alpha'], array_column($plan['nextRows'], 'label'));
     $t->same(['seed:2:3', 'seed:2:3:4', 'siteurl', 'home', 'seed:2:3:4:5', 'seed:2:3:4:5:6'], array_column($plan['currentRows'], 'label'));
@@ -83,7 +83,7 @@ $tests['compound select window recursive limit next183 row boundaries'] = static
     $t->same(['seed:2:3:4:5', 'seed:2:3:4:5:6'], $plan['tailWindowLimit']['lostLabels']);
 };
 
-$tests['compound select window recursive limit next183 recursive offset trace'] = static function (TestRunner $t) use ($summary183): void {
+$tests['compound select window recursive limit tail-window-limit-boundary recursive offset trace'] = static function (TestRunner $t) use ($summary183): void {
     $recursive = $summary183()['recursive'];
     $t->same('q', $recursive['name']);
     $t->same(['id', 'label', 'score'], $recursive['columns']);
@@ -94,7 +94,7 @@ $tests['compound select window recursive limit next183 recursive offset trace'] 
     $t->same(0, $recursive['currentFinalOffsetRemaining']);
 };
 
-$tests['compound select window recursive limit next183 window metadata'] = static function (TestRunner $t) use ($summary183): void {
+$tests['compound select window recursive limit tail-window-limit-boundary window metadata'] = static function (TestRunner $t) use ($summary183): void {
     $windows = $summary183()['windows'];
     $t->same(['lag', 'lead'], $windows['functions']);
     $t->same(['metric', 'metric'], array_column($windows['current'], 'alias'));
@@ -103,7 +103,7 @@ $tests['compound select window recursive limit next183 window metadata'] = stati
     $t->same([1, 2], array_column($windows['current'], 'orderCount'));
 };
 
-$tests['compound select window recursive limit next183 tail diagnostics'] = static function (TestRunner $t) use ($summary183): void {
+$tests['compound select window recursive limit tail-window-limit-boundary tail diagnostics'] = static function (TestRunner $t) use ($summary183): void {
     $tail = $summary183()['tailWindowLimit'];
     $t->same(['siteurl', 'rewrite_rules'], $tail['nextSkippedLabels']);
     $t->same(['home', 'rewrite_rules', 'seed:2:3:4:5:6:7'], array_slice($tail['currentTruncatedLabels'], 0, 3));
@@ -111,25 +111,25 @@ $tests['compound select window recursive limit next183 tail diagnostics'] = stat
     $t->true($tail['windowMetrics'][0] >= $tail['windowMetrics'][count($tail['windowMetrics']) - 1]);
 };
 
-$tests['compound select window recursive limit next183 replan reasons'] = static function (TestRunner $t) use ($summary183): void {
+$tests['compound select window recursive limit tail-window-limit-boundary replan reasons'] = static function (TestRunner $t) use ($summary183): void {
     $reasons = $summary183()['replanReasons'];
     $t->true(in_array('limited-distinct-union-rowset-changed', $reasons, true));
     $t->true(in_array('prelimit-distinct-union-rowset-changed', $reasons, true));
-    $t->true(in_array('compound-tail-window-limit-current-source-next183', $reasons, true));
-    $t->true(in_array('recursive-offset-window-arm-before-union-distinct-next183', $reasons, true));
-    $t->true(in_array('wordpress-option-boundary-replans-final-limit-next183', $reasons, true));
+    $t->true(in_array('compound-tail-window-limit-current-source-tail-window-limit-boundary', $reasons, true));
+    $t->true(in_array('recursive-offset-window-arm-before-union-distinct-tail-window-limit-boundary', $reasons, true));
+    $t->true(in_array('wordpress-option-boundary-replans-final-limit-tail-window-limit-boundary', $reasons, true));
 };
 
-$tests['compound select window recursive limit next183 rejects missing recursive cte'] = static function (TestRunner $t) use ($currentTables183): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext183(
+$tests['compound select window recursive limit tail-window-limit-boundary rejects missing recursive cte'] = static function (TestRunner $t) use ($currentTables183): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareTailWindowLimitBoundary(
         'SELECT option_id AS id, option_name AS label, score AS metric FROM wp_options UNION SELECT option_id, option_name, score FROM wp_options ORDER BY metric LIMIT 2 OFFSET 1',
         $currentTables183,
         $currentTables183,
     ));
 };
 
-$tests['compound select window recursive limit next183 rejects missing final offset'] = static function (TestRunner $t) use ($currentTables183): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext183(
+$tests['compound select window recursive limit tail-window-limit-boundary rejects missing final offset'] = static function (TestRunner $t) use ($currentTables183): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareTailWindowLimitBoundary(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 104) UNION ALL SELECT id + 1, label, score - 9 FROM q WHERE id < 8 LIMIT 6 OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id, option_name, lead(score, 1, score) OVER (ORDER BY score) FROM wp_options UNION SELECT option_id, option_name, score FROM wp_options ORDER BY metric LIMIT 6",
         $currentTables183,
         $currentTables183,
@@ -137,7 +137,7 @@ $tests['compound select window recursive limit next183 rejects missing final off
 };
 
 foreach (range(1, 64) as $case) {
-    $tests['compound select window recursive limit next183 generated boundary ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit tail-window-limit-boundary generated boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $recursiveLimit = 5 + ($case % 4);
         $finalLimit = 4 + ($case % 3);
         $scoreFloor = 60 + $case;

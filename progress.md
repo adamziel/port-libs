@@ -2590,3 +2590,32 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   unnumbered helpers, beginning with exact `user-named removed-suffixPlan.php`
   groups and then VFS, PRAGMA/FK, B-tree vacuum/freeblock, pager reader-cache,
   WAL, rowvalue, planner, and smaller duplicate groups.
+
+## Supervisor Rolling Integration 2026-05-29T17:22Z Shell Sample
+
+- Refilled the visible libsqlite pool after the BW wave partially completed.
+  The local operational refill queue now has a BX reserve wave, and tmux
+  `main` returned to 11 live libsqlite workers with no long sleeper commands.
+- Preflighted the next BV reduced consolidation subset in a scratch worktree
+  and accepted eight non-overlapping handoffs: compound SELECT window
+  recursive-limit cleanup, JSON generated path rowid cost-selection replay,
+  pager master-journal reader-cache VDBE-bit cleanup, planner STAT4 range-row
+  cleanup, rowvalue update/delete returning savepoint source cleanup,
+  rowvalue returning-window publication final cleanup, upstream veryquick shard
+  evidence cleanup, and WAL hot-journal savepoint checkpoint epoch-stage
+  cleanup.
+- Deferred B-tree vacuum BV because it conflicted in
+  `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php` and
+  referenced an old test path; deferred JSON BU because accepted suffix cleanup
+  renamed its targets; deferred suffix BV because it conflicts after JSON BV
+  and other accepted changes.
+- Validation for the sixtieth reduced consolidation follow-up passed: 35
+  changed PHP files linted, 20 changed tests with 18,218 assertions and 0
+  failures, 8 changed WordPress examples/self-tests, `git diff --check`,
+  exact `CurrentSourceNext150Plan|CurrentSourceNext150|CurrentNext150|Next150`
+  scan clean in src/tests/examples, production numbered filenames/classes at
+  0, numbered production helper methods reduced to 1,982, and broad numbered
+  production occurrences reduced to 201.
+- Public counts remain honest for this consolidation-only slice:
+  libsqlite stays at 154,019 pass / 0 fail and 830 / 1,589 mapped coverage
+  until a behavior/mapping batch moves those counters.

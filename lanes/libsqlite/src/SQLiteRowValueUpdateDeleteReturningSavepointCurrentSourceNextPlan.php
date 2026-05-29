@@ -13162,19 +13162,19 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $protectedStatements,
         array $afterStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_returning_next160',
+        string $savepoint = 'wp_options_rowvalue_returning_savepoint',
         ?int $rollbackToProtectedOrdinal = null,
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeStatements === [] || $protectedStatements === [] || $afterStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value savepoint next160 needs before, protected, and after statements');
+            throw new \InvalidArgumentException('SQLite row-value savepoint needs before, protected, and after statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value savepoint next160 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value savepoint needs unique constraints');
         }
         $savepoint = self::identifierUpdateDeleteReturningSavepointBatch($savepoint, 'savepoint');
         if ($rollbackToProtectedOrdinal !== null && ($rollbackToProtectedOrdinal < 0 || $rollbackToProtectedOrdinal >= count($protectedStatements))) {
-            throw new \InvalidArgumentException('SQLite row-value savepoint next160 rollback ordinal is outside protected statement list');
+            throw new \InvalidArgumentException('SQLite row-value savepoint rollback ordinal is outside protected statement list');
         }
 
         $transactionImage = self::normalizeTablesUpdateDeleteReturningSavepointBatch($tables);
@@ -13200,7 +13200,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $final = $after['tables'];
 
         return [
-            'status' => $rolledBack ? 'rolled-back-to-rowvalue-returning-savepoint-current-source-next160' : 'released-rowvalue-returning-savepoint-current-source-next160',
+            'status' => $rolledBack ? 'rolled-back-to-rowvalue-returning-savepoint-current-source' : 'released-rowvalue-returning-savepoint-current-source',
             'savepoint' => $savepoint,
             'rolled_back_to_savepoint' => $rolledBack,
             'rollback_protected_ordinal' => $rollbackToProtectedOrdinal,
@@ -13225,9 +13225,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'row_counts' => self::rowCountsUpdateDeleteReturningSavepointBatch($final),
             'changed_tables' => self::changedTablesUpdateDeleteReturningSavepointBatch($transactionImage, $final),
             'dependencies' => [
-                'sqlite-rowvalue-update-delete-returning-savepoint-current-source-next160',
-                'sqlite-rollback-to-savepoint-suppresses-update-delete-returning-yields-next160',
-                'sqlite-current-source-after-rollback-restarts-from-savepoint-image-next160',
+                'sqlite-rowvalue-update-delete-returning-savepoint-current-source',
+                'sqlite-rollback-to-savepoint-suppresses-update-delete-returning-yields',
+                'sqlite-current-source-after-rollback-restarts-from-savepoint-image',
             ],
             'non_overlap' => 'covers explicit ROLLBACK TO savepoint over a mixed row-value UPDATE RETURNING and DELETE RETURNING protected batch; avoids accepted distinct retry, conflict-yielding, and nested inner-savepoint rollback surfaces',
         ];
@@ -13262,7 +13262,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function runStatementUpdateDeleteReturningSavepointBatch(string $sql, array $tables, array $uniqueConstraints, string $rowIdColumn, string $phase, int $ordinal): array
     {
         if (!is_string($sql) || trim($sql) === '') {
-            throw new \InvalidArgumentException('SQLite row-value savepoint next160 statement must be SQL text');
+            throw new \InvalidArgumentException('SQLite row-value savepoint statement must be SQL text');
         }
         $before = $tables;
         $parsed = SQLiteUpdateDeleteReturningSql::parse($sql);
@@ -13355,11 +13355,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value savepoint next160 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value savepoint tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value savepoint next160 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value savepoint rows must be arrays');
                 }
             }
         }
@@ -13370,7 +13370,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function identifierUpdateDeleteReturningSavepointBatch(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
-            throw new \InvalidArgumentException("SQLite row-value savepoint next160 {$label} is malformed");
+            throw new \InvalidArgumentException("SQLite row-value savepoint {$label} is malformed");
         }
 
         return $value;
@@ -13391,11 +13391,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value savepoint next160 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value savepoint rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value savepoint next160 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value savepoint rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;

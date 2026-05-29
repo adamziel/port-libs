@@ -38,7 +38,7 @@ $rollbackPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepo
     [$protectedUpdateSql, $protectedDeleteSql],
     [$afterUpdateSql, $afterDeleteSql],
     $unique,
-    'wp_options_rowvalue_returning_next160',
+    'wp_options_rowvalue_returning_savepoint',
     1,
 );
 $releasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch(
@@ -47,7 +47,7 @@ $releasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepoi
     [$protectedUpdateSql],
     [$releaseAfterSql],
     $unique,
-    'wp_options_rowvalue_release_next160',
+    'wp_options_rowvalue_release_savepoint',
 );
 
 $cases = [
@@ -62,8 +62,8 @@ $cases = [
     'protected delete sees attempted current source' => [static fn (): mixed => $protectedDeleteOnly()['plan']->selectedIds, [4, 7, 8, 9, 10]],
     'protected delete removes attempted and prepared rows' => [static fn (): mixed => array_column($protectedDeleteOnly()['tables']['wp_options'], 'option_id'), [1, 2, 3, 5, 6]],
 
-    'rollback plan status' => [static fn (): mixed => $rollbackPlan()['status'], 'rolled-back-to-rowvalue-returning-savepoint-current-source-next160'],
-    'rollback plan savepoint name' => [static fn (): mixed => $rollbackPlan()['savepoint'], 'wp_options_rowvalue_returning_next160'],
+    'rollback plan status' => [static fn (): mixed => $rollbackPlan()['status'], 'rolled-back-to-rowvalue-returning-savepoint-current-source'],
+    'rollback plan savepoint name' => [static fn (): mixed => $rollbackPlan()['savepoint'], 'wp_options_rowvalue_returning_savepoint'],
     'rollback plan flag true' => [static fn (): mixed => $rollbackPlan()['rolled_back_to_savepoint'], true],
     'rollback plan ordinal one' => [static fn (): mixed => $rollbackPlan()['rollback_protected_ordinal'], 1],
     'rollback plan before statements one' => [static fn (): mixed => count($rollbackPlan()['before_statements']), 1],
@@ -97,11 +97,11 @@ $cases = [
     'rollback plan changed tables' => [static fn (): mixed => $rollbackPlan()['changed_tables'], ['wp_options']],
     'rollback plan source cursor phases' => [static fn (): mixed => array_column($rollbackPlan()['source_cursor'], 'phase'), ['before', 'protected', 'protected', 'after', 'after']],
     'rollback plan source cursor yielded flags' => [static fn (): mixed => array_column($rollbackPlan()['source_cursor'], 'yielded'), [true, false, false, true, true]],
-    'rollback plan dependency marker' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-savepoint-current-source-next160', $rollbackPlan()['dependencies'], true), true],
-    'rollback plan dependency current source restart' => [static fn (): mixed => in_array('sqlite-current-source-after-rollback-restarts-from-savepoint-image-next160', $rollbackPlan()['dependencies'], true), true],
-    'rollback plan non-overlap names next157' => [static fn (): mixed => str_contains($rollbackPlan()['non_overlap'], 'next157'), true],
+    'rollback plan dependency marker' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-savepoint-current-source', $rollbackPlan()['dependencies'], true), true],
+    'rollback plan dependency current source restart' => [static fn (): mixed => in_array('sqlite-current-source-after-rollback-restarts-from-savepoint-image', $rollbackPlan()['dependencies'], true), true],
+    'rollback plan non-overlap documents accepted distinct retry' => [static fn (): mixed => str_contains($rollbackPlan()['non_overlap'], 'distinct retry'), true],
 
-    'release plan status' => [static fn (): mixed => $releasePlan()['status'], 'released-rowvalue-returning-savepoint-current-source-next160'],
+    'release plan status' => [static fn (): mixed => $releasePlan()['status'], 'released-rowvalue-returning-savepoint-current-source'],
     'release plan flag false' => [static fn (): mixed => $releasePlan()['rolled_back_to_savepoint'], false],
     'release plan protected yielded' => [static fn (): mixed => array_column($releasePlan()['yielded_returning'], 'phase'), ['before', 'protected', 'after']],
     'release plan no discarded rows' => [static fn (): mixed => $releasePlan()['discarded_returning_count'], 0],
@@ -120,7 +120,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next160 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue update delete returning savepoint current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

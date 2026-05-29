@@ -47,9 +47,9 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 2
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext183($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareTailWindowLimitBoundary($sql, $currentTables, $nextTables);
 $result = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next183',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-tail-window-limit-boundary',
     'sqlShape' => 'WITH RECURSIVE LIMIT/OFFSET feeding lag/lead window arms before UNION ALL/UNION and final ORDER BY/LIMIT/OFFSET',
     'wordpressUse' => 'Copied wp_options import previews can show when a next-source plugin option crosses the final compound LIMIT boundary after recursive rows and window metrics are evaluated.',
     'currentLabels' => array_column($plan['currentRows'], 'label'),
@@ -70,7 +70,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
         fwrite(STDERR, "recursive LIMIT/OFFSET did not skip the anchor and first recursive row\n");
         exit(1);
     }
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next183 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-tail-window-limit-boundary self-test passed\n";
 }
 
 return $result;

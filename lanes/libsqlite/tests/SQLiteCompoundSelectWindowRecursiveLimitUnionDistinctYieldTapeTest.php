@@ -48,23 +48,23 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary181 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext181($sql181, $currentTables181, $nextTables181);
+$summary181 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionDistinctYieldTape($sql181, $currentTables181, $nextTables181);
 $tests = [];
 
-$tests['compound select window recursive limit next181 status dependencies'] = static function (TestRunner $t) use ($summary181): void {
+$tests['compound select window recursive limit union-distinct-yield-tape status dependencies'] = static function (TestRunner $t) use ($summary181): void {
     $plan = $summary181();
-    $t->same('compound-select-window-recursive-limit-current-source-next181-ready', $plan['status']);
+    $t->same('compound-select-window-recursive-limit-current-source-union-distinct-yield-tape-ready', $plan['status']);
     $t->same([
-        'sqlite-select-sql-recursive-limit-offset-next181',
-        'sqlite-select-sql-window-before-union-distinct-next181',
-        'sqlite-select-sql-union-distinct-yield-tape-next181',
-        'sqlite-select-sql-compound-final-limit-next181',
-        'sqlite-current-source-next181',
+        'sqlite-select-sql-recursive-limit-offset-union-distinct-yield-tape',
+        'sqlite-select-sql-window-before-union-distinct-union-distinct-yield-tape',
+        'sqlite-select-sql-union-distinct-yield-tape-union-distinct-yield-tape',
+        'sqlite-select-sql-compound-final-limit-union-distinct-yield-tape',
+        'sqlite-current-source-union-distinct-yield-tape',
     ], $plan['dependencies']);
     $t->contains('no new support component needed', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit next181 compound metadata'] = static function (TestRunner $t) use ($summary181): void {
+$tests['compound select window recursive limit union-distinct-yield-tape compound metadata'] = static function (TestRunner $t) use ($summary181): void {
     $compound = $summary181()['compound'];
     $t->same(['UNION ALL', 'UNION'], $compound['operators']);
     $t->same(3, $compound['currentArms']);
@@ -75,7 +75,7 @@ $tests['compound select window recursive limit next181 compound metadata'] = sta
     $t->true($compound['hasUnionDistinct']);
 };
 
-$tests['compound select window recursive limit next181 current next rows'] = static function (TestRunner $t) use ($summary181): void {
+$tests['compound select window recursive limit union-distinct-yield-tape current next rows'] = static function (TestRunner $t) use ($summary181): void {
     $plan = $summary181();
     $t->same(['rewrite_rules', 'seed:2:3', 'seed:2:3:4', 'siteurl', 'home'], array_column($plan['currentRows'], 'label'));
     $t->same(['rewrite_rules', 'siteurl', 'plugin_alpha', 'seed:2:3', 'seed:2:3:4'], array_column($plan['nextRows'], 'label'));
@@ -83,7 +83,7 @@ $tests['compound select window recursive limit next181 current next rows'] = sta
     $t->same([90, 85, 85, 80, 80], array_column($plan['nextRows'], 'metric'));
 };
 
-$tests['compound select window recursive limit next181 yield tape current'] = static function (TestRunner $t) use ($summary181): void {
+$tests['compound select window recursive limit union-distinct-yield-tape yield tape current'] = static function (TestRunner $t) use ($summary181): void {
     $current = $summary181()['yieldTape']['current'];
     $t->same(10, count($current));
     $t->same(['siteurl', 'rewrite_rules', 'seed:2:3'], array_column(array_slice($current, 0, 3), 'label'));
@@ -92,7 +92,7 @@ $tests['compound select window recursive limit next181 yield tape current'] = st
     $t->same([], array_values(array_filter(array_column($current, 'duplicateSuppressed'))));
 };
 
-$tests['compound select window recursive limit next181 yield tape next'] = static function (TestRunner $t) use ($summary181): void {
+$tests['compound select window recursive limit union-distinct-yield-tape yield tape next'] = static function (TestRunner $t) use ($summary181): void {
     $next = $summary181()['yieldTape']['next'];
     $t->same(14, count($next));
     $t->same(['siteurl', 'rewrite_rules', 'siteurl', 'plugin_alpha'], array_column(array_slice($next, 0, 4), 'label'));
@@ -101,7 +101,7 @@ $tests['compound select window recursive limit next181 yield tape next'] = stati
     $t->same([], $summary181()['yieldTape']['suppressedDuplicateLabels']['next']);
 };
 
-$tests['compound select window recursive limit next181 recursive and windows'] = static function (TestRunner $t) use ($summary181): void {
+$tests['compound select window recursive limit union-distinct-yield-tape recursive and windows'] = static function (TestRunner $t) use ($summary181): void {
     $plan = $summary181();
     $t->same('q', $plan['recursive']['name']);
     $t->same(['seed', 'seed:2'], $plan['recursive']['currentSkippedLabels']);
@@ -109,7 +109,7 @@ $tests['compound select window recursive limit next181 recursive and windows'] =
     $t->same(['lag', 'lead'], $plan['windows']['functions']);
 };
 
-$tests['compound select window recursive limit next181 limit and boundary'] = static function (TestRunner $t) use ($summary181): void {
+$tests['compound select window recursive limit union-distinct-yield-tape limit and boundary'] = static function (TestRunner $t) use ($summary181): void {
     $plan = $summary181();
     $t->same(['siteurl'], array_column($plan['limitTrace']['current']['skippedBeforeOffset'], 'label'));
     $t->same(['siteurl'], array_column($plan['limitTrace']['next']['skippedBeforeOffset'], 'label'));
@@ -119,7 +119,7 @@ $tests['compound select window recursive limit next181 limit and boundary'] = st
     $t->same('seed:2:3:4', $plan['boundary']['nextLast']['label']);
 };
 
-$tests['compound select window recursive limit next181 changed labels reasons'] = static function (TestRunner $t) use ($summary181): void {
+$tests['compound select window recursive limit union-distinct-yield-tape changed labels reasons'] = static function (TestRunner $t) use ($summary181): void {
     $plan = $summary181();
     $t->true(in_array('plugin_alpha', $plan['yieldTape']['changedLabels'], true));
     $t->true(in_array('home', $plan['yieldTape']['changedLabels'], true));
@@ -128,8 +128,8 @@ $tests['compound select window recursive limit next181 changed labels reasons'] 
     $t->true(in_array('next-source-prelimit-rowset-expanded', $plan['replanReasons'], true));
 };
 
-$tests['compound select window recursive limit next181 rejects non distinct union'] = static function (TestRunner $t) use ($currentTables181): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext181(
+$tests['compound select window recursive limit union-distinct-yield-tape rejects non distinct union'] = static function (TestRunner $t) use ($currentTables181): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionDistinctYieldTape(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 7 LIMIT 5 OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id, option_name, lead(score, 1, score) OVER (ORDER BY score) FROM wp_options ORDER BY metric LIMIT 5 OFFSET 1",
         $currentTables181,
         $currentTables181,
@@ -137,7 +137,7 @@ $tests['compound select window recursive limit next181 rejects non distinct unio
 };
 
 foreach (range(1, 52) as $case) {
-    $tests['compound select window recursive limit next181 generated yield tape ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit union-distinct-yield-tape generated yield tape ' . $case] = static function (TestRunner $t) use ($case): void {
         $recursiveLimit = 4 + ($case % 4);
         $finalLimit = 3 + ($case % 3);
         $tables = [
@@ -149,7 +149,7 @@ foreach (range(1, 52) as $case) {
             ],
         ];
         $generatedSql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (120 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT {$recursiveLimit} OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, lead(score, 1, score) OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes' UNION SELECT option_id AS id, option_name AS label, score AS metric FROM wp_options WHERE score >= " . (70 + $case) . " ORDER BY metric DESC, id LIMIT {$finalLimit} OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext181($generatedSql, $tables, $tables);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionDistinctYieldTape($generatedSql, $tables, $tables);
         $rows = SQLiteSelectSql::execute($generatedSql, $tables);
 
         $t->same($finalLimit, count($rows));
