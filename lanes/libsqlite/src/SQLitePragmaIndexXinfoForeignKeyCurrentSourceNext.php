@@ -28225,6 +28225,102 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
         return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 374, 'delete_restrict_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
     }
 
+    public static function page375(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 375,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 375, 'update_set_null_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page376(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 376,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 376, 'delete_set_null_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page377(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 377,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 377, 'update_set_default_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page378(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 378,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 378, 'delete_set_default_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page379(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 379,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 379, 'update_no_action_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page380(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 380,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 380, 'delete_no_action_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page381(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 381,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 381, 'update_set_null_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    public static function page382(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 382,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 382, 'delete_set_default_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
     /**
      * @param list<SQLiteSchemaRecord> $records
      * @return list<array<string,mixed>>
@@ -28480,6 +28576,8 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                             $status = "{$actionPrefix}_set_null_order_mismatch_child_lookup_index";
                         } elseif ($lookupStatus === 'child_lookup_collation_mismatch') {
                             $status = "{$actionPrefix}_set_null_collation_mismatch_child_lookup_index";
+                        } elseif ($lookupStatus === 'child_lookup_desc_mismatch') {
+                            $status = "{$actionPrefix}_set_null_desc_mismatch_child_lookup_index";
                         }
                     }
                 }
@@ -28506,6 +28604,8 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                             $status = "{$actionPrefix}_set_default_order_mismatch_child_lookup_index";
                         } elseif ($lookupStatus === 'child_lookup_collation_mismatch') {
                             $status = "{$actionPrefix}_set_default_collation_mismatch_child_lookup_index";
+                        } elseif ($lookupStatus === 'child_lookup_desc_mismatch') {
+                            $status = "{$actionPrefix}_set_default_desc_mismatch_child_lookup_index";
                         }
                     }
                 }
@@ -29462,6 +29562,10 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             'delete_set_default_order_mismatch_child_lookup_index' => 0,
             'update_set_default_collation_mismatch_child_lookup_index' => 0,
             'delete_set_default_collation_mismatch_child_lookup_index' => 0,
+            'update_set_null_desc_mismatch_child_lookup_index' => 0,
+            'delete_set_null_desc_mismatch_child_lookup_index' => 0,
+            'update_set_default_desc_mismatch_child_lookup_index' => 0,
+            'delete_set_default_desc_mismatch_child_lookup_index' => 0,
             'update_cascade_order_mismatch_child_lookup_index' => 0,
             'delete_cascade_order_mismatch_child_lookup_index' => 0,
             'update_cascade_collation_mismatch_child_lookup_index' => 0,
