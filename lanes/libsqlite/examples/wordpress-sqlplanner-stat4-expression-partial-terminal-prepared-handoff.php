@@ -23,7 +23,7 @@ $payload = static fn (array $row): array => [
 ];
 
 $prepared = [
-    'name' => 'prepared-wp-options-stat4-handoff-next958973',
+    'name' => 'prepared-wp-options-stat4-handoff-terminalPreparedHandoff',
     'schemaCookie' => 3920,
     'stat4Generation' => 398,
     'rows' => [
@@ -32,7 +32,7 @@ $prepared = [
         ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_zulu', 'option_value' => 'zulu-old', 'updated_at' => 60],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_handoff_next958973',
+        'name' => 'idx_wp_options_lower_handoff_terminalPreparedHandoff',
         'rootPage' => 39201,
         'expression' => 'lower(option_name)',
         'expressionColumn' => '__expr_lower_option_name',
@@ -63,7 +63,7 @@ $prepared = [
 ];
 
 $current = $prepared;
-$current['name'] = 'current-wp-options-stat4-handoff-next958973';
+$current['name'] = 'current-wp-options-stat4-handoff-terminalPreparedHandoff';
 $current['schemaCookie'] = 4070;
 $current['stat4Generation'] = 966;
 $current['indexes'][0]['rootPage'] = 40708;
@@ -99,18 +99,18 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeTer
 );
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'stat4-expression-partial-current-source-next958-973-prepared');
-    assert($plan['stat4Next958973PreparationFence']['preparedSlices'] === range(958, 973));
-    assert($plan['stat4Next958973PreparationFence']['handoffWindows'][0]['continuesSlice'] === 942);
+    assert($plan['status'] === 'stat4-expression-partial-terminal-prepared-handoff-prepared');
+    assert($plan['stat4TerminalPreparedHandoffPreparationFence']['preparedSlices'] === range(958, 973));
+    assert($plan['stat4TerminalPreparedHandoffPreparationFence']['handoffWindows'][0]['continuesSlice'] === 942);
     echo "wordpress-sqlplanner-stat4-expression-partial-terminal-prepared-handoff self-test passed\n";
     return;
 }
 
 echo json_encode([
     'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-terminal-prepared-handoff',
-    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next942-957 current-source STAT4 handoff into next958-973 only when projected current rows still match.',
+    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next942-957 current-source STAT4 handoff into terminal prepared handoff only when projected current rows still match.',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
-    'preparedSlices' => $plan['stat4Next958973PreparationFence']['preparedSlices'],
-    'handoffSignature' => $plan['stat4Next958973PreparationFence']['handoffSignature'],
+    'preparedSlices' => $plan['stat4TerminalPreparedHandoffPreparationFence']['preparedSlices'],
+    'handoffSignature' => $plan['stat4TerminalPreparedHandoffPreparationFence']['handoffSignature'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
