@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueAbortReturningSavepointCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://old.test'],
@@ -18,7 +18,7 @@ $rows = [
 $stageSql = "UPDATE wp_options SET (blog_id, option_name, status, option_value, bytes) = (blog_id, option_name || ':staged', 'staged', option_value || ':staged', bytes + 10) WHERE option_id IN (7, 8) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id";
 $abortSql = "UPDATE OR ABORT wp_options SET (blog_id, option_name, status, option_value, bytes) = (1, 'siteurl', option_name || ':abort', option_value || ':abort', bytes + 100) WHERE option_id IN (9, 6) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id DESC";
 
-$plan = SQLiteRowValueAbortReturningSavepointCurrentSourceNext140Plan::execute(
+$plan = SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan::execute(
     ['wp_options' => $rows],
     [$stageSql, $abortSql],
     [['blog_id', 'option_name']],

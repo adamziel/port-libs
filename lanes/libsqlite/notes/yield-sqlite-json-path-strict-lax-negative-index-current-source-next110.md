@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for SQLite JSON path grammar parity.
 
-This slice adds `SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan`.
+This slice adds `SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan`.
 It compares current/next copied `wp_options` JSON rows and records path
 diagnostics for the SQLite JSON path grammar boundary:
 

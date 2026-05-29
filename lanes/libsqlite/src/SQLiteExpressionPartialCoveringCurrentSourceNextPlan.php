@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteExpressionPartialCoveringCurrentSourceNext148Plan
+final class SQLiteExpressionPartialCoveringCurrentSourceNextPlan
 {
     /**
      * @param array<string,mixed> $preparedSource

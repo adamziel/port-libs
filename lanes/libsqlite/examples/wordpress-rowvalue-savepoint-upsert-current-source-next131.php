@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueSavepointUpsertCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLiteRowValueSavepointUpsertCurrentSourceNextPlan;
 
 $tables = [
     'wp_options' => [
@@ -19,7 +19,7 @@ $statements = [
     "INSERT INTO wp_options (option_id, blog_id, option_name, autoload, status, bytes, option_value) VALUES (5, 1, 'siteurl', 'no', 'incoming', 5, 'https://new.test') ON CONFLICT (blog_id, option_name) DO UPDATE SET (autoload, status, bytes, option_value) = (excluded.autoload, 'updated', bytes + excluded.bytes, option_value || ':' || excluded.option_value) RETURNING option_id, blog_id, option_name, status, bytes, option_value",
 ];
 
-$plan = SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute(
+$plan = SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute(
     $tables,
     $statements,
     [['blog_id', 'option_name'], ['option_id']],

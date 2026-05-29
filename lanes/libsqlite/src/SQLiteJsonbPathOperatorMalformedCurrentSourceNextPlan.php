@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteJsonbPathOperatorMalformedCurrentSourceNext106Plan
+final class SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows

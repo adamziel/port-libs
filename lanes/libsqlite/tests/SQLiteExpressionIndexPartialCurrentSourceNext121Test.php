@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteExpressionIndexPartialCurrentSourceNext121Plan;
+use PortLibs\LibSqlite\SQLiteExpressionIndexPartialCurrentSourceNextPlan;
 
 $eq = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $exprEq = static fn (string $expression, mixed $value): array => ['operator' => '=', 'left' => ['expression' => $expression], 'right' => $value];
@@ -52,7 +52,7 @@ $currentSource = static fn (): array => [
 
 $predicate = $and($eq('autoload', 'yes'), $exprIn('lower(option_name)', ['siteurl', 'home']));
 $orderBy = [['expression' => 'lower(option_name)', 'direction' => 'ASC', 'collation' => 'NOCASE']];
-$plan = static fn (?array $predicateOverride = null, ?array $prepared = null, ?array $current = null, ?array $order = null): array => SQLiteExpressionIndexPartialCurrentSourceNext121Plan::materialize(
+$plan = static fn (?array $predicateOverride = null, ?array $prepared = null, ?array $current = null, ?array $order = null): array => SQLiteExpressionIndexPartialCurrentSourceNextPlan::materialize(
     $prepared ?? $preparedSource(),
     $current ?? $currentSource(),
     $predicateOverride ?? $GLOBALS['predicate_next121'],
@@ -135,20 +135,20 @@ $tests['planner expression index partial current source next121 wrong order cost
 
 $tests['planner expression index partial current source next121 validates schema cookie'] = static function (TestRunner $t) use ($preparedSource, $currentSource): void {
     $bad = $preparedSource(['schemaCookie' => -1]);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCurrentSourceNext121Plan::materialize($bad, $currentSource(), $GLOBALS['predicate_next121'], $GLOBALS['order_next121']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCurrentSourceNextPlan::materialize($bad, $currentSource(), $GLOBALS['predicate_next121'], $GLOBALS['order_next121']));
 };
 $tests['planner expression index partial current source next121 validates row list'] = static function (TestRunner $t) use ($preparedSource, $currentSource): void {
     $bad = $currentSource();
     $bad['rows'][] = 'bad-row';
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCurrentSourceNext121Plan::materialize($preparedSource(), $bad, $GLOBALS['predicate_next121'], $GLOBALS['order_next121']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCurrentSourceNextPlan::materialize($preparedSource(), $bad, $GLOBALS['predicate_next121'], $GLOBALS['order_next121']));
 };
 $tests['planner expression index partial current source next121 validates index list'] = static function (TestRunner $t) use ($preparedSource, $currentSource): void {
     $bad = $currentSource();
     $bad['indexes'][] = 'bad-index';
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCurrentSourceNext121Plan::materialize($preparedSource(), $bad, $GLOBALS['predicate_next121'], $GLOBALS['order_next121']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCurrentSourceNextPlan::materialize($preparedSource(), $bad, $GLOBALS['predicate_next121'], $GLOBALS['order_next121']));
 };
 $tests['planner expression index partial current source next121 validates order direction'] = static function (TestRunner $t) use ($preparedSource, $currentSource): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCurrentSourceNext121Plan::materialize($preparedSource(), $currentSource(), $GLOBALS['predicate_next121'], [['expression' => 'lower(option_name)', 'direction' => 'SIDEWAYS']]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCurrentSourceNextPlan::materialize($preparedSource(), $currentSource(), $GLOBALS['predicate_next121'], [['expression' => 'lower(option_name)', 'direction' => 'SIDEWAYS']]));
 };
 
 return $tests;

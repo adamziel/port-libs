@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Plan;
+use PortLibs\LibSqlite\SQLiteExpressionIndexPartialCollationStat4CurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -41,7 +41,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '1 1', 'nlt' => '5 5', 'ndlt' => '5 5', 'sample' => ['plugin Slider', 26]],
 ];
 
-$plan = SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Plan::materialize(
+$plan = SQLiteExpressionIndexPartialCollationStat4CurrentSourceNextPlan::materialize(
     $prepared,
     $current,
     $and(

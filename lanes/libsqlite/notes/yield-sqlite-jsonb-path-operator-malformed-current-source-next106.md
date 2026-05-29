@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteJsonbPathOperatorMalformedCurrentSourceNext106Plan` for current/next
+Adds `SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan` for current/next
 `wp_options` diagnostics around SQLite JSON path operators `->` and `->>`.
 The plan distinguishes:
 

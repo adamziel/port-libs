@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan.php';
-require_once __DIR__ . '/../src/SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueSavepointUpsertCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan;
+use PortLibs\LibSqlite\SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan;
 
 $tables = [
     'wp_options' => [
@@ -19,7 +19,7 @@ $moveSiteurl = "INSERT INTO wp_options (option_id, blog_id, option_name, move_na
 $hitMovedKey = "INSERT INTO wp_options (option_id, blog_id, option_name, move_name, autoload, status, bytes, option_value) VALUES (11, 1, 'plugin_cache', 'plugin_cache', 'yes', 'incoming', 3, 'cache-b') ON CONFLICT (blog_id, option_name) DO UPDATE SET (autoload, status, bytes, option_value) = (excluded.autoload, 'refreshed', bytes + excluded.bytes, option_value || ':' || excluded.option_value) RETURNING option_id, blog_id, option_name, autoload, status, bytes, option_value";
 $duplicateTheme = "INSERT INTO wp_options (option_id, blog_id, option_name, move_name, autoload, status, bytes, option_value) VALUES (12, 1, 'home', 'theme_mods', 'no', 'incoming', 4, 'bad') ON CONFLICT (blog_id, option_name) DO UPDATE SET (option_name, status, bytes, option_value) = (excluded.move_name, 'duplicate-key', bytes + excluded.bytes, excluded.option_value) RETURNING option_id, blog_id, option_name, status, bytes";
 
-$plan = SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan::execute(
+$plan = SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan::execute(
     $tables,
     [$moveSiteurl, $hitMovedKey, $duplicateTheme],
     [['blog_id', 'option_name'], ['option_id']],

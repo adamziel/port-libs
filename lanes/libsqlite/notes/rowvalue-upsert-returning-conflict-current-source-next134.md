@@ -1,7 +1,7 @@
 # rowvalue-upsert-returning-conflict-current-source-next134
 
 Implemented a bounded current-source row-value UPSERT/RETURNING conflict
-extension on `SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan`.
+extension on `SQLiteRowValueSavepointUpsertCurrentSourceNextPlan`.
 
 - Adds parser/executor support for `DO NOTHING RETURNING`, partial
   `ON CONFLICT (...) WHERE ...` targets, and `DO UPDATE ... WHERE ...` conflict
@@ -19,7 +19,7 @@ extension on `SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan`.
 Verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueSavepointUpsertCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueUpsertReturningConflictCurrentSourceNext134Test.php
 php -l lanes/libsqlite/examples/wordpress-rowvalue-upsert-returning-conflict-current-source-next134.php
 No syntax errors detected in changed PHP files

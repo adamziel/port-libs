@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
-use PortLibs\LibSqlite\SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan;
+use PortLibs\LibSqlite\SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan;
 
 $currentRows = [
     [
@@ -62,7 +62,7 @@ $paths = [
     '$.plugins[#-].slug',
 ];
 
-$plan = static fn (): array => SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan::compare($currentRows, $nextRows, $paths);
+$plan = static fn (): array => SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare($currentRows, $nextRows, $paths);
 
 $tests = [
     'json path strict lax negative index current source next110 records surface' => static fn (TestRunner $t) => $t->same('json-path-strict-lax-negative-index-current-source-next110', $plan()['surface']),
@@ -102,24 +102,24 @@ $tests = [
     'json path strict lax negative index current source next110 direct locate rejects lax prefix' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::locatePath($currentRows[0]['option_value'], 'lax $.plugins[#-1].slug')),
     'json path strict lax negative index current source next110 direct locate rejects negative bracket index' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::locatePath($currentRows[0]['option_value'], '$.plugins[-1].slug')),
     'json path strict lax negative index current source next110 stable valid-only source is runnable' => static function (TestRunner $t) use ($currentRows): void {
-        $stable = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan::compare($currentRows, $currentRows, ['$.plugins[#-1].slug']);
+        $stable = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare($currentRows, $currentRows, ['$.plugins[#-1].slug']);
         $t->same(false, $stable['changed']);
         $t->same(false, $stable['reprepareRequired']);
         $t->same('stable-json-path-current-source', $stable['reprepareReason']);
         $t->same('next-json-path-source-is-runnable', $stable['nextReaderPolicy']);
     },
     'json path strict lax negative index current source next110 changed valid-only source reparses' => static function (TestRunner $t) use ($currentRows, $nextRows): void {
-        $changed = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan::compare($currentRows, $nextRows, ['$.plugins[#-1].slug']);
+        $changed = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare($currentRows, $nextRows, ['$.plugins[#-1].slug']);
         $t->same(true, $changed['changed']);
         $t->same(true, $changed['reprepareRequired']);
         $t->same('json-path-current-source-result-changed', $changed['reprepareReason']);
         $t->same('next-json-path-source-is-runnable', $changed['nextReaderPolicy']);
     },
-    'json path strict lax negative index current source next110 rejects empty path list' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan::compare($currentRows, $nextRows, [])),
-    'json path strict lax negative index current source next110 rejects missing option id' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan::compare([['option_value' => '{}']], [], ['$.x'])),
-    'json path strict lax negative index current source next110 rejects missing option value' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan::compare([['option_id' => 1]], [], ['$.x'])),
+    'json path strict lax negative index current source next110 rejects empty path list' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare($currentRows, $nextRows, [])),
+    'json path strict lax negative index current source next110 rejects missing option id' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare([['option_value' => '{}']], [], ['$.x'])),
+    'json path strict lax negative index current source next110 rejects missing option value' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare([['option_id' => 1]], [], ['$.x'])),
     'json path strict lax negative index current source next110 records malformed json source rowid' => static function (TestRunner $t): void {
-        $malformed = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan::compare([['option_id' => 1, 'option_value' => '{"plugins":']], [], ['$.plugins[#-1]']);
+        $malformed = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare([['option_id' => 1, 'option_value' => '{"plugins":']], [], ['$.plugins[#-1]']);
         $t->same([1], $malformed['current']['jsonErrorRowids']);
         $t->same(false, $malformed['current']['rows'][1]['paths']['$.plugins[#-1]']['found']);
     },

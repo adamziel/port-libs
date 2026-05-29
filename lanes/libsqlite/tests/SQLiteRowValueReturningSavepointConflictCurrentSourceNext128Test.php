@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueReturningSavepointConflictCurrentSourceNext128Plan;
+use PortLibs\LibSqlite\SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $tests = [];
@@ -36,8 +36,8 @@ $rollbackStatements = [
 
 $ignore = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($ignoreSql, $tables, 'option_id', $unique);
 $replace = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($replaceSql, $tables, 'option_id', $unique);
-$commit = static fn (): array => SQLiteRowValueReturningSavepointConflictCurrentSourceNext128Plan::execute($tables, $commitStatements, $unique);
-$rollback = static fn (): array => SQLiteRowValueReturningSavepointConflictCurrentSourceNext128Plan::execute($tables, $rollbackStatements, $unique);
+$commit = static fn (): array => SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan::execute($tables, $commitStatements, $unique);
+$rollback = static fn (): array => SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan::execute($tables, $rollbackStatements, $unique);
 
 $cases = [
     'parse update or ignore conflict action' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($ignoreSql)['conflict_action'], 'ignore'],
@@ -93,8 +93,8 @@ $cases = [
     'null conflict key is not considered duplicate' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("UPDATE OR IGNORE wp_options SET (blog_id, option_name, status) = (1, NULL, 'null-key') WHERE option_id = 7 RETURNING option_id, option_name, status", $tables, 'option_id', $unique)['returning'], [['option_id' => 7, 'option_name' => null, 'status' => 'null-key']]],
     'malformed unique constraint rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($ignoreSql, $tables, 'option_id', [[]]), InvalidArgumentException::class],
     'malformed missing unique column rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($ignoreSql, $tables, 'option_id', [['missing']]), InvalidArgumentException::class],
-    'malformed empty savepoint statement list rejected' => [static fn (): mixed => SQLiteRowValueReturningSavepointConflictCurrentSourceNext128Plan::execute($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty savepoint unique constraints rejected' => [static fn (): mixed => SQLiteRowValueReturningSavepointConflictCurrentSourceNext128Plan::execute($tables, $commitStatements, []), InvalidArgumentException::class],
+    'malformed empty savepoint statement list rejected' => [static fn (): mixed => SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan::execute($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty savepoint unique constraints rejected' => [static fn (): mixed => SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan::execute($tables, $commitStatements, []), InvalidArgumentException::class],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {

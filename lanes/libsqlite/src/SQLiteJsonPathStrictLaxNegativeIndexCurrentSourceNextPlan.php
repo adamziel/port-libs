@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan
+final class SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan
 {
     /**
      * @param list<array<string, mixed>> $currentRows

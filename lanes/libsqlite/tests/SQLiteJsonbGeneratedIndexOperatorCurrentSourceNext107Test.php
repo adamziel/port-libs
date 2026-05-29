@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
-use PortLibs\LibSqlite\SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan;
+use PortLibs\LibSqlite\SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan;
 
 $jsonb = static fn (array $value): SQLiteBlobValue => new SQLiteBlobValue(SQLiteJsonB::encode($value));
 
@@ -85,7 +85,7 @@ $nextRows = static fn (): array => [
     ],
 ];
 
-$plan = static fn (): array => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan::plan($indexes(), $currentRows(), $nextRows());
+$plan = static fn (): array => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), $currentRows(), $nextRows());
 $entry = static function (array $entries, int $rowid, string $index, mixed $value): ?array {
     foreach ($entries as $entry) {
         if ($entry['rowid'] === $rowid && $entry['index'] === $index && $entry['value'] === $value) {
@@ -139,7 +139,7 @@ $tests = [
     'jsonb generated index operator current source next107 preserves deleted current row' => static fn (TestRunner $t) => $t->same('plugin_empty_settings', $plan()['row_transitions'][3]['current']['option_name']),
     'jsonb generated index operator current source next107 preserves inserted next row' => static fn (TestRunner $t) => $t->same('plugin_shop_settings', $plan()['row_transitions'][4]['next']['option_name']),
     'jsonb generated index operator current source next107 ignores non operator indexes' => static function (TestRunner $t) use ($currentRows, $nextRows): void {
-        $plan = SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan::plan([
+        $plan = SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan([
             ['name' => 'idx_plain', 'sql' => 'CREATE INDEX idx_plain ON wp_options(option_name)'],
         ], $currentRows(), $nextRows());
         $t->same([], $plan['indexes']);
@@ -147,18 +147,18 @@ $tests = [
         $t->same([], $plan['insert_entries']);
     },
     'jsonb generated index operator current source next107 rejects missing rowid' => static function (TestRunner $t) use ($indexes, $nextRows): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan::plan($indexes(), [['option_value' => '{}']], $nextRows()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), [['option_value' => '{}']], $nextRows()));
     },
     'jsonb generated index operator current source next107 rejects duplicate rowid' => static function (TestRunner $t) use ($indexes, $currentRows, $nextRows): void {
         $rows = $currentRows();
         $rows[] = $rows[0];
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan::plan($indexes(), $rows, $nextRows()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), $rows, $nextRows()));
     },
     'jsonb generated index operator current source next107 rejects missing source column' => static function (TestRunner $t) use ($indexes, $nextRows): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan::plan($indexes(), [['option_id' => 1]], $nextRows()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), [['option_id' => 1]], $nextRows()));
     },
     'jsonb generated index operator current source next107 rejects non json source column' => static function (TestRunner $t) use ($indexes, $nextRows): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan::plan($indexes(), [['option_id' => 1, 'autoload' => 'yes', 'option_value' => ['bad']]], $nextRows()));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan($indexes(), [['option_id' => 1, 'autoload' => 'yes', 'option_value' => ['bad']]], $nextRows()));
     },
 ];
 

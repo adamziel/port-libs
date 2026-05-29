@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteExpressionCoveringOrderCurrentSourceNext103Plan;
+use PortLibs\LibSqlite\SQLiteExpressionCoveringOrderCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -40,7 +40,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '1 2 2', 'nlt' => '14 14 14', 'ndlt' => '4 4 4', 'sample' => ['plugin slider', 'yes', 'a:5:{}']],
 ];
 
-$plan = SQLiteExpressionCoveringOrderCurrentSourceNext103Plan::materialize(
+$plan = SQLiteExpressionCoveringOrderCurrentSourceNextPlan::materialize(
     $prepared,
     $current,
     $and(

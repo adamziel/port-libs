@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan
+final class SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan
 {
     /**
      * @param array<string,list<array<string,mixed>>> $tables
@@ -26,7 +26,7 @@ final class SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan
             throw new \InvalidArgumentException('SQLite row-value conflict UPSERT savepoint name must not be empty');
         }
 
-        $plan = SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute(
+        $plan = SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute(
             $tables,
             $statements,
             $uniqueConstraints,

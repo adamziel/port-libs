@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteExpressionIndexPartialCurrentSourceNext121Plan;
+use PortLibs\LibSqlite\SQLiteExpressionIndexPartialCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -40,7 +40,7 @@ $current = [
     ],
 ];
 
-$plan = SQLiteExpressionIndexPartialCurrentSourceNext121Plan::materialize(
+$plan = SQLiteExpressionIndexPartialCurrentSourceNextPlan::materialize(
     $prepared,
     $current,
     $predicate,

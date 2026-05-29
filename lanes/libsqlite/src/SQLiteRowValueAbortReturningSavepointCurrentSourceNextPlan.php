@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteRowValueAbortReturningSavepointCurrentSourceNext140Plan
+final class SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan
 {
     /**
      * @param array<string,list<array<string,mixed>>> $tables

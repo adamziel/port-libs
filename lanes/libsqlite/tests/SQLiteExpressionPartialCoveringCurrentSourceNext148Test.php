@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteExpressionPartialCoveringCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteExpressionPartialCoveringCurrentSourceNextPlan;
 
 $term148 = static fn (string $column, string $operator, mixed $right = null): array => ['left' => ['column' => $column], 'operator' => $operator, 'right' => $right];
 $expr148 = static fn (string $expression, mixed $right): array => ['left' => ['expression' => $expression], 'operator' => '=', 'right' => $right];
@@ -88,7 +88,7 @@ $query148 = static fn (): array => [
     $term148('option_name', 'IS NOT NULL'),
 ];
 $needed148 = ['option_name', 'option_value', 'updated_at', 'rowid'];
-$plan148 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLiteExpressionPartialCoveringCurrentSourceNext148Plan::materialize(
+$plan148 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLiteExpressionPartialCoveringCurrentSourceNextPlan::materialize(
     $prepared ?? $source148(),
     $current ?? $current148(),
     $terms ?? $query148(),

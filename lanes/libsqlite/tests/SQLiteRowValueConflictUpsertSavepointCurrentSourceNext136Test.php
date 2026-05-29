@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan;
+use PortLibs\LibSqlite\SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -21,21 +21,21 @@ $insertSql136 = "INSERT INTO wp_options (option_id, blog_id, option_name, move_n
 $duplicateSql136 = "INSERT INTO wp_options (option_id, blog_id, option_name, move_name, autoload, status, bytes, option_value) VALUES (13, 1, 'home', 'theme_mods', 'no', 'incoming', 4, 'bad') ON CONFLICT (blog_id, option_name) DO UPDATE SET (option_name, status, bytes, option_value) = (excluded.move_name, 'duplicate-key', bytes + excluded.bytes, excluded.option_value) RETURNING option_id, blog_id, option_name, status, bytes";
 $nullSql136 = "INSERT INTO wp_options (option_id, blog_id, option_name, move_name, autoload, status, bytes, option_value) VALUES (14, 1, NULL, 'null-move', 'no', 'null-key', 1, 'anonymous') ON CONFLICT (blog_id, option_name) DO UPDATE SET (option_name, status) = (excluded.move_name, 'updated') RETURNING option_id, blog_id, option_name, status";
 
-$released136 = static fn (): array => SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan::execute(
+$released136 = static fn (): array => SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan::execute(
     $tables136,
     [$moveSql136, $hitMovedSql136, $insertSql136],
     $unique136,
     ['blog_id', 'option_name'],
     'wp_import_conflict_move',
 );
-$rolled136 = static fn (): array => SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan::execute(
+$rolled136 = static fn (): array => SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan::execute(
     $tables136,
     [$moveSql136, $hitMovedSql136, $duplicateSql136],
     $unique136,
     ['blog_id', 'option_name'],
     'wp_import_conflict_move',
 );
-$null136 = static fn (): array => SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan::execute(
+$null136 = static fn (): array => SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan::execute(
     $tables136,
     [$nullSql136],
     $unique136,
@@ -105,10 +105,10 @@ $cases136 = [
     'null conflict key returning preserves null option name' => [static fn (): mixed => $null136()['yielded_returning'][0]['rows'][0]['option_name'], null],
     'null conflict key changes one row' => [static fn (): mixed => $null136()['changes'], 1],
 
-    'malformed empty conflict key columns rejected' => [static fn (): mixed => SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan::execute($tables136, [$moveSql136], $unique136, []), InvalidArgumentException::class],
-    'malformed empty savepoint rejected' => [static fn (): mixed => SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan::execute($tables136, [$moveSql136], $unique136, ['blog_id', 'option_name'], '  '), InvalidArgumentException::class],
-    'malformed missing conflict key column rejected' => [static fn (): mixed => SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan::execute($tables136, [$moveSql136], $unique136, ['blog_id', 'missing']), InvalidArgumentException::class],
-    'malformed missing row id rejected' => [static fn (): mixed => SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan::execute(['wp_options' => [['blog_id' => 1, 'option_name' => 'x']]], [$moveSql136], $unique136, ['blog_id', 'option_name']), InvalidArgumentException::class],
+    'malformed empty conflict key columns rejected' => [static fn (): mixed => SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan::execute($tables136, [$moveSql136], $unique136, []), InvalidArgumentException::class],
+    'malformed empty savepoint rejected' => [static fn (): mixed => SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan::execute($tables136, [$moveSql136], $unique136, ['blog_id', 'option_name'], '  '), InvalidArgumentException::class],
+    'malformed missing conflict key column rejected' => [static fn (): mixed => SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan::execute($tables136, [$moveSql136], $unique136, ['blog_id', 'missing']), InvalidArgumentException::class],
+    'malformed missing row id rejected' => [static fn (): mixed => SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan::execute(['wp_options' => [['blog_id' => 1, 'option_name' => 'x']]], [$moveSql136], $unique136, ['blog_id', 'option_name']), InvalidArgumentException::class],
 ];
 
 foreach ($cases136 as $name => [$callback, $expected]) {

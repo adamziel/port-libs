@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -40,12 +40,12 @@ $releaseThenNetwork = static function () use ($releaseCacheSql, $releaseNetworkS
     return SQLiteUpdateDeleteReturningSql::execute($releaseNetworkSql, $first['tables'], 'option_id', $unique);
 };
 $rollbackDeleteOnly = static function () use ($releaseStatements, $rollbackDeleteSql, $tables, $unique): array {
-    $released = SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan::execute($tables, $releaseStatements, [$rollbackDeleteSql], $unique);
+    $released = SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan::execute($tables, $releaseStatements, [$rollbackDeleteSql], $unique);
 
     return $released;
 };
-$rollbackPlan = static fn (): array => SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan::execute($tables, $releaseStatements, $rollbackStatements, $unique);
-$commitPlan = static fn (): array => SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan::execute($tables, $releaseStatements, $commitRollbackStatements, $unique);
+$rollbackPlan = static fn (): array => SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan::execute($tables, $releaseStatements, $rollbackStatements, $unique);
+$commitPlan = static fn (): array => SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan::execute($tables, $releaseStatements, $commitRollbackStatements, $unique);
 
 $cases = [
     'release parser where row-value in retained' => [static fn (): mixed => $parsedRelease()['where'], "(blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed'))"],
@@ -114,11 +114,11 @@ $cases = [
     'commit current equals next source' => [static fn (): mixed => $commitPlan()['current_source_tables'], $commitPlan()['next_source_tables']],
     'commit null row-value returning true' => [static fn (): mixed => $commitPlan()['yielded_returning'][3]['rows'][0]['null_rewrite'], 1],
 
-    'malformed empty released statements rejected' => [static fn (): mixed => SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan::execute($tables, [], $rollbackStatements, $unique), InvalidArgumentException::class],
-    'malformed empty rollback statements rejected' => [static fn (): mixed => SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan::execute($tables, $releaseStatements, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan::execute($tables, $releaseStatements, $rollbackStatements, []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan::execute(['wp_options' => ['bad']], $releaseStatements, $rollbackStatements, $unique), InvalidArgumentException::class],
-    'malformed update statement rejected in delete-only plan' => [static fn (): mixed => SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan::execute($tables, ["UPDATE wp_options SET status = 'bad' WHERE option_id = 1 RETURNING option_id"], $rollbackStatements, $unique), InvalidArgumentException::class],
+    'malformed empty released statements rejected' => [static fn (): mixed => SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan::execute($tables, [], $rollbackStatements, $unique), InvalidArgumentException::class],
+    'malformed empty rollback statements rejected' => [static fn (): mixed => SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan::execute($tables, $releaseStatements, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan::execute($tables, $releaseStatements, $rollbackStatements, []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan::execute(['wp_options' => ['bad']], $releaseStatements, $rollbackStatements, $unique), InvalidArgumentException::class],
+    'malformed update statement rejected in delete-only plan' => [static fn (): mixed => SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan::execute($tables, ["UPDATE wp_options SET status = 'bad' WHERE option_id = 1 RETURNING option_id"], $rollbackStatements, $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

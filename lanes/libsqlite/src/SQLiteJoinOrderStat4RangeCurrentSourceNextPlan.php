@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan
+final class SQLiteJoinOrderStat4RangeCurrentSourceNextPlan
 {
     /**
      * @param array<string,mixed> $preparedSource
@@ -39,7 +39,7 @@ final class SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan
             ],
             'dependencies' => [
                 'SQLiteMultiColumnRangePlan',
-                'SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan',
+                'SQLiteJoinOrderStat4RangeCurrentSourceNextPlan',
                 'sqlite-join-order-stat4-range-current-source-next116',
             ],
             'detail' => ($stale ? 'REPREPARE JOIN ORDER STAT4 RANGE USING CURRENT SOURCE ' : 'REUSE JOIN ORDER STAT4 RANGE PREPARED SOURCE ')

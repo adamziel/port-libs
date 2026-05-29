@@ -1,6 +1,6 @@
 # Row-Value RETURNING OR FAIL Savepoint Current Source Next132
 
-This slice adds a bounded current-source model for SQLite `UPDATE OR FAIL ... RETURNING` inside a savepoint when row-value assignments hit a unique conflict. The existing executor still throws for ordinary `OR FAIL` callers, but the new preserve mode lets `SQLiteRowValueReturningFailSavepointCurrentSourceNext132Plan` record SQLite's statement behavior: earlier row changes and RETURNING rows survive, the failing row is restored, later rows are not attempted, and the savepoint remains open for caller recovery.
+This slice adds a bounded current-source model for SQLite `UPDATE OR FAIL ... RETURNING` inside a savepoint when row-value assignments hit a unique conflict. The existing executor still throws for ordinary `OR FAIL` callers, but the new preserve mode lets `SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan` record SQLite's statement behavior: earlier row changes and RETURNING rows survive, the failing row is restored, later rows are not attempted, and the savepoint remains open for caller recovery.
 
 Focused verification:
 

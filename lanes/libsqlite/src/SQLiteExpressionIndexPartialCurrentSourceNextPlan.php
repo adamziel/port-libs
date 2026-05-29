@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteExpressionIndexPartialCurrentSourceNext121Plan
+final class SQLiteExpressionIndexPartialCurrentSourceNextPlan
 {
     /**
      * @param array<string,mixed> $preparedSource
@@ -49,7 +49,7 @@ final class SQLiteExpressionIndexPartialCurrentSourceNext121Plan
             'detail' => ($stale ? 'REPREPARE' : 'REUSE') . ' PARTIAL EXPRESSION INDEX CURRENT SOURCE ' . (string) ($selected['name'] ?? 'NO INDEX'),
             'dependencies' => [
                 'SQLiteCreateIndex expression partial-predicate parsing',
-                'SQLiteExpressionIndexPartialCurrentSourceNext121Plan',
+                'SQLiteExpressionIndexPartialCurrentSourceNextPlan',
                 'sqlite-expression-index-partial-current-source-next121',
             ],
             'dependency_closure' => 'no new support component needed; next121 composes existing native CREATE INDEX expression parsing, partial-index implication, and current-source row materialization',

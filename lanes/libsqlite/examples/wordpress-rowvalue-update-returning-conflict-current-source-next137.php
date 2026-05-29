@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan;
 
 $options = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 24, 'option_value' => 'https://old.test'],
@@ -13,7 +13,7 @@ $options = [
     ['option_id' => 4, 'blog_id' => 2, 'option_name' => 'network_siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 25, 'option_value' => 'https://network.test'],
 ];
 
-$plan = SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan::execute(
+$plan = SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan::execute(
     ['wp_options' => $options],
     "UPDATE OR REPLACE wp_options SET (option_name, status, option_value) = ('_transient_feed', option_name || ':replace', option_value || ':next') WHERE option_id IN (2, 3, 4) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id",
     [['blog_id', 'option_name']],

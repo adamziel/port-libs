@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteRowValueUpdateDeleteSavepointCurrentSourceNext126Plan
+final class SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan
 {
     /**
      * @param array<string,list<array<string,mixed>>> $tables

@@ -9,11 +9,11 @@ require __DIR__ . '/../src/SQLiteJsonCanonical.php';
 require __DIR__ . '/../src/SQLiteJsonInspection.php';
 require __DIR__ . '/../src/SQLiteJsonPath.php';
 require __DIR__ . '/../src/SQLiteJsonSubtypeValue.php';
-require __DIR__ . '/../src/SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan.php';
+require __DIR__ . '/../src/SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
-use PortLibs\LibSqlite\SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan;
+use PortLibs\LibSqlite\SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan;
 
 $currentRows = [
     [
@@ -43,7 +43,7 @@ $nextRows = [
     ],
 ];
 
-$plan = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNext110Plan::compare($currentRows, $nextRows, [
+$plan = SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan::compare($currentRows, $nextRows, [
     '$.plugins[#-1].slug',
     'strict $.plugins[#-1].slug',
     'lax $.plugins[#-1].slug',

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteExpressionCoveringOrderCurrentSourceNext103Plan;
+use PortLibs\LibSqlite\SQLiteExpressionCoveringOrderCurrentSourceNextPlan;
 
 $expr = static fn (string $sql): array => ['expression' => $sql];
 $point = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
@@ -69,7 +69,7 @@ $plan103 = static fn (
     ?array $predicate = null,
     ?array $order = null,
     ?array $needed = null,
-): array => SQLiteExpressionCoveringOrderCurrentSourceNext103Plan::materialize(
+): array => SQLiteExpressionCoveringOrderCurrentSourceNextPlan::materialize(
     $prepared ?? $source103(),
     $current ?? $current103(),
     $predicate ?? $GLOBALS['predicate_next103'],
@@ -168,13 +168,13 @@ $tests['planner expression covering order current source next103 desc sorter ope
 $tests['planner expression covering order current source next103 desc prev opcode'] = static fn (TestRunner $t) => $t->same('Prev', $descPlan()['cursorTape']['nextOpcode']);
 
 $tests['planner expression covering order current source next103 validates schema cookie'] = static function (TestRunner $t) use ($source103, $current103): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionCoveringOrderCurrentSourceNext103Plan::materialize($source103(['schemaCookie' => -1]), $current103(), $GLOBALS['predicate_next103'], $GLOBALS['order_next103'], $GLOBALS['needed_next103']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionCoveringOrderCurrentSourceNextPlan::materialize($source103(['schemaCookie' => -1]), $current103(), $GLOBALS['predicate_next103'], $GLOBALS['order_next103'], $GLOBALS['needed_next103']));
 };
 $tests['planner expression covering order current source next103 validates order direction'] = static function (TestRunner $t) use ($source103, $current103): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionCoveringOrderCurrentSourceNext103Plan::materialize($source103(), $current103(), $GLOBALS['predicate_next103'], [['expression' => 'lower(option_name)', 'direction' => 'SIDEWAYS']], $GLOBALS['needed_next103']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionCoveringOrderCurrentSourceNextPlan::materialize($source103(), $current103(), $GLOBALS['predicate_next103'], [['expression' => 'lower(option_name)', 'direction' => 'SIDEWAYS']], $GLOBALS['needed_next103']));
 };
 $tests['planner expression covering order current source next103 validates output columns'] = static function (TestRunner $t) use ($source103, $current103): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionCoveringOrderCurrentSourceNext103Plan::materialize($source103(), $current103(), $GLOBALS['predicate_next103'], $GLOBALS['order_next103'], ['']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionCoveringOrderCurrentSourceNextPlan::materialize($source103(), $current103(), $GLOBALS['predicate_next103'], $GLOBALS['order_next103'], ['']));
 };
 
 return $tests;

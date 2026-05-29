@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteSavepointCurrentSourceNext126Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteSavepointCurrentSourceNext126Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 24, 'option_value' => 'https://old.test'],
@@ -20,7 +20,7 @@ $rows = [
     ['option_id' => 7, 'blog_id' => 2, 'option_name' => 'pending_theme', 'autoload' => 'no', 'status' => null, 'bytes' => 7, 'option_value' => 'theme'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteSavepointCurrentSourceNext126Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute(
     ['wp_options' => $rows],
     [
         "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed')) RETURNING option_id, option_name",

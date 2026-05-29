@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Plan;
+use PortLibs\LibSqlite\SQLiteExpressionIndexPartialCollationStat4CurrentSourceNextPlan;
 
 $point = static fn (string $column, mixed $value): array => ['operator' => '=', 'left' => ['column' => $column], 'right' => $value];
 $range = static fn (string $expression, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['expression' => $expression], 'right' => $value];
@@ -66,7 +66,7 @@ $plan114 = static fn (
     ?array $current = null,
     ?array $predicate = null,
     ?array $order = null,
-): array => SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Plan::materialize(
+): array => SQLiteExpressionIndexPartialCollationStat4CurrentSourceNextPlan::materialize(
     $prepared ?? $source114(),
     $current ?? $current114(),
     $predicate ?? $GLOBALS['predicate_next114'],
@@ -152,15 +152,15 @@ $tests['planner expression index partial collation stat4 next114 missing partial
 $tests['planner expression index partial collation stat4 next114 missing partial no index'] = static fn (TestRunner $t) => $t->same(null, $missingPartial()['cursorTape']['indexName']);
 
 $tests['planner expression index partial collation stat4 next114 validates schema cookie'] = static function (TestRunner $t) use ($source114, $current114): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Plan::materialize($source114(['schemaCookie' => -1]), $current114(), $GLOBALS['predicate_next114'], $GLOBALS['order_next114']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCollationStat4CurrentSourceNextPlan::materialize($source114(['schemaCookie' => -1]), $current114(), $GLOBALS['predicate_next114'], $GLOBALS['order_next114']));
 };
 $tests['planner expression index partial collation stat4 next114 validates order direction'] = static function (TestRunner $t) use ($source114, $current114): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Plan::materialize($source114(), $current114(), $GLOBALS['predicate_next114'], [['expression' => 'lower(option_name)', 'direction' => 'SIDEWAYS']]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCollationStat4CurrentSourceNextPlan::materialize($source114(), $current114(), $GLOBALS['predicate_next114'], [['expression' => 'lower(option_name)', 'direction' => 'SIDEWAYS']]));
 };
 $tests['planner expression index partial collation stat4 next114 validates stat4 samples'] = static function (TestRunner $t) use ($source114, $current114): void {
     $bad = $current114();
     $bad['indexes'][0]['stat4Samples'][0]['sample'] = [];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Plan::materialize($source114(), $bad, $GLOBALS['predicate_next114'], $GLOBALS['order_next114']));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteExpressionIndexPartialCollationStat4CurrentSourceNextPlan::materialize($source114(), $bad, $GLOBALS['predicate_next114'], $GLOBALS['order_next114']));
 };
 
 return $tests;

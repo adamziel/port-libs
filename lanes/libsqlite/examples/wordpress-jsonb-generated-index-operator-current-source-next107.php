@@ -12,11 +12,11 @@ require_once dirname(__DIR__) . '/src/SQLiteIndexPredicate.php';
 require_once dirname(__DIR__) . '/src/SQLiteIndexColumn.php';
 require_once dirname(__DIR__) . '/src/SQLiteJsonExtractIndexExpression.php';
 require_once dirname(__DIR__) . '/src/SQLiteCreateIndex.php';
-require_once dirname(__DIR__) . '/src/SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan.php';
+require_once dirname(__DIR__) . '/src/SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
-use PortLibs\LibSqlite\SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan;
+use PortLibs\LibSqlite\SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan;
 
 $jsonb = static fn (array $value): SQLiteBlobValue => new SQLiteBlobValue(SQLiteJsonB::encode($value));
 
@@ -29,7 +29,7 @@ $nextRows = [
     ['option_id' => 2, 'option_name' => 'plugin_forms_settings', 'autoload' => 'yes', 'option_value' => $jsonb(['plugin' => ['channel' => 'beta', 'priority' => 3, 'limits' => ['daily' => 10]]])],
 ];
 
-$plan = SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan::plan([
+$plan = SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan::plan([
     ['name' => 'idx_wp_options_plugin_channel', 'rootPage' => 501, 'sql' => "CREATE INDEX idx_wp_options_plugin_channel ON wp_options((option_value ->> '$.plugin.channel') COLLATE NOCASE, option_name) WHERE autoload = 'yes'"],
     ['name' => 'idx_wp_options_plugin_limits', 'rootPage' => 502, 'sql' => "CREATE INDEX idx_wp_options_plugin_limits ON wp_options((option_value -> '$.plugin.limits') COLLATE BINARY, option_name)"],
 ], $currentRows, $nextRows);

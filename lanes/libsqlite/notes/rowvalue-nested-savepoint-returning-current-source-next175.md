@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for row-value `UPDATE` / `DELETE`
 `RETURNING` across nested savepoint release and outer `ROLLBACK TO`.
 
-This slice adds `SQLiteRowValueNestedSavepointReturningCurrentSourceNext175Plan`.
+This slice adds `SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan`.
 It models the upstream SQLite behavior where `RELEASE` of an inner savepoint
 merges its row-value `UPDATE RETURNING` and `DELETE RETURNING` effects into the
 outer savepoint, but a later `ROLLBACK TO` the outer savepoint discards both the
@@ -18,7 +18,7 @@ outer failure recovery, and retry cleanup from the restored current source.
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteRowValueNestedSavepointReturningCurrentSourceNext175Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueNestedSavepointReturningCurrentSourceNext175Test.php
 php -l lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-returning-current-source-next175.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueNestedSavepointReturningCurrentSourceNext175Test.php

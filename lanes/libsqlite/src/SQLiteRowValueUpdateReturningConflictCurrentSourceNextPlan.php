@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan
+final class SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan
 {
     /**
      * @param array<string,list<array<string,mixed>>> $tables

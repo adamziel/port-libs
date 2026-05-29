@@ -8,7 +8,7 @@ STAT4 range boundaries, and exposes current/next cursor evidence.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteExpressionIndexPartialCollationStat4CurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-expression-index-partial-collation-stat4-current-source-next114.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Test.php`

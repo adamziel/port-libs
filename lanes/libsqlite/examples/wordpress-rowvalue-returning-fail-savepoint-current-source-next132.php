@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueReturningFailSavepointCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 24, 'option_value' => 'https://old.test'],
@@ -16,7 +16,7 @@ $rows = [
     ['option_id' => 7, 'blog_id' => 2, 'option_name' => 'pending_theme', 'autoload' => 'no', 'status' => null, 'bytes' => 7, 'option_value' => 'theme'],
 ];
 
-$plan = SQLiteRowValueReturningFailSavepointCurrentSourceNext132Plan::execute(
+$plan = SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan::execute(
     ['wp_options' => $rows],
     [
         "UPDATE OR FAIL wp_options SET (option_name, status, option_value) = ('siteurl', option_name || ':fail', option_value || ':next') WHERE option_id IN (8, 7) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id DESC",

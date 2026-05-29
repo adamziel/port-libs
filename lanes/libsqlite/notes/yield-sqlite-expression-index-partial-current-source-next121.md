@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteExpressionIndexPartialCurrentSourceNext121Plan`, a bounded planner
+Adds `SQLiteExpressionIndexPartialCurrentSourceNextPlan`, a bounded planner
 handoff for current-source reprepare of partial expression indexes over copied
 WordPress `wp_options` rows.
 

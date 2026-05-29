@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
-use PortLibs\LibSqlite\SQLiteJsonbPathOperatorMalformedCurrentSourceNext106Plan;
+use PortLibs\LibSqlite\SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -46,13 +46,13 @@ $nextRows = [
     ],
 ];
 
-$textPlan = SQLiteJsonbPathOperatorMalformedCurrentSourceNext106Plan::compare(
+$textPlan = SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare(
     $currentRows,
     $nextRows,
     '$.plugin.name',
     '->>',
 );
-$valuePlan = SQLiteJsonbPathOperatorMalformedCurrentSourceNext106Plan::compare(
+$valuePlan = SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan::compare(
     $currentRows,
     $nextRows,
     '$.plugin.limits',

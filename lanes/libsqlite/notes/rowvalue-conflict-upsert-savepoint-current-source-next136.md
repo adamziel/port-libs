@@ -2,15 +2,15 @@
 
 Status: focused PHP behavior growth for `rowvalue-conflict-upsert-savepoint-current-source-next136`.
 
-This slice adds `SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan`, a bounded current-source diagnostic around the existing row-value UPSERT savepoint executor. It covers the SQLite edge where `INSERT ... ON CONFLICT (...) DO UPDATE SET (...) = (...)` changes the composite conflict-key image, later rows in the same savepoint must resolve conflicts against that moved current source, and a later duplicate composite key rolls the savepoint back to the original table image.
+This slice adds `SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan`, a bounded current-source diagnostic around the existing row-value UPSERT savepoint executor. It covers the SQLite edge where `INSERT ... ON CONFLICT (...) DO UPDATE SET (...) = (...)` changes the composite conflict-key image, later rows in the same savepoint must resolve conflicts against that moved current source, and a later duplicate composite key rolls the savepoint back to the original table image.
 
 WordPress smoke: `wordpress-rowvalue-conflict-upsert-savepoint-current-source-next136.php` models a copied `wp_options` import that moves `(blog_id, option_name)` from `siteurl` to `plugin_cache`, updates the moved key on the next UPSERT, then rejects a duplicate `theme_mods` key and restores the savepoint image.
 
 Verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueConflictUpsertSavepointCurrentSourceNextPlan.php
 
 php -l lanes/libsqlite/tests/SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueConflictUpsertSavepointCurrentSourceNext136Test.php

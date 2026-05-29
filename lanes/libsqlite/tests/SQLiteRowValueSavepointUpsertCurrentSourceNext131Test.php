@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLiteRowValueSavepointUpsertCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -25,10 +25,10 @@ $commitStatements = [$insertSql, $updateSql];
 $rollbackStatements = [$insertSql, $updateSql, $rollbackSql];
 $nullStatements = [$nullKeySql];
 
-$parsed = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::parse($updateSql);
-$commit = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, $commitStatements, $unique, 'wp_options_upsert_batch');
-$rollback = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, $rollbackStatements, $unique, 'wp_options_upsert_batch');
-$nullKey = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, $nullStatements, $unique, 'wp_options_null_key_batch');
+$parsed = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::parse($updateSql);
+$commit = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, $commitStatements, $unique, 'wp_options_upsert_batch');
+$rollback = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, $rollbackStatements, $unique, 'wp_options_upsert_batch');
+$nullKey = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, $nullStatements, $unique, 'wp_options_null_key_batch');
 
 $cases = [
     'parse table name' => [static fn (): mixed => $parsed()['table'], 'wp_options'],
@@ -79,14 +79,14 @@ $cases = [
     'dependencies include upsert marker' => [static fn (): mixed => in_array('sqlite-insert-on-conflict-do-update', $commit()['dependencies'], true), true],
     'dependencies include row-value assignment marker' => [static fn (): mixed => in_array('sqlite-row-value-upsert-assignment', $commit()['dependencies'], true), true],
     'dependencies include savepoint rollback marker' => [static fn (): mixed => in_array('sqlite-savepoint-current-source-upsert-rollback', $rollback()['dependencies'], true), true],
-    'malformed empty statement list rejected' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, $commitStatements, []), InvalidArgumentException::class],
-    'malformed non upsert SQL rejected' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::parse('INSERT INTO wp_options VALUES (1)'), InvalidArgumentException::class],
-    'malformed unknown conflict target rolls back savepoint' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, [$updateSql], [['option_name']])['status'], 'rolled-back-to-savepoint'],
-    'malformed unknown conflict target reason recorded' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, [$updateSql], [['option_name']])['rollback_reason'], 'SQLite row-value UPSERT conflict target does not match a unique constraint'],
-    'malformed assignment arity rejected' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::parse("INSERT INTO wp_options (option_id, blog_id, option_name) VALUES (10, 1, 'x') ON CONFLICT (blog_id, option_name) DO UPDATE SET (status, bytes) = ('bad') RETURNING option_id"), InvalidArgumentException::class],
-    'malformed insert arity rolls back savepoint' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, ["INSERT INTO wp_options (option_id, blog_id, option_name) VALUES (10, 1) ON CONFLICT (blog_id, option_name) DO UPDATE SET (status, bytes) = ('bad', 1) RETURNING option_id"], $unique)['rollback_reason'], 'SQLite row-value UPSERT insert arity mismatch'],
-    'malformed missing excluded column rolls back savepoint' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, ["INSERT INTO wp_options (option_id, blog_id, option_name, status) VALUES (10, 1, 'home', 'x') ON CONFLICT (blog_id, option_name) DO UPDATE SET (status, option_value) = ('x', excluded.missing) RETURNING option_id"], $unique)['rollback_reason'], 'SQLite row-value UPSERT column missing is missing'],
+    'malformed empty statement list rejected' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, $commitStatements, []), InvalidArgumentException::class],
+    'malformed non upsert SQL rejected' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::parse('INSERT INTO wp_options VALUES (1)'), InvalidArgumentException::class],
+    'malformed unknown conflict target rolls back savepoint' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, [$updateSql], [['option_name']])['status'], 'rolled-back-to-savepoint'],
+    'malformed unknown conflict target reason recorded' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, [$updateSql], [['option_name']])['rollback_reason'], 'SQLite row-value UPSERT conflict target does not match a unique constraint'],
+    'malformed assignment arity rejected' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::parse("INSERT INTO wp_options (option_id, blog_id, option_name) VALUES (10, 1, 'x') ON CONFLICT (blog_id, option_name) DO UPDATE SET (status, bytes) = ('bad') RETURNING option_id"), InvalidArgumentException::class],
+    'malformed insert arity rolls back savepoint' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, ["INSERT INTO wp_options (option_id, blog_id, option_name) VALUES (10, 1) ON CONFLICT (blog_id, option_name) DO UPDATE SET (status, bytes) = ('bad', 1) RETURNING option_id"], $unique)['rollback_reason'], 'SQLite row-value UPSERT insert arity mismatch'],
+    'malformed missing excluded column rolls back savepoint' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, ["INSERT INTO wp_options (option_id, blog_id, option_name, status) VALUES (10, 1, 'home', 'x') ON CONFLICT (blog_id, option_name) DO UPDATE SET (status, option_value) = ('x', excluded.missing) RETURNING option_id"], $unique)['rollback_reason'], 'SQLite row-value UPSERT column missing is missing'],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {

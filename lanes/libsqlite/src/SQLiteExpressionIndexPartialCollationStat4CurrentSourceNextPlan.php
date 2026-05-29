@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteExpressionIndexPartialCollationStat4CurrentSourceNext114Plan
+final class SQLiteExpressionIndexPartialCollationStat4CurrentSourceNextPlan
 {
     /**
      * @param array<string,mixed> $preparedSource

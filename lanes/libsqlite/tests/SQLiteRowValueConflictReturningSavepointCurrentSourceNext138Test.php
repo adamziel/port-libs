@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueConflictReturningSavepointCurrentSourceNext138Plan;
+use PortLibs\LibSqlite\SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -27,8 +27,8 @@ $rollbackSql = "UPDATE OR ROLLBACK wp_options SET (blog_id, option_name, status)
 
 $ignoreOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($ignoreSql, $tables, 'option_id', $unique);
 $replaceOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($replaceSql, $tables, 'option_id', $unique);
-$commit = static fn (): array => SQLiteRowValueConflictReturningSavepointCurrentSourceNext138Plan::execute($tables, [$ignoreSql, $replaceSql, $cleanupSql], $unique);
-$rollback = static fn (): array => SQLiteRowValueConflictReturningSavepointCurrentSourceNext138Plan::execute($tables, [$ignoreSql, $replaceSql, $rollbackSql], $unique);
+$commit = static fn (): array => SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan::execute($tables, [$ignoreSql, $replaceSql, $cleanupSql], $unique);
+$rollback = static fn (): array => SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan::execute($tables, [$ignoreSql, $replaceSql, $rollbackSql], $unique);
 $parsedIgnore = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($ignoreSql);
 $parsedReplace = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($replaceSql);
 $parsedRollback = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($rollbackSql);
@@ -105,9 +105,9 @@ $cases = [
     'rollback changes reset to zero' => [static fn (): mixed => $rollback()['changes'], 0],
     'rollback dependency marks transaction abort' => [static fn (): mixed => in_array('sqlite-update-or-rollback-aborts-savepoint-transaction', $rollback()['dependencies'], true), true],
 
-    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningSavepointCurrentSourceNext138Plan::execute($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningSavepointCurrentSourceNext138Plan::execute($tables, [$ignoreSql], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningSavepointCurrentSourceNext138Plan::execute(['wp_options' => ['bad']], [$ignoreSql], $unique), InvalidArgumentException::class],
+    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan::execute($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan::execute($tables, [$ignoreSql], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan::execute(['wp_options' => ['bad']], [$ignoreSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

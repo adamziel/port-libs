@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteExpressionPartialCoveringCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteExpressionPartialCoveringCurrentSourceNextPlan;
 
 $prepared = [
     'name' => 'prepared-wp-options-next148',
@@ -39,7 +39,7 @@ $current['rows'][] = ['rowid' => 4, 'blog_id' => 1, 'autoload' => 'no', 'option_
 $current['indexes'][0]['rootPage'] = 14841;
 $current['indexes'][0]['estimatedRows'] = 10;
 
-$plan = SQLiteExpressionPartialCoveringCurrentSourceNext148Plan::materialize(
+$plan = SQLiteExpressionPartialCoveringCurrentSourceNextPlan::materialize(
     $prepared,
     $current,
     [

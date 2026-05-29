@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for row-value `UPDATE ... RETURNING`
 conflict handling over a copied WordPress `wp_options` savepoint.
 
-This slice adds `SQLiteRowValueAbortReturningSavepointCurrentSourceNext140Plan`.
+This slice adds `SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan`.
 It models SQLite `OR ABORT` behavior for row-value UPDATE RETURNING batches:
 the failing statement is backed out to the statement image, earlier successful
 statements and RETURNING streams remain visible, and the savepoint transaction

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteJsonbGeneratedIndexOperatorCurrentSourceNext107Plan
+final class SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan
 {
     /**
      * @param list<array{name?:string,sql:string,rootPage?:int,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions

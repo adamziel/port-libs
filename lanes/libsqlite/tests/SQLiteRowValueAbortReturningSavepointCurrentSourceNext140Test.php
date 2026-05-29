@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueAbortReturningSavepointCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -29,8 +29,8 @@ $parsedStage = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($sta
 $parsedAbort = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($abortSql);
 $stageOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($stageSql, $tables, 'option_id', $unique);
 $abortOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($abortSql, $tables, 'option_id', $unique);
-$abortPlan = static fn (): array => SQLiteRowValueAbortReturningSavepointCurrentSourceNext140Plan::execute($tables, [$stageSql, $abortSql, $cleanupSql], $unique);
-$releasePlan = static fn (): array => SQLiteRowValueAbortReturningSavepointCurrentSourceNext140Plan::execute($tables, [$releaseSql, $cleanupSql], $unique);
+$abortPlan = static fn (): array => SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan::execute($tables, [$stageSql, $abortSql, $cleanupSql], $unique);
+$releasePlan = static fn (): array => SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan::execute($tables, [$releaseSql, $cleanupSql], $unique);
 
 $cases = [
     'stage parser default abort conflict action' => [static fn (): mixed => $parsedStage()['conflict_action'], 'abort'],
@@ -92,9 +92,9 @@ $cases = [
     'release plan row count after cleanup' => [static fn (): mixed => $releasePlan()['row_counts']['wp_options'], 7],
     'release plan current source equals next source' => [static fn (): mixed => $releasePlan()['current_source_tables'], $releasePlan()['next_source_tables']],
 
-    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueAbortReturningSavepointCurrentSourceNext140Plan::execute($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueAbortReturningSavepointCurrentSourceNext140Plan::execute($tables, [$stageSql], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueAbortReturningSavepointCurrentSourceNext140Plan::execute(['wp_options' => ['bad']], [$stageSql], $unique), InvalidArgumentException::class],
+    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan::execute($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan::execute($tables, [$stageSql], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueAbortReturningSavepointCurrentSourceNextPlan::execute(['wp_options' => ['bad']], [$stageSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

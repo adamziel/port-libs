@@ -2,12 +2,12 @@
 
 Status: focused PHP behavior growth for nested row-value `DELETE ... RETURNING` savepoints.
 
-This slice adds `SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan`. It models a WordPress cleanup batch where an inner released `DELETE RETURNING` savepoint removes copied transient option rows, a later inner delete batch yields attempted rows, and a malformed row-value predicate rolls back only that later savepoint. The current source keeps the released deletes, restores the rolled-back delete rows, and suppresses the rolled-back `RETURNING` rows.
+This slice adds `SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan`. It models a WordPress cleanup batch where an inner released `DELETE RETURNING` savepoint removes copied transient option rows, a later inner delete batch yields attempted rows, and a malformed row-value predicate rolls back only that later savepoint. The current source keeps the released deletes, restores the rolled-back delete rows, and suppresses the rolled-back `RETURNING` rows.
 
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Test.php
 php -l lanes/libsqlite/examples/wordpress-rowvalue-delete-returning-savepoint-current-source-next144.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Test.php

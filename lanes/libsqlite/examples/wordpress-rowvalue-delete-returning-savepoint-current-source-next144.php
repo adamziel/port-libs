@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bucket' => 'core', 'bytes' => 40, 'option_value' => 'https://old.test'],
@@ -14,7 +14,7 @@ $rows = [
     ['option_id' => 5, 'blog_id' => 2, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bucket' => 'network', 'bytes' => 44, 'option_value' => 'https://network.test'],
 ];
 
-$plan = SQLiteRowValueDeleteReturningSavepointCurrentSourceNext144Plan::execute(
+$plan = SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan::execute(
     ['wp_options' => $rows],
     [
         "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed')) RETURNING option_id, option_name ORDER BY option_id",

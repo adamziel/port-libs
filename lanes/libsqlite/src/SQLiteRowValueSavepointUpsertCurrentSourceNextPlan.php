@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan
+final class SQLiteRowValueSavepointUpsertCurrentSourceNextPlan
 {
     /**
      * @param array<string,list<array<string,mixed>>> $tables

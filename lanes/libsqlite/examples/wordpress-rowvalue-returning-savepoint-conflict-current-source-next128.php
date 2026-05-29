@@ -6,9 +6,9 @@ require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueReturningSavepointConflictCurrentSourceNext128Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueReturningSavepointConflictCurrentSourceNext128Plan;
+use PortLibs\LibSqlite\SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 24, 'option_value' => 'https://old.test'],
@@ -18,7 +18,7 @@ $rows = [
     ['option_id' => 5, 'blog_id' => 2, 'option_name' => 'pending_theme', 'autoload' => 'no', 'status' => null, 'bytes' => 7, 'option_value' => 'theme'],
 ];
 
-$plan = SQLiteRowValueReturningSavepointConflictCurrentSourceNext128Plan::execute(
+$plan = SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan::execute(
     ['wp_options' => $rows],
     [
         "UPDATE OR IGNORE wp_options SET (blog_id, option_name, status) = (1, 'home', 'ignored') WHERE (blog_id, option_name) IN ((2, 'pending_theme')) RETURNING option_id, blog_id, option_name, status",

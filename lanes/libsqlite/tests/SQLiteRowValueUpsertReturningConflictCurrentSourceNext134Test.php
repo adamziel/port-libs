@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLiteRowValueSavepointUpsertCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -22,16 +22,16 @@ $partialUpdateSql = "INSERT INTO wp_options (option_id, blog_id, option_name, au
 $partialInsertSql = "INSERT INTO wp_options (option_id, blog_id, option_name, autoload, status, bytes, option_value, revision) VALUES (9, 3, 'siteurl', 'no', 'draft', 4, 'https://draft.test', 1) ON CONFLICT (blog_id, option_name) WHERE status = 'live' DO UPDATE SET (status, bytes) = ('partial', bytes + excluded.bytes) RETURNING option_id, blog_id, option_name, status, bytes";
 $nullWhereSql = "INSERT INTO wp_options (option_id, blog_id, option_name, autoload, status, bytes, option_value, revision) VALUES (10, 1, 'siteurl', 'no', 'incoming', 5, NULL, 8) ON CONFLICT (blog_id, option_name) DO UPDATE SET (status, option_value) = ('null-merged', excluded.option_value) WHERE excluded.option_value IS NOT NULL RETURNING option_id, option_name, status, option_value";
 
-$plan = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute(
+$plan = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute(
     $tables,
     [$updateWhereSql, $skipWhereSql, $doNothingSql, $partialUpdateSql, $partialInsertSql],
     $unique,
     'wp_options_rowvalue_conflict_current_next134'
 );
-$nullSkip = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, [$nullWhereSql], $unique, 'wp_options_rowvalue_null_where_next134');
-$parsedNothing = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::parse($doNothingSql);
-$parsedPartial = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::parse($partialUpdateSql);
-$parsedUpdateWhere = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::parse($updateWhereSql);
+$nullSkip = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, [$nullWhereSql], $unique, 'wp_options_rowvalue_null_where_next134');
+$parsedNothing = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::parse($doNothingSql);
+$parsedPartial = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::parse($partialUpdateSql);
+$parsedUpdateWhere = static fn (): array => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::parse($updateWhereSql);
 
 $cases = [
     'parse do nothing action' => [static fn (): mixed => $parsedNothing()['action'], 'nothing'],
@@ -84,9 +84,9 @@ $cases = [
     'dependency marker includes upsert' => [static fn (): mixed => in_array('sqlite-insert-on-conflict-do-update', $plan()['dependencies'], true), true],
     'dependency marker includes row value assignment' => [static fn (): mixed => in_array('sqlite-row-value-upsert-assignment', $plan()['dependencies'], true), true],
     'dependency marker includes savepoint current source' => [static fn (): mixed => in_array('sqlite-savepoint-current-source-upsert-rollback', $plan()['dependencies'], true), true],
-    'malformed empty do update where rejected' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::parse("INSERT INTO wp_options (option_id, blog_id, option_name) VALUES (10, 1, 'x') ON CONFLICT (blog_id, option_name) DO UPDATE SET (status, bytes) = ('x', 1) WHERE RETURNING option_id"), InvalidArgumentException::class],
-    'malformed unsupported where rolls back' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, ["INSERT INTO wp_options (option_id, blog_id, option_name, revision) VALUES (11, 1, 'siteurl', 9) ON CONFLICT (blog_id, option_name) DO UPDATE SET (revision) = (excluded.revision) WHERE revision BETWEEN 1 AND 9 RETURNING option_id"], $unique)['rollback_reason'], 'SQLite row-value UPSERT WHERE clause is unsupported: revision BETWEEN 1'],
-    'malformed do nothing unknown target rolls back' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNext131Plan::execute($tables, ["INSERT INTO wp_options (option_id, blog_id, option_name) VALUES (12, 1, 'siteurl') ON CONFLICT (option_name) DO NOTHING RETURNING option_id"], $unique)['status'], 'rolled-back-to-savepoint'],
+    'malformed empty do update where rejected' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::parse("INSERT INTO wp_options (option_id, blog_id, option_name) VALUES (10, 1, 'x') ON CONFLICT (blog_id, option_name) DO UPDATE SET (status, bytes) = ('x', 1) WHERE RETURNING option_id"), InvalidArgumentException::class],
+    'malformed unsupported where rolls back' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, ["INSERT INTO wp_options (option_id, blog_id, option_name, revision) VALUES (11, 1, 'siteurl', 9) ON CONFLICT (blog_id, option_name) DO UPDATE SET (revision) = (excluded.revision) WHERE revision BETWEEN 1 AND 9 RETURNING option_id"], $unique)['rollback_reason'], 'SQLite row-value UPSERT WHERE clause is unsupported: revision BETWEEN 1'],
+    'malformed do nothing unknown target rolls back' => [static fn (): mixed => SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute($tables, ["INSERT INTO wp_options (option_id, blog_id, option_name) VALUES (12, 1, 'siteurl') ON CONFLICT (option_name) DO NOTHING RETURNING option_id"], $unique)['status'], 'rolled-back-to-savepoint'],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {

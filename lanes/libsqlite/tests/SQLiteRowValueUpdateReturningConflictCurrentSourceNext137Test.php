@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 24, 'option_value' => 'https://old.test'],
@@ -21,9 +21,9 @@ $replaceLaterSql = "UPDATE OR REPLACE wp_options SET (option_name, status, optio
 $ignoreLaterSql = "UPDATE OR IGNORE wp_options SET (option_name, status, option_value) = ('_transient_feed', option_name || ':ignore', option_value || ':next') WHERE option_id IN (2, 3, 5) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
 $replaceNetworkSql = "UPDATE OR REPLACE wp_options SET (blog_id, option_name, status) = (2, '_transient_feed', option_name || ':network') WHERE option_id IN (2, 5, 6) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
 
-$replaceLater = static fn (): array => SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan::execute($tables, $replaceLaterSql, $unique);
-$ignoreLater = static fn (): array => SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan::execute($tables, $ignoreLaterSql, $unique);
-$replaceNetwork = static fn (): array => SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan::execute($tables, $replaceNetworkSql, $unique);
+$replaceLater = static fn (): array => SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan::execute($tables, $replaceLaterSql, $unique);
+$ignoreLater = static fn (): array => SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan::execute($tables, $ignoreLaterSql, $unique);
+$replaceNetwork = static fn (): array => SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan::execute($tables, $replaceNetworkSql, $unique);
 
 $cases = [
     'replace later status ready' => [static fn (): mixed => $replaceLater()['status'], 'rowvalue-update-returning-conflict-current-source-next137-ready'],
@@ -82,10 +82,10 @@ $cases = [
     'replace network row two status uses old name' => [static fn (): mixed => $replaceNetwork()['returning'][0]['status'], 'home:network'],
     'replace network row five status uses old name' => [static fn (): mixed => $replaceNetwork()['returning'][1]['status'], 'network_siteurl:network'],
 
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan::execute($tables, $replaceLaterSql, []), InvalidArgumentException::class],
-    'malformed delete sql rejected by update-only plan' => [static fn (): mixed => SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan::execute($tables, "DELETE FROM wp_options WHERE option_id = 1 RETURNING option_id", $unique), InvalidArgumentException::class],
-    'malformed missing row id in returned rows rejected' => [static fn (): mixed => SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan::execute(['wp_options' => [['blog_id' => 1, 'option_name' => 'x']]], "UPDATE OR REPLACE wp_options SET (blog_id, option_name) = (1, 'y') WHERE option_name = 'x' RETURNING blog_id, option_name", $unique), InvalidArgumentException::class],
-    'malformed row id type rejected' => [static fn (): mixed => SQLiteRowValueUpdateReturningConflictCurrentSourceNext137Plan::execute(['wp_options' => [['option_id' => ['bad'], 'blog_id' => 1, 'option_name' => 'x']]], "UPDATE OR REPLACE wp_options SET (blog_id, option_name) = (1, 'y') WHERE option_name = 'x' RETURNING option_id, blog_id, option_name", $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan::execute($tables, $replaceLaterSql, []), InvalidArgumentException::class],
+    'malformed delete sql rejected by update-only plan' => [static fn (): mixed => SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan::execute($tables, "DELETE FROM wp_options WHERE option_id = 1 RETURNING option_id", $unique), InvalidArgumentException::class],
+    'malformed missing row id in returned rows rejected' => [static fn (): mixed => SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan::execute(['wp_options' => [['blog_id' => 1, 'option_name' => 'x']]], "UPDATE OR REPLACE wp_options SET (blog_id, option_name) = (1, 'y') WHERE option_name = 'x' RETURNING blog_id, option_name", $unique), InvalidArgumentException::class],
+    'malformed row id type rejected' => [static fn (): mixed => SQLiteRowValueUpdateReturningConflictCurrentSourceNextPlan::execute(['wp_options' => [['option_id' => ['bad'], 'blog_id' => 1, 'option_name' => 'x']]], "UPDATE OR REPLACE wp_options SET (blog_id, option_name) = (1, 'y') WHERE option_name = 'x' RETURNING option_id, blog_id, option_name", $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

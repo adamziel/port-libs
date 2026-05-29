@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueConflictReturningSavepointCurrentSourceNext138Plan;
+use PortLibs\LibSqlite\SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://old.test'],
@@ -18,7 +18,7 @@ $rows = [
     ['option_id' => 9, 'blog_id' => 3, 'option_name' => 'rewrite_rules', 'autoload' => 'yes', 'status' => 'queued', 'bytes' => 9, 'option_value' => 'rules'],
 ];
 
-$plan = SQLiteRowValueConflictReturningSavepointCurrentSourceNext138Plan::execute(
+$plan = SQLiteRowValueConflictReturningSavepointCurrentSourceNextPlan::execute(
     ['wp_options' => $rows],
     [
         "UPDATE OR IGNORE wp_options SET (blog_id, option_name, status, option_value) = (1, 'siteurl', option_name || ':ignored', option_value || ':ignored') WHERE option_id IN (8, 9) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id",

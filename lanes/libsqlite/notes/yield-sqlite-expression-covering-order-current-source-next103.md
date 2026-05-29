@@ -3,7 +3,7 @@
 Slice: `sqlplanner-expression-covering-order-current-source-next103`
 
 Behavior:
-- Adds `SQLiteExpressionCoveringOrderCurrentSourceNext103Plan` for a lower(option_name) expression index that can satisfy a range predicate and ORDER BY from the current source after schema-cookie/STAT4/index-signature changes.
+- Adds `SQLiteExpressionCoveringOrderCurrentSourceNextPlan` for a lower(option_name) expression index that can satisfy a range predicate and ORDER BY from the current source after schema-cookie/STAT4/index-signature changes.
 - Materializes the VDBE-style cursor tape for the selected current index: expression seek/stop opcodes, STAT4 current/next sample segments, output columns read from the index, no deferred table seek, and no temp sorter when the expression index is covering and order-compatible.
 - Adds fallback evidence for same-source prepared reuse, BETWEEN inclusive stop opcodes, open lower bounds, missing covering-column table lookup, descending ORDER BY mismatch, and validation errors.
 

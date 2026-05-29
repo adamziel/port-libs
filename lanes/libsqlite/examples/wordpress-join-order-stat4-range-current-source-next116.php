@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan;
+use PortLibs\LibSqlite\SQLiteJoinOrderStat4RangeCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../src/SQLiteCreateIndex.php';
 require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLiteMultiColumnRangePlan.php';
-require_once __DIR__ . '/../src/SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan.php';
+require_once __DIR__ . '/../src/SQLiteJoinOrderStat4RangeCurrentSourceNextPlan.php';
 
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
 $and = static fn (array ...$terms): array => ['operator' => 'AND', 'terms' => $terms];
@@ -89,7 +89,7 @@ $current['indexes']['wp_options'][0]['stat4Samples'] = [
     ['neq' => '1 1', 'nlt' => '4 4', 'ndlt' => '4 4', 'sample' => ['plugin_omega', 'no']],
 ];
 
-$plan = SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan::materialize($source, $current);
+$plan = SQLiteJoinOrderStat4RangeCurrentSourceNextPlan::materialize($source, $current);
 $output = [
     'scenario' => 'wordpress-join-order-stat4-range-current-source-next116',
     'selectedSource' => $plan['selectedSource'],

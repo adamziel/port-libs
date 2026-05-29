@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan;
+use PortLibs\LibSqlite\SQLiteJoinOrderStat4RangeCurrentSourceNextPlan;
 
 $range = static fn (string $column, string $operator, mixed $value): array => ['operator' => $operator, 'left' => ['column' => $column], 'right' => $value];
 $between = static fn (string $column, mixed $lower, mixed $upper): array => ['operator' => 'BETWEEN', 'left' => ['column' => $column], 'lower' => $lower, 'upper' => $upper];
@@ -103,7 +103,7 @@ $currentSource = static function (array $overrides = []) use ($preparedSource): 
 };
 
 $plan = static fn (?array $prepared = null, ?array $current = null): array =>
-    SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan::materialize($prepared ?? $preparedSource(), $current ?? $currentSource());
+    SQLiteJoinOrderStat4RangeCurrentSourceNextPlan::materialize($prepared ?? $preparedSource(), $current ?? $currentSource());
 
 $tests = [];
 
@@ -133,7 +133,7 @@ $tests['planner join order stat4 range current source next116 third loop joins p
 $tests['planner join order stat4 range current source next116 third loop uses posts range'] = static fn (TestRunner $t) => $t->same('idx_posts_date_id_next116', $plan()['selectedPlan']['loops'][2]['index']);
 $tests['planner join order stat4 range current source next116 detail names reprepare'] = static fn (TestRunner $t) => $t->contains('REPREPARE JOIN ORDER STAT4 RANGE USING CURRENT SOURCE current-after-plugin-import-analyze', $plan()['detail']);
 $tests['planner join order stat4 range current source next116 detail names nested searches'] = static fn (TestRunner $t) => $t->contains('SEARCH wp_options USING INDEX idx_options_name_autoload_next116', $plan()['detail']);
-$tests['planner join order stat4 range current source next116 dependency helper present'] = static fn (TestRunner $t) => $t->same(true, in_array('SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan', $plan()['dependencies'], true));
+$tests['planner join order stat4 range current source next116 dependency helper present'] = static fn (TestRunner $t) => $t->same(true, in_array('SQLiteJoinOrderStat4RangeCurrentSourceNextPlan', $plan()['dependencies'], true));
 $tests['planner join order stat4 range current source next116 dependency marker present'] = static fn (TestRunner $t) => $t->same(true, in_array('sqlite-join-order-stat4-range-current-source-next116', $plan()['dependencies'], true));
 $tests['planner join order stat4 range current source next116 non overlap note'] = static fn (TestRunner $t) => $t->contains('connected multi-table join orders', $plan()['non_overlap']);
 $tests['planner join order stat4 range current source next116 dependency closure note'] = static fn (TestRunner $t) => $t->contains('no new support component needed', $plan()['dependency_closure']);
@@ -159,35 +159,35 @@ $tests['planner join order stat4 range current source next116 disconnected graph
 };
 $tests['planner join order stat4 range current source next116 validates empty tables'] = static function (TestRunner $t) use ($currentSource): void {
     $source = $currentSource(['tables' => []]);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan::materialize($source, $source));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNextPlan::materialize($source, $source));
 };
 $tests['planner join order stat4 range current source next116 validates duplicate tables'] = static function (TestRunner $t) use ($currentSource): void {
     $source = $currentSource(['tables' => ['wp_options', 'WP_OPTIONS']]);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan::materialize($source, $source));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNextPlan::materialize($source, $source));
 };
 $tests['planner join order stat4 range current source next116 validates malformed join'] = static function (TestRunner $t) use ($currentSource): void {
     $source = $currentSource(['joinTerms' => [['leftTable' => 'wp_options', 'leftColumn' => '', 'rightTable' => 'wp_postmeta', 'rightColumn' => 'meta_value']]]);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan::materialize($source, $source));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNextPlan::materialize($source, $source));
 };
 $tests['planner join order stat4 range current source next116 validates schema cookie'] = static function (TestRunner $t) use ($currentSource): void {
     $source = $currentSource(['schemaCookie' => -1]);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan::materialize($source, $source));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNextPlan::materialize($source, $source));
 };
 $tests['planner join order stat4 range current source next116 validates stat4 generation'] = static function (TestRunner $t) use ($currentSource): void {
     $source = $currentSource(['stat4Generation' => -1]);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan::materialize($source, $source));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNextPlan::materialize($source, $source));
 };
 $tests['planner join order stat4 range current source next116 validates table rows'] = static function (TestRunner $t) use ($currentSource): void {
     $source = $currentSource(['tableRows' => ['wp_options' => 0]]);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan::materialize($source, $source));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNextPlan::materialize($source, $source));
 };
 $tests['planner join order stat4 range current source next116 validates needed columns'] = static function (TestRunner $t) use ($currentSource): void {
     $source = $currentSource(['neededColumns' => ['wp_options' => ['option_name', '']]]);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan::materialize($source, $source));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNextPlan::materialize($source, $source));
 };
 $tests['planner join order stat4 range current source next116 validates indexes map'] = static function (TestRunner $t) use ($currentSource): void {
     $source = $currentSource(['indexes' => ['wp_options' => ['not-an-index-map']]]);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNext116Plan::materialize($source, $source));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJoinOrderStat4RangeCurrentSourceNextPlan::materialize($source, $source));
 };
 $tests['planner join order stat4 range current source next116 supports between predicate'] = static function (TestRunner $t) use ($currentSource, $between, $plan): void {
     $source = $currentSource();
