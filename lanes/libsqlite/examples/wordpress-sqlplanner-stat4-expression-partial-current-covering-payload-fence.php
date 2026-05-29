@@ -87,7 +87,7 @@ $terms = [
     ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'plugin_%'],
 ];
 
-$ready = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext251(
+$ready = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentCoveringPayloadFence(
     $prepared,
     $current,
     $terms,
@@ -98,7 +98,7 @@ $ready = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNe
 
 $stale = $current;
 $stale['indexes'][0]['stat4ExpressionPayloads'][2]['coveredValues']['option_value'] = 'stale-cache';
-$blocked = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext251(
+$blocked = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentCoveringPayloadFence(
     $prepared,
     $stale,
     $terms,

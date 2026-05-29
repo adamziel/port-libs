@@ -57,7 +57,7 @@ $prepared['stat4Generation'] = 252;
 $prepared['indexes'][0]['rootPage'] = 25201;
 $prepared['indexes'][0]['stat4Samples'][0]['neq'] = '1 1';
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext252(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentScanDirectionFence(
     $prepared,
     $source,
     [
@@ -76,7 +76,7 @@ if (($argv[1] ?? null) === '--self-test' && $plan['status'] !== 'stat4-expressio
 }
 
 printf(
-    "wordpress sqlplanner stat4 expression partial current-source next252: %s anchors=%s signature=%s\n",
+    "wordpress sqlplanner stat4 expression partial current scan-direction fence: %s anchors=%s signature=%s\n",
     $plan['status'],
     json_encode($plan['stat4ScanDirectionFence']['pageAnchorRowids'], JSON_THROW_ON_ERROR),
     substr($plan['stat4ScanDirectionFence']['proofSignature'], 0, 12),

@@ -121,22 +121,22 @@ $summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurr
             ['import_id' => 60, 'name' => 'cron', 'value' => 'sealed-next-cron', 'autoload_flag' => 'yes', 'spawn_child' => false],
             ['import_id' => 61, 'name' => 'widget_block', 'value' => 'sealed-widget-state', 'autoload_flag' => 'yes', 'spawn_child' => true],
         ],
-        'auto_ack_current_source_epoch_next230' => true,
-        'current_source_epoch_next230' => 'wp.current.source.epoch.230',
-        'current_source_epoch_cursor_next230' => 'wp.returning.current.epoch.cursor.230',
+        'auto_ack_current_source_epoch' => true,
+        'current_source_epoch' => 'wp.current.source.epoch.230',
+        'current_source_epoch_cursor' => 'wp.returning.current.epoch.cursor.230',
     ],
 );
 
 if (
-    $summary['status_next230'] !== 'trigger-recursive-view-returning-current-source-next230-subsequent-next-visible'
-    || $summary['current_source_epoch_complete_next230'] !== true
-    || $summary['subsequent_next_source_visible_after_epoch_next230'] !== true
-    || $summary['subsequent_next_row_count_next230'] !== 2
-    || array_slice(array_column($summary['visible_returning_payloads_next230'], 'name'), -2) !== ['cron', 'widget_block']
-    || $summary['blocked_reasons_next230'] !== []
+    $summary['status_current_source_epoch'] !== 'trigger-recursive-view-returning-current-source-epoch-subsequent-next-visible'
+    || $summary['current_source_epoch_complete'] !== true
+    || $summary['subsequent_next_source_visible_after_epoch'] !== true
+    || $summary['subsequent_next_row_count'] !== 2
+    || array_slice(array_column($summary['visible_returning_payloads'], 'name'), -2) !== ['cron', 'widget_block']
+    || $summary['blocked_reasons'] !== []
 ) {
-    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-next230 self-test failed\n");
+    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-epoch self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-trigger-recursive-view-returning-current-source-next230 self-test passed\n";
+echo "wordpress-trigger-recursive-view-returning-current-source-epoch self-test passed\n";

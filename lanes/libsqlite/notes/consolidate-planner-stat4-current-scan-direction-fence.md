@@ -4,13 +4,13 @@ Status: focused PHP behavior growth for `sqlplanner-stat4-expression-partial-cur
 
 Behavior: adds `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`, an additive current-source fence for descending partial expression-index STAT4 plans. It reuses the accepted next249 duplicate peer-count fence and proves that ascending STAT4 samples are reversed into the same descending page anchors selected from the current qualified rowset before a prepared page is reused.
 
-WordPress path: `wordpress-sqlplanner-stat4-expression-partial-current-source-next252.php` models copied `wp_options` plugin-admin pagination over a descending partial `lower(option_name)` covering index, where stale sample order or missing upper anchors must force current-source reprepare.
+WordPress path: `wordpress-sqlplanner-stat4-expression-partial-current-scan-direction-fence.php` models copied `wp_options` plugin-admin pagination over a descending partial `lower(option_name)` covering index, where stale sample order or missing upper anchors must force current-source reprepare.
 
 Focused verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext252Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentScanDirectionFenceTest.php`
   - `1 test files, 67 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next252.php --self-test`
+- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-scan-direction-fence.php --self-test`
   - `wordpress sqlplanner stat4 expression partial current-source next252: stat4-expression-partial-current-source-next252-ready anchors=[60,30,50,20] signature=...`
 
 Dependency closure: no new support component needed; this composes existing lane-local STAT4 expression partial rowsets, current-source fences, and cursor-program diagnostics.

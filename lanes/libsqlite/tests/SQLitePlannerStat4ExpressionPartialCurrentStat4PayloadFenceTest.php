@@ -122,7 +122,7 @@ $terms253 = static fn (): array => [
     $like253('option_name', 'plugin_%'),
 ];
 
-$plan253 = static fn (string $variant = 'ready', int $limit = 5, int $offset = 1, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext253(
+$plan253 = static fn (string $variant = 'ready', int $limit = 5, int $offset = 1, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentStat4PayloadFence(
     $prepared253(),
     $current253($variant),
     $terms253(),

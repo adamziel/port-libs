@@ -88,7 +88,7 @@ $terms252 = static fn (): array => [
     $like252('option_name', 'plugin_%'),
 ];
 
-$plan252 = static fn (?array $samples = null, ?array $rows = null, int $limit = 6, int $offset = 0, bool $descending = true): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext252(
+$plan252 = static fn (?array $samples = null, ?array $rows = null, int $limit = 6, int $offset = 0, bool $descending = true): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentScanDirectionFence(
     $prepared252(),
     $current252($samples, $rows, $descending),
     $terms252(),
@@ -162,7 +162,7 @@ $tests = [
     'planner stat4 expression partial current source next252 malformed rows' => static function (TestRunner $t) use ($current252, $prepared252, $terms252): void {
         $bad = $current252();
         $bad['rows'] = 'bad';
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext252($prepared252(), $bad, $terms252(), ['option_name'], 6));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentScanDirectionFence($prepared252(), $bad, $terms252(), ['option_name'], 6));
     },
     'planner stat4 expression partial current source next252 malformed stat4' => static function (TestRunner $t) use ($plan252): void {
         $t->throws(InvalidArgumentException::class, static fn () => $plan252([

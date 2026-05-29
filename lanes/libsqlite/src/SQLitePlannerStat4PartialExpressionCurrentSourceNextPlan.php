@@ -20,7 +20,7 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>
          */
-        public static function materializeNext133(
+        public static function materialize(
             array $preparedSource,
             array $currentSource,
             array $predicate,
@@ -40,19 +40,19 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
                 $neededExpressions,
             );
 
-            $preparedFingerprint = self::rowFingerprintNext133($preparedRows);
-            $currentFingerprint = self::rowFingerprintNext133($currentRows);
-            $rowDelta = self::rowDeltaNext133($preparedRows, $currentRows, $neededColumns);
+            $preparedFingerprint = self::rowFingerprint($preparedRows);
+            $currentFingerprint = self::rowFingerprint($currentRows);
+            $rowDelta = self::rowDelta($preparedRows, $currentRows, $neededColumns);
             $ready = ($base['status'] ?? null) === 'covering-expression-stat4-current-source-ready'
                 && (($base['selectedPlan']['partial'] ?? false) === true)
                 && (($base['selectedPlan']['stat4Used'] ?? false) === true)
                 && (($base['selectedPlan']['covering'] ?? false) === true)
                 && ($rowDelta['deletedRowids'] ?? []) !== ($base['cursorTape']['matchedRowids'] ?? []);
 
-            $cursorTape = self::cursorTapeNext133($base, $rowDelta, $neededColumns, $ready);
+            $cursorTape = self::cursorTape($base, $rowDelta, $neededColumns, $ready);
 
             return array_replace($base, [
-                'status' => $ready ? 'partial-expression-stat4-current-source-next-ready' : 'requires-next-stage',
+                'status' => $ready ? 'partial-expression-stat4-current-source-ready' : 'requires-next-stage',
                 'preparedRowSignature' => $preparedFingerprint,
                 'currentRowSignature' => $currentFingerprint,
                 'rowSignatureChanged' => $preparedFingerprint !== $currentFingerprint,
@@ -75,17 +75,17 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
                 'currentNextRows' => $cursorTape['currentNextRows'],
                 'currentSourceFence' => array_replace($base['currentSourceFence'] ?? [], [
                     'rowSignature' => $currentFingerprint,
-                    'rowGeneration' => self::nonNegativeIntNext133($currentSource, 'rowGeneration'),
+                    'rowGeneration' => self::nonNegativeInt($currentSource, 'rowGeneration'),
                 ]),
                 'detail' => (($base['reprepareRequired'] ?? false) ? 'REPREPARE' : 'REUSE')
-                    . ' PARTIAL EXPRESSION STAT4 CURRENT SOURCE NEXT133 '
+                    . ' PARTIAL EXPRESSION STAT4 CURRENT SOURCE '
                     . (string) (($base['selectedPlan']['name'] ?? null) ?: 'NO INDEX'),
                 'dependencies' => [
                     'SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan',
                     'SQLiteSelectExpressionIndexPlan',
-                    'sqlite-sqlplanner-stat4-partial-expression-current-source-next133',
+                    'sqlite-sqlplanner-stat4-partial-expression-current-source',
                 ],
-                'dependency_closure' => 'no new support component needed; next133 composes native expression-index STAT4 planning with current-source row generation fences',
+                'dependency_closure' => 'no new support component needed; current-source composes native expression-index STAT4 planning with current-source row generation fences',
                 'non_overlap' => 'avoids accepted range-cost, expression ORDER BY, subquery-covering, and canonical covering-row materialization by blocking stale prepared payload rows deleted from the current source while admitting inserted and updated current rows',
             ]);
         }
@@ -96,10 +96,10 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function rowDeltaNext133(array $preparedRows, array $currentRows, array $neededColumns): array
+        private static function rowDelta(array $preparedRows, array $currentRows, array $neededColumns): array
         {
-            $prepared = self::rowsByRowidNext133($preparedRows);
-            $current = self::rowsByRowidNext133($currentRows);
+            $prepared = self::rowsByRowid($preparedRows);
+            $current = self::rowsByRowid($currentRows);
 
             $inserted = [];
             $deleted = [];
@@ -110,7 +110,7 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
                     $inserted[] = (int) $rowid;
                     continue;
                 }
-                if (self::payloadSignatureNext133($prepared[$rowid], $neededColumns) !== self::payloadSignatureNext133($row, $neededColumns)) {
+                if (self::payloadSignature($prepared[$rowid], $neededColumns) !== self::payloadSignature($row, $neededColumns)) {
                     $updated[] = (int) $rowid;
                     continue;
                 }
@@ -139,7 +139,7 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return array<int,array<string,mixed>>
          */
-        private static function rowsByRowidNext133(array $rows): array
+        private static function rowsByRowid(array $rows): array
         {
             $byRowid = [];
             foreach ($rows as $row) {
@@ -161,16 +161,16 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $rows
          */
-        private static function rowFingerprintNext133(array $rows): string
+        private static function rowFingerprint(array $rows): string
         {
-            return hash('sha256', json_encode(self::rowsByRowidNext133($rows), JSON_THROW_ON_ERROR));
+            return hash('sha256', json_encode(self::rowsByRowid($rows), JSON_THROW_ON_ERROR));
         }
 
         /**
          * @param array<string,mixed> $row
          * @param list<string> $neededColumns
          */
-        private static function payloadSignatureNext133(array $row, array $neededColumns): string
+        private static function payloadSignature(array $row, array $neededColumns): string
         {
             $payload = [];
             foreach ($neededColumns as $column) {
@@ -189,7 +189,7 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function cursorTapeNext133(array $base, array $rowDelta, array $neededColumns, bool $ready): array
+        private static function cursorTape(array $base, array $rowDelta, array $neededColumns, bool $ready): array
         {
             $rows = [];
             foreach (($base['currentNextRows'] ?? []) as $pair) {
@@ -222,7 +222,7 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
             $program[] = ['opcode' => 'Next', 'source' => 'index'];
 
             return array_replace($base['cursorTape'] ?? [], [
-                'currentNextRows' => self::currentNextNext133($currentRows),
+                'currentNextRows' => self::currentNextRows($currentRows),
                 'matchedRowids' => array_values(array_map(static fn (array $row): mixed => $row['rowid'] ?? null, $currentRows)),
                 'insertedRowids' => $rowDelta['insertedRowids'],
                 'updatedRowids' => $rowDelta['updatedRowids'],
@@ -236,7 +236,7 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<array{current:array<string,mixed>,next:?array<string,mixed>}>
          */
-        private static function currentNextNext133(array $rows): array
+        private static function currentNextRows(array $rows): array
         {
             $pairs = [];
             foreach ($rows as $offset => $row) {
@@ -249,7 +249,7 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function nonNegativeIntNext133(array $source, string $key): int
+        private static function nonNegativeInt(array $source, string $key): int
         {
             $value = $source[$key] ?? null;
             if (!is_int($value) || $value < 0) {

@@ -1382,7 +1382,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             array $neededColumns,
             array $neededExpressions = []
         ): array {
-            $base = SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan::materializeNext133(
+            $base = SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan::materialize(
                 $preparedSource,
                 $currentSource,
                 $predicate,
@@ -1397,7 +1397,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $cursor = self::arrayValueCurrentSourceRangeFence($base, 'cursorTape');
             $matchedRows = self::currentRowsCurrentSourceRangeFence($cursor);
             $rangeFence = self::rangeFenceCurrentSourceRangeFence($selected);
-            $ready = ($base['status'] ?? null) === 'partial-expression-stat4-current-source-next-ready'
+            $ready = ($base['status'] ?? null) === 'partial-expression-stat4-current-source-ready'
                 && ($selected['operator'] ?? null) === 'range-bounded'
                 && ($selected['partial'] ?? false) === true
                 && ($selected['stat4Used'] ?? false) === true
@@ -1462,7 +1462,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; rangeFence composes native STAT4 partial expression current-source range fences with existing covering row streams',
-                'non_overlap' => 'avoids accepted next133 row-generation fences, next142 partial-covering ORDER blocks, next144 point replacement, next149 skip-scan expression ranges, expression ORDER BY, JSON table, WAL, VFS, and B-tree clusters; this slice covers stale prepared row exclusion across STAT4 partial expression range windows',
+                'non_overlap' => 'avoids accepted current-source row-generation fences, next142 partial-covering ORDER blocks, next144 point replacement, next149 skip-scan expression ranges, expression ORDER BY, JSON table, WAL, VFS, and B-tree clusters; this slice covers stale prepared row exclusion across STAT4 partial expression range windows',
             ]);
         }
 
@@ -24460,7 +24460,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext250(
+        public static function materializeCurrentPartialPredicateFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -24476,11 +24476,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $limit,
                 $offset,
             );
-            $index = self::indexByNameNext250($currentSource, (string) ($base['selectedPlan']['name'] ?? ''));
-            $fence = self::partialPredicateFenceNext250(
-                self::rowsByRowidNext250($currentSource),
+            $index = self::currentPartialPredicateIndexByName($currentSource, (string) ($base['selectedPlan']['name'] ?? ''));
+            $fence = self::currentPartialPredicateFence(
+                self::currentPartialPredicateRowsByRowid($currentSource),
                 $index,
-                self::rowidsNext250($base['matchedRowids'] ?? null),
+                self::currentPartialPredicateRowids($base['matchedRowids'] ?? null),
             );
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4BoundaryPeer-ready'
                 && $fence['allYieldedRowsSatisfyCurrentPartialPredicate'] === true
@@ -24501,7 +24501,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next250CurrentPartialPredicateReady' => $ready,
                     'next250CurrentPartialPredicateSignature' => $fence['proofSignature'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext250(
+                'cursorProgram' => self::currentPartialPredicateCursorProgram(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $fence,
@@ -24528,7 +24528,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<int> $yieldedRowids
          * @return array<string,mixed>
          */
-        private static function partialPredicateFenceNext250(array $rowsByRowid, array $index, array $yieldedRowids): array
+        private static function currentPartialPredicateFence(array $rowsByRowid, array $index, array $yieldedRowids): array
         {
             $terms = $index['partialPredicateTerms'] ?? null;
             if (!is_array($terms) || !array_is_list($terms) || $terms === []) {
@@ -24550,7 +24550,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     if (!is_array($term)) {
                         throw new \InvalidArgumentException('SQLite next250 partial predicate terms must be arrays');
                     }
-                    $termResults[] = self::termProofNext250($row, $term);
+                    $termResults[] = self::currentPartialPredicateTermProof($row, $term);
                 }
                 $satisfies = !in_array(false, array_column($termResults, 'satisfied'), true);
                 if ($satisfies) {
@@ -24560,7 +24560,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
                 $proofs[] = [
                     'rowid' => $rowid,
-                    'expressionKey' => self::expressionKeyNext250($row),
+                    'expressionKey' => self::currentPartialPredicateExpressionKey($row),
                     'satisfiesCurrentPartialPredicate' => $satisfies,
                     'termResults' => $termResults,
                 ];
@@ -24577,31 +24577,31 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
             return $proof + [
                 'allYieldedRowsSatisfyCurrentPartialPredicate' => $yieldedRowids !== [] && $mismatches === [] && $missing === [],
-                'proofSignature' => self::signatureNext250($proof),
+                'proofSignature' => self::currentPartialPredicateSignature($proof),
             ];
         }
 
         /** @param array<string,mixed> $row @param array<string,mixed> $term @return array<string,mixed> */
-        private static function termProofNext250(array $row, array $term): array
+        private static function currentPartialPredicateTermProof(array $row, array $term): array
         {
             $operator = strtoupper((string) ($term['operator'] ?? ''));
-            $left = self::leftValueNext250($term['left'] ?? null, $row);
+            $left = self::currentPartialPredicateLeftValue($term['left'] ?? null, $row);
             $right = $term['right'] ?? null;
             $satisfied = match ($operator) {
-                '=' => self::compareNext250($left, $right) === 0,
-                '!=' , '<>' => self::compareNext250($left, $right) !== 0,
-                '>=' => self::compareNext250($left, $right) >= 0,
-                '>' => self::compareNext250($left, $right) > 0,
-                '<=' => self::compareNext250($left, $right) <= 0,
-                '<' => self::compareNext250($left, $right) < 0,
+                '=' => self::currentPartialPredicateCompare($left, $right) === 0,
+                '!=' , '<>' => self::currentPartialPredicateCompare($left, $right) !== 0,
+                '>=' => self::currentPartialPredicateCompare($left, $right) >= 0,
+                '>' => self::currentPartialPredicateCompare($left, $right) > 0,
+                '<=' => self::currentPartialPredicateCompare($left, $right) <= 0,
+                '<' => self::currentPartialPredicateCompare($left, $right) < 0,
                 'IS NOT NULL' => $left !== null,
-                'LIKE' => self::likeNext250((string) $left, (string) $right),
-                'BETWEEN' => self::compareNext250($left, $term['lower'] ?? null) >= 0 && self::compareNext250($left, $term['upper'] ?? null) <= 0,
+                'LIKE' => self::currentPartialPredicateLike((string) $left, (string) $right),
+                'BETWEEN' => self::currentPartialPredicateCompare($left, $term['lower'] ?? null) >= 0 && self::currentPartialPredicateCompare($left, $term['upper'] ?? null) <= 0,
                 default => throw new \InvalidArgumentException('SQLite next250 unsupported partial predicate operator ' . $operator),
             };
 
             return [
-                'left' => self::termLabelNext250($term['left'] ?? null),
+                'left' => self::currentPartialPredicateTermLabel($term['left'] ?? null),
                 'operator' => $operator,
                 'right' => $operator === 'BETWEEN' ? [$term['lower'] ?? null, $term['upper'] ?? null] : $right,
                 'leftValue' => $left,
@@ -24610,7 +24610,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param mixed $left @param array<string,mixed> $row */
-        private static function leftValueNext250(mixed $left, array $row): mixed
+        private static function currentPartialPredicateLeftValue(mixed $left, array $row): mixed
         {
             if (!is_array($left)) {
                 throw new \InvalidArgumentException('SQLite next250 term left operand must be an array');
@@ -24628,7 +24628,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite next250 unsupported left operand');
         }
 
-        private static function termLabelNext250(mixed $left): string
+        private static function currentPartialPredicateTermLabel(mixed $left): string
         {
             if (!is_array($left)) {
                 return 'unknown';
@@ -24644,7 +24644,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $source @return array<int,array<string,mixed>> */
-        private static function rowsByRowidNext250(array $source): array
+        private static function currentPartialPredicateRowsByRowid(array $source): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -24655,7 +24655,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite next250 current source rows must be arrays');
                 }
-                $rowid = self::intValueNext250($row['rowid'] ?? null, 'current rowid');
+                $rowid = self::currentPartialPredicateIntValue($row['rowid'] ?? null, 'current rowid');
                 if (isset($out[$rowid])) {
                     throw new \InvalidArgumentException('SQLite next250 duplicate current rowid');
                 }
@@ -24666,7 +24666,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $source @return array<string,mixed> */
-        private static function indexByNameNext250(array $source, string $name): array
+        private static function currentPartialPredicateIndexByName(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -24685,22 +24685,22 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param mixed $value @return list<int> */
-        private static function rowidsNext250(mixed $value): array
+        private static function currentPartialPredicateRowids(mixed $value): array
         {
             if (!is_array($value) || !array_is_list($value)) {
                 throw new \InvalidArgumentException('SQLite next250 needs yielded rowids');
             }
 
-            return array_values(array_map(static fn (mixed $rowid): int => self::intValueNext250($rowid, 'yielded rowid'), $value));
+            return array_values(array_map(static fn (mixed $rowid): int => self::currentPartialPredicateIntValue($rowid, 'yielded rowid'), $value));
         }
 
         /** @param array<string,mixed> $row */
-        private static function expressionKeyNext250(array $row): string
+        private static function currentPartialPredicateExpressionKey(array $row): string
         {
             return strtolower((string) ($row['option_name'] ?? ''));
         }
 
-        private static function compareNext250(mixed $left, mixed $right): int
+        private static function currentPartialPredicateCompare(mixed $left, mixed $right): int
         {
             if (is_int($left) || is_float($left) || is_int($right) || is_float($right)) {
                 return (float) $left <=> (float) $right;
@@ -24709,7 +24709,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return strcmp(strtolower((string) $left), strtolower((string) $right));
         }
 
-        private static function likeNext250(string $value, string $pattern): bool
+        private static function currentPartialPredicateLike(string $value, string $pattern): bool
         {
             $quoted = preg_quote($pattern, '/');
             $regex = '/^' . str_replace(['%', '_'], ['.*', '.'], $quoted) . '$/iu';
@@ -24717,7 +24717,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return preg_match($regex, $value) === 1;
         }
 
-        private static function intValueNext250(mixed $value, string $label): int
+        private static function currentPartialPredicateIntValue(mixed $value, string $label): int
         {
             if (is_int($value)) {
                 return $value;
@@ -24734,7 +24734,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $fence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext250(array $program, bool $ready, array $fence): array
+        private static function currentPartialPredicateCursorProgram(array $program, bool $ready, array $fence): array
         {
             if (!$ready) {
                 return $program;
@@ -24749,7 +24749,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function signatureNext250(mixed $value): string
+        private static function currentPartialPredicateSignature(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -24763,7 +24763,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext251(
+        public static function materializeCurrentCoveringPayloadFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -24779,11 +24779,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $limit,
                 $offset,
             );
-            $index = self::indexByNameNext251($currentSource, (string) ($base['selectedPlan']['name'] ?? ''));
-            $fence = self::coveringPayloadFenceNext251(
-                self::rowsByRowidNext251($currentSource),
-                self::payloadsByRowidNext251($index),
-                self::rowidsNext251($base['matchedRowids'] ?? null),
+            $index = self::currentCoveringPayloadIndexByName($currentSource, (string) ($base['selectedPlan']['name'] ?? ''));
+            $fence = self::currentCoveringPayloadFence(
+                self::currentCoveringPayloadRowsByRowid($currentSource),
+                self::currentCoveringPayloadPayloadsByRowid($index),
+                self::currentCoveringPayloadRowids($base['matchedRowids'] ?? null),
                 $neededColumns,
             );
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4BoundaryPeer-ready'
@@ -24808,7 +24808,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next251CoveringPayloadSignature' => $fence['coveringPayloadSignature'],
                     'next251ProofSignature' => $fence['proofSignature'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext251(
+                'cursorProgram' => self::currentCoveringPayloadCursorProgram(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $fence,
@@ -24830,7 +24830,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $source @return array<string,mixed> */
-        private static function indexByNameNext251(array $source, string $name): array
+        private static function currentCoveringPayloadIndexByName(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -24852,7 +24852,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return array<int,array<string,mixed>>
          */
-        private static function rowsByRowidNext251(array $source): array
+        private static function currentCoveringPayloadRowsByRowid(array $source): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -24863,7 +24863,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite next251 current rows must be arrays');
                 }
-                $out[self::intValueNext251($row['rowid'] ?? null, 'current rowid')] = $row;
+                $out[self::currentCoveringPayloadIntValue($row['rowid'] ?? null, 'current rowid')] = $row;
             }
 
             return $out;
@@ -24873,7 +24873,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $index
          * @return array<int,array<string,mixed>>
          */
-        private static function payloadsByRowidNext251(array $index): array
+        private static function currentCoveringPayloadPayloadsByRowid(array $index): array
         {
             $payloads = $index['stat4ExpressionPayloads'] ?? null;
             if (!is_array($payloads) || !array_is_list($payloads)) {
@@ -24884,7 +24884,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($payload)) {
                     throw new \InvalidArgumentException('SQLite next251 payload entries must be arrays');
                 }
-                $rowid = self::intValueNext251($payload['rowid'] ?? null, 'payload rowid');
+                $rowid = self::currentCoveringPayloadIntValue($payload['rowid'] ?? null, 'payload rowid');
                 $covered = $payload['coveredValues'] ?? null;
                 if (!is_array($covered)) {
                     throw new \InvalidArgumentException('SQLite next251 payload entries need coveredValues');
@@ -24896,13 +24896,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param mixed $value @return list<int> */
-        private static function rowidsNext251(mixed $value): array
+        private static function currentCoveringPayloadRowids(mixed $value): array
         {
             if (!is_array($value) || !array_is_list($value)) {
                 throw new \InvalidArgumentException('SQLite next251 needs yielded rowids');
             }
 
-            return array_values(array_map(static fn (mixed $rowid): int => self::intValueNext251($rowid, 'yielded rowid'), $value));
+            return array_values(array_map(static fn (mixed $rowid): int => self::currentCoveringPayloadIntValue($rowid, 'yielded rowid'), $value));
         }
 
         /**
@@ -24912,7 +24912,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function coveringPayloadFenceNext251(array $rowsByRowid, array $payloadsByRowid, array $yieldedRowids, array $neededColumns): array
+        private static function currentCoveringPayloadFence(array $rowsByRowid, array $payloadsByRowid, array $yieldedRowids, array $neededColumns): array
         {
             if ($neededColumns === []) {
                 throw new \InvalidArgumentException('SQLite next251 needs at least one covering column');
@@ -24953,7 +24953,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                         ];
                         $rowStale = true;
                     }
-                    $matches = $hasPayload && $hasCurrent && self::sameValueNext251($payload[$column], $row[$column]);
+                    $matches = $hasPayload && $hasCurrent && self::currentCoveringPayloadSameValue($payload[$column], $row[$column]);
                     if (!$matches) {
                         $rowStale = true;
                     }
@@ -24987,8 +24987,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
             return $proof + [
                 'allCoveringPayloadsMatchCurrentSource' => $missingPayloads === [] && $stalePayloads === [] && $missingColumns === [],
-                'coveringPayloadSignature' => self::signatureNext251([$yieldedRowids, $neededColumns, $payloadsByRowid]),
-                'proofSignature' => self::signatureNext251($proof),
+                'coveringPayloadSignature' => self::currentCoveringPayloadSignature([$yieldedRowids, $neededColumns, $payloadsByRowid]),
+                'proofSignature' => self::currentCoveringPayloadSignature($proof),
             ];
         }
 
@@ -24997,7 +24997,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $fence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext251(array $program, bool $ready, array $fence): array
+        private static function currentCoveringPayloadCursorProgram(array $program, bool $ready, array $fence): array
         {
             if (!$ready) {
                 return $program;
@@ -25013,7 +25013,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function intValueNext251(mixed $value, string $label): int
+        private static function currentCoveringPayloadIntValue(mixed $value, string $label): int
         {
             if (!is_int($value) && !ctype_digit((string) $value)) {
                 throw new \InvalidArgumentException('SQLite next251 ' . $label . ' must be an integer');
@@ -25022,7 +25022,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return (int) $value;
         }
 
-        private static function sameValueNext251(mixed $left, mixed $right): bool
+        private static function currentCoveringPayloadSameValue(mixed $left, mixed $right): bool
         {
             if (is_int($left) || is_float($left) || is_int($right) || is_float($right)) {
                 return (string) $left === (string) $right;
@@ -25031,7 +25031,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $left === $right;
         }
 
-        private static function signatureNext251(mixed $value): string
+        private static function currentCoveringPayloadSignature(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -25045,7 +25045,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext252(
+        public static function materializeCurrentScanDirectionFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -25062,8 +25062,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $offset,
             );
             $selectedName = (string) ($base['selectedPlan']['name'] ?? '');
-            $index = self::indexByNameNext252($currentSource, $selectedName);
-            $fence = self::scanDirectionFenceNext252(self::rowsNext252($currentSource), $whereTerms, $index, $base);
+            $index = self::currentScanDirectionIndexByName($currentSource, $selectedName);
+            $fence = self::currentScanDirectionFence(self::currentScanDirectionRows($currentSource), $whereTerms, $index, $base);
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next249-ready'
                 && $fence['ready'] === true;
 
@@ -25083,7 +25083,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next252ScanDirectionSignature' => $fence['proofSignature'],
                     'next252RejectedReasons' => $fence['rejectedReasons'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext252(
+                'cursorProgram' => self::currentScanDirectionCursorProgram(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $fence,
@@ -25111,17 +25111,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return array<string,mixed>
          */
-        private static function scanDirectionFenceNext252(array $rows, array $whereTerms, array $index, array $base): array
+        private static function currentScanDirectionFence(array $rows, array $whereTerms, array $index, array $base): array
         {
             $descending = (bool) ($index['descending'] ?? false);
             $qualified = [];
             foreach ($rows as $row) {
-                if (!self::rowSatisfiesTermsNext252($row, $whereTerms)) {
+                if (!self::currentScanDirectionRowSatisfiesTerms($row, $whereTerms)) {
                     continue;
                 }
                 $qualified[] = [
-                    'rowid' => self::rowidNext252($row),
-                    'expressionKey' => self::rowExpressionKeyNext252($row),
+                    'rowid' => self::currentScanDirectionRowid($row),
+                    'expressionKey' => self::currentScanDirectionRowExpressionKey($row),
                     'blogId' => (int) ($row['blog_id'] ?? 0),
                 ];
             }
@@ -25137,19 +25137,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 return $left['rowid'] <=> $right['rowid'];
             });
 
-            $samples = self::stat4SamplesNext252($index);
+            $samples = self::currentScanDirectionStat4Samples($index);
             $ascendingStat4Rowids = array_column($samples, 'rowid');
             $reverseAnchors = array_reverse($ascendingStat4Rowids);
-            $matchedRowids = self::matchedRowidsNext252($base);
-            $pageAnchors = self::pageAnchorRowidsNext252($matchedRowids, $reverseAnchors);
+            $matchedRowids = self::currentScanDirectionMatchedRowids($base);
+            $pageAnchors = self::currentScanDirectionPageAnchorRowids($matchedRowids, $reverseAnchors);
             $qualifiedRowids = array_column($qualified, 'rowid');
             $matchedStart = $matchedRowids === [] ? false : array_search($matchedRowids[0], $qualifiedRowids, true);
             $expectedPrefix = $matchedStart === false
                 ? []
                 : array_slice($qualifiedRowids, (int) $matchedStart, count($pageAnchors));
-            $qualifiedAnchorPrefix = self::pageAnchorRowidsNext252($qualifiedRowids, $reverseAnchors);
+            $qualifiedAnchorPrefix = self::currentScanDirectionPageAnchorRowids($qualifiedRowids, $reverseAnchors);
             $rejected = [];
-            if ($samples !== self::samplesSortedAscendingNext252($samples)) {
+            if ($samples !== self::currentScanDirectionSamplesSortedAscending($samples)) {
                 $rejected[] = 'stat4-samples-not-ascending';
             }
             if ($descending && $pageAnchors !== $expectedPrefix) {
@@ -25175,12 +25175,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $proof + [
                 'ready' => $rejected === [] && $samples !== [] && $pageAnchors !== [],
                 'rejectedReason' => $rejected === [] ? null : implode(',', $rejected),
-                'proofSignature' => self::signatureNext252($proof),
+                'proofSignature' => self::currentScanDirectionSignature($proof),
             ];
         }
 
         /** @param array<string,mixed> $source @return array<string,mixed> */
-        private static function indexByNameNext252(array $source, string $name): array
+        private static function currentScanDirectionIndexByName(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -25199,7 +25199,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $source @return list<array<string,mixed>> */
-        private static function rowsNext252(array $source): array
+        private static function currentScanDirectionRows(array $source): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -25215,14 +25215,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $base @return list<int> */
-        private static function matchedRowidsNext252(array $base): array
+        private static function currentScanDirectionMatchedRowids(array $base): array
         {
             $rowids = $base['matchedRowids'] ?? null;
             if (!is_array($rowids) || !array_is_list($rowids)) {
                 throw new \InvalidArgumentException('SQLite next252 base matched rowids must be a list');
             }
 
-            return array_map(static fn (mixed $rowid): int => self::rowidNext252(['rowid' => $rowid]), $rowids);
+            return array_map(static fn (mixed $rowid): int => self::currentScanDirectionRowid(['rowid' => $rowid]), $rowids);
         }
 
         /**
@@ -25230,7 +25230,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<int> $anchors
          * @return list<int>
          */
-        private static function pageAnchorRowidsNext252(array $rowids, array $anchors): array
+        private static function currentScanDirectionPageAnchorRowids(array $rowids, array $anchors): array
         {
             $seen = [];
             $out = [];
@@ -25249,7 +25249,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array{key:string,rowid:int,blogId:int}> $samples
          * @return list<array{key:string,rowid:int,blogId:int}>
          */
-        private static function samplesSortedAscendingNext252(array $samples): array
+        private static function currentScanDirectionSamplesSortedAscending(array $samples): array
         {
             $sorted = $samples;
             usort($sorted, static function (array $left, array $right): int {
@@ -25265,7 +25265,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $index @return list<array{key:string,rowid:int,blogId:int}> */
-        private static function stat4SamplesNext252(array $index): array
+        private static function currentScanDirectionStat4Samples(array $index): array
         {
             $samples = $index['stat4Samples'] ?? null;
             if (!is_array($samples) || !array_is_list($samples) || $samples === []) {
@@ -25278,7 +25278,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
                 $out[] = [
                     'key' => strtolower((string) $sample['sample'][0]),
-                    'rowid' => self::rowidNext252(['rowid' => $sample['sample'][1]]),
+                    'rowid' => self::currentScanDirectionRowid(['rowid' => $sample['sample'][1]]),
                     'blogId' => (int) $sample['sample'][2],
                 ];
             }
@@ -25290,7 +25290,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param list<array<string,mixed>> $terms
          */
-        private static function rowSatisfiesTermsNext252(array $row, array $terms): bool
+        private static function currentScanDirectionRowSatisfiesTerms(array $row, array $terms): bool
         {
             foreach ($terms as $term) {
                 $left = $term['left'] ?? null;
@@ -25299,7 +25299,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
                 $value = array_key_exists('expression', $left)
-                    ? self::rowExpressionKeyNext252($row)
+                    ? self::currentScanDirectionRowExpressionKey($row)
                     : ($row[(string) ($left['column'] ?? '')] ?? null);
                 if ($operator === '=' && $value != ($term['right'] ?? null)) {
                     return false;
@@ -25307,13 +25307,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if ($operator === 'IS NOT NULL' && $value === null) {
                     return false;
                 }
-                if ($operator === 'LIKE' && !self::likePrefixNext252((string) $value, (string) ($term['right'] ?? ''))) {
+                if ($operator === 'LIKE' && !self::currentScanDirectionLikePrefix((string) $value, (string) ($term['right'] ?? ''))) {
                     return false;
                 }
                 if ($operator === 'BETWEEN') {
                     $stringValue = strtolower((string) $value);
-                    $lower = self::stringOrNullNext252($term['lower'] ?? null);
-                    $upper = self::stringOrNullNext252($term['upper'] ?? null);
+                    $lower = self::currentScanDirectionStringOrNull($term['lower'] ?? null);
+                    $upper = self::currentScanDirectionStringOrNull($term['upper'] ?? null);
                     if (($lower !== null && $stringValue < $lower) || ($upper !== null && $stringValue > $upper)) {
                         return false;
                     }
@@ -25323,7 +25323,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function likePrefixNext252(string $value, string $pattern): bool
+        private static function currentScanDirectionLikePrefix(string $value, string $pattern): bool
         {
             if ($pattern === 'plugin_%') {
                 return str_starts_with(strtolower($value), 'plugin_');
@@ -25332,18 +25332,18 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $value === $pattern;
         }
 
-        private static function rowExpressionKeyNext252(array $row): string
+        private static function currentScanDirectionRowExpressionKey(array $row): string
         {
             return strtolower((string) ($row['option_name'] ?? ''));
         }
 
-        private static function stringOrNullNext252(mixed $value): ?string
+        private static function currentScanDirectionStringOrNull(mixed $value): ?string
         {
             return $value === null ? null : strtolower((string) $value);
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowidNext252(array $row): int
+        private static function currentScanDirectionRowid(array $row): int
         {
             $rowid = $row['rowid'] ?? null;
             if (!is_int($rowid) && !(is_string($rowid) && ctype_digit($rowid))) {
@@ -25358,7 +25358,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $fence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext252(array $cursorProgram, bool $ready, array $fence): array
+        private static function currentScanDirectionCursorProgram(array $cursorProgram, bool $ready, array $fence): array
         {
             $cursorProgram[] = [
                 'opcode' => 'ValidateCurrentSourceStat4ScanDirection',
@@ -25374,7 +25374,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $cursorProgram;
         }
 
-        private static function signatureNext252(mixed $value): string
+        private static function currentScanDirectionSignature(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -25388,7 +25388,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext253(
+        public static function materializeCurrentStat4PayloadFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -25396,7 +25396,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext250(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentPartialPredicateFence(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -25405,11 +25405,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $offset,
             );
 
-            $index = self::indexByNameNext253($currentSource, (string) ($base['selectedPlan']['name'] ?? ''));
-            $fence = self::payloadFenceNext253(
-                self::rowsByRowidNext253($currentSource),
-                self::payloadsByRowidNext253($index),
-                self::rowidsNext253($base['matchedRowids'] ?? null),
+            $index = self::currentStat4PayloadIndexByName($currentSource, (string) ($base['selectedPlan']['name'] ?? ''));
+            $fence = self::currentStat4PayloadFence(
+                self::currentStat4PayloadRowsByRowid($currentSource),
+                self::currentStat4PayloadPayloadsByRowid($index),
+                self::currentStat4PayloadRowids($base['matchedRowids'] ?? null),
                 $neededColumns,
             );
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next250-ready'
@@ -25432,7 +25432,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next253CurrentPayloadReady' => $ready,
                     'next253CurrentPayloadSignature' => $fence['payloadSignature'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext253(
+                'cursorProgram' => self::currentStat4PayloadCursorProgram(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $fence,
@@ -25460,7 +25460,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function payloadFenceNext253(array $rowsByRowid, array $payloadsByRowid, array $yieldedRowids, array $neededColumns): array
+        private static function currentStat4PayloadFence(array $rowsByRowid, array $payloadsByRowid, array $yieldedRowids, array $neededColumns): array
         {
             if ($neededColumns === []) {
                 throw new \InvalidArgumentException('SQLite next253 needed columns must be non-empty');
@@ -25483,9 +25483,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     continue;
                 }
 
-                $expected = self::coveredValuesNext253($row, $neededColumns);
-                $actual = self::coveredValuesNext253(self::payloadCoveredValuesNext253($payload), $neededColumns);
-                $expressionMatches = self::expressionKeyNext253($row) === self::payloadExpressionKeyNext253($payload);
+                $expected = self::currentStat4PayloadCoveredValues($row, $neededColumns);
+                $actual = self::currentStat4PayloadCoveredValues(self::currentStat4PayloadCoveredValuesFromPayload($payload), $neededColumns);
+                $expressionMatches = self::currentStat4PayloadExpressionKey($row) === self::currentStat4PayloadExpressionKeyFromPayload($payload);
                 $coveredValuesMatch = $expected === $actual;
                 $matches = $expressionMatches && $coveredValuesMatch;
                 if ($matches) {
@@ -25495,8 +25495,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
                 $proofs[] = [
                     'rowid' => $rowid,
-                    'currentExpressionKey' => self::expressionKeyNext253($row),
-                    'payloadExpressionKey' => self::payloadExpressionKeyNext253($payload),
+                    'currentExpressionKey' => self::currentStat4PayloadExpressionKey($row),
+                    'payloadExpressionKey' => self::currentStat4PayloadExpressionKeyFromPayload($payload),
                     'expressionMatches' => $expressionMatches,
                     'currentCoveredValues' => $expected,
                     'payloadCoveredValues' => $actual,
@@ -25517,12 +25517,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
             return $proof + [
                 'allYieldedRowsHaveCurrentPayloads' => $yieldedRowids !== [] && $mismatches === [] && $missingPayloads === [] && $missingRows === [],
-                'payloadSignature' => self::signatureNext253($proof),
+                'payloadSignature' => self::currentStat4PayloadSignature($proof),
             ];
         }
 
         /** @param array<string,mixed> $source @return array<string,mixed> */
-        private static function indexByNameNext253(array $source, string $name): array
+        private static function currentStat4PayloadIndexByName(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -25541,7 +25541,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $source @return array<int,array<string,mixed>> */
-        private static function rowsByRowidNext253(array $source): array
+        private static function currentStat4PayloadRowsByRowid(array $source): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -25552,7 +25552,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite next253 current source rows must be arrays');
                 }
-                $rowid = self::intValueNext253($row['rowid'] ?? null, 'current rowid');
+                $rowid = self::currentStat4PayloadIntValue($row['rowid'] ?? null, 'current rowid');
                 if (isset($out[$rowid])) {
                     throw new \InvalidArgumentException('SQLite next253 duplicate current rowid');
                 }
@@ -25563,7 +25563,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $index @return array<int,array<string,mixed>> */
-        private static function payloadsByRowidNext253(array $index): array
+        private static function currentStat4PayloadPayloadsByRowid(array $index): array
         {
             $payloads = $index['stat4ExpressionPayloads'] ?? null;
             if (!is_array($payloads) || !array_is_list($payloads)) {
@@ -25574,7 +25574,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($payload)) {
                     throw new \InvalidArgumentException('SQLite next253 STAT4 expression payloads must be arrays');
                 }
-                $rowid = self::intValueNext253($payload['rowid'] ?? null, 'payload rowid');
+                $rowid = self::currentStat4PayloadIntValue($payload['rowid'] ?? null, 'payload rowid');
                 if (isset($out[$rowid])) {
                     throw new \InvalidArgumentException('SQLite next253 duplicate STAT4 expression payload rowid');
                 }
@@ -25585,13 +25585,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param mixed $value @return list<int> */
-        private static function rowidsNext253(mixed $value): array
+        private static function currentStat4PayloadRowids(mixed $value): array
         {
             if (!is_array($value) || !array_is_list($value)) {
                 throw new \InvalidArgumentException('SQLite next253 needs yielded rowids');
             }
 
-            return array_values(array_map(static fn (mixed $rowid): int => self::intValueNext253($rowid, 'yielded rowid'), $value));
+            return array_values(array_map(static fn (mixed $rowid): int => self::currentStat4PayloadIntValue($rowid, 'yielded rowid'), $value));
         }
 
         /**
@@ -25599,7 +25599,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $columns
          * @return array<string,mixed>
          */
-        private static function coveredValuesNext253(array $row, array $columns): array
+        private static function currentStat4PayloadCoveredValues(array $row, array $columns): array
         {
             $values = [];
             foreach ($columns as $column) {
@@ -25613,7 +25613,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $payload @return array<string,mixed> */
-        private static function payloadCoveredValuesNext253(array $payload): array
+        private static function currentStat4PayloadCoveredValuesFromPayload(array $payload): array
         {
             $values = $payload['coveredValues'] ?? null;
             if (!is_array($values)) {
@@ -25624,13 +25624,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function expressionKeyNext253(array $row): string
+        private static function currentStat4PayloadExpressionKey(array $row): string
         {
             return strtolower((string) ($row['option_name'] ?? ''));
         }
 
         /** @param array<string,mixed> $payload */
-        private static function payloadExpressionKeyNext253(array $payload): string
+        private static function currentStat4PayloadExpressionKeyFromPayload(array $payload): string
         {
             if (!array_key_exists('expressionKey', $payload)) {
                 throw new \InvalidArgumentException('SQLite next253 STAT4 expression payload needs expression key');
@@ -25639,7 +25639,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return strtolower((string) $payload['expressionKey']);
         }
 
-        private static function intValueNext253(mixed $value, string $label): int
+        private static function currentStat4PayloadIntValue(mixed $value, string $label): int
         {
             if (is_int($value)) {
                 return $value;
@@ -25656,7 +25656,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $fence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext253(array $program, bool $ready, array $fence): array
+        private static function currentStat4PayloadCursorProgram(array $program, bool $ready, array $fence): array
         {
             if (!$ready) {
                 return $program;
@@ -25671,7 +25671,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function signatureNext253(mixed $value): string
+        private static function currentStat4PayloadSignature(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -25765,7 +25765,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'sqlite-sqlplanner-stat4-expression-partial-current-source-next155',
             ],
             'dependency_closure' => 'no new support component needed; next155 reuses native expression-index STAT4 range planning, partial predicate proof, and current-source row fences',
-            'non_overlap' => 'avoids accepted next133 row-generation partial expression STAT4, next148 non-STAT4 partial covering, next114 collation boundaries, next122/128/134/146 covering range, expression ORDER BY, and range-cost ranking by proving current-source partial-predicate drift for a STAT4 expression range scan',
+            'non_overlap' => 'avoids accepted current-source row-generation partial expression STAT4, next148 non-STAT4 partial covering, next114 collation boundaries, next122/128/134/146 covering range, expression ORDER BY, and range-cost ranking by proving current-source partial-predicate drift for a STAT4 expression range scan',
         ];
     }
 
@@ -27246,7 +27246,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext253(
+        $base = self::materializeCurrentStat4PayloadFence(
             $preparedSource,
             $currentSource,
             $queryTerms,

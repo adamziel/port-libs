@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 $tests = [];
 
 $pageSize = 512;
-$database = '/srv/wp-content/database/wp-next622.sqlite';
+$database = '/srv/wp-content/database/wp-vdbe-control-literal-branch-fence.sqlite';
 $journal = $database . '-journal';
 $master = $database . '-mj';
 $masterBytes = $journal . "\n";
@@ -138,13 +138,13 @@ $tokenFields = [
 $before = [1 => $formatPage('stale schema'), 2 => $page('stale options')];
 $recovered = [1 => $formatPage('current schema'), 2 => $page('current options')];
 $tokens = [$journal => 'member-main-current-622'];
-$headers = [$journal => hash('sha256', 'main header next622')];
+$headers = [$journal => hash('sha256', 'main header vdbe control literal branch fence')];
 $base = [
-    'source_id' => 'pager-reader-cache-current-source-next622',
+    'source_id' => 'pager-reader-cache-vdbe-control-literal-branch-fence',
     'epoch' => 622,
     'format_signature' => hash('sha256', implode('|', [512, 4, 2, 622, 0])),
     'publication_generation' => 622,
-    'master_source_digest' => hash('sha256', 'master-next622'),
+    'master_source_digest' => hash('sha256', 'master-vdbe-control-literal-branch-fence'),
     'recovery_sequence' => 622,
     'recovered_page_set_digest' => $recoveredDigest($recovered),
     'member_journal_tokens' => $tokens,
@@ -162,7 +162,7 @@ $read = static fn (array $extra = []): array => array_merge($base, [
     'member_journal_token_digest' => $mapDigest($tokens),
     'member_journal_header_digest' => $mapDigest($headers),
 ], $extra);
-$plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext622(
+$plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeControlLiteralBranchFence(
     $database,
     $master,
     $masterBytes,
@@ -182,53 +182,30 @@ $plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLi
 );
 $opCount = static fn (array $plan, string $op): int => count(array_filter($plan['operations'], static fn (array $operation): bool => ($operation['op'] ?? '') === $op));
 
-$tests['pager master journal reader cache current source next622 admits current VDBE pagecount control-flow and literal branch fences'] = static function (TestRunner $t) use ($plan): void {
+$tests['pager master journal reader cache current source VDBE control literal branch fence admits current VDBE pagecount control-flow and literal branch fences'] = static function (TestRunner $t) use ($plan): void {
     $result = $plan();
-    $t->same('pager-master-journal-reader-cache-current-source-next622', $result['status']);
+    $t->same('pager-master-journal-reader-cache-vdbe-control-literal-branch-fence', $result['status']);
     $t->same([], $result['invalidated_cache_page_numbers']);
     $t->same(['read-options' => true], $result['read_cache_hits']);
     $t->same('reader-cache-stmt-vdbe-null-branch-current-622', $result['current_reader_cache_stmt_vdbe_null_branch_token']);
 };
 
-$tests['pager master journal reader cache current source plan dispatches full width calls to next622'] = static function (TestRunner $t) use ($database, $master, $masterBytes, $before, $pageSize, $recovered, $cacheEntry, $read, $base, $tokens, $headers, $tokenFields): void {
-    $result = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::plan(
-        $database,
-        $master,
-        $masterBytes,
-        implode('', $before),
-        $pageSize,
-        $recovered,
-        [1 => $cacheEntry()],
-        [$read()],
-        $base['source_id'],
-        622,
-        622,
-        $base['master_source_digest'],
-        622,
-        $tokens,
-        $headers,
-        ...array_map(static fn (string $field): string => $base[$field], $tokenFields),
-    );
-
-    $t->same('pager-master-journal-reader-cache-current-source-next622', $result['status']);
-};
-
-$tests['pager master journal reader cache current source next622 invalidates stale null_branch cache'] = static function (TestRunner $t) use ($plan, $opCount): void {
+$tests['pager master journal reader cache current source VDBE control literal branch fence invalidates stale null_branch cache'] = static function (TestRunner $t) use ($plan, $opCount): void {
     $result = $plan(['reader_cache_stmt_vdbe_null_branch_token' => 'stmt-vdbe-null-branch-old']);
     $t->same([1], $result['reader_cache_stmt_vdbe_null_branch_invalidated_cache_page_numbers']);
     $t->same([1], $result['invalidated_cache_page_numbers']);
-    $t->same(1, $opCount($result, 'invalidate_reader_cache_reader_cache_stmt_vdbe_null_branch_current_source_next622'));
+    $t->same(1, $opCount($result, 'invalidate_reader_cache_reader_cache_stmt_vdbe_null_branch_vdbe_control_literal_branch_fence'));
 };
 
-$tests['pager master journal reader cache current source next622 reopens stale null_branch read ticket'] = static function (TestRunner $t) use ($plan, $opCount): void {
+$tests['pager master journal reader cache current source VDBE control literal branch fence reopens stale null_branch read ticket'] = static function (TestRunner $t) use ($plan, $opCount): void {
     $result = $plan([], ['reader_cache_stmt_vdbe_null_branch_token' => 'stmt-vdbe-null-branch-old']);
     $t->same(['read-options'], $result['reopen_reader_ids']);
     $t->same(false, $result['next_reads'][0]['cache_hit']);
     $t->same('reader_ticket_reader_cache_stmt_vdbe_null_branch_predates_current_source', $result['next_reads'][0]['reader_cache_stmt_vdbe_null_branch_token_reason']);
-    $t->same(1, $opCount($result, 'reopen_reader_for_reader_cache_stmt_vdbe_null_branch_current_source_next622'));
+    $t->same(1, $opCount($result, 'reopen_reader_for_reader_cache_stmt_vdbe_null_branch_vdbe_control_literal_branch_fence'));
 };
 
-$tests['pager master journal reader cache current source next622 missing null_branch token rejects'] = static function (TestRunner $t) use ($plan): void {
+$tests['pager master journal reader cache current source VDBE control literal branch fence missing null_branch token rejects'] = static function (TestRunner $t) use ($plan): void {
     $t->throws(Throwable::class, static fn () => $plan(['reader_cache_stmt_vdbe_null_branch_token' => null]));
 };
 

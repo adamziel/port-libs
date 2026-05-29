@@ -10,8 +10,8 @@ The WordPress path is copied `wp_options` planning with `lower(option_name)` par
 
 Local verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext251Test.php` => `1 test files, 86 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next251.php` => ready status `stat4-expression-partial-current-source-next251-ready`, blocked status `requires-current-source-stat4-covering-payload-reprepare`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentCoveringPayloadFenceTest.php` => `1 test files, 86 assertions, 0 failures`
+- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-covering-payload-fence.php` => ready status `stat4-expression-partial-current-source-next251-ready`, blocked status `requires-current-source-stat4-covering-payload-reprepare`
 - PHP lint for changed PHP files: passed for plan, test, and example files
 - `php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane-status json ok\n";'` => `lane-status json ok`
 - `git diff --check -- lanes/libsqlite`: passed

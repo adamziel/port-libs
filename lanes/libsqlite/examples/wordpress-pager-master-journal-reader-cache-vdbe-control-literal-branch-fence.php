@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
-$database = '/srv/wp-content/database/wp-next622.sqlite';
+$database = '/srv/wp-content/database/wp-vdbe-control-literal-branch-fence.sqlite';
 $journal = $database . '-journal';
 $master = $database . '-mj';
 $masterBytes = $journal . "\n";
@@ -138,13 +138,13 @@ $tokenFields = [
 $before = [1 => $formatPage('stale schema'), 2 => $page('stale options')];
 $recovered = [1 => $formatPage('current schema'), 2 => $page('current options')];
 $tokens = [$journal => 'member-main-current-622'];
-$headers = [$journal => hash('sha256', 'main header next622')];
+$headers = [$journal => hash('sha256', 'main header vdbe control literal branch fence')];
 $base = [
-    'source_id' => 'wordpress-pager-reader-cache-next622',
+    'source_id' => 'wordpress-pager-reader-cache-vdbe-control-literal-branch-fence',
     'epoch' => 622,
     'format_signature' => hash('sha256', implode('|', [512, 4, 2, 622, 0])),
     'publication_generation' => 622,
-    'master_source_digest' => hash('sha256', 'wordpress next622 master source'),
+    'master_source_digest' => hash('sha256', 'wordpress vdbe control literal branch fence master source'),
     'recovery_sequence' => 622,
     'recovered_page_set_digest' => $recoveredDigest($recovered),
     'member_journal_tokens' => $tokens,
@@ -163,7 +163,7 @@ $read = array_merge($base, [
     'member_journal_header_digest' => $mapDigest($headers),
     'reader_cache_stmt_vdbe_null_branch_token' => 'stmt-vdbe-null-branch-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext622(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeControlLiteralBranchFence(
     $database,
     $master,
     $masterBytes,
@@ -185,5 +185,5 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext622
 echo json_encode([
     'status' => $plan['status'],
     'reopen_reader_ids' => $plan['reopen_reader_ids'],
-    'next622_invalidated_pages' => $plan['reader_cache_stmt_vdbe_null_branch_invalidated_cache_page_numbers'],
+    'control_literal_branch_invalidated_pages' => $plan['reader_cache_stmt_vdbe_null_branch_invalidated_cache_page_numbers'],
 ], JSON_PRETTY_PRINT) . PHP_EOL;

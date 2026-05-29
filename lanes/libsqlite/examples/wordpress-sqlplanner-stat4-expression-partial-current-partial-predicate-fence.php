@@ -70,7 +70,7 @@ $current['indexes'][0]['stat4ExpressionPayloads'] = array_map(
     $current['rows'],
 );
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext250(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentPartialPredicateFence(
     $prepared,
     $current,
     [
@@ -88,11 +88,11 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['status'] === 'stat4-expression-partial-current-source-next250-ready');
     assert($plan['stat4CurrentPartialPredicateFence']['predicateMatchedRowids'] === [10, 20, 21, 30]);
     assert($plan['selectedPlan']['next250Ready'] === true);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next250 self-test passed\n";
+    echo "wordpress-sqlplanner-stat4-expression-partial-current-partial-predicate-fence self-test passed\n";
 }
 
 return [
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next250',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-partial-predicate-fence',
     'status' => $plan['status'],
     'predicateMatchedRowids' => $plan['stat4CurrentPartialPredicateFence']['predicateMatchedRowids'],
     'proofSignature' => $plan['stat4CurrentPartialPredicateFence']['proofSignature'],

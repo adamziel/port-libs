@@ -16,12 +16,12 @@ $predicate = [
     ],
 ];
 $preparedSource = [
-    'name' => 'prepared-wp-options-next133',
+    'name' => 'prepared-wp-options-current-source',
     'schemaCookie' => 1330,
     'stat4Generation' => 40,
     'rowGeneration' => 10,
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_partial_expr_next133',
+        'name' => 'idx_wp_options_lower_partial_expr_current_source',
         'rootPage' => 13301,
         'estimatedRows' => 360,
         'coveringColumns' => ['option_name', 'autoload', 'option_value', 'option_id', 'blog_id'],
@@ -31,11 +31,11 @@ $preparedSource = [
             ['neq' => '2 1', 'nlt' => '1 1', 'ndlt' => '1 1', 'sample' => ['plugin_forms', 31]],
             ['neq' => '4 1', 'nlt' => '3 2', 'ndlt' => '2 2', 'sample' => ['plugin_seo', 51]],
         ],
-        'sql' => "CREATE INDEX idx_wp_options_lower_partial_expr_next133 ON wp_options(lower(option_name), option_id, option_value, blog_id) WHERE autoload = 'yes'",
+        'sql' => "CREATE INDEX idx_wp_options_lower_partial_expr_current_source ON wp_options(lower(option_name), option_id, option_value, blog_id) WHERE autoload = 'yes'",
     ]],
 ];
 $currentSource = $preparedSource;
-$currentSource['name'] = 'current-wp-options-next133';
+$currentSource['name'] = 'current-wp-options-current-source';
 $currentSource['schemaCookie'] = 1334;
 $currentSource['stat4Generation'] = 47;
 $currentSource['rowGeneration'] = 16;
@@ -52,7 +52,7 @@ $currentRows = [
     ['rowid' => 21, 'option_name' => 'plugin_cache', 'autoload' => 'yes', 'option_value' => 'cache-new', 'option_id' => 21, 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan::materializeNext133(
+$plan = SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan::materialize(
     $preparedSource,
     $currentSource,
     $predicate,
@@ -64,16 +64,16 @@ $plan = SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan::materializeNex
 );
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['status'] === 'partial-expression-stat4-current-source-next-ready');
+    assert($plan['status'] === 'partial-expression-stat4-current-source-ready');
     assert($plan['rowGenerationFence']['deletedRowids'] === [81]);
     assert($plan['cursorTape']['matchedRowids'] === [21, 31, 41]);
     assert($plan['currentNextRows'][0]['current']['covering']['option_value'] === 'cache-new');
-    echo "wordpress-stat4-partial-expression-current-source-next133 self-test passed\n";
+    echo "wordpress-stat4-partial-expression-current-source self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-stat4-partial-expression-current-source-next133',
+    'scenario' => 'wordpress-stat4-partial-expression-current-source',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],
     'matchedRowids' => $plan['cursorTape']['matchedRowids'],

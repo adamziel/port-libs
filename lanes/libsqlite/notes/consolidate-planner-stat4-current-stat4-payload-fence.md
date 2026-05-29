@@ -9,10 +9,10 @@ covered column image after a WordPress option import updates copied
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
-- `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext253Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next253.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext253Test.php`
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next253.php --self-test`
+- `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentStat4PayloadFenceTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-stat4-payload-fence.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentStat4PayloadFenceTest.php`
+- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-stat4-payload-fence.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `+66` focused PASS lines in the new lane-scoped

@@ -76,7 +76,7 @@ $current['indexes'][0]['stat4ExpressionPayloads'] = array_map(
     $current['rows'],
 );
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext253(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentStat4PayloadFence(
     $prepared,
     $current,
     [
@@ -94,11 +94,11 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['status'] === 'stat4-expression-partial-current-source-next253-ready');
     assert($plan['stat4CurrentPayloadFence']['payloadMatchedRowids'] === [10, 20, 21]);
     assert($plan['selectedPlan']['next253Ready'] === true);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next253 self-test passed\n";
+    echo "wordpress-sqlplanner-stat4-expression-partial-current-stat4-payload-fence self-test passed\n";
 }
 
 return [
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next253',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-stat4-payload-fence',
     'status' => $plan['status'],
     'payloadMatchedRowids' => $plan['stat4CurrentPayloadFence']['payloadMatchedRowids'],
     'payloadSignature' => $plan['stat4CurrentPayloadFence']['payloadSignature'],
