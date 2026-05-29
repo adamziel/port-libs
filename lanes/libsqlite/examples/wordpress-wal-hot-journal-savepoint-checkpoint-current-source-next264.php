@@ -17,7 +17,7 @@ $base = [
     'checkpoint_frame' => 54,
 ];
 
-return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next264AfterCurrentCheckpoint($base, [[
+return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointVerification($base, [[
     'name' => 'wp-next264-db-header',
 ] + $base + [
     'database_header_synced' => true,

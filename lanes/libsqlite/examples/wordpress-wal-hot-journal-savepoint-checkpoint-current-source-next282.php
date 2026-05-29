@@ -17,7 +17,7 @@ $base = [
     'checkpoint_frame' => 282,
 ];
 
-return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next282AfterCurrentCheckpoint($base, [[
+return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointVerification($base, [[
     'name' => 'wp-next282-cache-digest-fence',
 ] + $base + [
     'database_header_synced' => true,

@@ -17,7 +17,7 @@ $base = [
     'checkpoint_frame' => 280,
 ];
 
-return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next280AfterCurrentCheckpoint($base, [[
+return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointVerification($base, [[
     'name' => 'wp-next280-generation-fence',
 ] + $base + [
     'database_header_synced' => true,

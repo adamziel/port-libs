@@ -38,7 +38,7 @@ $receipt = [
 ];
 
 $plan = static fn (?array $inputBase = null, ?array $receipts = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next283AfterCurrentCheckpoint($inputBase ?? $base, $receipts ?? [$receipt]);
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterCurrentCheckpointVerification($inputBase ?? $base, $receipts ?? [$receipt]);
 
 $tests['wal hot journal savepoint checkpoint current source next283 seals receipt chain'] = static function (TestRunner $t) use ($plan): void {
     $record = $plan();
@@ -59,7 +59,7 @@ $tests['wal hot journal savepoint checkpoint current source next283 blocks visib
 };
 
 $tests['wal hot journal savepoint checkpoint current source next283 rejects wrong base'] = static function (TestRunner $t) use ($plan, $base): void {
-    $t->throws(Throwable::class, static fn () => $plan(array_replace($base, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next281'])));
+    $t->throws(Throwable::class, static fn () => $plan(array_replace($base, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-invalid'])));
 };
 
 return $tests;
