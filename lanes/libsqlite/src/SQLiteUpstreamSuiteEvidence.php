@@ -16353,7 +16353,7 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
-    public function releaseRunnerSuiteMapCurrentNext32(
+    public function releaseRunnerSuiteMap(
         string $currentAcceptedHead,
         string $nextAcceptedHead,
         ?string $repoRoot = null,
@@ -16459,7 +16459,7 @@ final class SQLiteUpstreamSuiteEvidence
                 'current-artifact-preserved-suite-map-blocked' => 'preserve current accepted artifact evidence and resolve suite-map blockers before launching a next-source runner',
                 default => 'do not count release/all movement until current artifact provenance and current-to-next suite map gates are explicit',
             },
-            'dependency_closure' => 'no new support component needed; current-next32 suite map composes existing artifact provenance, command-manifest, selected-script, wildcard, and permutation-suite gates only',
+            'dependency_closure' => 'no new support component needed; current-to-next suite map composes existing artifact provenance, command-manifest, selected-script, wildcard, and permutation-suite gates only',
         ];
     }
 

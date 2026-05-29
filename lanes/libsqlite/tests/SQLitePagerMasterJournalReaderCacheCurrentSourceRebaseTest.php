@@ -53,7 +53,7 @@ $plan = static fn (
     bool $refresh = true,
     ?string $path = null,
     ?string $masterJournalPath = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext158(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::planCurrentSourceReaderCacheRebase(
     $path ?? $databasePath,
     $masterJournalPath ?? $masterPath,
     $cached === '__default__' ? $cachedMaster : $cached,

@@ -52,7 +52,7 @@ SQL;
 
 $currentTables = ['wp_options' => $currentOptions, 'network_options' => $currentNetwork];
 $nextTables = ['wp_options' => $nextOptions, 'network_options' => $nextNetwork];
-$summary = static fn (): array => SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan::compareNext133($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan::compareWindowExceptAffinity($sql, $currentTables, $nextTables);
 
 $tests = [];
 
@@ -124,7 +124,7 @@ $tests['compound window except affinity current source next133 replan reasons'] 
 };
 
 $tests['compound window except affinity current source next133 rejects non except compound'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan::compareNext133(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan::compareWindowExceptAffinity(
         'SELECT option_name AS name FROM wp_options UNION SELECT option_name AS name FROM network_options',
         $currentTables,
         $currentTables,

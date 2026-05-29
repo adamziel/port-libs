@@ -14,7 +14,7 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext133(string $sql, array $currentTables, array $nextTables): array
+        public static function compareWindowExceptAffinity(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -30,43 +30,43 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
 
-            $currentRemoved = self::exceptRemovedRowsNext133($currentPlan, $currentTables);
-            $nextRemoved = self::exceptRemovedRowsNext133($nextPlan, $nextTables);
+            $currentRemoved = self::exceptRemovedRows($currentPlan, $currentTables);
+            $nextRemoved = self::exceptRemovedRows($nextPlan, $nextTables);
 
             return [
                 'status' => 'compound-window-except-affinity-current-source-next133-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
-                'currentSignatures' => self::rowSignaturesNext133($currentRows),
-                'nextSignatures' => self::rowSignaturesNext133($nextRows),
-                'changedSignatures' => self::changedSignaturesNext133($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignatures($currentRows),
+                'nextSignatures' => self::rowSignatures($nextRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
                 'compound' => [
                     'operators' => $operators,
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext133($currentPlan),
-                    'exceptArmIndexes' => self::exceptArmIndexesNext133($operators),
+                    'orderColumns' => self::orderColumns($currentPlan),
+                    'exceptArmIndexes' => self::exceptArmIndexes($operators),
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext133($currentPlan),
-                    'next' => self::windowTermsNext133($nextPlan),
+                    'current' => self::windowTerms($currentPlan),
+                    'next' => self::windowTerms($nextPlan),
                     'aliases' => array_values(array_unique(array_merge(
-                        array_column(self::windowTermsNext133($currentPlan), 'alias'),
-                        array_column(self::windowTermsNext133($nextPlan), 'alias'),
+                        array_column(self::windowTerms($currentPlan), 'alias'),
+                        array_column(self::windowTerms($nextPlan), 'alias'),
                     ))),
                 ],
                 'affinity' => [
-                    'currentClasses' => self::valueClassesNext133($currentRows),
-                    'nextClasses' => self::valueClassesNext133($nextRows),
-                    'currentDuplicateClasses' => self::duplicateClassesNext133($currentRows),
-                    'nextDuplicateClasses' => self::duplicateClassesNext133($nextRows),
-                    'changedClasses' => self::changedValueClassesNext133($currentRows, $nextRows),
+                    'currentClasses' => self::valueClasses($currentRows),
+                    'nextClasses' => self::valueClasses($nextRows),
+                    'currentDuplicateClasses' => self::duplicateClasses($currentRows),
+                    'nextDuplicateClasses' => self::duplicateClasses($nextRows),
+                    'changedClasses' => self::changedValueClasses($currentRows, $nextRows),
                 ],
                 'except' => [
                     'currentRemoved' => $currentRemoved,
                     'nextRemoved' => $nextRemoved,
                 ],
-                'replanReasons' => self::replanReasonsNext133($currentRows, $nextRows, $currentPlan, $nextPlan, $currentRemoved, $nextRemoved),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentPlan, $nextPlan, $currentRemoved, $nextRemoved),
                 'dependencies' => [
                     'sqlite-compound-except-affinity',
                     'sqlite-window-arm-current-source',
@@ -79,7 +79,7 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext133(array $plan): array
+        private static function orderColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -96,7 +96,7 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param list<string> $operators
          * @return list<int>
          */
-        private static function exceptArmIndexesNext133(array $operators): array
+        private static function exceptArmIndexes(array $operators): array
         {
             $indexes = [];
             foreach ($operators as $index => $operator) {
@@ -112,7 +112,7 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext133(array $plan): array
+        private static function windowTerms(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -149,7 +149,7 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $tables
          * @return list<array<string,mixed>>
          */
-        private static function exceptRemovedRowsNext133(array $plan, array $tables): array
+        private static function exceptRemovedRows(array $plan, array $tables): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null) || !is_array($compound['operators'] ?? null)) {
@@ -162,7 +162,7 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
                 if (!is_array($arm)) {
                     continue;
                 }
-                $armRows = self::executeArmNext133($arm);
+                $armRows = self::executeArm($arm);
                 if ($index === 0) {
                     $rows = $armRows;
                     continue;
@@ -170,14 +170,14 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
 
                 $operator = strtoupper((string) ($compound['operators'][$index - 1] ?? ''));
                 if ($operator === 'EXCEPT' && is_array($rows)) {
-                    $nextRows = SQLiteSelectCompound::combine($rows, $armRows, 'EXCEPT', self::compoundSelectCollationsNext133($compound['arms'][0]));
-                    $removed = array_merge($removed, self::removedBySignatureNext133($rows, $nextRows));
+                    $nextRows = SQLiteSelectCompound::combine($rows, $armRows, 'EXCEPT', self::compoundSelectCollations($compound['arms'][0]));
+                    $removed = array_merge($removed, self::removedBySignature($rows, $nextRows));
                     $rows = $nextRows;
                     continue;
                 }
 
                 if (is_array($rows)) {
-                    $rows = SQLiteSelectCompound::combine($rows, $armRows, $operator, self::compoundSelectCollationsNext133($compound['arms'][0]));
+                    $rows = SQLiteSelectCompound::combine($rows, $armRows, $operator, self::compoundSelectCollations($compound['arms'][0]));
                 }
             }
 
@@ -188,7 +188,7 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $arm
          * @return list<array<string,mixed>>
          */
-        private static function executeArmNext133(array $arm): array
+        private static function executeArm(array $arm): array
         {
             $rows = SQLiteSelectQuery::execute($arm);
             $hidden = [];
@@ -215,9 +215,9 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $after
          * @return list<array<string,mixed>>
          */
-        private static function removedBySignatureNext133(array $before, array $after): array
+        private static function removedBySignature(array $before, array $after): array
         {
-            $afterSignatures = array_fill_keys(self::rowSignaturesNext133($after), true);
+            $afterSignatures = array_fill_keys(self::rowSignatures($after), true);
             $removed = [];
             foreach ($before as $row) {
                 if (!isset($afterSignatures[json_encode($row, JSON_THROW_ON_ERROR)])) {
@@ -232,7 +232,7 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $arm
          * @return array<string,string>
          */
-        private static function compoundSelectCollationsNext133(array $arm): array
+        private static function compoundSelectCollations(array $arm): array
         {
             if (!is_array($arm['select'] ?? null)) {
                 return [];
@@ -256,7 +256,7 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext133(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -266,10 +266,10 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext133(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext133($currentRows);
-            $next = self::rowSignaturesNext133($nextRows);
+            $current = self::rowSignatures($currentRows);
+            $next = self::rowSignatures($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -278,12 +278,12 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function duplicateClassesNext133(array $rows): array
+        private static function duplicateClasses(array $rows): array
         {
             $counts = [];
             foreach ($rows as $row) {
                 foreach ($row as $value) {
-                    $key = self::sqliteValueClassNext133($value);
+                    $key = self::sqliteValueClass($value);
                     $counts[$key] = ($counts[$key] ?? 0) + 1;
                 }
             }
@@ -296,10 +296,10 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedValueClassesNext133(array $currentRows, array $nextRows): array
+        private static function changedValueClasses(array $currentRows, array $nextRows): array
         {
-            $current = self::valueClassesNext133($currentRows);
-            $next = self::valueClassesNext133($nextRows);
+            $current = self::valueClasses($currentRows);
+            $next = self::valueClasses($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -308,19 +308,19 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function valueClassesNext133(array $rows): array
+        private static function valueClasses(array $rows): array
         {
             $classes = [];
             foreach ($rows as $row) {
                 foreach ($row as $value) {
-                    $classes[self::sqliteValueClassNext133($value)] = true;
+                    $classes[self::sqliteValueClass($value)] = true;
                 }
             }
 
             return array_keys($classes);
         }
 
-        private static function sqliteValueClassNext133(mixed $value): string
+        private static function sqliteValueClass(mixed $value): string
         {
             if ($value === null) {
                 return 'null';
@@ -344,19 +344,19 @@ final class SQLiteCompoundWindowExceptAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRemoved
          * @return list<string>
          */
-        private static function replanReasonsNext133(array $currentRows, array $nextRows, array $currentPlan, array $nextPlan, array $currentRemoved, array $nextRemoved): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentPlan, array $nextPlan, array $currentRemoved, array $nextRemoved): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext133($currentRows) !== self::rowSignaturesNext133($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'compound-except-rowset-changed';
             }
-            if (self::windowTermsNext133($currentPlan) !== []) {
+            if (self::windowTerms($currentPlan) !== []) {
                 $reasons[] = 'compound-window-arm-source';
             }
-            if (self::changedValueClassesNext133($currentRows, $nextRows) !== []) {
+            if (self::changedValueClasses($currentRows, $nextRows) !== []) {
                 $reasons[] = 'affinity-class-changed';
             }
-            if (self::rowSignaturesNext133($currentRemoved) !== self::rowSignaturesNext133($nextRemoved)) {
+            if (self::rowSignatures($currentRemoved) !== self::rowSignatures($nextRemoved)) {
                 $reasons[] = 'except-removal-set-changed';
             }
 

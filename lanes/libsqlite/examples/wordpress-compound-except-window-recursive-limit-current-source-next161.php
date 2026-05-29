@@ -45,7 +45,7 @@ SELECT option_id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan::compareNext161($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveExceptWindowLimit($sql, $currentTables, $nextTables);
 
 $result = [
     'scenario' => 'wordpress-compound-except-window-recursive-limit-current-source-next161',

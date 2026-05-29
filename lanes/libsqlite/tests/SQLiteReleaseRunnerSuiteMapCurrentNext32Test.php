@@ -139,7 +139,7 @@ $tests = [
         libsqlite_suite_map32_artifact($artifacts, $currentHead, 'current');
 
         try {
-            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMapCurrentNext32($currentHead, $nextHead, $root, $artifacts, '', 3);
+            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMap($currentHead, $nextHead, $root, $artifacts, '', 3);
 
             $t->same('ready-current-to-next-suite-map', $record['status']);
             $t->same('ready-map-current-to-next-runner', $record['upstream_map_status']);
@@ -174,7 +174,7 @@ $tests = [
         libsqlite_suite_map32_artifact($artifacts, $nextHead, 'next');
 
         try {
-            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMapCurrentNext32($currentHead, $nextHead, $root, $artifacts);
+            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMap($currentHead, $nextHead, $root, $artifacts);
 
             $t->same('next-artifact-already-countable', $record['status']);
             $t->same(1, $record['current_artifact_count']);
@@ -191,7 +191,7 @@ $tests = [
         libsqlite_suite_map32_artifact($artifacts, $currentHead, 'current');
 
         try {
-            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMapCurrentNext32($currentHead, $nextHead, $root, $artifacts);
+            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMap($currentHead, $nextHead, $root, $artifacts);
 
             $t->same('current-artifact-preserved-suite-map-blocked', $record['status']);
             $t->same('blocked', $record['selected_script_status']);
@@ -205,7 +205,7 @@ $tests = [
         $root = libsqlite_suite_map32_fixture('no-current', libsqlite_suite_map32_parts());
 
         try {
-            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMapCurrentNext32($currentHead, $nextHead, $root, $root . '/artifacts');
+            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMap($currentHead, $nextHead, $root, $root . '/artifacts');
 
             $t->same('blocked', $record['status']);
             $t->same(0, $record['current_artifact_count']);
@@ -223,7 +223,7 @@ $tests = [
         $snapshot = "1666104 1666103 S+ 28:39 0.2 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release\n";
 
         try {
-            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMapCurrentNext32($currentHead, $nextHead, $root, $artifacts, $snapshot);
+            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMap($currentHead, $nextHead, $root, $artifacts, $snapshot);
 
             $t->same('current-artifact-preserved-suite-map-blocked', $record['status']);
             $t->same('blocked-active-runner', $record['active_runner_status']);
@@ -236,19 +236,19 @@ $tests = [
     'current next32 rejects missing current head' => static function (TestRunner $t) use ($nextHead): void {
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => libsqlite_suite_map32_evidence()->releaseRunnerSuiteMapCurrentNext32('', $nextHead)
+            static fn () => libsqlite_suite_map32_evidence()->releaseRunnerSuiteMap('', $nextHead)
         );
     },
     'current next32 rejects missing next head' => static function (TestRunner $t) use ($currentHead): void {
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => libsqlite_suite_map32_evidence()->releaseRunnerSuiteMapCurrentNext32($currentHead, '')
+            static fn () => libsqlite_suite_map32_evidence()->releaseRunnerSuiteMap($currentHead, '')
         );
     },
     'current next32 rejects zero jobs' => static function (TestRunner $t) use ($currentHead, $nextHead): void {
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => libsqlite_suite_map32_evidence()->releaseRunnerSuiteMapCurrentNext32($currentHead, $nextHead, null, null, '', 0)
+            static fn () => libsqlite_suite_map32_evidence()->releaseRunnerSuiteMap($currentHead, $nextHead, null, null, '', 0)
         );
     },
 ];
@@ -266,7 +266,7 @@ foreach ([
         libsqlite_suite_map32_artifact($artifacts, $currentHead, 'current');
 
         try {
-            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMapCurrentNext32($currentHead, $nextHead, $root, $artifacts);
+            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMap($currentHead, $nextHead, $root, $artifacts);
 
             $t->same('current-artifact-preserved-suite-map-blocked', $record['status']);
             foreach ($case['blockers'] as $blocker) {
@@ -286,7 +286,7 @@ for ($i = 1; $i <= 42; $i++) {
         libsqlite_suite_map32_artifact($artifacts, $currentHead, 'current-' . $i);
 
         try {
-            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMapCurrentNext32($currentHead, $nextHead, $root, $artifacts, '', 2);
+            $record = libsqlite_suite_map32_evidence()->releaseRunnerSuiteMap($currentHead, $nextHead, $root, $artifacts, '', 2);
 
             $t->same('ready-current-to-next-suite-map', $record['status']);
             $t->same(1, $record['current_artifact_count']);

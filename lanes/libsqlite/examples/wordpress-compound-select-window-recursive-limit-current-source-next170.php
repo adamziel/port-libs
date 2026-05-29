@@ -52,6 +52,6 @@ SELECT option_id AS id,
 SQL;
 
 echo json_encode(
-    SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan::compareNext170($sql, $currentTables, $nextTables),
+    SQLiteCompoundExceptWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveExceptWindowOffsetExhaustion($sql, $currentTables, $nextTables),
     JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR,
 ) . PHP_EOL;
