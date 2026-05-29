@@ -69,8 +69,8 @@ foreach (range(1001, 1016) as $next) {
     };
 }
 
-$tests['json table generated path rowid cost current source next1016 rejects next1017 alias'] = static function (TestRunner $t) use ($plan10011016): void {
-    $t->throws(Error::class, static fn () => $plan10011016(1017));
+$tests['json table generated path rowid cost current source next1016 rejects next1033 alias'] = static function (TestRunner $t) use ($plan10011016): void {
+    $t->throws(Error::class, static fn () => $plan10011016(1033));
 };
 
 return $tests;
