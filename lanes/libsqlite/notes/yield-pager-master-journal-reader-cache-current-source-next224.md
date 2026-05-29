@@ -2,14 +2,14 @@
 
 ## Scope
 
-- Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext224Plan`, layered on the accepted next218 master-journal cleanup token gate.
+- Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, layered on the accepted next218 master-journal cleanup token gate.
 - New behavior: reader-cache pages and read tickets must carry the current pager reader-lease token before reuse after master-journal recovery and cleanup. A page that already passes member-journal, raw master bytes, database file-token, and cleanup-token checks is still reopened if it belongs to a shared-cache reader lease opened before the current source was published.
 - WordPress smoke: `examples/wordpress-pager-master-journal-reader-cache-current-source-next224.php` models copied `wp_options` schema/options pages that remain reusable while an `active_plugins` reader pinned before master-journal cleanup reopens.
 
 ## Evidence
 
 - Syntax:
-  - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext224Plan.php`
+  - `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
   - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext224Test.php`
   - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next224.php`
 - Focused test command: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext224Test.php`

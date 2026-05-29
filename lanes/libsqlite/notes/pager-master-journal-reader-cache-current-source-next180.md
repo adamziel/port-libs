@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `pager-master-journal-reader-cache-current-source-next180`.
 
-This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext180Plan`. It extends the accepted master-journal reader-cache current-source series with page-1 format-ticket fencing: after master-journal recovery, reader-cache pages are reusable only when the recovered header page-size, reserved-byte count, text encoding, user version, and application id still match the cache ticket. Matching clean pages can be retained or refreshed from the recovered source; dirty pages, stale source/epoch tickets, stale format tickets, and pinned stale images are invalidated before the next read.
+This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It extends the accepted master-journal reader-cache current-source series with page-1 format-ticket fencing: after master-journal recovery, reader-cache pages are reusable only when the recovered header page-size, reserved-byte count, text encoding, user version, and application id still match the cache ticket. Matching clean pages can be retained or refreshed from the recovered source; dirty pages, stale source/epoch tickets, stale format tickets, and pinned stale images are invalidated before the next read.
 
 WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next180.php` covers copied `wp_options` recovery where the schema cache survives the recovered format ticket, the `wp_options` root page refreshes from the recovered current source, and `active_plugins` cache keyed to the previous format ticket is forced to reopen.
 
@@ -10,7 +10,7 @@ Focused evidence:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext180Test.php`
 - `php lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next180.php`
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext180Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext180Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next180.php`
 - `git diff --check -- lanes/libsqlite`

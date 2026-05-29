@@ -1,6 +1,6 @@
 # Pager Master-Journal Reader Cache Current Source Next192
 
-This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext192Plan`.
+This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`.
 It composes the existing next186 recovered-page-set/source fences and adds an
 attached rollback-journal member token fence before clean reader-cache pages are
 reused after master-journal recovery.

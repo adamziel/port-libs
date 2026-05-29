@@ -2,14 +2,14 @@
 
 Status: focused PHP behavior growth for `pager-master-journal-reader-cache-current-source-next250`.
 
-This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext250Plan`. It extends the accepted pager/master-journal reader-cache current-source family by requiring a current master-journal reader snapshot token before a recovered reader-cache page can be reused. A page whose bytes and current-source provenance still look valid is fenced when the reader snapshot was opened before the current master-journal recovery completed.
+This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It extends the accepted pager/master-journal reader-cache current-source family by requiring a current master-journal reader snapshot token before a recovered reader-cache page can be reused. A page whose bytes and current-source provenance still look valid is fenced when the reader snapshot was opened before the current master-journal recovery completed.
 
 WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next250.php` covers a copied `wp_options` database where the schema cache remains reusable, an options-root cache page reopens because its reader snapshot predates the recovered master journal, and an `active_plugins` reader reopens because its source provenance is stale.
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext250Plan.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext250Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext250Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext250Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next250.php`

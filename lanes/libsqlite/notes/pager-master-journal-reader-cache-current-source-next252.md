@@ -2,13 +2,13 @@
 
 ## Behavior
 
-Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext252Plan`, a narrow pager/master-journal reader-cache fence for recovered master-journal member manifests. It composes the accepted next248 page-owner map admission and then rejects otherwise-current reader-cache entries or read tickets when their `master_member_manifest_token` predates the recovered current source.
+Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a narrow pager/master-journal reader-cache fence for recovered master-journal member manifests. It composes the accepted next248 page-owner map admission and then rejects otherwise-current reader-cache entries or read tickets when their `master_member_manifest_token` predates the recovered current source.
 
 WordPress relevance: copied `wp_options` imports that recover an attached-database master journal can keep schema/options cache pages only when the read ticket is stamped with the current member manifest. Stale member-manifest readers reopen before plugin/settings import resumes.
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext252Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext252Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next252.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext252Test.php`

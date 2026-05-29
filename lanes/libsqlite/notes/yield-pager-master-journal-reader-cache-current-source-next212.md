@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext212Plan`, a current-source pager reader-cache fence for master-journal recovery. After the accepted membership, member-token/header, master file-token, and raw master-journal bytes fences admit a cached page, next212 also requires the recovered database file token to match before reusing the reader cache or read ticket.
+Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a current-source pager reader-cache fence for master-journal recovery. After the accepted membership, member-token/header, master file-token, and raw master-journal bytes fences admit a cached page, next212 also requires the recovered database file token to match before reusing the reader cache or read ticket.
 
 This prevents a WordPress import/copy reader from reusing `wp_options` page images when a master-journal recovery publishes a newer database file generation while the master journal metadata itself still looks current.
 

@@ -1,12 +1,12 @@
 # Pager Master-Journal Reader-Cache Current Source Next240
 
-This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext240Plan`, a current-source fence for prepared-statement schema-root tickets after master-journal recovery.
+This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a current-source fence for prepared-statement schema-root tickets after master-journal recovery.
 
 The new behavior keeps reader-cache rows only when the accepted next236 schema-reparse fence has already admitted the cache row and the cache/read statement schema-root token matches the current recovered source. Stale statement tickets reopen before WordPress resumes copied `wp_options` or `active_plugins` reads after a master-journal rollback.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext240Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext240Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next240.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext240Test.php`

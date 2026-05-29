@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext209Plan`, a pager
+Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a pager
 reader-cache current-source fence layered above next206. After master-journal
 recovery, cached reader pages may only be reused when the raw master-journal
 bytes digest matches the current VFS read. This catches a same-member,
@@ -12,7 +12,7 @@ source representation before the next reader.
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext209Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
   - no syntax errors
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext209Test.php`
   - no syntax errors

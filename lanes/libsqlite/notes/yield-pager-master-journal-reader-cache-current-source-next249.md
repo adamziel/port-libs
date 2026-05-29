@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `pager-master-journal-reader-cache-current-source-next249`.
 
-This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext249Plan`. It composes the accepted next246 current-source version-vector fence with a narrower reader-cache source-handoff token. A cache page can cross master-journal recovery only when the recovered source is handed off to the reader cache using the current token; stale handoff tokens force reader reopen even when earlier version-vector, provenance, statement-root, schema, and journal-member checks pass.
+This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It composes the accepted next246 current-source version-vector fence with a narrower reader-cache source-handoff token. A cache page can cross master-journal recovery only when the recovered source is handed off to the reader cache using the current token; stale handoff tokens force reader reopen even when earlier version-vector, provenance, statement-root, schema, and journal-member checks pass.
 
 WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next249.php` models copied `wp_options` import behavior where schema/options pages remain reusable, while a stale `active_plugins` reader cache reopens before plugin import continues.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext249Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext249Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next249.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext249Test.php`

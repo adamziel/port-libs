@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext196Plan`, a current-source pager admission fence layered above next192. After master-journal recovery, cached reader pages may only be reused when each attached rollback-journal member still has the current journal-header digest. This catches a reused file-token case where the member path metadata is unchanged but the rollback-journal header/salt belongs to a different recovery source.
+Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a current-source pager admission fence layered above next192. After master-journal recovery, cached reader pages may only be reused when each attached rollback-journal member still has the current journal-header digest. This catches a reused file-token case where the member path metadata is unchanged but the rollback-journal header/salt belongs to a different recovery source.
 
 ## Evidence
 

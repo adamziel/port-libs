@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext203Plan`, a narrow
+Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a narrow
 reader-cache fence for master-journal member order. It handles the case where
 the same attached rollback journals still have matching token/header maps, but
 the current master journal lists those members in a different order. SQLite's

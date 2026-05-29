@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `pager-master-journal-reader-cache-current-source-next155`.
 
-This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext155Plan`. It models the pager boundary after master-journal hot recovery where reader cache entries may be reused only when their source id, epoch, reader generation, shared-lock state, dirty state, and page image match the recovered current source. Clean stale reader pages are refreshed, while pinned stale, dirty, old-source, old-epoch, and old-generation entries are invalidated before the next reader observes recovered pages.
+This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It models the pager boundary after master-journal hot recovery where reader cache entries may be reused only when their source id, epoch, reader generation, shared-lock state, dirty state, and page image match the recovered current source. Clean stale reader pages are refreshed, while pinned stale, dirty, old-source, old-epoch, and old-generation entries are invalidated before the next reader observes recovered pages.
 
 WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next155.php` covers copied `wp_options` repair where an `active_plugins` reader page is refreshed after master-journal recovery, a stale pinned autoload-index reader page is invalidated, and the next reads use the recovered current source.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext155Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext155Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next155.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext155Test.php`

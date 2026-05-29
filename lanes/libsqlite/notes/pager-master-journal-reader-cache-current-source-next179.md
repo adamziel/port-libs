@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `pager-master-journal-reader-cache-current-source-next179`.
 
-This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext179Plan`. It models the pager boundary after a current master journal is read through VFS path aliases: reader-cache pages are admitted only after the raw master-journal members are resolved to canonical paths and the canonical member digest proves the same attached rollback journals. Reordered or aliased raw member names can retain or refresh clean cache pages, while dirty pages, stale source/epoch tickets, pinned stale images, wrong canonical member sets, and stale read tickets force reader reopen before the next read/write.
+This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It models the pager boundary after a current master journal is read through VFS path aliases: reader-cache pages are admitted only after the raw master-journal members are resolved to canonical paths and the canonical member digest proves the same attached rollback journals. Reordered or aliased raw member names can retain or refresh clean cache pages, while dirty pages, stale source/epoch tickets, pinned stale images, wrong canonical member sets, and stale read tickets force reader reopen before the next read/write.
 
 WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next179.php` covers a copied `wp_options` database where schema and `active_plugins` cache pages survive VFS alias canonicalization, while plugin settings from an old source reopen before the import continues.
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext179Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext179Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next179.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext179Test.php`

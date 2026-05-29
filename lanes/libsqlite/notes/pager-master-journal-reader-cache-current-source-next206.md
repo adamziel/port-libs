@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext206Plan`, a narrow
+Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, a narrow
 pager reader-cache fence layered after next203. It covers a current-source edge
 where the ordered master-journal member list, attached member file tokens, and
 attached member rollback-journal header digests still match, but the

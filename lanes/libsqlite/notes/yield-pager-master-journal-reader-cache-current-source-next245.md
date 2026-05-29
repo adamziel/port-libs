@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `pager-master-journal-reader-cache-current-source-next245`.
 
-This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext245Plan`. It composes the accepted next242 statement-snapshot reader-cache fence with a narrower sqlite_schema rootpage-map fence after master-journal recovery. A cache page can cross into the next current source only when the prepared statement snapshot and the recovered rootpage map both match the current source; stale rootpage maps reopen readers even if the statement snapshot token is otherwise current.
+This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It composes the accepted next242 statement-snapshot reader-cache fence with a narrower sqlite_schema rootpage-map fence after master-journal recovery. A cache page can cross into the next current source only when the prepared statement snapshot and the recovered rootpage map both match the current source; stale rootpage maps reopen readers even if the statement snapshot token is otherwise current.
 
 WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next245.php` models copied `wp_options` import behavior where the schema page remains reusable, while a stale `wp_options` rootpage-map ticket and a stale `active_plugins` statement snapshot reopen before plugin import continues.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext245Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext245Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next245.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext245Test.php`

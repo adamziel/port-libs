@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext218Plan`, layered on the accepted next212 pager reader-cache source ticket.
+- Adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`, layered on the accepted next212 pager reader-cache source ticket.
 - New behavior: reader-cache pages and pending read tickets must carry the current master-journal cleanup token before they can be reused after master-journal recovery. A page that otherwise passes database file-token, member-header, member-order, raw master bytes, and recovered-page checks is fenced if it was cached before durable master-journal cleanup/deletion.
 - WordPress smoke: `examples/wordpress-pager-master-journal-reader-cache-current-source-next218.php` models a copied `wp_options` database where schema/options cache readers remain reusable after cleanup, while an `active_plugins` reader pinned before master-journal cleanup reopens.
 

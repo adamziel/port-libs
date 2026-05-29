@@ -35488,4 +35488,1037 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
 
         return $values;
     }
+
+    /**
+     * @param array<int,string> $recoveredPages
+     * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_generation?:int,pinned?:bool,dirty?:bool,shared_lock?:bool,source?:string}> $readerCachePages
+     * @param list<int> $nextReadPages
+     * @return array<string,mixed>
+     */
+    public static function variantNext155(
+        string $databasePath,
+        string $journalPath,
+        string $masterJournalPath,
+        ?string $masterJournalBytes,
+        string $databaseBytes,
+        int $pageSize,
+        array $recoveredPages,
+        array $readerCachePages,
+        array $nextReadPages,
+        string $currentSourceId,
+        int $currentSourceEpoch,
+        int $currentReaderGeneration,
+        bool $allowCleanRefresh = true,
+    ): array {
+        if ($databasePath === '' || $journalPath === '' || $masterJournalPath === '') {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 requires database, journal, and master journal paths');
+        }
+        if ($masterJournalBytes === null || trim($masterJournalBytes) === '') {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 requires master journal bytes');
+        }
+        $members = self::membersNext155($masterJournalBytes);
+        if (!in_array($journalPath, $members, true)) {
+            throw new \RuntimeException('SQLite pager master-journal reader-cache next155 master journal does not reference the rollback journal');
+        }
+        if ($databaseBytes === '') {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 requires database bytes');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 page size must be a power of two at least 512');
+        }
+        if (strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 database bytes must be page-size aligned');
+        }
+        if ($recoveredPages === [] || $readerCachePages === [] || $nextReadPages === []) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 requires recovered pages, reader cache pages, and next reads');
+        }
+        if ($currentSourceId === '') {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 requires a current source id');
+        }
+        if ($currentSourceEpoch < 1 || $currentReaderGeneration < 1) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 source epoch and reader generation must be positive');
+        }
+
+        $pageCount = (int) (strlen($databaseBytes) / $pageSize);
+        $database = self::databaseMapNext155($databaseBytes, $pageSize);
+        $recoveredPages = self::normalizeImagesNext155($recoveredPages, $pageSize, $pageCount, 'recovered');
+        $readerCachePages = self::normalizeCacheNext155($readerCachePages, $pageSize, $pageCount);
+        self::assertPageListNext155($nextReadPages, $pageCount);
+
+        $nextSourceId = 'master-reader-cache:' . substr(hash('sha256', $databasePath . $masterJournalPath . implode("\n", $members)), 0, 16);
+        $nextEpoch = $currentSourceEpoch + 1;
+        $nextReaderGeneration = $currentReaderGeneration + 1;
+        $operations = [[
+            'op' => 'read_master_journal_for_reader_cache',
+            'path' => $masterJournalPath,
+            'member' => $journalPath,
+            'reason' => 'reader_cache_must_follow_current_master_journal_source',
+        ]];
+
+        foreach ($recoveredPages as $pageNumber => $image) {
+            $database[$pageNumber] = [
+                'image' => $image,
+                'source' => 'master-journal-recovered-current-reader-source',
+            ];
+            $operations[] = [
+                'op' => 'restore_master_journal_page_before_reader_cache',
+                'page_number' => $pageNumber,
+                'reason' => 'recover_current_source_before_reader_cache_reuse',
+            ];
+        }
+
+        $retained = [];
+        $refreshed = [];
+        $invalidated = [];
+        $validCache = [];
+        $rows = [];
+
+        foreach ($readerCachePages as $pageNumber => $entry) {
+            $currentImage = $database[$pageNumber]['image'];
+            $reasons = [];
+            if (!$entry['shared_lock']) {
+                $reasons[] = 'reader_without_shared_lock';
+            }
+            if ($entry['dirty']) {
+                $reasons[] = 'dirty_reader_cache_page';
+            }
+            if ($entry['pinned'] && $entry['image'] !== $currentImage) {
+                $reasons[] = 'pinned_reader_cache_predates_master_recovery';
+            }
+            if ($entry['source_id'] !== $currentSourceId) {
+                $reasons[] = 'stale_master_source_id';
+            }
+            if ($entry['epoch'] !== $currentSourceEpoch) {
+                $reasons[] = 'stale_master_source_epoch';
+            }
+            if ($entry['reader_generation'] !== $currentReaderGeneration) {
+                $reasons[] = 'stale_reader_generation';
+            }
+            if ($entry['image'] !== $currentImage && !$allowCleanRefresh) {
+                $reasons[] = 'clean_reader_cache_refresh_disabled';
+            }
+
+            $rows[$pageNumber] = [
+                'page_number' => $pageNumber,
+                'source_id' => $entry['source_id'],
+                'epoch' => $entry['epoch'],
+                'reader_generation' => $entry['reader_generation'],
+                'shared_lock' => $entry['shared_lock'],
+                'pinned' => $entry['pinned'],
+                'dirty' => $entry['dirty'],
+                'cache_prefix' => self::prefixNext155($entry['image']),
+                'current_prefix' => self::prefixNext155($currentImage),
+                'image_matches_current_source' => $entry['image'] === $currentImage,
+                'reasons' => $reasons,
+            ];
+
+            if ($reasons !== []) {
+                $invalidated[$pageNumber] = $reasons;
+                $operations[] = [
+                    'op' => 'invalidate_master_journal_reader_cache_page',
+                    'page_number' => $pageNumber,
+                    'reasons' => $reasons,
+                ];
+                continue;
+            }
+
+            if ($entry['image'] === $currentImage) {
+                $retained[] = $pageNumber;
+                $operations[] = [
+                    'op' => 'retain_master_journal_reader_cache_page',
+                    'page_number' => $pageNumber,
+                    'reason' => 'reader_cache_page_matches_current_source',
+                ];
+            } else {
+                $refreshed[] = $pageNumber;
+                $operations[] = [
+                    'op' => 'refresh_master_journal_reader_cache_page',
+                    'page_number' => $pageNumber,
+                    'reason' => 'clean_reader_cache_image_predates_master_recovery',
+                ];
+            }
+            $validCache[$pageNumber] = [
+                'image' => $currentImage,
+                'source' => $entry['image'] === $currentImage ? $entry['source'] : 'master-journal-reader-cache-refreshed-current-source',
+                'source_id' => $nextSourceId,
+                'epoch' => $nextEpoch,
+                'reader_generation' => $nextReaderGeneration,
+            ];
+        }
+
+        $reads = [];
+        foreach ($nextReadPages as $pageNumber) {
+            $cacheEntry = $validCache[$pageNumber] ?? null;
+            $cacheHit = is_array($cacheEntry);
+            $image = $cacheHit ? $cacheEntry['image'] : $database[$pageNumber]['image'];
+            $reads[] = [
+                'page_number' => $pageNumber,
+                'cache_hit' => $cacheHit,
+                'source' => $cacheHit ? $cacheEntry['source'] : $database[$pageNumber]['source'],
+                'source_id' => $nextSourceId,
+                'epoch' => $nextEpoch,
+                'reader_generation' => $nextReaderGeneration,
+                'prefix' => self::prefixNext155($image),
+            ];
+            $operations[] = [
+                'op' => $cacheHit ? 'next_reader_master_journal_cache_hit' : 'next_reader_master_journal_cache_miss',
+                'page_number' => $pageNumber,
+                'reason' => 'next_reader_uses_master_journal_current_source',
+            ];
+        }
+
+        ksort($rows, SORT_NUMERIC);
+        ksort($invalidated, SORT_NUMERIC);
+        sort($retained, SORT_NUMERIC);
+        sort($refreshed, SORT_NUMERIC);
+
+        return [
+            'status' => 'pager_master_journal_reader_cache_current_source_next155',
+            'reason' => 'master_journal_recovery_revalidates_reader_cache_before_next_read',
+            'database_path' => $databasePath,
+            'journal_path' => $journalPath,
+            'master_journal_path' => $masterJournalPath,
+            'master_members' => $members,
+            'page_size' => $pageSize,
+            'current_source' => [
+                'id' => $currentSourceId,
+                'epoch' => $currentSourceEpoch,
+                'reader_generation' => $currentReaderGeneration,
+            ],
+            'next_source' => [
+                'id' => $nextSourceId,
+                'epoch' => $nextEpoch,
+                'reader_generation' => $nextReaderGeneration,
+            ],
+            'recovered_page_numbers' => array_keys($recoveredPages),
+            'retained_cache_page_numbers' => $retained,
+            'refreshed_cache_page_numbers' => $refreshed,
+            'invalidated_cache_page_numbers' => array_keys($invalidated),
+            'invalidated_cache_pages' => $invalidated,
+            'reader_cache_rows' => array_values($rows),
+            'reader_cache_rows_by_page' => $rows,
+            'next_reads' => $reads,
+            'operations' => $operations,
+            'source_digest' => hash('sha256', $databasePath . $journalPath . $masterJournalPath . implode('', array_column($database, 'image')) . implode(',', array_keys($invalidated))),
+            'dependencies' => [
+                'sqlite-pager-master-journal-reader-cache-current-source-next155',
+                'sqlite-master-journal-current-source-member-validation',
+                'sqlite-pager-reader-cache-current-source',
+            ],
+        ];
+    }
+
+    /** @return list<string> */
+    private static function membersNext155(string $bytes): array
+    {
+        $members = [];
+        foreach (preg_split('/\r?\n/', $bytes) ?: [] as $line) {
+            $line = trim($line);
+            if ($line !== '' && !in_array($line, $members, true)) {
+                $members[] = $line;
+            }
+        }
+
+        return $members;
+    }
+
+    /** @return array<int,array{image:string,source:string}> */
+    private static function databaseMapNext155(string $databaseBytes, int $pageSize): array
+    {
+        $pages = [];
+        $pageCount = (int) (strlen($databaseBytes) / $pageSize);
+        for ($page = 1; $page <= $pageCount; $page++) {
+            $pages[$page] = [
+                'image' => substr($databaseBytes, ($page - 1) * $pageSize, $pageSize),
+                'source' => 'database-before-master-journal-recovery',
+            ];
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @param array<int,string> $images
+     * @return array<int,string>
+     */
+    private static function normalizeImagesNext155(array $images, int $pageSize, int $pageCount, string $label): array
+    {
+        $normalized = [];
+        foreach ($images as $pageNumber => $image) {
+            if (!is_int($pageNumber) || $pageNumber < 1 || $pageNumber > $pageCount) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next155 {$label} page number is outside the database image");
+            }
+            if (!is_string($image) || strlen($image) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next155 {$label} page image must match the page size");
+            }
+            $normalized[$pageNumber] = $image;
+        }
+        ksort($normalized, SORT_NUMERIC);
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $cache
+     * @return array<int,array{image:string,source_id:string,epoch:int,reader_generation:int,pinned:bool,dirty:bool,shared_lock:bool,source:string}>
+     */
+    private static function normalizeCacheNext155(array $cache, int $pageSize, int $pageCount): array
+    {
+        $normalized = [];
+        foreach ($cache as $pageNumber => $entry) {
+            if (!is_int($pageNumber) || $pageNumber < 1 || $pageNumber > $pageCount) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 cache page number is outside the database image');
+            }
+            $image = $entry['image'] ?? null;
+            if (!is_string($image) || strlen($image) !== $pageSize) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 cache image must match the page size');
+            }
+            $sourceId = (string) ($entry['source_id'] ?? '');
+            if ($sourceId === '') {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 cache source id is required');
+            }
+            $epoch = (int) ($entry['epoch'] ?? 0);
+            $generation = (int) ($entry['reader_generation'] ?? 0);
+            if ($epoch < 1 || $generation < 1) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 cache epoch and generation must be positive');
+            }
+            $normalized[$pageNumber] = [
+                'image' => $image,
+                'source_id' => $sourceId,
+                'epoch' => $epoch,
+                'reader_generation' => $generation,
+                'pinned' => (bool) ($entry['pinned'] ?? false),
+                'dirty' => (bool) ($entry['dirty'] ?? false),
+                'shared_lock' => (bool) ($entry['shared_lock'] ?? true),
+                'source' => (string) ($entry['source'] ?? 'reader-cache'),
+            ];
+        }
+        ksort($normalized, SORT_NUMERIC);
+
+        return $normalized;
+    }
+
+    /** @param list<int> $pages */
+    private static function assertPageListNext155(array $pages, int $pageCount): void
+    {
+        foreach ($pages as $pageNumber) {
+            if (!is_int($pageNumber) || $pageNumber < 1 || $pageNumber > $pageCount) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next155 read page number is outside the database image');
+            }
+        }
+    }
+
+    private static function prefixNext155(string $image): string
+    {
+        return rtrim(substr($image, 0, 56), ".\0 ");
+    }
+
+
+    /**
+     * @param array<string,string> $canonicalPathMap
+     * @param array<int,string> $currentPages
+     * @param array<int,array{image:string,source_id?:string,epoch?:int,reader_id?:string,master_members?:list<string>,canonical_digest?:string,dirty?:bool,pinned?:bool,shared?:bool}> $readerCache
+     * @param list<array{reader_id?:string,page_number:int,source_id?:string,epoch?:int,canonical_digest?:string}> $reads
+     * @param array<int,string> $writePages
+     * @return array<string,mixed>
+     */
+    public static function variantNext179(
+        string $databasePath,
+        string $masterJournalPath,
+        string $masterJournalBytes,
+        array $canonicalPathMap,
+        int $pageSize,
+        array $currentPages,
+        array $readerCache,
+        array $reads,
+        array $writePages,
+        string $currentSourceId,
+        int $currentEpoch,
+    ): array {
+        if ($databasePath === '' || $masterJournalPath === '' || $currentSourceId === '') {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 requires non-empty paths and source id');
+        }
+        if (trim($masterJournalBytes) === '') {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 requires master-journal bytes');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 page size must be a power of two at least 512');
+        }
+        if ($currentEpoch < 1) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 epoch must be positive');
+        }
+        if ($currentPages === [] || $readerCache === [] || ($reads === [] && $writePages === [])) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 requires pages, cache, and next work');
+        }
+
+        $members = self::membersNext179($masterJournalBytes);
+        $canonicalMembers = self::canonicalMembersNext179($members, $canonicalPathMap);
+        $canonicalDigest = self::digestMembersNext179($canonicalMembers);
+        $rawDigest = self::digestMembersNext179($members);
+        $databaseJournal = self::canonicalPathNext179($databasePath . '-journal', $canonicalPathMap);
+        if (!in_array($databaseJournal, $canonicalMembers, true)) {
+            throw new \RuntimeException('SQLite pager master-journal reader-cache next179 canonical master journal does not reference the database journal');
+        }
+
+        $currentPages = self::normalizePagesNext179($currentPages, $pageSize, 'current');
+        $readerCache = self::normalizeCacheNext179($readerCache, $pageSize, $canonicalPathMap);
+        $reads = self::normalizeReadsNext179($reads);
+        $writePages = self::normalizePagesNext179($writePages, $pageSize, 'write', true);
+
+        $operations = [[
+            'op' => 'read_master_journal_and_canonicalize_members_for_reader_cache_next179',
+            'path' => $masterJournalPath,
+            'raw_digest' => $rawDigest,
+            'canonical_digest' => $canonicalDigest,
+            'members' => $members,
+            'canonical_members' => $canonicalMembers,
+        ]];
+
+        $validCache = [];
+        $retained = [];
+        $refreshed = [];
+        $invalidated = [];
+        $cacheRows = [];
+        foreach ($readerCache as $pageNumber => $entry) {
+            if (!isset($currentPages[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 cache page {$pageNumber} is outside current source");
+            }
+
+            $entryCanonicalDigest = self::digestMembersNext179($entry['canonical_members']);
+            $currentImage = $currentPages[$pageNumber];
+            $imageMatches = hash_equals(self::digestNext179($currentImage), self::digestNext179($entry['image']));
+            $reason = null;
+            if ($entry['dirty']) {
+                $reason = 'dirty_reader_cache_cannot_cross_canonical_master_source';
+            } elseif ($entry['source_id'] !== $currentSourceId) {
+                $reason = 'reader_cache_source_id_mismatch_after_canonical_master_source';
+            } elseif ($entry['epoch'] !== $currentEpoch) {
+                $reason = 'reader_cache_epoch_mismatch_after_canonical_master_source';
+            } elseif ($entry['canonical_digest'] !== '' && !hash_equals($canonicalDigest, $entry['canonical_digest'])) {
+                $reason = 'reader_cache_stored_canonical_digest_mismatch_next179';
+            } elseif (!hash_equals($canonicalDigest, $entryCanonicalDigest)) {
+                $reason = 'reader_cache_canonical_membership_mismatch_next179';
+            } elseif ($entry['pinned'] && !$imageMatches) {
+                $reason = 'pinned_reader_cache_image_mismatch_after_canonical_master_source';
+            }
+
+            if ($reason !== null) {
+                $invalidated[$pageNumber] = $reason;
+                $operations[] = [
+                    'op' => 'invalidate_reader_cache_after_canonical_master_source_next179',
+                    'page_number' => $pageNumber,
+                    'reader_id' => $entry['reader_id'],
+                    'reason' => $reason,
+                ];
+            } elseif (!$imageMatches) {
+                $refreshed[$pageNumber] = $currentImage;
+                $validCache[$pageNumber] = [
+                    'image' => $currentImage,
+                    'source' => 'reader-cache-refreshed-canonical-master-source-next179',
+                ];
+                $operations[] = [
+                    'op' => 'refresh_reader_cache_after_canonical_master_source_next179',
+                    'page_number' => $pageNumber,
+                    'reader_id' => $entry['reader_id'],
+                ];
+            } else {
+                $retained[$pageNumber] = $entry['image'];
+                $validCache[$pageNumber] = [
+                    'image' => $entry['image'],
+                    'source' => 'reader-cache-retained-canonical-master-source-next179',
+                ];
+                $operations[] = [
+                    'op' => 'retain_reader_cache_after_canonical_master_source_next179',
+                    'page_number' => $pageNumber,
+                    'reader_id' => $entry['reader_id'],
+                ];
+            }
+
+            $cacheRows[] = [
+                'page_number' => $pageNumber,
+                'reader_id' => $entry['reader_id'],
+                'admitted' => $reason === null,
+                'reason' => $reason ?? ($imageMatches ? 'reader_cache_matches_canonical_master_source' : 'reader_cache_refreshed_from_canonical_master_source'),
+                'source_id' => $entry['source_id'],
+                'epoch' => $entry['epoch'],
+                'dirty' => $entry['dirty'],
+                'pinned' => $entry['pinned'],
+                'shared' => $entry['shared'],
+                'raw_members' => $entry['raw_members'],
+                'canonical_members' => $entry['canonical_members'],
+                'canonical_digest_matches' => hash_equals($canonicalDigest, $entryCanonicalDigest),
+                'stored_canonical_digest_matches' => $entry['canonical_digest'] === '' || hash_equals($canonicalDigest, $entry['canonical_digest']),
+                'image_matches_current_source' => $imageMatches,
+                'cache_prefix' => self::prefixNext179($entry['image']),
+                'current_prefix' => self::prefixNext179($currentImage),
+            ];
+        }
+
+        $readRows = [];
+        $reopen = [];
+        foreach ($reads as $read) {
+            $pageNumber = $read['page_number'];
+            if (!isset($currentPages[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 read page {$pageNumber} is outside current source");
+            }
+            $ticketCurrent = $read['source_id'] === $currentSourceId
+                && $read['epoch'] === $currentEpoch
+                && ($read['canonical_digest'] === '' || hash_equals($canonicalDigest, $read['canonical_digest']));
+            $cache = $ticketCurrent ? ($validCache[$pageNumber] ?? null) : null;
+            if ($cache === null) {
+                $reopen[$read['reader_id']] = $read['reader_id'];
+            }
+            $readRows[] = [
+                'reader_id' => $read['reader_id'],
+                'page_number' => $pageNumber,
+                'ticket_current' => $ticketCurrent,
+                'cache_hit' => $cache !== null,
+                'source' => $cache['source'] ?? 'canonical-master-source-reopen-next179',
+                'source_id' => $currentSourceId,
+                'epoch' => $currentEpoch,
+                'canonical_digest' => $canonicalDigest,
+                'prefix' => self::prefixNext179($cache['image'] ?? $currentPages[$pageNumber]),
+                'digest' => self::digestNext179($cache['image'] ?? $currentPages[$pageNumber]),
+            ];
+            $operations[] = [
+                'op' => $cache !== null ? 'next179_reader_cache_hit' : 'next179_reader_reopen',
+                'reader_id' => $read['reader_id'],
+                'page_number' => $pageNumber,
+            ];
+        }
+
+        $writeRows = [];
+        foreach ($writePages as $pageNumber => $image) {
+            if (!isset($currentPages[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 write page {$pageNumber} is outside current source");
+            }
+            $before = $currentPages[$pageNumber];
+            $currentPages[$pageNumber] = $image;
+            $writeRows[] = [
+                'page_number' => $pageNumber,
+                'before_prefix' => self::prefixNext179($before),
+                'after_prefix' => self::prefixNext179($image),
+                'before_image_from_canonical_master_source' => true,
+                'source_id' => $currentSourceId,
+                'epoch' => $currentEpoch,
+                'canonical_digest' => $canonicalDigest,
+            ];
+            $operations[] = [
+                'op' => 'capture_next_write_before_image_after_canonical_master_source_next179',
+                'page_number' => $pageNumber,
+            ];
+        }
+
+        return [
+            'status' => 'pager-master-journal-reader-cache-current-source-next179',
+            'reason' => 'canonical master-journal member paths fence reader-cache reuse before the current source is trusted',
+            'database_path' => $databasePath,
+            'master_journal_path' => $masterJournalPath,
+            'page_size' => $pageSize,
+            'raw_members' => $members,
+            'canonical_members' => $canonicalMembers,
+            'raw_master_digest' => $rawDigest,
+            'canonical_master_digest' => $canonicalDigest,
+            'source' => ['id' => $currentSourceId, 'epoch' => $currentEpoch],
+            'cache_rows' => $cacheRows,
+            'retained_page_numbers' => array_keys($retained),
+            'refreshed_page_numbers' => array_keys($refreshed),
+            'invalidated_page_numbers' => array_keys($invalidated),
+            'invalidated_reasons' => $invalidated,
+            'reads' => $readRows,
+            'read_cache_hits' => array_column($readRows, 'cache_hit', 'reader_id'),
+            'read_prefixes' => array_column($readRows, 'prefix', 'reader_id'),
+            'reopen_reader_ids' => array_values($reopen),
+            'writes' => $writeRows,
+            'requires_reader_reopen' => $reopen !== [] || $invalidated !== [],
+            'operations' => $operations,
+            'source_digest' => hash('sha256', $currentSourceId . '|' . $currentEpoch . '|' . $canonicalDigest . '|' . implode(',', array_keys($retained)) . '|' . implode(',', array_keys($refreshed))),
+            'dependencies' => [
+                'sqlite-pager-master-journal-reader-cache-current-source-next179',
+                'sqlite-pager-master-journal-reader-cache-current-source-next174',
+                'sqlite-master-journal-vfs-canonical-pathname',
+            ],
+            'non_overlap' => 'Extends accepted next174 canonical member ordering by adding VFS canonical pathname admission for aliased master-journal members before reader-cache reuse.',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function membersNext179(string $bytes): array
+    {
+        $members = [];
+        foreach (preg_split('/\r?\n/', $bytes) ?: [] as $line) {
+            $line = trim($line);
+            if ($line !== '') {
+                $members[] = $line;
+            }
+        }
+
+        return $members;
+    }
+
+    /**
+     * @param list<string> $members
+     * @param array<string,string> $canonicalPathMap
+     * @return list<string>
+     */
+    private static function canonicalMembersNext179(array $members, array $canonicalPathMap): array
+    {
+        $canonical = [];
+        foreach ($members as $member) {
+            $canonical[self::canonicalPathNext179($member, $canonicalPathMap)] = self::canonicalPathNext179($member, $canonicalPathMap);
+        }
+        sort($canonical, SORT_STRING);
+
+        return array_values($canonical);
+    }
+
+    /**
+     * @param array<string,string> $canonicalPathMap
+     */
+    private static function canonicalPathNext179(string $path, array $canonicalPathMap): string
+    {
+        $path = trim($path);
+        if ($path === '') {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 member paths must be non-empty');
+        }
+        foreach ($canonicalPathMap as $from => $to) {
+            if (!is_string($from) || !is_string($to) || trim($from) === '' || trim($to) === '') {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 canonical path map must contain non-empty strings');
+            }
+        }
+
+        return $canonicalPathMap[$path] ?? $path;
+    }
+
+    /**
+     * @param list<string> $members
+     */
+    private static function digestMembersNext179(array $members): string
+    {
+        return hash('sha256', implode("\n", $members));
+    }
+
+    /**
+     * @param array<int,string> $pages
+     * @return array<int,string>
+     */
+    private static function normalizePagesNext179(array $pages, int $pageSize, string $label, bool $allowEmpty = false): array
+    {
+        if ($pages === [] && $allowEmpty) {
+            return [];
+        }
+        $normalized = [];
+        foreach ($pages as $pageNumber => $image) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 {$label} page numbers must be one-based integers");
+            }
+            if (!is_string($image) || strlen($image) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 {$label} page {$pageNumber} must be page-size bytes");
+            }
+            $normalized[$pageNumber] = $image;
+        }
+        ksort($normalized, SORT_NUMERIC);
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $cache
+     * @param array<string,string> $canonicalPathMap
+     * @return array<int,array{image:string,source_id:string,epoch:int,reader_id:string,raw_members:list<string>,canonical_members:list<string>,canonical_digest:string,dirty:bool,pinned:bool,shared:bool}>
+     */
+    private static function normalizeCacheNext179(array $cache, int $pageSize, array $canonicalPathMap): array
+    {
+        $normalized = [];
+        foreach ($cache as $pageNumber => $entry) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 cache page numbers must be one-based integers');
+            }
+            if (!isset($entry['image']) || !is_string($entry['image']) || strlen($entry['image']) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 cache page {$pageNumber} must include page-size image");
+            }
+            $sourceId = isset($entry['source_id']) && is_string($entry['source_id']) ? $entry['source_id'] : '';
+            $epoch = (int) ($entry['epoch'] ?? 0);
+            if ($sourceId === '' || $epoch < 1) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 cache page {$pageNumber} requires source id and epoch");
+            }
+            $readerId = isset($entry['reader_id']) && is_string($entry['reader_id']) && $entry['reader_id'] !== '' ? $entry['reader_id'] : "reader-{$pageNumber}";
+            $members = $entry['master_members'] ?? [];
+            if (!is_array($members) || $members === []) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 cache page {$pageNumber} requires master members");
+            }
+            $rawMembers = [];
+            foreach ($members as $member) {
+                if (!is_string($member) || trim($member) === '') {
+                    throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 cache page {$pageNumber} master members must be non-empty strings");
+                }
+                $rawMembers[] = trim($member);
+            }
+            $storedDigest = $entry['canonical_digest'] ?? '';
+            if (!is_string($storedDigest)) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next179 cache page {$pageNumber} canonical digest must be a string");
+            }
+            $normalized[$pageNumber] = [
+                'image' => $entry['image'],
+                'source_id' => $sourceId,
+                'epoch' => $epoch,
+                'reader_id' => $readerId,
+                'raw_members' => $rawMembers,
+                'canonical_members' => self::canonicalMembersNext179($rawMembers, $canonicalPathMap),
+                'canonical_digest' => $storedDigest,
+                'dirty' => (bool) ($entry['dirty'] ?? false),
+                'pinned' => (bool) ($entry['pinned'] ?? false),
+                'shared' => (bool) ($entry['shared'] ?? false),
+            ];
+        }
+        ksort($normalized, SORT_NUMERIC);
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $reads
+     * @return list<array{reader_id:string,page_number:int,source_id:string,epoch:int,canonical_digest:string}>
+     */
+    private static function normalizeReadsNext179(array $reads): array
+    {
+        $normalized = [];
+        foreach ($reads as $read) {
+            $readerId = $read['reader_id'] ?? '';
+            $sourceId = $read['source_id'] ?? '';
+            $digest = $read['canonical_digest'] ?? '';
+            if (!is_string($readerId) || $readerId === '' || !is_string($sourceId) || $sourceId === '' || !is_string($digest)) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 reads require reader id, source id, and canonical digest string');
+            }
+            $pageNumber = (int) ($read['page_number'] ?? 0);
+            $epoch = (int) ($read['epoch'] ?? 0);
+            if ($pageNumber < 1 || $epoch < 1) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next179 reads require positive page number and epoch');
+            }
+            $normalized[] = [
+                'reader_id' => $readerId,
+                'page_number' => $pageNumber,
+                'source_id' => $sourceId,
+                'epoch' => $epoch,
+                'canonical_digest' => $digest,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private static function digestNext179(string $image): string
+    {
+        return hash('sha256', $image);
+    }
+
+    private static function prefixNext179(string $image): string
+    {
+        return rtrim(substr($image, 0, 64), ".\0 ");
+    }
+
+
+    /**
+     * @param array<int,array{image:string,reader_id?:string,source_id?:string,epoch?:int,master_member_digest?:string,current_source_nonce?:string,dirty?:bool,pinned?:bool}> $readerCache
+     * @param list<array{reader_id:string,page_number:int,source_id?:string,epoch?:int,master_member_digest?:string,current_source_nonce?:string}> $readRequests
+     * @param array<int,string> $currentPages
+     * @return array<string,mixed>
+     */
+    public static function variantNext197(
+        string $databasePath,
+        string $masterJournalPath,
+        string $masterJournalBytes,
+        string $databaseBytes,
+        int $pageSize,
+        array $readerCache,
+        array $readRequests,
+        array $currentPages,
+        string $currentSourceId,
+        int $currentEpoch,
+        string $currentSourceNonce,
+    ): array {
+        if ($databasePath === '' || $masterJournalPath === '' || $currentSourceId === '' || $currentSourceNonce === '') {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 requires non-empty paths, source id, and source nonce');
+        }
+        if (trim(str_replace("\0", '', $masterJournalBytes)) === '') {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 requires master-journal bytes');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 page size must be a power of two at least 512');
+        }
+        if ($databaseBytes === '' || strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 database bytes must be page-size aligned');
+        }
+        if ($readerCache === [] || $readRequests === []) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 requires reader cache and read requests');
+        }
+        if ($currentEpoch < 1) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 requires positive epoch');
+        }
+
+        $members = self::membersNext197($masterJournalBytes);
+        $mainJournal = $databasePath . '-journal';
+        if (!in_array($mainJournal, $members, true)) {
+            throw new \RuntimeException('SQLite pager master-journal reader-cache next197 current master journal does not reference the database journal');
+        }
+
+        $database = self::pagesNext197($databaseBytes, $pageSize);
+        foreach (self::imagesNext197($currentPages, $pageSize, 'current') as $pageNumber => $image) {
+            if (!isset($database[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next197 current page {$pageNumber} is outside the database image");
+            }
+            $database[$pageNumber] = [
+                'image' => $image,
+                'source' => 'master-journal-member-current-source-next197',
+            ];
+        }
+
+        $memberDigest = hash('sha256', implode("\n", $members));
+        $cache = self::readerCacheNext197($readerCache, $pageSize);
+        $reads = self::readRequestsNext197($readRequests);
+        $nextSource = [
+            'id' => 'master-journal-member-source:' . substr(hash('sha256', $memberDigest . '|' . $currentSourceNonce . '|' . $currentSourceId), 0, 32),
+            'epoch' => $currentEpoch + 1,
+            'member_digest' => $memberDigest,
+            'nonce' => $currentSourceNonce,
+        ];
+
+        $retained = [];
+        $refreshed = [];
+        $invalidated = [];
+        $rows = [];
+        $operations = [[
+            'op' => 'verify_master_journal_members_current_source_next197',
+            'path' => $masterJournalPath,
+            'members' => $members,
+            'member_digest' => $memberDigest,
+            'source_nonce' => $currentSourceNonce,
+        ]];
+
+        foreach ($cache as $pageNumber => $entry) {
+            if (!isset($database[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next197 cache page {$pageNumber} is outside the database image");
+            }
+
+            $currentImage = $database[$pageNumber]['image'];
+            $reason = null;
+            if ($entry['dirty']) {
+                $reason = 'dirty_reader_cache_cannot_cross_master_journal_member_source';
+            } elseif ($entry['master_member_digest'] !== $memberDigest) {
+                $reason = 'reader_cache_master_member_digest_mismatch';
+            } elseif ($entry['current_source_nonce'] !== $currentSourceNonce) {
+                $reason = 'reader_cache_current_source_nonce_mismatch';
+            } elseif ($entry['source_id'] !== $currentSourceId) {
+                $reason = 'reader_cache_source_id_predates_master_member_source';
+            } elseif ($entry['epoch'] !== $currentEpoch) {
+                $reason = 'reader_cache_epoch_predates_master_member_source';
+            } elseif ($entry['pinned'] && !hash_equals($entry['image'], $currentImage)) {
+                $reason = 'pinned_reader_cache_image_predates_master_member_source';
+            }
+
+            if ($reason !== null) {
+                $invalidated[$pageNumber] = $reason;
+                $operations[] = ['op' => 'invalidate_reader_cache_after_master_member_source_next197', 'page_number' => $pageNumber, 'reason' => $reason];
+            } elseif (!hash_equals($entry['image'], $currentImage)) {
+                $refreshed[$pageNumber] = $currentImage;
+                $operations[] = ['op' => 'refresh_reader_cache_after_master_member_source_next197', 'page_number' => $pageNumber];
+            } else {
+                $retained[$pageNumber] = $entry['image'];
+                $operations[] = ['op' => 'retain_reader_cache_after_master_member_source_next197', 'page_number' => $pageNumber];
+            }
+
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'reader_id' => $entry['reader_id'],
+                'admitted' => $reason === null,
+                'reason' => $reason ?? (hash_equals($entry['image'], $currentImage) ? 'reader_cache_matches_master_journal_member_source' : 'reader_cache_refreshed_after_master_journal_member_source'),
+                'dirty' => $entry['dirty'],
+                'pinned' => $entry['pinned'],
+                'member_digest_before' => $entry['master_member_digest'],
+                'member_digest_current' => $memberDigest,
+                'member_digest_matches' => $entry['master_member_digest'] === $memberDigest,
+                'source_nonce_before' => $entry['current_source_nonce'],
+                'source_nonce_current' => $currentSourceNonce,
+                'source_nonce_matches' => $entry['current_source_nonce'] === $currentSourceNonce,
+                'source_id_before' => $entry['source_id'],
+                'epoch_before' => $entry['epoch'],
+                'cache_prefix' => self::prefixNext197($entry['image']),
+                'current_prefix' => self::prefixNext197($currentImage),
+            ];
+        }
+
+        $nextReads = [];
+        $readCacheHits = [];
+        foreach ($reads as $read) {
+            $pageNumber = $read['page_number'];
+            if (!isset($database[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next197 read page {$pageNumber} is outside the database image");
+            }
+            $requestCurrent = ($read['source_id'] ?? $currentSourceId) === $currentSourceId
+                && ($read['epoch'] ?? $currentEpoch) === $currentEpoch
+                && ($read['master_member_digest'] ?? $memberDigest) === $memberDigest
+                && ($read['current_source_nonce'] ?? $currentSourceNonce) === $currentSourceNonce;
+            $cacheImage = $requestCurrent ? ($retained[$pageNumber] ?? $refreshed[$pageNumber] ?? null) : null;
+            $readCacheHits[$read['reader_id']] = $cacheImage !== null;
+            $nextReads[] = [
+                'reader_id' => $read['reader_id'],
+                'page_number' => $pageNumber,
+                'cache_hit' => $cacheImage !== null,
+                'request_current' => $requestCurrent,
+                'reason' => $cacheImage !== null ? 'next_read_uses_master_member_current_source_cache' : 'next_read_reopens_after_master_member_source_change',
+                'source_id' => $nextSource['id'],
+                'epoch' => $nextSource['epoch'],
+                'prefix' => self::prefixNext197($cacheImage ?? $database[$pageNumber]['image']),
+            ];
+        }
+
+        return [
+            'status' => 'pager-master-journal-reader-cache-current-source-next197',
+            'reason' => 'master_journal_member_digest_and_source_nonce_fence_reader_cache_admission',
+            'database_path' => $databasePath,
+            'master_journal_path' => $masterJournalPath,
+            'page_size' => $pageSize,
+            'current_members' => $members,
+            'current_member_digest' => $memberDigest,
+            'current_source' => ['id' => $currentSourceId, 'epoch' => $currentEpoch, 'nonce' => $currentSourceNonce],
+            'next_source' => $nextSource,
+            'reader_rows' => $rows,
+            'retained_page_numbers' => array_keys($retained),
+            'refreshed_page_numbers' => array_keys($refreshed),
+            'invalidated_page_numbers' => array_keys($invalidated),
+            'invalidated_reasons' => $invalidated,
+            'requires_reader_reopen' => $invalidated !== [],
+            'next_reads' => $nextReads,
+            'read_cache_hits' => $readCacheHits,
+            'operations' => $operations,
+            'final_prefixes' => array_map(static fn (array $page): string => self::prefixNext197($page['image']), $database),
+            'final_sources' => array_map(static fn (array $page): string => $page['source'], $database),
+            'source_digest' => hash('sha256', $memberDigest . '|' . $currentSourceNonce . '|' . implode(',', array_keys($retained)) . '|' . implode(',', array_keys($invalidated))),
+            'dependencies' => [
+                'sqlite-pager-master-journal-reader-cache-current-source-next197',
+                'sqlite-master-journal-member-digest-current-source-fence',
+            ],
+            'non_overlap' => 'Adds active master-journal member-digest plus current-source-nonce reader-cache fencing; avoids next191 delete/directory-sync fencing, next183 publication fences, rollback-journal commit/apply, super-journal commits, and WAL checkpoint/savepoint byte truncation.',
+        ];
+    }
+
+    /** @return list<string> */
+    private static function membersNext197(string $bytes): array
+    {
+        $members = [];
+        foreach (preg_split('/[\r\n\0]+/', $bytes) ?: [] as $member) {
+            $member = trim($member);
+            if ($member !== '') {
+                $members[$member] = $member;
+            }
+        }
+        ksort($members, SORT_STRING);
+
+        return array_values($members);
+    }
+
+    /** @return array<int,array{image:string,source:string}> */
+    private static function pagesNext197(string $bytes, int $pageSize): array
+    {
+        $pages = [];
+        foreach (str_split($bytes, $pageSize) as $index => $image) {
+            $pages[$index + 1] = ['image' => $image, 'source' => 'database-before-master-member-reader-cache-next197'];
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @param array<int,string> $images
+     * @return array<int,string>
+     */
+    private static function imagesNext197(array $images, int $pageSize, string $label): array
+    {
+        $normalized = [];
+        foreach ($images as $pageNumber => $image) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next197 {$label} page numbers must be one-based integers");
+            }
+            if (!is_string($image) || strlen($image) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next197 {$label} page {$pageNumber} must be page-size bytes");
+            }
+            $normalized[$pageNumber] = $image;
+        }
+        ksort($normalized, SORT_NUMERIC);
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<int,array{image:string,reader_id?:string,source_id?:string,epoch?:int,master_member_digest?:string,current_source_nonce?:string,dirty?:bool,pinned?:bool}> $cache
+     * @return array<int,array{image:string,reader_id:string,source_id:string,epoch:int,master_member_digest:string,current_source_nonce:string,dirty:bool,pinned:bool}>
+     */
+    private static function readerCacheNext197(array $cache, int $pageSize): array
+    {
+        $normalized = [];
+        foreach ($cache as $pageNumber => $entry) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 cache page numbers must be one-based integers');
+            }
+            if (!isset($entry['image']) || !is_string($entry['image']) || strlen($entry['image']) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next197 cache page {$pageNumber} must be page-size bytes");
+            }
+            $readerId = (string) ($entry['reader_id'] ?? ('reader-' . $pageNumber));
+            $sourceId = (string) ($entry['source_id'] ?? '');
+            $epoch = $entry['epoch'] ?? 0;
+            $memberDigest = (string) ($entry['master_member_digest'] ?? '');
+            $sourceNonce = (string) ($entry['current_source_nonce'] ?? '');
+            if ($readerId === '' || $sourceId === '' || $memberDigest === '' || $sourceNonce === '' || !is_int($epoch) || $epoch < 1) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 cache entries require reader, source, epoch, member digest, and source nonce');
+            }
+            $normalized[$pageNumber] = [
+                'image' => $entry['image'],
+                'reader_id' => $readerId,
+                'source_id' => $sourceId,
+                'epoch' => $epoch,
+                'master_member_digest' => $memberDigest,
+                'current_source_nonce' => $sourceNonce,
+                'dirty' => (bool) ($entry['dirty'] ?? false),
+                'pinned' => (bool) ($entry['pinned'] ?? false),
+            ];
+        }
+        ksort($normalized, SORT_NUMERIC);
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array{reader_id:string,page_number:int,source_id?:string,epoch?:int,master_member_digest?:string,current_source_nonce?:string}> $reads
+     * @return list<array{reader_id:string,page_number:int,source_id?:string,epoch?:int,master_member_digest?:string,current_source_nonce?:string}>
+     */
+    private static function readRequestsNext197(array $reads): array
+    {
+        foreach ($reads as $read) {
+            if (($read['reader_id'] ?? '') === '' || !isset($read['page_number']) || !is_int($read['page_number']) || $read['page_number'] < 1) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 read requests require reader id and one-based page number');
+            }
+            if (isset($read['source_id']) && $read['source_id'] === '') {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 read request source id cannot be empty');
+            }
+            if (isset($read['epoch']) && (!is_int($read['epoch']) || $read['epoch'] < 1)) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 read request epoch must be positive');
+            }
+            if (isset($read['master_member_digest']) && $read['master_member_digest'] === '') {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 read request member digest cannot be empty');
+            }
+            if (isset($read['current_source_nonce']) && $read['current_source_nonce'] === '') {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next197 read request source nonce cannot be empty');
+            }
+        }
+
+        return $reads;
+    }
+
+    private static function prefixNext197(string $image): string
+    {
+        return rtrim(substr($image, 0, 80), ". \0");
+    }
+
 }

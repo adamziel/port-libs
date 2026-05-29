@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `pager-master-journal-reader-cache-current-source-next247`.
 
-This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext247Plan`. It builds on the accepted next243 current-source provenance fence and adds a pager reader-cache generation fence: pages that pass master-journal membership, cleanup, read-transaction, schema-reparse, statement schema-root, and current-source provenance checks still reopen if their pager cache generation predates the recovered master-journal source. This prevents a reader from serving a cache page retained across a pager cache reset/reopen after recovery.
+This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It builds on the accepted next243 current-source provenance fence and adds a pager reader-cache generation fence: pages that pass master-journal membership, cleanup, read-transaction, schema-reparse, statement schema-root, and current-source provenance checks still reopen if their pager cache generation predates the recovered master-journal source. This prevents a reader from serving a cache page retained across a pager cache reset/reopen after recovery.
 
 WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next247.php` covers copied `wp_options` import behavior where the schema page remains cached, the options root page reopens because it was from the previous pager generation, and `active_plugins` reopens because its current-source provenance is stale.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext247Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext247Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next247.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext247Test.php`

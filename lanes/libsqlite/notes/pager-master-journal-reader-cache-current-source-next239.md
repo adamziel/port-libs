@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `pager-master-journal-reader-cache-current-source-next239`.
 
-This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNext239Plan`. It layers a shared schema-cache generation fence after the accepted next236 schema-reparse admission. A reader-cache page that already passes master-journal cleanup, reader lease, pager-cache-source, read-transaction, and schema-reparse checks still reopens when its shared-cache generation token predates the recovered current source.
+This slice adds `SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`. It layers a shared schema-cache generation fence after the accepted next236 schema-reparse admission. A reader-cache page that already passes master-journal cleanup, reader lease, pager-cache-source, read-transaction, and schema-reparse checks still reopens when its shared-cache generation token predates the recovered current source.
 
 WordPress smoke: `wordpress-pager-master-journal-reader-cache-current-source-next239.php` models copied `wp_options` import behavior where the schema page remains cached, but stale option-root and `active_plugins` readers reopen after master-journal recovery before plugin import continues.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext239Plan.php`
+- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext239Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-pager-master-journal-reader-cache-current-source-next239.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheCurrentSourceNext239Test.php`
