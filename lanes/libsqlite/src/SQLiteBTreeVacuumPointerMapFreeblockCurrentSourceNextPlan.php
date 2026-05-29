@@ -6831,6 +6831,134 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan
     /**
      * @param array<string, mixed> $deleteResult
      */
+    public static function tableLeafFromDeleteResultNext1055(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1055, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1056(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1056, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1057(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1057, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1058(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1058, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1059(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1059, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1060(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1060, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1061(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1061, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1062(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1062, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1063(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1063, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1064(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1064, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1065(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1065, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1066(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1066, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1067(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1067, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1068(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1068, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1069(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1069, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext1070(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrentSourceVariant::tableLeafFromDeleteResultForSlice(1070, $database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
     public static function tableLeafFromDeleteResultNext156(
         SQLiteDatabase $database,
         int $leafPageNumber,
@@ -14306,8 +14434,8 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
 
     private static function assertFreelistSpliceSlice(int $sliceNumber): void
     {
-        if (($sliceNumber < 263 || $sliceNumber > 266) && ($sliceNumber < 295 || $sliceNumber > 1054)) {
-            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock freelist splice slice must be next263 through next266 or next295 through next1054');
+        if (($sliceNumber < 263 || $sliceNumber > 266) && ($sliceNumber < 295 || $sliceNumber > 1070)) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock freelist splice slice must be next263 through next266 or next295 through next1070');
         }
     }
 
@@ -14650,8 +14778,8 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistCurrent
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        if ($sliceNumber < 447 || $sliceNumber > 1054) {
-            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock current-source slice must be next447 through next1054');
+        if ($sliceNumber < 447 || $sliceNumber > 1070) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock current-source slice must be next447 through next1070');
         }
 
         return self::fromFreelistPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResultForSlice(
