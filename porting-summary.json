@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 15:31:13 UTC",
-    "sourceCommit": "186cca443c19ac8a543b166c2754c4dbb93d0736",
-    "sourceCommitShort": "186cca443c19",
+    "generated": "2026-05-29 15:34:13 UTC",
+    "sourceCommit": "9c13b7b7009d603402202f676941265599f43e3c",
+    "sourceCommitShort": "9c13b7b7009d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "186cca443c19ac8a543b166c2754c4dbb93d0736",
-    "dashboardCommitShort": "186cca443c19",
+    "dashboardCommit": "9c13b7b7009d603402202f676941265599f43e3c",
+    "dashboardCommitShort": "9c13b7b7009d",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted six clean BC consolidation hando...",
-            "currentWork": "Consolidated six BC numbered method/helper cleanup handoffs across upstream-suite evidenc...",
-            "nextTarget": "Rebase or discard deferred compound BC, pager-master BC, pager-master BA, attach BA, page...",
+            "audit": "Accepted six clean BD/late-BC consolidati...",
+            "currentWork": "Consolidated six BD/late-BC numbered method/helper cleanup handoffs across trigger return...",
+            "nextTarget": "Rebase or discard deferred JSON BD, compound BC, pager-master BC, pager-master BA, attach...",
             "blocker": "No blocker for the accepted reduced consolidation slice.",
-            "commit": "forty-s"
+            "commit": "forty-t"
         },
         {
             "library": "LightningCSS",
