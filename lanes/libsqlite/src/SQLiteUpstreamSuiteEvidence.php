@@ -3052,6 +3052,114 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRecords
+     * @return array<string, mixed>
+     */
+    public function currentReleaseRunnerCountabilityRecord(
+        array $artifactRecords,
+        string $acceptedRepositoryHead,
+        string $processSnapshot = ''
+    ): array {
+        $provenance = $this->acceptedHeadArtifactProvenanceBatch($artifactRecords, $acceptedRepositoryHead);
+        $activeGate = $this->activeFullSuiteRunnerGate($processSnapshot);
+        $entries = [];
+        $countable = [];
+        $focusedOnly = [];
+        $blocked = [];
+        $stale = [];
+        $testsTotal = 0;
+        $errorsTotal = 0;
+
+        foreach (is_array($provenance['entries'] ?? null) ? $provenance['entries'] : [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $label = is_string($entry['label'] ?? null) ? $entry['label'] : 'artifact-' . (string) count($entries);
+            $accepted = ($entry['status'] ?? null) === 'current-accepted-head';
+            $releaseLike = ($entry['kind'] ?? null) === 'release-like';
+            $tests = is_int($entry['tests'] ?? null) ? $entry['tests'] : null;
+            $errors = is_int($entry['errors'] ?? null) ? $entry['errors'] : null;
+            $blockerIds = is_array($entry['blocker_ids'] ?? null) ? $entry['blocker_ids'] : [];
+
+            $entryStatus = 'blocked';
+            if ($accepted && $releaseLike && $tests !== null && $tests > 0 && $errors === 0) {
+                $entryStatus = 'countable-release-runner';
+                $countable[] = $label;
+                $testsTotal += $tests;
+                $errorsTotal += $errors;
+            } elseif ($accepted && ($entry['kind'] ?? null) === 'focused') {
+                $entryStatus = 'focused-only';
+                $focusedOnly[] = $label;
+            } else {
+                $blocked[] = $label;
+                if (in_array('repository-head-mismatch', $blockerIds, true)) {
+                    $stale[] = $label;
+                }
+            }
+
+            $entries[] = [
+                'label' => $label,
+                'status' => $entryStatus,
+                'kind' => $entry['kind'] ?? 'unknown',
+                'repository_head' => $entry['repository_head'] ?? null,
+                'accepted_repository_head' => $acceptedRepositoryHead,
+                'testset' => $entry['testset'] ?? null,
+                'patterns' => is_array($entry['patterns'] ?? null) ? $entry['patterns'] : [],
+                'tests' => $tests,
+                'errors' => $errors,
+                'blocker_ids' => $blockerIds,
+            ];
+        }
+
+        $blockers = [];
+        if (($activeGate['status'] ?? null) === 'blocked-active-runner') {
+            $blockers[] = [
+                'id' => 'active-runner-still-running',
+                'evidence' => 'supplied process snapshot still contains a broad SQLite runner',
+                'active_tiers' => $activeGate['active_tiers'] ?? [],
+            ];
+        }
+        if ($countable === []) {
+            $blockers[] = [
+                'id' => 'current-zero-error-release-artifact-missing',
+                'evidence' => 'no release/all artifact has zero-error results plus accepted HEAD and SQLite manifest provenance',
+            ];
+        }
+
+        $status = 'blocked';
+        if ($countable !== [] && $blockers === []) {
+            $status = $blocked === [] ? 'countable' : 'partially-countable';
+        }
+
+        return [
+            'status' => $status,
+            'countable' => $countable !== [] && $blockers === [],
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'artifact_count' => count($entries),
+            'countable_release_artifacts' => count($countable),
+            'focused_only_artifacts' => count($focusedOnly),
+            'blocked_artifacts' => count($blocked),
+            'stale_artifacts' => count($stale),
+            'active_gate' => $activeGate,
+            'countable_labels' => $countable,
+            'focused_only_labels' => $focusedOnly,
+            'blocked_labels' => $blocked,
+            'stale_labels' => $stale,
+            'tests_total' => $testsTotal,
+            'errors_total' => $errorsTotal,
+            'entries' => $entries,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_as_release_parity' => $countable !== [] && $blockers === [],
+            'next_gate' => $countable !== [] && $blockers === []
+                ? 'record the current accepted-HEAD zero-error release/all artifact as countable release runner evidence'
+                : 'keep release/all countability blocked until a zero-error release/all artifact matches the current accepted HEAD, SQLite manifest, and duplicate-runner gate',
+            'dependency_closure' => 'no new support component needed; current countability composes parsed runner artifacts, accepted-HEAD provenance, and supplied active-runner snapshots only',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $failureBlocker
      * @return array<string, mixed>
      */

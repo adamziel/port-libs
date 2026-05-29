@@ -2622,6 +2622,109 @@ MD);
             @rmdir($root);
         }
     },
+    'counts only current accepted zero-error release runner artifacts' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $release = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-current-20260527T170000Z
+
+- Repository HEAD: `65c2604262f6bf9ab39500a30cd9cb9c76428812`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Patterns: none
+- Exit: `0`
+- Parsed summary: `0 errors out of 24001 tests`
+- Parsed errors: `0`
+- Parsed tests: `24001`
+MD);
+        $focused = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-focused-current-20260527T170100Z
+
+- Repository HEAD: `65c2604262f6bf9ab39500a30cd9cb9c76428812`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Patterns: `json101.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 401 tests`
+- Parsed errors: `0`
+- Parsed tests: `401`
+MD);
+        $stale = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-stale-20260527T170200Z
+
+- Repository HEAD: `stale-head`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Patterns: none
+- Exit: `0`
+- Parsed summary: `0 errors out of 24001 tests`
+- Parsed errors: `0`
+- Parsed tests: `24001`
+MD);
+
+        $record = $evidence->currentReleaseRunnerCountabilityRecord(
+            [
+                'release-current' => $release,
+                'focused-current' => $focused,
+                'release-stale' => $stale,
+            ],
+            '65c2604262f6bf9ab39500a30cd9cb9c76428812'
+        );
+
+        $t->same('partially-countable', $record['status']);
+        $t->same(true, $record['countable']);
+        $t->same(true, $record['counts_as_release_parity']);
+        $t->same(1, $record['countable_release_artifacts']);
+        $t->same(1, $record['focused_only_artifacts']);
+        $t->same(1, $record['blocked_artifacts']);
+        $t->same(1, $record['stale_artifacts']);
+        $t->same(['release-current'], $record['countable_labels']);
+        $t->same(['focused-current'], $record['focused_only_labels']);
+        $t->same(['release-stale'], $record['blocked_labels']);
+        $t->same(24001, $record['tests_total']);
+        $t->same(0, $record['errors_total']);
+        $t->same(0, $record['blocker_count']);
+        $t->same('countable-release-runner', $record['entries'][0]['status']);
+        $t->same('focused-only', $record['entries'][1]['status']);
+        $t->same(['repository-head-mismatch'], $record['entries'][2]['blocker_ids']);
+    },
+    'blocks current release runner countability without accepted zero-error release evidence' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $focused = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-focused-only-current-20260527T170300Z
+
+- Repository HEAD: `65c2604262f6bf9ab39500a30cd9cb9c76428812`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Patterns: `wal.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 144 tests`
+- Parsed errors: `0`
+- Parsed tests: `144`
+MD);
+
+        $record = $evidence->currentReleaseRunnerCountabilityRecord(
+            ['focused-only' => $focused],
+            '65c2604262f6bf9ab39500a30cd9cb9c76428812',
+            '777001 1 02:16 bash scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-release-current release 2 7200'
+        );
+
+        $t->same('blocked', $record['status']);
+        $t->same(false, $record['countable']);
+        $t->same(0, $record['countable_release_artifacts']);
+        $t->same(1, $record['focused_only_artifacts']);
+        $t->same(0, $record['tests_total']);
+        $t->same(2, $record['blocker_count']);
+        $t->same('active-runner-still-running', $record['blockers'][0]['id']);
+        $t->same('current-zero-error-release-artifact-missing', $record['blockers'][1]['id']);
+    },
     'composes artifact-set and exclusion gates into a release blocker closure record' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $root = sys_get_temp_dir() . '/libsqlite-release-blocker-closure-' . bin2hex(random_bytes(4));
