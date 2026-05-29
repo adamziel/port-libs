@@ -1,6 +1,6 @@
 # vfs-wal-shm-lock-byte-current-source-next89
 
-This slice adds `SQLiteVfsWalShmLockByteCurrentSourceNext89`, a bounded native
+This slice adds `SQLiteVfsWalShmLockByteCurrentSourceNext`, a bounded native
 PHP planner for WAL-mode current-source transitions that must satisfy both the
 main database POSIX lock-byte state and the WAL SHM lock state.
 
@@ -18,10 +18,10 @@ Focused behavior:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteVfsWalShmLockByteCurrentSourceNext89.php`
-- `php -l lanes/libsqlite/tests/SQLiteVfsWalShmLockByteCurrentSourceNext89Test.php`
+- `php -l lanes/libsqlite/src/SQLiteVfsWalShmLockByteCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLiteVfsWalShmLockByteCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-vfs-wal-shm-lock-byte-current-source-next89.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsWalShmLockByteCurrentSourceNext89Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsWalShmLockByteCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-vfs-wal-shm-lock-byte-current-source-next89.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 

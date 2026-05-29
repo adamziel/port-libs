@@ -10,7 +10,7 @@ Extends the ready next201-204 attach/TEMP/WAL schema-cache handoff:
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php
+php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext205208Test.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next205-208.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext205208Test.php

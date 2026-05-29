@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas118120 = [
     'main' => [
@@ -36,7 +36,7 @@ $statements118120 = [
     ['name' => 'archive-reader', 'sql' => 'SELECT option_name FROM archive.wp_options INDEXED BY wp_archive_option_name WHERE option_name GLOB ?'],
 ];
 
-$plan118120 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext118120(
+$plan118120 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext118120(
     $schemas ?? $schemas118120,
     $statements ?? $statements118120,
     $events ?? [

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 700, 'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next700', 'wp_navigation_rule_locale_publish_final_next698'], 'indexes' => ['wp_options_name', 'wp_navigation_rule_locale_publish_final_key_next700'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 700, 'commit' => true]]],
@@ -29,7 +29,7 @@ $statements = [
     ['name' => 'temp-preview-reader', 'sql' => 'SELECT preview_id FROM temp.wp_theme_stage_publish_preview_next704 WHERE cache_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext701716($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext701716($schemas, $statements, [
     ['op' => 'schema_write', 'schema' => 'handoff', 'schema_cookie' => 701, 'table' => 'wp_schema_handoff_receipt_next701', 'indexes' => ['wp_schema_handoff_receipt_key_next701'], 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'queue', 'from' => 'wp_job_retry_checkpoint_delivered_key_next688', 'to' => 'wp_job_retry_checkpoint_delivered_key_next702'],
     ['op' => 'drop_table', 'schema' => 'archive', 'table' => 'wp_schema_archive_receipt_next690'],

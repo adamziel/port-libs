@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
+final class SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan
 {
     /**
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, file?:string|null, temp?:bool}> $schemas

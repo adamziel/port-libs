@@ -10,7 +10,7 @@ Prepares the attach/TEMP/WAL schema-cache handoff after next157-160:
 Focused checks:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php
+php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext157160Test.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext161164Test.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next157-160.php

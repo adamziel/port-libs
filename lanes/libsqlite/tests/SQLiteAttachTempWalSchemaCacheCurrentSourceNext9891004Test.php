@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas9891004 = [
     'main' => [
@@ -62,7 +62,7 @@ $statements9891004 = [
     ['name' => 'seal-reader', 'sql' => 'SELECT seal_id FROM seal.wp_schema_seal_receipt_next996 INDEXED BY wp_schema_seal_receipt_key_next996 WHERE seal_key = ?'],
 ];
 
-$plan9891004 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext9891004(
+$plan9891004 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext9891004(
     $schemas ?? $schemas9891004,
     $statements ?? $statements9891004,
     $events,

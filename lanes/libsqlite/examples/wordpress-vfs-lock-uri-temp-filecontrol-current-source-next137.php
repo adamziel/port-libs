@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteFileUri.php';
-require_once __DIR__ . '/../src/SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan.php';
+require_once __DIR__ . '/../src/SQLiteVfsLockUriTempFileControlCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteVfsLockUriTempFileControlCurrentSourceNextPlan;
 
-$plan = SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan::run([
+$plan = SQLiteVfsLockUriTempFileControlCurrentSourceNextPlan::run([
     'open(main, file://localhost/srv/www/wp-content/database/wp.sqlite?mode=rw&cache=shared&psow=1)',
     ['op' => 'filecontrol', 'control' => 'temp_directory', 'value' => '/srv/www/wp-content/uploads/import-tmp'],
     'open(temp, file:/wp-import-stage?mode=memory&tempdir=/srv/www/wp-content/uploads/request-tmp&scratch=17)',

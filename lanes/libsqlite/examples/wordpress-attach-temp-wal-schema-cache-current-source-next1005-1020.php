@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 1004, 'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next1004'], 'indexes' => ['wp_options_name', 'wp_navigation_rule_locale_publish_final_key_next1004'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 1004, 'commit' => true]]],
@@ -28,7 +28,7 @@ $statements = [
     ['name' => 'review-reader', 'sql' => 'SELECT review_id FROM review.wp_schema_review_receipt_next1016 INDEXED BY wp_schema_review_receipt_key_next1016 WHERE review_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext10051020($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext10051020($schemas, $statements, [
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 1008, 'table' => 'wp_theme_stage_publish_token_next1008', 'commit' => true],
     ['op' => 'rename_table', 'schema' => 'handoff', 'from' => 'wp_schema_handoff_receipt_next970', 'to' => 'wp_schema_handoff_receipt_next1010'],
     ['op' => 'attach', 'schema' => 'review', 'schema_cookie' => 1016, 'tables' => ['wp_schema_review_receipt_next1016'], 'indexes' => ['wp_schema_review_receipt_key_next1016'], 'file' => '/srv/wp/review-next1016.sqlite'],

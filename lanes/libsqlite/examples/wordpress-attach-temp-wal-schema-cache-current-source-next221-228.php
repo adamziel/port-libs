@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => [
@@ -34,7 +34,7 @@ $statements = [
     ['name' => 'reporting-reader', 'sql' => 'SELECT report_id FROM reporting.wp_reports INDEXED BY wp_reports_slug WHERE slug = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext221228($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext221228($schemas, $statements, [
     ['op' => 'drop_table', 'schema' => 'temp', 'table' => 'wp_import_stage'],
     ['op' => 'rename_index', 'schema' => 'main', 'from' => 'wp_posts_status', 'to' => 'wp_posts_status_next222'],
     ['op' => 'attach', 'schema' => 'cache', 'schema_cookie' => 3, 'tables' => ['wp_object_cache'], 'indexes' => ['wp_object_cache_key'], 'file' => '/srv/wp/cache-next223.sqlite'],

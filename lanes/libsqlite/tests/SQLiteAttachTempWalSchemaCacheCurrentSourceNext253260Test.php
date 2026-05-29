@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas253260 = [
     'main' => [
@@ -55,7 +55,7 @@ $statements253260 = [
     ['name' => 'search-reader', 'sql' => 'SELECT cache_value FROM search.wp_search_cache INDEXED BY wp_search_cache_key WHERE cache_key = ?'],
 ];
 
-$plan253260 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext253260(
+$plan253260 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext253260(
     $schemas ?? $schemas253260,
     $statements ?? $statements253260,
     $events,

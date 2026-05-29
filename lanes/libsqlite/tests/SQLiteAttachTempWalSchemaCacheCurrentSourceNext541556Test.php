@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas541556 = [
     'main' => [
@@ -55,7 +55,7 @@ $statements541556 = [
     ['name' => 'audit-log-reader', 'sql' => 'SELECT audit_id FROM audit.wp_schema_audit_next553 INDEXED BY wp_schema_audit_key_next553 WHERE audit_key = ?'],
 ];
 
-$plan541556 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext541556(
+$plan541556 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext541556(
     $schemas ?? $schemas541556,
     $statements ?? $statements541556,
     $events,

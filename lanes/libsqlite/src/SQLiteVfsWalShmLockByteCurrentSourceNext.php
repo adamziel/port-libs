@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteVfsWalShmLockByteCurrentSourceNext89
+final class SQLiteVfsWalShmLockByteCurrentSourceNext
 {
     /**
      * @param array<string,mixed> $current

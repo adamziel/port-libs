@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas861876 = [
     'main' => [
@@ -62,7 +62,7 @@ $statements861876 = [
     ['name' => 'temp-gate-reader', 'sql' => 'SELECT gate_id FROM temp.wp_theme_stage_publish_gate_next864 WHERE cache_key = ?'],
 ];
 
-$plan861876 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext861876(
+$plan861876 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext861876(
     $schemas ?? $schemas861876,
     $statements ?? $statements861876,
     $events,

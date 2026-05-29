@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas125128 = [
     'main' => [
@@ -30,7 +30,7 @@ $statements125128 = [
     ['name' => 'temp-indexed-write', 'sql' => 'UPDATE temp.wp_import_queue INDEXED BY wp_import_queue_status SET status = ? WHERE option_name = ?'],
 ];
 
-$plan125128 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext125128(
+$plan125128 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext125128(
     $schemas ?? $schemas125128,
     $statements ?? $statements125128,
     $events,

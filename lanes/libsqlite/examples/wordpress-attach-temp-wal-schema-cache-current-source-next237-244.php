@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => [
@@ -38,7 +38,7 @@ $statements = [
     ['name' => 'search-reader', 'sql' => 'SELECT cache_value FROM search.wp_search_cache INDEXED BY wp_search_cache_key WHERE cache_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext237244($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext237244($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 238, 'table' => 'wp_postmeta', 'indexes' => ['wp_postmeta_key'], 'commit' => true],
     ['op' => 'drop_table', 'schema' => 'temp', 'table' => 'wp_options'],
     ['op' => 'rename_index', 'schema' => 'audit', 'from' => 'wp_auditmeta_key', 'to' => 'wp_auditmeta_key_next239'],

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas557572 = [
     'main' => [
@@ -55,7 +55,7 @@ $statements557572 = [
     ['name' => 'archive-reader', 'sql' => 'SELECT archive_id FROM archive.wp_schema_archive_next568 INDEXED BY wp_schema_archive_key_next568 WHERE archive_key = ?'],
 ];
 
-$plan557572 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext557572(
+$plan557572 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext557572(
     $schemas ?? $schemas557572,
     $statements ?? $statements557572,
     $events,

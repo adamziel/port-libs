@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas957972 = [
     'main' => [
@@ -68,7 +68,7 @@ $statements957972 = [
     ['name' => 'report-reader', 'sql' => 'SELECT report_id FROM report.wp_schema_report_receipt_next957 INDEXED BY wp_schema_report_receipt_key_next957 WHERE report_key = ?'],
 ];
 
-$plan957972 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext957972(
+$plan957972 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext957972(
     $schemas ?? $schemas957972,
     $statements ?? $statements957972,
     $events,

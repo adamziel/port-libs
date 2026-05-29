@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 652, 'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next652'], 'indexes' => ['wp_options_name', 'wp_navigation_rule_locale_publish_final_key_next652'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 652, 'commit' => true]]],
@@ -26,7 +26,7 @@ $statements = [
     ['name' => 'temp-retry-reader', 'sql' => 'SELECT tries FROM temp.wp_theme_stage_publish_retries_next558 WHERE cache_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext653668($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext653668($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 653, 'table' => 'wp_navigation_rule_locale_publish_receipt_next653', 'indexes' => ['wp_navigation_rule_locale_publish_receipt_key_next653'], 'commit' => true],
     ['op' => 'wal_commit', 'schema' => 'publish', 'schema_cookie' => 654, 'table' => 'wp_schema_publish_audit_next654', 'indexes' => ['wp_schema_publish_audit_key_next654'], 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'queue', 'from' => 'wp_job_retry_checkpoint_preview_job_next639', 'to' => 'wp_job_retry_checkpoint_preview_job_next655'],

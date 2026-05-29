@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas477492 = [
     'main' => [
@@ -49,7 +49,7 @@ $statements477492 = [
     ['name' => 'segment-writer', 'sql' => 'UPDATE segment.wp_segment_rollups_next485 INDEXED BY wp_segment_rollups_slug_next485 SET enabled = ? WHERE slug = ?'],
 ];
 
-$plan477492 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext477492(
+$plan477492 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext477492(
     $schemas ?? $schemas477492,
     $statements ?? $statements477492,
     $events,

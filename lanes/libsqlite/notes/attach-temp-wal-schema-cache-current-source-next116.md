@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for ATTACH/temp/WAL prepared statement schem
 
 This slice extends the current-source schema-cache planner with bounded index dependency tracking:
 
-- `SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext116()` extracts `INDEXED BY` index names from `SELECT`, `UPDATE`, `DELETE`, and joined table references.
+- `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext116()` extracts `INDEXED BY` index names from `SELECT`, `UPDATE`, `DELETE`, and joined table references.
 - The planner now accepts schema `indexes` metadata and index DDL events (`create_index`, `drop_index`), advances schema cookies, and reports per-statement `index_transitions`.
 - Prepared statements expire when their required index disappears, appears, moves through ATTACH/DETACH resolution, or when the containing schema cookie changes. Unrelated attached-schema index DDL does not expire a stable statement.
 
@@ -13,7 +13,7 @@ WordPress relevance: copied `wp_options` migration SQL commonly pins index use a
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php
+php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext116Test.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next116.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext116Test.php

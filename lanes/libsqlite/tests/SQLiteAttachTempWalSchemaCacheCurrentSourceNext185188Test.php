@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas185188 = [
     'main' => [
@@ -32,7 +32,7 @@ $statements185188 = [
     ['name' => 'main-posts-writer', 'sql' => 'UPDATE wp_posts SET post_modified = ? WHERE ID = ?'],
 ];
 
-$plan185188 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext185188(
+$plan185188 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext185188(
     $schemas ?? $schemas185188,
     $statements ?? $statements185188,
     $events,

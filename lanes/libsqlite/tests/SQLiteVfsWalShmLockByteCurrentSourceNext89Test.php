@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsWalShmLockByteCurrentSourceNext89;
+use PortLibs\LibSqlite\SQLiteVfsWalShmLockByteCurrentSourceNext;
 
 $path = '/srv/www/wp-content/database/.ht.sqlite';
 
-$run = static fn (array $current, array $operations): array => SQLiteVfsWalShmLockByteCurrentSourceNext89::plan($current, $operations);
+$run = static fn (array $current, array $operations): array => SQLiteVfsWalShmLockByteCurrentSourceNext::plan($current, $operations);
 
 $writer = static fn (): array => $run([], [
     'lock shared wp-reader 4',
@@ -117,7 +117,7 @@ return [
     'vfs wal shm lock byte current source next89 shm exclusive blocked by shared' => static fn (TestRunner $t) => $t->same(['a:shared'], $run([], ['shm read0 shared a', 'shm read0 exclusive b'])['events'][1]['blocking']),
     'vfs wal shm lock byte current source next89 shm shared blocked by exclusive' => static fn (TestRunner $t) => $t->same(['a:exclusive'], $run([], ['shm read0 exclusive a', 'shm read0 shared b'])['events'][1]['blocking']),
 
-    'vfs wal shm lock byte current source next89 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsWalShmLockByteCurrentSourceNext89::plan([], [])),
+    'vfs wal shm lock byte current source next89 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsWalShmLockByteCurrentSourceNext::plan([], [])),
     'vfs wal shm lock byte current source next89 rejects bad operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run([], ['checkpoint wp'])),
     'vfs wal shm lock byte current source next89 rejects bad path' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run([], [['op' => 'lock', 'path' => '', 'level' => 'shared', 'connection' => 'wp']])),
     'vfs wal shm lock byte current source next89 rejects bad connection' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run([], [['op' => 'lock', 'level' => 'shared', 'connection' => '']])),

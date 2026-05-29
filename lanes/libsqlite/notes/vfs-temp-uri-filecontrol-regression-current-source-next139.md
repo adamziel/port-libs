@@ -1,7 +1,7 @@
 # VFS Temp URI File-Control Regression Current Source Next139
 
 - Slice: `vfs-temp-uri-filecontrol-regression-current-source-next139`
-- Behavior: extends `SQLiteVfsLockByteUriShmCurrentSourceNext97` with `currentSourceNext139()` for temporary VFS URI handles.
+- Behavior: extends `SQLiteVfsLockByteUriShmCurrentSourceNext` with `currentSourceNext139()` for temporary VFS URI handles.
 - Upstream behavior cluster: temp database handles are private current sources; URI file-controls read from the opening URI; writable file-controls on temp handles stay handle-local and do not leak into the persistent database owner controls.
 - WordPress path: import scratch/temp databases can carry URI metadata such as sorter role, checkpoint intent, and busy timeout while the live copied database still persists WAL-related controls through normal owner state.
 - Focused evidence:

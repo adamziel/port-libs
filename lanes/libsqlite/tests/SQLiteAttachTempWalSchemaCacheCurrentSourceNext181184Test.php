@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas181184 = [
     'main' => [
@@ -32,7 +32,7 @@ $statements181184 = [
     ['name' => 'main-options-writer', 'sql' => 'UPDATE main.wp_options SET option_value = ? WHERE option_name = ?'],
 ];
 
-$plan181184 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext181184(
+$plan181184 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext181184(
     $schemas ?? $schemas181184,
     $statements ?? $statements181184,
     $events,

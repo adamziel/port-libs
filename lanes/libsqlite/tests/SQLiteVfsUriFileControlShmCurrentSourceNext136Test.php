@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext97;
+use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
 $tests = [];
 
-$run136 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext97::currentSourceNext136($ops, $options + [
+$run136 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext136($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/wp%20136.sqlite?mode=rw&cache=shared&role=default',
 ]);
 
@@ -136,7 +136,7 @@ $tests['vfs uri filecontrol shm current source next136 explicit current stale'] 
 $tests['vfs uri filecontrol shm current source next136 explicit close releases replay locks'] = static fn (TestRunner $t) => $t->same(['read0:wp-reader', 'write:wp-import'], $explicitCurrent()['events'][1]['released_shm_locks']);
 $tests['vfs uri filecontrol shm current source next136 explicit close keeps reserved'] = static fn (TestRunner $t) => $t->same(['wp-import' => 'reserved'], $explicitCurrent()['events'][1]['next']['lock_holders']['/srv/www/wp-content/database/replay.sqlite']);
 $tests['vfs uri filecontrol shm current source next136 explicit close leaves main open'] = static fn (TestRunner $t) => $t->same(['main' => 'vfs97-2'], $explicitCurrent()['events'][1]['next']['source_handles']);
-$tests['vfs uri filecontrol shm current source next136 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext97::currentSourceNext136([]));
+$tests['vfs uri filecontrol shm current source next136 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext136([]));
 $tests['vfs uri filecontrol shm current source next136 rejects missing target after close'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run136(['open(shm)', 'close(shm)', 'file_control(uri_parameter, role) on shm']));
 
 return $tests;

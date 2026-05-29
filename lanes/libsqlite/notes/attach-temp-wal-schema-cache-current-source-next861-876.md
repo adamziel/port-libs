@@ -1,6 +1,6 @@
 # SQLite attach TEMP WAL schema cache current-source next861-876
 
-Extends the next845-860 attach/TEMP/WAL schema-cache current-source handoff in `SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext861876()`.
+Extends the next845-860 attach/TEMP/WAL schema-cache current-source handoff in `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext861876()`.
 
 - next861-876 keeps the same consolidated attach schema-cache planner and records the next dependency range before the next845-860 predecessor markers.
 - The focused fixture covers committed main WAL schema-cookie movement through next876, TEMP schema writes, attached index rename expiry, attached table drop/rename expiry, attached schema rollout, publish WAL movement, and detached-schema removal.
@@ -9,7 +9,7 @@ Extends the next845-860 attach/TEMP/WAL schema-cache current-source handoff in `
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php
+php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext845860Test.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext861876Test.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next861-876.php

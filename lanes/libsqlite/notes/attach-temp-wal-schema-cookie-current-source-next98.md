@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for ATTACH/temp/WAL schema-cookie current-source validation.
 
-This slice adds `SQLiteAttachTempWalSchemaCookieCurrentSourceNext98Plan`. It composes the accepted next87 WAL/temp schema-cookie source planner with schema root-page signatures so copied WordPress imports can distinguish:
+This slice adds `SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan`. It composes the accepted next87 WAL/temp schema-cookie source planner with schema root-page signatures so copied WordPress imports can distinguish:
 
 - WAL page-1 checkpoint movement where the numeric schema cookie and root signature are unchanged, so prepared statements can be reused.
 - Temp rollback-journal or attached WAL schema changes where the numeric cookie is unchanged but root pages or table presence changed, so statements expire with `SQLITE_SCHEMA`.

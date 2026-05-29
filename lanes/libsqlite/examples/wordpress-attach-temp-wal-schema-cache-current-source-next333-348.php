@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 318, 'tables' => ['wp_options', 'wp_posts', 'wp_postmeta', 'wp_users', 'wp_terms', 'wp_term_taxonomy', 'wp_site_health', 'wp_block_patterns'], 'indexes' => ['wp_options_name', 'wp_posts_type_status_next293', 'wp_postmeta_key', 'wp_users_login_next308', 'wp_terms_slug', 'wp_term_taxonomy_taxonomy', 'wp_site_health_status', 'wp_block_patterns_slug'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 318, 'commit' => true]]],
@@ -27,7 +27,7 @@ $statements = [
     ['name' => 'archive-writer', 'sql' => 'UPDATE archive.wp_archived_posts INDEXED BY wp_archived_posts_date SET post_status = ? WHERE post_date < ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext333348($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext333348($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 333, 'table' => 'wp_global_styles', 'indexes' => ['wp_global_styles_slug'], 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_theme_stage_stylesheet_next302', 'to' => 'wp_theme_stage_stylesheet_next334'],
     ['op' => 'drop_table', 'schema' => 'analytics', 'table' => 'wp_event_rollup_next321'],

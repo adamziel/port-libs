@@ -1,10 +1,10 @@
 # SQLite attach/temp/WAL schema-cache current-source next653-668
 
-Behavior: extends `SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan` with `currentSourceNext653668()` as the direct follow-on to integrated next637-652. The slice starts from the next637-652 handoff state, carries prior dependency receipts, and verifies active current snapshots, writer retry blocking, publish detach expiry, attached audit schema visibility, archive index expiry, queue handoff index rename expiry, and handoff meta table expiry.
+Behavior: extends `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan` with `currentSourceNext653668()` as the direct follow-on to integrated next637-652. The slice starts from the next637-652 handoff state, carries prior dependency receipts, and verifies active current snapshots, writer retry blocking, publish detach expiry, attached audit schema visibility, archive index expiry, queue handoff index rename expiry, and handoff meta table expiry.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext653668Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next653-668.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext653668Test.php`

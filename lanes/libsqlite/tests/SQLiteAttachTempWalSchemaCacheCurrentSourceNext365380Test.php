@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas365380 = [
     'main' => [
@@ -56,7 +56,7 @@ $statements365380 = [
     ['name' => 'import-writer', 'sql' => 'UPDATE imports.wp_import_items INDEXED BY wp_import_items_status SET status = ? WHERE status = ?'],
 ];
 
-$plan365380 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext365380(
+$plan365380 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext365380(
     $schemas ?? $schemas365380,
     $statements ?? $statements365380,
     $events,

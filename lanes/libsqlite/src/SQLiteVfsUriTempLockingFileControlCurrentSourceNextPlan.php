@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
+final class SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan
 {
     /**
      * @param list<string|array<string,mixed>> $operations
@@ -14,17 +14,16 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
     public static function run(array $operations, array $options = []): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS lock URI temp file-control current-source next137 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS URI temp locking file-control current-source next130 requires operations');
         }
 
         $state = [
             'sequence' => 0,
-            'generation' => 0,
             'current_source' => null,
-            'temp_directory' => self::directory($options['temp_directory'] ?? sys_get_temp_dir(), 'temp_directory'),
             'handles' => [],
             'source_handles' => [],
-            'owner_locks' => [],
+            'persistent_controls' => self::arrayMap($options['persistent_controls'] ?? []),
+            'persistent_locks' => self::arrayMap($options['persistent_locks'] ?? []),
             'deleted_temp_owners' => [],
         ];
         $events = [];
@@ -32,9 +31,8 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
         foreach ($operations as $operation) {
             $op = self::operation($operation);
             $before = self::snapshot($state);
-
             if ($op['kind'] === 'open') {
-                $handle = self::openHandle($state, $op);
+                $handle = self::openHandle($state, $op, $options);
                 $state['handles'][$handle['id']] = $handle;
                 $state['source_handles'][$handle['source']] = $handle['id'];
                 $state['current_source'] = $handle['source'];
@@ -44,10 +42,10 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
                     'path' => $handle['path'],
                     'temporary' => $handle['temporary'],
                     'delete_on_close' => $handle['delete_on_close'],
-                    'temp_directory' => $handle['temp_directory'],
-                    'uri_parameters' => $handle['uri_parameters'],
                     'readonly' => $handle['readonly'],
                     'nolock' => $handle['nolock'],
+                    'reused_controls' => $handle['reused_controls'],
+                    'reused_locks' => $handle['reused_locks'],
                 ]);
                 continue;
             }
@@ -66,7 +64,7 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
             }
 
             if ($op['kind'] === 'filecontrol') {
-                $source = self::sourceFor($state, $op['source'] ?? null);
+                $source = self::sourceFor($state, $op['source']);
                 $handleId = $state['source_handles'][$source] ?? null;
                 if (!is_string($handleId) || !isset($state['handles'][$handleId])) {
                     $events[] = self::event('file_control', 'missing-handle', $source, $before, self::snapshot($state), []);
@@ -80,7 +78,7 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
             }
 
             if ($op['kind'] === 'lock') {
-                $source = self::sourceFor($state, $op['source'] ?? null);
+                $source = self::sourceFor($state, $op['source']);
                 $handleId = $state['source_handles'][$source] ?? null;
                 if (!is_string($handleId) || !isset($state['handles'][$handleId])) {
                     $events[] = self::event('lock', 'missing-handle', $source, $before, self::snapshot($state), []);
@@ -94,18 +92,19 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
             }
 
             if ($op['kind'] === 'close') {
-                $source = self::sourceFor($state, $op['source'] ?? null);
+                $source = self::sourceFor($state, $op['source']);
                 $handleId = $state['source_handles'][$source] ?? null;
                 if (!is_string($handleId) || !isset($state['handles'][$handleId])) {
                     $events[] = self::event('close', 'missing-handle', $source, $before, self::snapshot($state), []);
                     continue;
                 }
                 $handle = $state['handles'][$handleId];
-                unset($state['handles'][$handleId], $state['source_handles'][$source], $state['owner_locks'][$handle['owner']]);
-                $deleted = (bool) $handle['delete_on_close'];
-                if ($deleted) {
+                unset($state['handles'][$handleId], $state['source_handles'][$source]);
+                $deleted = false;
+                if ($handle['delete_on_close']) {
+                    unset($state['persistent_controls'][$handle['owner']], $state['persistent_locks'][$handle['owner']]);
                     $state['deleted_temp_owners'][] = $handle['owner'];
-                    $state['generation']++;
+                    $deleted = true;
                 }
                 if ($state['current_source'] === $source) {
                     $state['current_source'] = array_key_first($state['source_handles']);
@@ -113,35 +112,31 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
                 $events[] = self::event('close', 'closed', $source, $before, self::snapshot($state), [
                     'handle' => $handleId,
                     'owner' => $handle['owner'],
-                    'deleted_temp' => $deleted,
                     'released_locks' => true,
+                    'deleted_temp' => $deleted,
                 ]);
-                continue;
             }
-
-            throw new \InvalidArgumentException('SQLite VFS lock URI temp file-control operation is unsupported');
         }
 
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => [
                 'sequence' => 0,
-                'generation' => 0,
                 'current_source' => null,
-                'temp_directory' => self::directory($options['temp_directory'] ?? sys_get_temp_dir(), 'temp_directory'),
                 'handles' => [],
                 'source_handles' => [],
-                'owner_locks' => [],
+                'persistent_controls' => self::arrayMap($options['persistent_controls'] ?? []),
+                'persistent_locks' => self::arrayMap($options['persistent_locks'] ?? []),
                 'deleted_temp_owners' => [],
             ],
             'next' => self::summary($state),
             'events' => $events,
             'dependencies' => [
                 'sqlite-file-uri-parser',
+                'vfs-temp-delete-on-close',
+                'vfs-file-control-current-source',
                 'vfs-lock-byte-state',
-                'vfs-temp-directory-current-source',
-                'vfs-uri-file-control-current-source',
-                'vfs-lock-uri-temp-filecontrol-current-source-next137',
+                'vfs-uri-temp-locking-filecontrol-current-source-next130',
             ],
         ];
     }
@@ -149,37 +144,39 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
     /**
      * @param array<string,mixed> $state
      * @param array<string,mixed> $op
+     * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    private static function openHandle(array &$state, array $op): array
+    private static function openHandle(array &$state, array $op, array $options): array
     {
         $state['sequence']++;
         $source = self::sourceName((string) ($op['source'] ?? 'main'));
-        $filename = trim((string) ($op['filename'] ?? ''));
+        $filename = trim((string) ($op['filename'] ?? ($options['filename'] ?? '')));
+        $temporary = (bool) ($op['temporary'] ?? false) || $source === 'temp' || $filename === '' || str_contains(strtolower($filename), 'mode=memory');
         $uri = $filename !== '' && str_starts_with(strtolower($filename), 'file:') ? SQLiteFileUri::parse($filename) : null;
-        $parameters = is_array($uri) ? self::uriParameters($uri) : [];
-        $mode = is_array($uri) ? (string) ($uri['mode'] ?? '') : '';
-        $temporary = (bool) ($op['temporary'] ?? false) || $source === 'temp' || $filename === '' || $mode === 'memory';
-        $tempDirectory = self::directory($parameters['tempdir'] ?? $state['temp_directory'], 'tempdir');
-        $path = is_array($uri) ? (string) $uri['path'] : $filename;
-        if ($temporary && ($path === '' || $mode === 'memory')) {
-            $path = rtrim($tempDirectory, '/') . '/sqlite-temp-' . $state['sequence'] . '.db';
+        $path = is_array($uri) ? (string) $uri['path'] : ($filename === '' ? '' : $filename);
+        if ($temporary && $path === '') {
+            $path = 'temp:' . $source . ':' . $state['sequence'];
         }
         $owner = $temporary ? 'temp:' . $source . ':' . $state['sequence'] : self::stripSidecarSuffix($path);
+        $controls = !$temporary && is_array($state['persistent_controls'][$owner] ?? null) ? $state['persistent_controls'][$owner] : [];
+        $locks = !$temporary && is_array($state['persistent_locks'][$owner] ?? null) ? $state['persistent_locks'][$owner] : [];
 
         return [
-            'id' => 'vfs137-' . $state['sequence'],
+            'id' => 'vfs130-' . $state['sequence'],
             'status' => $temporary ? 'temp-open' : 'open',
             'source' => $source,
             'owner' => $owner,
             'path' => $path,
             'temporary' => $temporary,
             'delete_on_close' => (bool) ($op['delete_on_close'] ?? $temporary),
-            'temp_directory' => $temporary ? $tempDirectory : null,
-            'readonly' => (bool) ($op['readonly'] ?? ($mode === 'ro')),
+            'readonly' => (bool) ($op['readonly'] ?? (is_array($uri) && ($uri['mode'] ?? null) === 'ro')),
             'nolock' => (bool) ($op['nolock'] ?? (is_array($uri) && ($uri['nolock'] ?? null) === true)),
-            'uri_parameters' => $parameters,
-            'opened_generation' => $state['generation'],
+            'locking_mode' => 'normal',
+            'controls' => $controls,
+            'locks' => $locks,
+            'reused_controls' => $controls !== [],
+            'reused_locks' => $locks !== [],
         ];
     }
 
@@ -189,56 +186,46 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
      */
     private static function applyFileControl(array &$state, string $handleId, string $control, mixed $value): array
     {
-        $handle = $state['handles'][$handleId];
-        if ($control === 'temp_directory') {
-            $previous = $state['temp_directory'];
-            $directory = self::directory($value, 'temp_directory');
-            $state['temp_directory'] = $directory;
-            $state['generation']++;
+        $handle = &$state['handles'][$handleId];
+        $previous = $control === 'locking_mode' ? $handle['locking_mode'] : ($handle['controls'][$control] ?? null);
+        $normalized = self::controlValue($control, $value);
+        $status = 'ok';
+        $reason = null;
+        $persistent = false;
 
-            return [
-                'file_control' => $control,
-                'value' => $directory,
-                'previous' => $previous,
-                'changed' => $previous !== $directory,
-                'routed_to' => 'connection-temp-directory',
-                'affects_existing_handle' => false,
-                'stale_current_source' => ((int) $handle['opened_generation']) !== $state['generation'],
-                'status' => 'ok',
-            ];
+        if ($handle['readonly'] && in_array($control, ['persist_wal', 'reserve_bytes', 'size_hint', 'chunk_size'], true)) {
+            $status = 'ignored';
+            $reason = 'readonly handle ignores mutating file-control';
+        } elseif ($handle['temporary'] && $control === 'persist_wal') {
+            $status = 'ignored';
+            $reason = 'temporary database handles do not persist WAL state';
+        } elseif ($control === 'locking_mode') {
+            $handle['locking_mode'] = $normalized;
+            if ($normalized === 'exclusive') {
+                $handle['locks']['exclusive'] = 'locking_mode';
+            }
+        } else {
+            $handle['controls'][$control] = $normalized;
+            $persistent = !$handle['temporary'] && in_array($control, ['persist_wal', 'reserve_bytes', 'chunk_size'], true);
+            if ($persistent) {
+                $state['persistent_controls'][$handle['owner']] = self::persistentSubset($handle['controls']);
+            }
         }
 
-        if (in_array($control, ['uri_parameter', 'uri_boolean', 'uri_int'], true)) {
-            $spec = is_array($value) ? $value : ['parameter' => $value];
-            $parameter = self::parameterName((string) ($spec['parameter'] ?? ''));
-            $default = $spec['default'] ?? null;
-            $raw = $handle['uri_parameters'][$parameter] ?? null;
-            $result = match ($control) {
-                'uri_boolean' => $raw === null ? self::boolean($default) : self::boolean($raw),
-                'uri_int' => $raw === null ? self::nonNegativeInt($default ?? 0, $parameter) : self::nonNegativeInt($raw, $parameter),
-                default => $raw ?? $default,
-            };
-
-            return [
-                'file_control' => $control,
-                'parameter' => $parameter,
-                'value' => $result,
-                'default' => $default,
-                'changed' => false,
-                'routed_to' => 'current-source-uri',
-                'stale_current_source' => ((int) $handle['opened_generation']) !== $state['generation'],
-                'reason' => $raw === null ? 'missing_uri_parameter' : null,
-                'status' => 'ok',
-            ];
-        }
+        $owner = $handle['owner'];
+        $temporary = $handle['temporary'];
+        unset($handle);
 
         return [
             'file_control' => $control,
-            'value' => $value,
-            'changed' => false,
-            'routed_to' => 'unsupported',
-            'reason' => 'file-control is outside next137 temp/URI scope',
-            'status' => 'unsupported',
+            'value' => $normalized,
+            'previous' => $previous,
+            'changed' => $status === 'ok' && $previous !== $normalized,
+            'persistent' => $persistent,
+            'temporary' => $temporary,
+            'owner' => $owner,
+            'reason' => $reason,
+            'status' => $status,
         ];
     }
 
@@ -248,18 +235,23 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
      */
     private static function applyLock(array &$state, string $handleId, string $level, string $connection): array
     {
-        $handle = $state['handles'][$handleId];
+        $handle = &$state['handles'][$handleId];
         if ($handle['nolock']) {
-            return ['level' => $level, 'connection' => $connection, 'status' => 'blocked', 'reason' => 'URI nolock disables byte-range locking'];
+            unset($handle);
+            return ['level' => $level, 'connection' => $connection, 'status' => 'blocked', 'reason' => 'nolock VFS disables temp byte-range locking'];
         }
         if ($handle['readonly'] && in_array($level, ['reserved', 'pending', 'exclusive'], true)) {
-            return ['level' => $level, 'connection' => $connection, 'status' => 'blocked', 'reason' => 'readonly URI handle cannot take writer locks'];
+            unset($handle);
+            return ['level' => $level, 'connection' => $connection, 'status' => 'blocked', 'reason' => 'readonly handle cannot take writer locks'];
         }
 
-        $locks = is_array($state['owner_locks'][$handle['owner']] ?? null) ? $state['owner_locks'][$handle['owner']] : [];
+        $locks = $handle['locks'];
         $blocking = [];
         foreach ($locks as $held => $owner) {
             if ($owner === $connection) {
+                continue;
+            }
+            if ($level === 'exclusive' && $held === 'exclusive' && $owner === 'locking_mode') {
                 continue;
             }
             if ($level === 'shared' && $held === 'exclusive') {
@@ -269,7 +261,8 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
             }
         }
         if ($blocking !== []) {
-            return ['level' => $level, 'connection' => $connection, 'status' => 'busy', 'blocking' => $blocking, 'reason' => 'current-source owner lock is held'];
+            unset($handle);
+            return ['level' => $level, 'connection' => $connection, 'status' => 'busy', 'blocking' => $blocking, 'reason' => 'temp file lock is held by another connection'];
         }
 
         if ($level === 'unlock') {
@@ -277,9 +270,14 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
         } else {
             $locks[$level] = $connection;
         }
-        $state['owner_locks'][$handle['owner']] = $locks;
+        $handle['locks'] = $locks;
+        if (!$handle['temporary']) {
+            $state['persistent_locks'][$handle['owner']] = $locks;
+        }
+        $temporary = $handle['temporary'];
+        unset($handle);
 
-        return ['level' => $level, 'connection' => $connection, 'status' => 'ok', 'blocking' => [], 'owner' => $handle['owner']];
+        return ['level' => $level, 'connection' => $connection, 'status' => 'ok', 'blocking' => [], 'temporary' => $temporary];
     }
 
     /**
@@ -319,13 +317,13 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
             return ['kind' => 'close', 'source' => $matches['source']];
         }
         if (preg_match('/^file_control\s*\(\s*(?<control>[A-Za-z_][A-Za-z0-9_-]*)\s*(?:,\s*(?<value>.*))?\)$/', $trimmed, $matches) === 1) {
-            return ['kind' => 'filecontrol', 'control' => $matches['control'], 'value' => self::parseValue($matches['value'] ?? null)];
+            return ['kind' => 'filecontrol', 'source' => null, 'control' => $matches['control'], 'value' => self::parseValue($matches['value'] ?? null)];
         }
         if (preg_match('/^lock\s*\(\s*(?<level>shared|reserved|pending|exclusive|unlock)\s*(?:,\s*(?<connection>[A-Za-z0-9_.:-]+))?\s*\)$/i', $trimmed, $matches) === 1) {
-            return ['kind' => 'lock', 'level' => $matches['level'], 'connection' => $matches['connection'] ?? null];
+            return ['kind' => 'lock', 'source' => null, 'level' => $matches['level'], 'connection' => $matches['connection'] ?? null];
         }
 
-        throw new \InvalidArgumentException('SQLite VFS lock URI temp file-control operation is unsupported');
+        throw new \InvalidArgumentException('SQLite VFS URI temp locking file-control operation is unsupported');
     }
 
     /**
@@ -360,11 +358,21 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
         return $control;
     }
 
+    private static function controlValue(string $control, mixed $value): mixed
+    {
+        return match ($control) {
+            'persist_wal' => self::boolean($value),
+            'reserve_bytes', 'chunk_size', 'size_hint' => self::nonNegativeInt($value, $control),
+            'locking_mode' => self::lockingMode($value),
+            default => $value,
+        };
+    }
+
     private static function lockLevel(string $level): string
     {
         $level = strtolower(trim($level));
         if (!in_array($level, ['shared', 'reserved', 'pending', 'exclusive', 'unlock'], true)) {
-            throw new \InvalidArgumentException('SQLite VFS lock level is unsupported');
+            throw new \InvalidArgumentException('SQLite VFS temp lock level is unsupported');
         }
 
         return $level;
@@ -374,46 +382,73 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
     {
         $connection = $connection === null || $connection === '' ? 'default' : trim((string) $connection);
         if ($connection === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $connection) !== 1) {
-            throw new \InvalidArgumentException('SQLite VFS lock connection name is unsupported');
+            throw new \InvalidArgumentException('SQLite VFS temp lock connection name is unsupported');
         }
 
         return $connection;
     }
 
-    private static function directory(mixed $value, string $label): string
+    /**
+     * @param array<string,mixed> $controls
+     * @return array<string,mixed>
+     */
+    private static function persistentSubset(array $controls): array
     {
-        if (!is_string($value) || trim($value) === '' || str_contains($value, "\0")) {
-            throw new \InvalidArgumentException("SQLite VFS {$label} must be a non-empty path");
+        $subset = [];
+        foreach (['persist_wal', 'reserve_bytes', 'chunk_size'] as $key) {
+            if (array_key_exists($key, $controls)) {
+                $subset[$key] = $controls[$key];
+            }
         }
 
-        return rtrim($value, '/');
+        return $subset;
     }
 
-    private static function parameterName(string $parameter): string
+    private static function stripSidecarSuffix(string $path): string
     {
-        $parameter = strtolower(trim($parameter));
-        if ($parameter === '' || preg_match('/^[a-z0-9_.-]+$/', $parameter) !== 1) {
-            throw new \InvalidArgumentException('SQLite VFS URI file-control parameter is unsupported');
-        }
-
-        return $parameter;
+        return preg_replace('/-(?:wal|shm|journal)$/', '', $path) ?? $path;
     }
 
     /**
-     * @param array<string,mixed> $uri
+     * @param array<string,mixed> $state
      * @return array<string,mixed>
      */
-    private static function uriParameters(array $uri): array
+    private static function summary(array $state): array
     {
-        $parameters = is_array($uri['unknown_parameters'] ?? null) ? $uri['unknown_parameters'] : [];
-        foreach (['mode', 'cache', 'vfs', 'nolock', 'immutable', 'psow'] as $key) {
-            if (array_key_exists($key, $uri)) {
-                $parameters[$key] = $uri[$key];
-            }
-        }
-        ksort($parameters);
+        return [
+            'current_source' => $state['current_source'],
+            'open_count' => count($state['handles']),
+            'temp_open_count' => count(array_filter($state['handles'], static fn (array $handle): bool => (bool) $handle['temporary'])),
+            'persistent_control_count' => count($state['persistent_controls']),
+            'persistent_lock_count' => count($state['persistent_locks']),
+            'deleted_temp_owners' => array_values(array_unique($state['deleted_temp_owners'])),
+        ];
+    }
 
-        return $parameters;
+    /**
+     * @param array<string,mixed> $state
+     * @return array<string,mixed>
+     */
+    private static function snapshot(array $state): array
+    {
+        ksort($state['handles']);
+        ksort($state['source_handles']);
+        ksort($state['persistent_controls']);
+        ksort($state['persistent_locks']);
+        sort($state['deleted_temp_owners']);
+
+        return $state;
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @param array<string,mixed> $extra
+     * @return array<string,mixed>
+     */
+    private static function event(string $op, string $status, string $source, array $current, array $next, array $extra): array
+    {
+        return ['op' => $op, 'status' => $status, 'source' => $source, 'current' => $current, 'next' => $next] + $extra;
     }
 
     private static function parseValue(mixed $value): mixed
@@ -448,6 +483,16 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
         return in_array(strtolower(trim((string) $value)), ['1', 'true', 'on', 'yes'], true);
     }
 
+    private static function lockingMode(mixed $value): string
+    {
+        $mode = strtolower(trim((string) $value));
+        if (!in_array($mode, ['normal', 'exclusive'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS locking_mode file-control expects normal or exclusive');
+        }
+
+        return $mode;
+    }
+
     private static function nonNegativeInt(mixed $value, string $label): int
     {
         if (is_int($value) || (is_string($value) && preg_match('/^\d+$/', trim($value)) === 1)) {
@@ -457,53 +502,14 @@ final class SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan
             }
         }
 
-        throw new \InvalidArgumentException("SQLite VFS {$label} expects a non-negative integer");
-    }
-
-    private static function stripSidecarSuffix(string $path): string
-    {
-        return preg_replace('/-(?:wal|shm|journal)$/', '', $path) ?? $path;
+        throw new \InvalidArgumentException("SQLite VFS {$label} file-control expects a non-negative integer");
     }
 
     /**
-     * @param array<string,mixed> $state
      * @return array<string,mixed>
      */
-    private static function summary(array $state): array
+    private static function arrayMap(mixed $value): array
     {
-        return [
-            'generation' => $state['generation'],
-            'current_source' => $state['current_source'],
-            'temp_directory' => $state['temp_directory'],
-            'open_count' => count($state['handles']),
-            'temp_open_count' => count(array_filter($state['handles'], static fn (array $handle): bool => (bool) $handle['temporary'])),
-            'lock_owner_count' => count($state['owner_locks']),
-            'deleted_temp_owners' => array_values(array_unique($state['deleted_temp_owners'])),
-        ];
-    }
-
-    /**
-     * @param array<string,mixed> $state
-     * @return array<string,mixed>
-     */
-    private static function snapshot(array $state): array
-    {
-        ksort($state['handles']);
-        ksort($state['source_handles']);
-        ksort($state['owner_locks']);
-        sort($state['deleted_temp_owners']);
-
-        return $state;
-    }
-
-    /**
-     * @param array<string,mixed> $current
-     * @param array<string,mixed> $next
-     * @param array<string,mixed> $extra
-     * @return array<string,mixed>
-     */
-    private static function event(string $op, string $status, string $source, array $current, array $next, array $extra): array
-    {
-        return ['op' => $op, 'status' => $status, 'source' => $source, 'current' => $current, 'next' => $next] + $extra;
+        return is_array($value) ? $value : [];
     }
 }

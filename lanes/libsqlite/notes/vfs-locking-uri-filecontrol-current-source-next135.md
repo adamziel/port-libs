@@ -6,7 +6,7 @@ controls through a stale handle.
 
 Behavior covered:
 
-- Adds `SQLiteVfsLockByteUriShmCurrentSourceNext97::currentSourceNext135()` as
+- Adds `SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext135()` as
   the bounded next135 dependency marker for VFS locking, URI file-control, and
   current-source generation behavior.
 - Blocks write file-controls such as `chunk_size` and

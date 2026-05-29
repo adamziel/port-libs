@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 185, 'tables' => ['wp_options', 'wp_posts'], 'indexes' => ['wp_options_name', 'wp_posts_date']],
@@ -19,7 +19,7 @@ $statements = [
     ['name' => 'main-posts-writer', 'sql' => 'UPDATE wp_posts SET post_modified = ? WHERE ID = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext185188($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext185188($schemas, $statements, [
     ['op' => 'drop_index', 'schema' => 'temp', 'index' => 'wp_uploads_token'],
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 187, 'table' => 'wp_posts'],
 ]);

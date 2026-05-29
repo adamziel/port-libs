@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 972, 'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_batch_next962', 'wp_navigation_rule_locale_publish_final_next972', 'wp_navigation_rule_locale_publish_gate_next960'], 'indexes' => ['wp_options_name', 'wp_navigation_rule_locale_publish_batch_key_next962', 'wp_navigation_rule_locale_publish_final_key_next972', 'wp_navigation_rule_locale_publish_gate_key_next960'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 972, 'commit' => true]]],
@@ -29,7 +29,7 @@ $statements = [
     ['name' => 'verify-reader', 'sql' => 'SELECT verify_id FROM verify.wp_schema_verify_receipt_next984 INDEXED BY wp_schema_verify_receipt_key_next984 WHERE verify_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext973988($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext973988($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 976, 'table' => 'wp_navigation_rule_locale_publish_batch_next976', 'indexes' => ['wp_navigation_rule_locale_publish_batch_key_next976'], 'commit' => true],
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 980, 'table' => 'wp_theme_stage_publish_token_next980', 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'review', 'from' => 'wp_schema_review_receipt_key_next968', 'to' => 'wp_schema_review_receipt_key_next982'],

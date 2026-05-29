@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 414, 'tables' => ['wp_options', 'wp_posts', 'wp_postmeta', 'wp_users', 'wp_global_styles', 'wp_navigation_menus', 'wp_navigation_redirects', 'wp_navigation_rules_next413'], 'indexes' => ['wp_options_name', 'wp_posts_type_status_next293', 'wp_postmeta_key', 'wp_users_login_next308', 'wp_global_styles_slug', 'wp_navigation_menus_slug', 'wp_navigation_redirects_slug', 'wp_navigation_rules_slug_next413'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 414, 'commit' => true]]],
@@ -27,7 +27,7 @@ $statements = [
     ['name' => 'ledger-writer', 'sql' => 'UPDATE ledger.wp_sync_ledger INDEXED BY wp_sync_ledger_status SET status = ? WHERE status = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext429444($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext429444($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 429, 'table' => 'wp_navigation_sitemaps_next429', 'indexes' => ['wp_navigation_sitemaps_slug_next429'], 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_theme_stage_publish_queue_key', 'to' => 'wp_theme_stage_publish_queue_key_next430'],
     ['op' => 'drop_table', 'schema' => 'analytics', 'table' => 'wp_event_capacity_next426'],

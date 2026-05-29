@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteFileUri.php';
 require_once __DIR__ . '/../src/SQLiteLockByteRangePlan.php';
-require_once __DIR__ . '/../src/SQLiteVfsLockByteUriShmCurrentSourceNext97.php';
+require_once __DIR__ . '/../src/SQLiteVfsLockByteUriShmCurrentSourceNext.php';
 
-use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext97;
+use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
-$plan = SQLiteVfsLockByteUriShmCurrentSourceNext97::currentSourceNext139([
+$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext139([
     ['op' => 'open', 'source' => 'temp', 'filename' => 'file:/tmp/wp%20import%20scratch.sqlite?mode=rw&cache=private&role=sorter&checkpoint=on&busy=150'],
     ['op' => 'filecontrol', 'control' => 'uri_parameter', 'value' => 'role'],
     ['op' => 'filecontrol', 'control' => 'uri_boolean', 'value' => ['parameter' => 'checkpoint', 'default' => false]],

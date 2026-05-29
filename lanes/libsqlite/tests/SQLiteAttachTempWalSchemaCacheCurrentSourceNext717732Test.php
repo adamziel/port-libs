@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas717732 = [
     'main' => [
@@ -69,7 +69,7 @@ $statements717732 = [
     ['name' => 'temp-review-reader', 'sql' => 'SELECT review_id FROM temp.wp_theme_stage_publish_review_next720 WHERE cache_key = ?'],
 ];
 
-$plan717732 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext717732(
+$plan717732 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext717732(
     $schemas ?? $schemas717732,
     $statements ?? $statements717732,
     $events,

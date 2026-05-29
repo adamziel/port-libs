@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 446, 'tables' => ['wp_options', 'wp_navigation_history_next445'], 'indexes' => ['wp_options_name', 'wp_navigation_history_slug_next445'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 446, 'commit' => true]]],
@@ -25,7 +25,7 @@ $statements = [
     ['name' => 'rules-writer', 'sql' => 'UPDATE rules.wp_segment_rules INDEXED BY wp_segment_rules_slug SET enabled = ? WHERE slug = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext461476($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext461476($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 461, 'table' => 'wp_navigation_redirects_next461', 'indexes' => ['wp_navigation_redirects_slug_next461'], 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_theme_stage_publish_receipts_key', 'to' => 'wp_theme_stage_publish_receipts_key_next462'],
     ['op' => 'drop_index', 'schema' => 'analytics', 'index' => 'wp_event_waitlist_day_next458'],

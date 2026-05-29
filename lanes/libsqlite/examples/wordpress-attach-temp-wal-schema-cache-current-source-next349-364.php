@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 334, 'tables' => ['wp_options', 'wp_posts', 'wp_postmeta', 'wp_users', 'wp_term_taxonomy', 'wp_site_health', 'wp_block_patterns', 'wp_global_styles'], 'indexes' => ['wp_options_name', 'wp_posts_type_status_next293', 'wp_postmeta_key', 'wp_users_login_next308', 'wp_term_taxonomy_taxonomy', 'wp_site_health_status', 'wp_block_patterns_slug', 'wp_global_styles_slug'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 334, 'commit' => true]]],
@@ -27,7 +27,7 @@ $statements = [
     ['name' => 'staging-writer', 'sql' => 'UPDATE staging.wp_stage_items INDEXED BY wp_stage_items_status SET status = ? WHERE status = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext349364($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext349364($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 349, 'table' => 'wp_navigation_menus', 'indexes' => ['wp_navigation_menus_slug'], 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_theme_stage_stylesheet_next334', 'to' => 'wp_theme_stage_stylesheet_next350'],
     ['op' => 'drop_index', 'schema' => 'analytics', 'index' => 'wp_event_archive_day'],

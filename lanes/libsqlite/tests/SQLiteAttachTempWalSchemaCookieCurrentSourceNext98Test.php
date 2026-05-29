@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachTempWalSchemaCookieCurrentSourceNext98Plan;
+use PortLibs\LibSqlite\SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -61,7 +61,7 @@ $statements98 = static fn (): array => [
     ['name' => 'posts-update', 'sql' => 'UPDATE main.wp_posts SET post_title = ? WHERE ID = ?'],
 ];
 
-$plan98 = static fn (?array $schemas = null, ?array $statements = null): array => SQLiteAttachTempWalSchemaCookieCurrentSourceNext98Plan::plan(
+$plan98 = static fn (?array $schemas = null, ?array $statements = null): array => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan(
     $schemas ?? $schemas98(),
     $statements ?? $statements98(),
 );
@@ -154,7 +154,7 @@ $tests['attach temp wal schema cookie current source next98 source only movement
     $schemas['archive']['next_schema_roots'] = $schemas['archive']['schema_roots'];
     unset($schemas['network']['wal_schema_cookie']);
 
-    $result = SQLiteAttachTempWalSchemaCookieCurrentSourceNext98Plan::plan($schemas, [
+    $result = SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, [
         ['name' => 'options', 'sql' => 'SELECT option_value FROM main.wp_options'],
         ['name' => 'posts', 'sql' => 'UPDATE main.wp_posts SET post_title = ? WHERE ID = ?'],
     ]);
@@ -167,7 +167,7 @@ $tests['attach temp wal schema cookie current source next98 detects same cookie 
     $schemas = $schemas98();
     $schemas['archive']['next_schema_roots']['wp_comments'] = 19;
 
-    $result = SQLiteAttachTempWalSchemaCookieCurrentSourceNext98Plan::plan($schemas, [
+    $result = SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, [
         ['name' => 'comments', 'sql' => 'SELECT comment_ID FROM archive.wp_comments'],
     ]);
 
@@ -180,14 +180,14 @@ $tests['attach temp wal schema cookie current source next98 validates root map']
     $schemas = $schemas98();
     $schemas['main']['schema_roots']['wp_options'] = -1;
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookieCurrentSourceNext98Plan::plan($schemas, $statements98()));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, $statements98()));
 };
 
 $tests['attach temp wal schema cookie current source next98 rejects non array root map'] = static function (TestRunner $t) use ($schemas98, $statements98): void {
     $schemas = $schemas98();
     $schemas['main']['schema_roots'] = 'wp_options';
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookieCurrentSourceNext98Plan::plan($schemas, $statements98()));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan($schemas, $statements98()));
 };
 
 return $tests;

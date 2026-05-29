@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas509524 = [
     'main' => [
@@ -49,7 +49,7 @@ $statements509524 = [
     ['name' => 'experiments-writer', 'sql' => 'UPDATE experiments.wp_experiment_rollups_next517 INDEXED BY wp_experiment_rollups_slug_next517 SET enabled = ? WHERE slug = ?'],
 ];
 
-$plan509524 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext509524(
+$plan509524 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext509524(
     $schemas ?? $schemas509524,
     $statements ?? $statements509524,
     $events,

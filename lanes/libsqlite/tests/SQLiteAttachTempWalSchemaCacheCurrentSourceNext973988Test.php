@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas973988 = [
     'main' => [
@@ -68,7 +68,7 @@ $statements973988 = [
     ['name' => 'verify-reader', 'sql' => 'SELECT verify_id FROM verify.wp_schema_verify_receipt_next984 INDEXED BY wp_schema_verify_receipt_key_next984 WHERE verify_key = ?'],
 ];
 
-$plan973988 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext973988(
+$plan973988 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext973988(
     $schemas ?? $schemas973988,
     $statements ?? $statements973988,
     $events,

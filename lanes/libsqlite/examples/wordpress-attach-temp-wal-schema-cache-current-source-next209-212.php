@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => [
@@ -32,7 +32,7 @@ $statements = [
     ['name' => 'unqualified-users-reader', 'sql' => 'SELECT ID FROM wp_users WHERE user_login = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext209212($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext209212($schemas, $statements, [
     ['op' => 'drop_table', 'schema' => 'temp', 'table' => 'wp_options'],
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 210, 'table' => 'wp_usermeta', 'commit' => true],
     ['op' => 'detach', 'schema' => 'archive'],

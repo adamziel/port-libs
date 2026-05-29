@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 285, 'tables' => ['wp_options', 'wp_posts', 'wp_postmeta', 'wp_comments', 'wp_users', 'wp_terms'], 'indexes' => ['wp_options_name', 'wp_posts_type_status', 'wp_postmeta_key', 'wp_comments_post', 'wp_users_login', 'wp_terms_slug'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 285, 'commit' => true]]],
@@ -28,7 +28,7 @@ $statements = [
     ['name' => 'posts-writer', 'sql' => 'UPDATE main.wp_posts INDEXED BY wp_posts_type_status SET post_status = ? WHERE post_type = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext285300($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext285300($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 286, 'table' => 'wp_term_relationships', 'indexes' => ['wp_term_relationships_object'], 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_term_stage_slug', 'to' => 'wp_term_stage_slug_next287'],
     ['op' => 'drop_table', 'schema' => 'analytics', 'table' => 'wp_event_archive'],

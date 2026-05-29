@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteAttachTempWalSchemaCookieCurrentSourceNext98Plan;
+use PortLibs\LibSqlite\SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan;
 
-$plan = SQLiteAttachTempWalSchemaCookieCurrentSourceNext98Plan::plan(
+$plan = SQLiteAttachTempWalSchemaCookieCurrentSourceNextPlan::plan(
     [
         'main' => [
             'schema_cookie' => 44,

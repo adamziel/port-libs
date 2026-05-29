@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => [
@@ -41,7 +41,7 @@ $events = [
     ['op' => 'detach', 'schema' => 'archive'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::plan($schemas, $statements, $events);
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::plan($schemas, $statements, $events);
 
 if (in_array('--self-test', $argv, true)) {
     $reader = $plan['statements']['options-reader']['schema_transitions'][0] ?? null;

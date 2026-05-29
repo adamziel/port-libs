@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteVfsLockUriTempFileControlCurrentSourceNextPlan;
 
-$run137 = static fn (array $ops, array $options = []): array => SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan::run($ops, $options + [
+$run137 = static fn (array $ops, array $options = []): array => SQLiteVfsLockUriTempFileControlCurrentSourceNextPlan::run($ops, $options + [
     'temp_directory' => '/srv/www/wp-content/uploads/sqlite-tmp',
 ]);
 
@@ -101,7 +101,7 @@ return [
     'vfs lock uri temp filecontrol current source next137 nolock uri boolean true' => static fn (TestRunner $t) => $t->same(true, $readonly()['events'][3]['value']),
     'vfs lock uri temp filecontrol current source next137 directory current handle unchanged' => static fn (TestRunner $t) => $t->same('/srv/www/wp-content/uploads/sqlite-tmp', $directory()['events'][0]['temp_directory']),
     'vfs lock uri temp filecontrol current source next137 directory next handle changed' => static fn (TestRunner $t) => $t->same('/tmp/wp-new', $directory()['events'][2]['temp_directory']),
-    'vfs lock uri temp filecontrol current source next137 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockUriTempFileControlCurrentSourceNext137Plan::run([])),
+    'vfs lock uri temp filecontrol current source next137 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockUriTempFileControlCurrentSourceNextPlan::run([])),
     'vfs lock uri temp filecontrol current source next137 rejects bad source' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run137([['op' => 'open', 'source' => '../temp']])),
     'vfs lock uri temp filecontrol current source next137 rejects bad uri authority' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run137(['open(temp, file://example.com/wp.sqlite?mode=memory)'])),
     'vfs lock uri temp filecontrol current source next137 rejects bad temp directory' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run137(['open(temp)', ['op' => 'filecontrol', 'control' => 'temp_directory', 'value' => '']])),

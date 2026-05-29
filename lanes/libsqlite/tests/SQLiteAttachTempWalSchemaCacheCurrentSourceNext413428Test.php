@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas413428 = [
     'main' => [
@@ -56,7 +56,7 @@ $statements413428 = [
     ['name' => 'audit-writer', 'sql' => 'UPDATE audit.wp_audit_trail INDEXED BY wp_audit_trail_type SET event_type = ? WHERE event_type = ?'],
 ];
 
-$plan413428 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext413428(
+$plan413428 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext413428(
     $schemas ?? $schemas413428,
     $statements ?? $statements413428,
     $events,

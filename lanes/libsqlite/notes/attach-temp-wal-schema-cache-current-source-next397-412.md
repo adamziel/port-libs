@@ -2,14 +2,14 @@
 
 Prepares the direct follow-on to the merged next381-396 chain:
 
-- adds `SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext397412()`;
+- adds `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext397412()`;
 - adds focused coverage for next397-412 dependencies, schema-cookie carry-forward, detached attached-schema statement expiry, TEMP index rename expiry, dropped-table/index expiry, and ignored uncommitted WAL churn;
 - adds a WordPress-oriented self-test example for the same attach/TEMP/WAL schema-cache lifecycle.
 
 Validation commands:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php
+php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext397412Test.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next397-412.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext397412Test.php

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas165168 = [
     'main' => [
@@ -32,7 +32,7 @@ $statements165168 = [
     ['name' => 'archive-terms-reader', 'sql' => 'SELECT term_id FROM archive.wp_terms_archive WHERE slug = ?'],
 ];
 
-$plan165168 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext165168(
+$plan165168 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext165168(
     $schemas ?? $schemas165168,
     $statements ?? $statements165168,
     $events,

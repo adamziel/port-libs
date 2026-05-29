@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 812, 'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_receipt_next828', 'wp_navigation_rule_locale_publish_final_next828'], 'indexes' => ['wp_options_name', 'wp_navigation_rule_locale_publish_receipt_key_next828', 'wp_navigation_rule_locale_publish_final_key_next828'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 812, 'commit' => true]]],
@@ -30,7 +30,7 @@ $statements = [
     ['name' => 'temp-notice-reader', 'sql' => 'SELECT notice_id FROM temp.wp_theme_stage_publish_notice_next816 WHERE cache_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext813828($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext813828($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 814, 'table' => 'wp_navigation_rule_locale_publish_delta_next814', 'indexes' => ['wp_navigation_rule_locale_publish_delta_key_next814'], 'commit' => true],
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 816, 'table' => 'wp_theme_stage_publish_notice_next816', 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'queue', 'from' => 'wp_job_retry_checkpoint_archive_key_next818', 'to' => 'wp_job_retry_checkpoint_archive_key_next822'],

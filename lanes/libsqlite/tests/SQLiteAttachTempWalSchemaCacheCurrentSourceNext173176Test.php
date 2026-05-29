@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas173176 = [
     'main' => [
@@ -32,7 +32,7 @@ $statements173176 = [
     ['name' => 'main-posts-reader', 'sql' => 'SELECT ID FROM wp_posts WHERE post_date > ?'],
 ];
 
-$plan173176 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext173176(
+$plan173176 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext173176(
     $schemas ?? $schemas173176,
     $statements ?? $statements173176,
     $events,

@@ -5,11 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteFileUri.php';
 require_once __DIR__ . '/../src/SQLiteBusyHandler.php';
 require_once __DIR__ . '/../src/SQLiteLockByteRangePlan.php';
-require_once __DIR__ . '/../src/SQLiteVfsLockByteUriShmCurrentSourceNext97.php';
+require_once __DIR__ . '/../src/SQLiteVfsLockByteUriShmCurrentSourceNext.php';
 
-use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext97;
+use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
-$plan = SQLiteVfsLockByteUriShmCurrentSourceNext97::currentSourceNext141([
+$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext141([
     'open(file:/srv/www/wp-content/database/wp%20close.sqlite-shm?mode=rw&cache=shared&role=reader&readmark=1)',
     'shm read0 shared wp-reader',
     ['op' => 'close', 'source' => 'shm', 'connection' => 'wp-reader'],

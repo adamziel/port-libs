@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 940, 'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next940', 'wp_navigation_rule_locale_publish_gate_next944'], 'indexes' => ['wp_options_name', 'wp_navigation_rule_locale_publish_final_key_next940', 'wp_navigation_rule_locale_publish_gate_key_next944'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 940, 'commit' => true]]],
@@ -29,7 +29,7 @@ $statements = [
     ['name' => 'report-reader', 'sql' => 'SELECT report_id FROM report.wp_schema_report_receipt_next941 INDEXED BY wp_schema_report_receipt_key_next941 WHERE report_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext941956($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext941956($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 946, 'table' => 'wp_navigation_rule_locale_publish_batch_next946', 'indexes' => ['wp_navigation_rule_locale_publish_batch_key_next946'], 'commit' => true],
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 948, 'table' => 'wp_theme_stage_publish_token_next948', 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'archive', 'from' => 'wp_schema_archive_receipt_key_next936', 'to' => 'wp_schema_archive_receipt_key_next950'],

@@ -2,14 +2,14 @@
 
 Prepares the direct follow-on to the merged next301-316 chain:
 
-- adds `SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext317332()`;
+- adds `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext317332()`;
 - covers another larger 16-slot attach/TEMP/WAL schema-cache batch with committed main, analytics, queue, and campaign WAL schema-cookie publication, ignored uncommitted media WAL frames, TEMP shadow index rename and table removal, attached campaign and analytics table removal, ATTACH/DETACH search-order churn, detached audit/archive readers, and indexed writer retry blocking;
 - keeps the slice inside the attach/TEMP/WAL schema-cache planner and reuses the existing current-source event normalization.
 
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php
+php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext317332Test.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next317-332.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext317332Test.php

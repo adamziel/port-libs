@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas92 = [
     'main' => [
@@ -49,7 +49,7 @@ $events92 = [
     ['op' => 'attach', 'schema' => 'analytics', 'schema_cookie' => 1, 'tables' => ['wp_events'], 'file' => '/srv/wp/analytics.sqlite'],
 ];
 
-$plan92 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::plan(
+$plan92 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::plan(
     $schemas ?? $schemas92,
     $statements ?? $statements92,
     $events ?? $events92,
@@ -195,7 +195,7 @@ $tests['attach wal temp schema cache current source next92 rejects noninteger wa
 };
 
 $tests['attach wal temp schema cache current source next525-540 follow-on expires changed sources'] = static function (TestRunner $t): void {
-    $plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext525540([
+    $plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext525540([
         'main' => ['schema_cookie' => 525, 'tables' => ['wp_options', 'wp_navigation_preview_next523'], 'indexes' => ['wp_options_name', 'wp_navigation_preview_slug_next523'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 525, 'commit' => true]]],
         'temp' => ['schema_cookie' => 521, 'tables' => ['wp_theme_stage_publish_retries_next521'], 'indexes' => ['wp_theme_stage_publish_retries_key_next521'], 'temp' => true],
         'analytics' => ['schema_cookie' => 518, 'tables' => ['wp_event_capacity_bucket_next518'], 'indexes' => ['wp_event_capacity_bucket_day_next518'], 'file' => '/srv/wp/analytics-next525.sqlite'],

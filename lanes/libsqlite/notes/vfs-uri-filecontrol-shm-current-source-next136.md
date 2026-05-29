@@ -28,7 +28,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Adjacent VFS regression:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNext97Test.php lanes/libsqlite/tests/SQLiteVfsOpenShmFileControlUriCurrentSourceNext128Test.php lanes/libsqlite/tests/SQLiteVfsShmLockByteUriFileControlCurrentSourceNext117Test.php lanes/libsqlite/tests/SQLiteVfsShmLockByteFileControlCurrentSourceNext112Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsLockByteUriShmCurrentSourceNextTest.php lanes/libsqlite/tests/SQLiteVfsOpenShmFileControlUriCurrentSourceNext128Test.php lanes/libsqlite/tests/SQLiteVfsShmLockByteUriFileControlCurrentSourceNext117Test.php lanes/libsqlite/tests/SQLiteVfsShmLockByteFileControlCurrentSourceNext112Test.php
 Focused test run: 4 selected test files (root lock skipped)
 4 test files, 256 assertions, 0 failures
 ```

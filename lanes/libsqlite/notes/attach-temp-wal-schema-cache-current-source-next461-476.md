@@ -2,7 +2,7 @@
 
 Prepares the direct follow-on to the merged next445-460 chain:
 
-- extends the established `SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan` canonical source class with `currentSourceNext461476()`;
+- extends the established `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan` canonical source class with `currentSourceNext461476()`;
 - avoids a new numbered source class because the local pattern keeps this attach/TEMP/WAL schema-cache domain in the existing next92 canonical planner;
 - adds focused coverage for next461-476 dependencies, schema-cookie carry-forward, TEMP index rename expiry, dropped attached index expiry, attached schema detach expiry, renamed attached table writer retry blocking, and ignored uncommitted WAL churn;
 - adds a WordPress-oriented self-test example for the same attach/TEMP/WAL schema-cache lifecycle.
@@ -10,7 +10,7 @@ Prepares the direct follow-on to the merged next445-460 chain:
 Validation commands:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php
+php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext461476Test.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next461-476.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext461476Test.php

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 860, 'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next860', 'wp_navigation_rule_locale_publish_receipt_next876'], 'indexes' => ['wp_options_name', 'wp_navigation_rule_locale_publish_final_key_next860', 'wp_navigation_rule_locale_publish_receipt_key_next876'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 860, 'commit' => true]]],
@@ -28,7 +28,7 @@ $statements = [
     ['name' => 'temp-gate-reader', 'sql' => 'SELECT gate_id FROM temp.wp_theme_stage_publish_gate_next864 WHERE cache_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext861876($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext861876($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 862, 'table' => 'wp_navigation_rule_locale_publish_delta_next862', 'indexes' => ['wp_navigation_rule_locale_publish_delta_key_next862'], 'commit' => true],
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 864, 'table' => 'wp_theme_stage_publish_gate_next864', 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'audit', 'from' => 'wp_schema_audit_replay_key_next869', 'to' => 'wp_schema_audit_replay_key_next870'],

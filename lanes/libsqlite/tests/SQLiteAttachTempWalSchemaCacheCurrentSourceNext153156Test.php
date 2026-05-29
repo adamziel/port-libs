@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas153156 = [
     'main' => [
@@ -31,7 +31,7 @@ $statements153156 = [
     ['name' => 'new-site-reader', 'sql' => 'SELECT option_value FROM site.wp_options WHERE option_name = ?'],
 ];
 
-$plan153156 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext153156(
+$plan153156 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext153156(
     $schemas ?? $schemas153156,
     $statements ?? $statements153156,
     $events,

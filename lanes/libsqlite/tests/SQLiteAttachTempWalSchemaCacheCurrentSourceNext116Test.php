@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas116 = [
     'main' => [
@@ -52,7 +52,7 @@ $events116 = [
     ['op' => 'drop_index', 'schema' => 'archive', 'index' => 'wp_archive_option_name'],
 ];
 
-$plan116 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext116(
+$plan116 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext116(
     $schemas ?? $schemas116,
     $statements ?? $statements116,
     $events ?? $events116,
@@ -142,7 +142,7 @@ $tests['attach temp wal schema cache current source next116 stable indexed state
 };
 
 $tests['attach temp wal schema cache current source next116 attach supplies indexed dependency'] = static function (TestRunner $t): void {
-    $result = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext116([
+    $result = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext116([
         'main' => ['schema_cookie' => 1, 'tables' => []],
     ], [
         ['name' => 'future', 'sql' => 'SELECT option_value FROM archive.wp_options INDEXED BY wp_archive_option_name'],

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas349364 = [
     'main' => [
@@ -56,7 +56,7 @@ $statements349364 = [
     ['name' => 'staging-writer', 'sql' => 'UPDATE staging.wp_stage_items INDEXED BY wp_stage_items_status SET status = ? WHERE status = ?'],
 ];
 
-$plan349364 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext349364(
+$plan349364 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext349364(
     $schemas ?? $schemas349364,
     $statements ?? $statements349364,
     $events,

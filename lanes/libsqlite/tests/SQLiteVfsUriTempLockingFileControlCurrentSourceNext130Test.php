@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsUriTempLockingFileControlCurrentSourceNext130Plan;
+use PortLibs\LibSqlite\SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan;
 
-$run130 = static fn (array $ops, array $options = []): array => SQLiteVfsUriTempLockingFileControlCurrentSourceNext130Plan::run($ops, $options);
+$run130 = static fn (array $ops, array $options = []): array => SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan::run($ops, $options);
 
 $tempImport = static function () use ($run130): array {
     static $result = null;
@@ -108,7 +108,7 @@ return [
     'vfs uri temp locking filecontrol current source next130 persistent reopen reuses controls' => static fn (TestRunner $t) => $t->same(true, $persistent()['events'][4]['reused_controls']),
     'vfs uri temp locking filecontrol current source next130 persistent reopen reuses locks' => static fn (TestRunner $t) => $t->same(true, $persistent()['events'][4]['reused_locks']),
 
-    'vfs uri temp locking filecontrol current source next130 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriTempLockingFileControlCurrentSourceNext130Plan::run([])),
+    'vfs uri temp locking filecontrol current source next130 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan::run([])),
     'vfs uri temp locking filecontrol current source next130 rejects bad uri authority' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run130(['open(temp, file://example.com/tmp/wp.sqlite?mode=memory)'])),
     'vfs uri temp locking filecontrol current source next130 rejects bad locking mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run130(['open(temp)', 'file_control(locking_mode, reserved)'])),
     'vfs uri temp locking filecontrol current source next130 rejects bad connection' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run130(['open(temp)', ['op' => 'lock', 'level' => 'shared', 'connection' => '../bad']])),

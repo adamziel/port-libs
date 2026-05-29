@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas117 = [
     'main' => [
@@ -37,7 +37,7 @@ $events117 = [
     ['op' => 'drop_index', 'schema' => 'archive', 'index' => 'wp_archive_option_name'],
 ];
 
-$plan117 = static fn (?array $events = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext117(
+$plan117 = static fn (?array $events = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext117(
     $schemas117,
     $statements117,
     $events ?? $events117,

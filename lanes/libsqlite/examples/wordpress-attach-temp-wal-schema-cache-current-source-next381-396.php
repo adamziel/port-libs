@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 366, 'tables' => ['wp_options', 'wp_posts', 'wp_postmeta', 'wp_users', 'wp_block_patterns', 'wp_global_styles', 'wp_navigation_menus', 'wp_navigation_locations'], 'indexes' => ['wp_options_name', 'wp_posts_type_status_next293', 'wp_postmeta_key', 'wp_users_login_next308', 'wp_block_patterns_slug', 'wp_global_styles_slug', 'wp_navigation_menus_slug', 'wp_navigation_locations_menu'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 366, 'commit' => true]]],
@@ -27,7 +27,7 @@ $statements = [
     ['name' => 'exports-writer', 'sql' => 'UPDATE exports.wp_export_items INDEXED BY wp_export_items_status SET status = ? WHERE status = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext381396($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext381396($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 381, 'table' => 'wp_navigation_aliases', 'indexes' => ['wp_navigation_aliases_slug'], 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_theme_stage_publish_key', 'to' => 'wp_theme_stage_publish_key_next382'],
     ['op' => 'drop_index', 'schema' => 'analytics', 'index' => 'wp_event_forecast_day_next378'],

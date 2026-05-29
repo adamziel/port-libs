@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas333348 = [
     'main' => [
@@ -56,7 +56,7 @@ $statements333348 = [
     ['name' => 'archive-writer', 'sql' => 'UPDATE archive.wp_archived_posts INDEXED BY wp_archived_posts_date SET post_status = ? WHERE post_date < ?'],
 ];
 
-$plan333348 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext333348(
+$plan333348 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext333348(
     $schemas ?? $schemas333348,
     $statements ?? $statements333348,
     $events,

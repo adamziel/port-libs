@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for ATTACH/WAL/temp prepared-statement schema-cache current-source transitions.
 
-This slice adds `SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan`, a bounded native PHP planner for prepared statements whose current table source changes after connection-local temp DDL, WAL-backed main schema DDL, `ATTACH`, and `DETACH`. It reports current versus next search order, WAL page-one schema-cookie sources, active-statement current snapshot handling, read retry decisions, write retry blocking, detached-schema expiry, and future table resolution after WAL DDL.
+This slice adds `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan`, a bounded native PHP planner for prepared statements whose current table source changes after connection-local temp DDL, WAL-backed main schema DDL, `ATTACH`, and `DETACH`. It reports current versus next search order, WAL page-one schema-cookie sources, active-statement current snapshot handling, read retry decisions, write retry blocking, detached-schema expiry, and future table resolution after WAL DDL.
 
 WordPress smoke:
 

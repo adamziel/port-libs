@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteFileUri.php';
 require_once __DIR__ . '/../src/SQLiteLockByteRangePlan.php';
-require_once __DIR__ . '/../src/SQLiteVfsLockByteUriShmCurrentSourceNext97.php';
+require_once __DIR__ . '/../src/SQLiteVfsLockByteUriShmCurrentSourceNext.php';
 
-use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext97;
+use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
-$plan = SQLiteVfsLockByteUriShmCurrentSourceNext97::currentSourceNext135([
+$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext135([
     'open(file:/srv/www/wp-content/database/wp%20fresh.sqlite-shm?mode=rw&cache=shared&vfs=unix-dotfile)',
     'open(file:/srv/www/wp-content/database/wp%20fresh.sqlite?mode=rw&cache=shared&vfs=unix-dotfile)',
     'lock reserved wp-import 19 on main',

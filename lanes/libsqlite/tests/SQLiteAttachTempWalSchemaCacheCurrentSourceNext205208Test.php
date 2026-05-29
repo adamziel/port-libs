@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas205208 = [
     'main' => [
@@ -44,7 +44,7 @@ $statements205208 = [
     ['name' => 'unqualified-users-reader', 'sql' => 'SELECT ID FROM wp_users WHERE user_login = ?'],
 ];
 
-$plan205208 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext205208(
+$plan205208 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext205208(
     $schemas ?? $schemas205208,
     $statements ?? $statements205208,
     $events,

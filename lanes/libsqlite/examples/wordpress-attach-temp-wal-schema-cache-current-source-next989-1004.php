@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 988, 'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next988'], 'indexes' => ['wp_options_name', 'wp_navigation_rule_locale_publish_final_key_next988'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 988, 'commit' => true]]],
@@ -28,7 +28,7 @@ $statements = [
     ['name' => 'seal-reader', 'sql' => 'SELECT seal_id FROM seal.wp_schema_seal_receipt_next996 INDEXED BY wp_schema_seal_receipt_key_next996 WHERE seal_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext9891004($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext9891004($schemas, $statements, [
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 990, 'table' => 'wp_theme_stage_publish_token_next990', 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'archive', 'from' => 'wp_schema_archive_receipt_key_next966', 'to' => 'wp_schema_archive_receipt_key_next992'],
     ['op' => 'attach', 'schema' => 'seal', 'schema_cookie' => 996, 'tables' => ['wp_schema_seal_receipt_next996'], 'indexes' => ['wp_schema_seal_receipt_key_next996'], 'file' => '/srv/wp/seal-next996.sqlite'],

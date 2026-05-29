@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 556, 'tables' => ['wp_options', 'wp_navigation_rule_next525', 'wp_navigation_rule_locale_next541', 'wp_navigation_rule_locale_meta_next556'], 'indexes' => ['wp_options_name', 'wp_navigation_rule_slug_next525', 'wp_navigation_rule_locale_slug_next541', 'wp_navigation_rule_locale_meta_key_next556'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 556, 'commit' => true]]],
@@ -26,7 +26,7 @@ $statements = [
     ['name' => 'archive-reader', 'sql' => 'SELECT archive_id FROM archive.wp_schema_archive_next568 INDEXED BY wp_schema_archive_key_next568 WHERE archive_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext557572($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext557572($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 557, 'table' => 'wp_navigation_rule_locale_term_next557', 'indexes' => ['wp_navigation_rule_locale_term_key_next557'], 'commit' => true],
     ['op' => 'rename_table', 'schema' => 'temp', 'from' => 'wp_theme_stage_publish_retries_next529', 'to' => 'wp_theme_stage_publish_retries_next558'],
     ['op' => 'drop_index', 'schema' => 'campaign', 'index' => 'wp_campaign_restore_meta_key_next540'],

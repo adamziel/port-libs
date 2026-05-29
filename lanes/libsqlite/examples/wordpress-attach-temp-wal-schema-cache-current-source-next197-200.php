@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 197, 'tables' => ['wp_options', 'wp_termmeta'], 'indexes' => ['wp_options_name', 'wp_termmeta_key']],
@@ -21,7 +21,7 @@ $statements = [
     ['name' => 'archive-comments-writer', 'sql' => 'UPDATE archive.wp_comments SET comment_approved = ? WHERE comment_ID = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan::currentSourceNext197200($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext197200($schemas, $statements, [
     ['op' => 'rename_index', 'schema' => 'main', 'from' => 'wp_options_name', 'to' => 'wp_options_name_next197'],
     ['op' => 'schema_write', 'schema' => 'temp', 'table' => 'wp_plugin_options'],
     ['op' => 'detach', 'schema' => 'archive'],
