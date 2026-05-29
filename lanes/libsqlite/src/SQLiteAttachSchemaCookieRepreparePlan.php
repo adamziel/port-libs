@@ -256,6 +256,148 @@ final class SQLiteAttachSchemaCookieRepreparePlan
     }
 
     /**
+     * @param array<string,array{schema_cookie:int,wal_schema_cookie?:int|null,wal_frames?:list<array{page:int,schema_cookie?:int|null,commit?:bool}>,tables?:list<string>,file?:string|null,temp?:bool,cache?:string|null}> $schemas
+     * @param list<array{name:string,sql:string,active?:bool,read_only?:bool}> $preparedStatements
+     * @param list<array{op:string,schema?:string,file?:string|null,schema_cookie?:int,tables?:list<string>,table?:string,object?:string,commit?:bool,cache?:string|null}> $events
+     * @param array<string,array{file?:string|null,cache?:string|null,schema_cookie:int,generation?:int}> $schemaCacheEntries
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext103(
+        array $schemas,
+        array $preparedStatements,
+        array $events,
+        array $schemaCacheEntries = [],
+        string $sourceSchema = 'main',
+    ): array {
+        $plan = self::plan($schemas, $preparedStatements, $events, $sourceSchema);
+        $plan['operation'] = 'attach-temp-schema-cache-reprepare-current-source-next103';
+        array_unshift($plan['dependencies'], 'sqlite-attach-temp-schema-cache-reprepare-current-source-next103');
+        $plan['dependencies'] = array_values(array_unique($plan['dependencies']));
+
+        $current = self::normalizeSchemas($schemas);
+        $next = self::applyEventsForCache($current, $events);
+        $cachePlans = [];
+        $reloadSchemas = [];
+        $reuseSchemas = [];
+        $uncachedSchemas = [];
+        foreach ($next as $schema => $entry) {
+            $cacheEntry = $schemaCacheEntries[$schema] ?? [];
+            $cacheMode = (string) ($cacheEntry['cache'] ?? ($schemas[$schema]['cache'] ?? ''));
+            $cacheable = $cacheMode === 'shared' && $schema !== 'temp';
+            $cachedCookie = isset($cacheEntry['schema_cookie'])
+                ? self::integer($cacheEntry['schema_cookie'], "SQLite schema cache cookie for {$schema}")
+                : null;
+            $nextCookie = $entry['schema_cookie'];
+            $requiresReload = $cacheable && $cachedCookie !== null && $cachedCookie !== $nextCookie;
+            $reuse = $cacheable && $cachedCookie === $nextCookie;
+
+            if ($requiresReload) {
+                $reloadSchemas[] = $schema;
+            } elseif ($reuse) {
+                $reuseSchemas[] = $schema;
+            } else {
+                $uncachedSchemas[] = $schema;
+            }
+
+            $cachePlans[$schema] = [
+                'schema' => $schema,
+                'file' => $entry['file'],
+                'cache' => $cacheMode === '' ? null : $cacheMode,
+                'cacheable' => $cacheable,
+                'cache_generation' => $cacheEntry['generation'] ?? null,
+                'cached_schema_cookie' => $cachedCookie,
+                'current_schema_cookie' => $current[$schema]['schema_cookie'] ?? null,
+                'next_schema_cookie' => $nextCookie,
+                'requires_reload' => $requiresReload,
+                'reuse_cached_schema' => $reuse,
+                'next_source_action' => $requiresReload ? 'reload_shared_schema_cache_before_reprepare' : ($reuse ? 'reuse_shared_schema_cache' : 'load_schema_records_without_shared_cache'),
+            ];
+        }
+
+        $resetReload = [];
+        $nextStepReload = [];
+        foreach ($plan['statements'] as $index => $statement) {
+            $schemasRead = array_values(array_unique(array_merge($statement['prepare_schemas'], $statement['next_schemas'])));
+            $statementReloadSchemas = array_values(array_intersect($schemasRead, $reloadSchemas));
+            $plan['statements'][$index]['shared_cache_reload_schemas'] = $statementReloadSchemas;
+            $plan['statements'][$index]['next_source_cache_action'] = $statementReloadSchemas === []
+                ? 'no_shared_cache_reload'
+                : ($statement['active'] ? 'finish_current_source_then_reload_cache_on_reset' : 'reload_cache_then_reprepare_next_step');
+            if ($statementReloadSchemas !== []) {
+                if ($statement['active']) {
+                    $resetReload[] = $statement['name'];
+                } else {
+                    $nextStepReload[] = $statement['name'];
+                }
+            }
+        }
+
+        $plan['schema_cache_entries'] = $cachePlans;
+        $plan['shared_cache_reload_schemas'] = $reloadSchemas;
+        $plan['shared_cache_reuse_schemas'] = $reuseSchemas;
+        $plan['uncached_schemas'] = $uncachedSchemas;
+        $plan['active_reset_shared_cache_reload_statements'] = $resetReload;
+        $plan['next_step_shared_cache_reload_statements'] = $nextStepReload;
+        $plan['requires_shared_cache_reload'] = $reloadSchemas !== [];
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int,tables:list<string>,file:string|null,temp:bool}> $current
+     * @param list<array<string,mixed>> $events
+     * @return array<string,array{schema_cookie:int,tables:list<string>,file:string|null,temp:bool}>
+     */
+    private static function applyEventsForCache(array $current, array $events): array
+    {
+        $next = $current;
+        foreach ($events as $event) {
+            $op = strtolower(trim((string) ($event['op'] ?? '')));
+            if ($op === 'attach') {
+                $schema = self::normalizeName((string) ($event['schema'] ?? ''), 'SQLite ATTACH schema');
+                $next[$schema] = self::normalizeSchema($schema, [
+                    'schema_cookie' => $event['schema_cookie'] ?? 1,
+                    'tables' => $event['tables'] ?? [],
+                    'file' => $event['file'] ?? null,
+                    'temp' => false,
+                ]);
+                continue;
+            }
+            if ($op === 'detach') {
+                $schema = self::normalizeName((string) ($event['schema'] ?? ''), 'SQLite DETACH schema');
+                unset($next[$schema]);
+                continue;
+            }
+            if ($op === 'schema_write') {
+                $schema = self::normalizeName((string) ($event['schema'] ?? ''), 'SQLite schema write target');
+                if (isset($next[$schema])) {
+                    $next[$schema]['schema_cookie']++;
+                    $table = $event['table'] ?? $event['object'] ?? null;
+                    if (is_string($table) && trim($table) !== '') {
+                        $name = self::normalizeName($table, 'SQLite schema object');
+                        if (!in_array($name, $next[$schema]['tables'], true)) {
+                            $next[$schema]['tables'][] = $name;
+                            sort($next[$schema]['tables']);
+                        }
+                    }
+                }
+                continue;
+            }
+            if ($op === 'wal_commit') {
+                $schema = self::normalizeName((string) ($event['schema'] ?? ''), 'SQLite WAL schema');
+                if (isset($next[$schema]) && ($event['commit'] ?? true) === true) {
+                    $next[$schema]['schema_cookie'] = isset($event['schema_cookie'])
+                        ? self::integer($event['schema_cookie'], "SQLite WAL schema cookie for {$schema}")
+                        : $next[$schema]['schema_cookie'] + 1;
+                }
+            }
+        }
+        ksort($next);
+
+        return $next;
+    }
+
+    /**
      * @param array<string,array<string,mixed>> $schemas
      * @return array<string,array{schema_cookie:int,tables:list<string>,file:string|null,temp:bool}>
      */

@@ -822,16 +822,9 @@ final class SQLiteSchemaDdlReparsePlan
                 $viewReferences[] = 'view:' . $source;
                 if ($view->sql !== null) {
                     $viewMetadata = self::viewReparseMetadata($records, $view->sql, $view->name);
-                    if ($viewMetadata['source_views'] !== []) {
-                        foreach ($viewMetadata['generated_column_references'] as $column) {
-                            if (!in_array($column, $generatedColumnReferences, true)) {
-                                $generatedColumnReferences[] = $column;
-                            }
-                        }
-                        foreach ($viewMetadata['generated_index_references'] as $indexName) {
-                            if (!in_array($indexName, $generatedIndexReferences, true)) {
-                                $generatedIndexReferences[] = $indexName;
-                            }
+                    foreach ($viewMetadata['generated_column_references'] as $column) {
+                        if (!in_array($column, $generatedColumnReferences, true)) {
+                            $generatedColumnReferences[] = $column;
                         }
                     }
                 }

@@ -163,24 +163,25 @@ final class SQLiteAttachTempViewTriggerResolution
      * Compare the current prepared trigger source with the next schema catalog
      * that a connection sees after ATTACH, temp DDL, or WAL-backed schema DDL.
      *
-     * @return array{trigger:string,current:array<string,mixed>,next:array<string,mixed>,changed:bool,changedFields:list<string>,requiresReprepare:bool,walSchemas:list<string>,tempSchemas:list<string>,attachedSchemas:list<string>,invalidatedSources:list<string>,status:string}
+     * @return array{trigger:string,current:array<string,mixed>,next:array<string,mixed>,changed:bool,changedFields:list<string>,requiresReprepare:bool,walSchemas:list<string>,tempSchemas:list<string>,attachedSchemas:list<string>,invalidatedSources:list<string>,sqliteResultOnCurrentStep:string,nextStepAction:string,status:string}
      */
     public static function currentNextSourcePlan(SQLiteAttachedSchemaCatalog $current, SQLiteAttachedSchemaCatalog $next, string $triggerName): array
     {
         $currentSource = self::sourceSnapshot($current, $triggerName);
-        $nextSource = self::sourceSnapshot($next, $triggerName);
+        $nextSource = self::nextSourceSnapshot($next, $triggerName);
         $changedFields = [];
 
-        foreach (['triggerSchema', 'triggerTemporary', 'target', 'targetSchema', 'targetType', 'targetTemporary', 'insteadOf', 'columns', 'bodyDependencies', 'status'] as $field) {
+        foreach (['exists', 'triggerSchema', 'triggerTemporary', 'target', 'targetSchema', 'targetType', 'targetTemporary', 'insteadOf', 'columns', 'bodyDependencies', 'status'] as $field) {
             if (($currentSource[$field] ?? null) !== ($nextSource[$field] ?? null)) {
                 $changedFields[] = $field;
             }
         }
 
         $sourceSchemas = array_values(array_unique(array_merge(
-            [$currentSource['triggerSchema'], $currentSource['targetSchema'], $nextSource['triggerSchema'], $nextSource['targetSchema']],
+            array_values(array_filter([$currentSource['triggerSchema'], $currentSource['targetSchema'], $nextSource['triggerSchema'] ?? null, $nextSource['targetSchema'] ?? null], static fn (mixed $schema): bool => is_string($schema) && $schema !== '')),
             self::dependencySchemas($currentSource['bodyDependencies']),
-            self::dependencySchemas($nextSource['bodyDependencies']),
+            self::dependencySchemas($nextSource['bodyDependencies'] ?? []),
+            ($nextSource['missingSchema'] ?? null) === null ? [] : [$nextSource['missingSchema']],
         )));
         sort($sourceSchemas);
 
@@ -199,6 +200,8 @@ final class SQLiteAttachTempViewTriggerResolution
             'tempSchemas' => $tempSchemas,
             'attachedSchemas' => $attachedSchemas,
             'invalidatedSources' => $changedFields === [] ? [] : $sourceSchemas,
+            'sqliteResultOnCurrentStep' => 'SQLITE_OK',
+            'nextStepAction' => $changedFields === [] ? 'continue-current-program' : 'abort-reset-and-reprepare',
             'status' => $changedFields === [] ? 'stable' : 'reprepare-required',
         ];
     }
@@ -212,6 +215,7 @@ final class SQLiteAttachTempViewTriggerResolution
 
         return [
             'trigger' => $resolved['trigger'],
+            'exists' => true,
             'triggerSchema' => $resolved['triggerSchema'],
             'triggerTemporary' => $resolved['triggerTemporary'],
             'target' => $resolved['target'],
@@ -223,6 +227,34 @@ final class SQLiteAttachTempViewTriggerResolution
             'bodyDependencies' => $resolved['bodyDependencies'],
             'status' => $resolved['status'],
         ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function nextSourceSnapshot(SQLiteAttachedSchemaCatalog $catalog, string $triggerName): array
+    {
+        try {
+            return self::sourceSnapshot($catalog, $triggerName);
+        } catch (InvalidArgumentException $exception) {
+            $qualified = self::splitQualifiedName($triggerName);
+            return [
+                'trigger' => $qualified['name'],
+                'exists' => false,
+                'triggerSchema' => $qualified['schema'] !== '' ? $qualified['schema'] : null,
+                'triggerTemporary' => false,
+                'target' => null,
+                'targetSchema' => null,
+                'targetType' => null,
+                'targetTemporary' => false,
+                'insteadOf' => false,
+                'columns' => [],
+                'bodyDependencies' => [],
+                'status' => 'missing',
+                'missingReason' => $exception->getMessage(),
+                'missingSchema' => $qualified['schema'] !== '' ? $qualified['schema'] : null,
+            ];
+        }
     }
 
     /**
