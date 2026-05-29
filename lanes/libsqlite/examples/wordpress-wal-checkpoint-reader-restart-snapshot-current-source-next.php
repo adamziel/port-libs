@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -41,7 +41,7 @@ $walBytes = $makeWal([
     [2, 5, 'wp active_plugins checkpoint tail'],
 ]);
 $wal = SQLiteWal::parse($walBytes, $pageSize, true);
-$plan = SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan::plan(
+$plan = SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan::plan(
     $databasePath,
     $wal,
     $walBytes,

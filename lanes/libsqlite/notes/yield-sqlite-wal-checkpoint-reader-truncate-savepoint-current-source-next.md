@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for
 `wal-checkpoint-reader-truncate-savepoint-current-source-next128`.
 
-This slice adds `SQLiteWalCheckpointReaderTruncateSavepointCurrentSourceNext128Plan`.
+This slice adds `SQLiteWalCheckpointReaderTruncateSavepointCurrentSourceNextPlan`.
 It models the SQLite WAL path where `ROLLBACK TO` a savepoint truncates the
 current WAL to a retained prefix, a live reader pins that retained prefix, and
 `PRAGMA wal_checkpoint(TRUNCATE)` must preserve the WAL until the reader
@@ -11,7 +11,7 @@ releases. After release, the same current images are checkpointed into the
 database and the WAL sidecar truncates to zero bytes.
 
 WordPress smoke:
-`wordpress-wal-checkpoint-reader-truncate-savepoint-current-source-next128.php`
+`wordpress-wal-checkpoint-reader-truncate-savepoint-current-source-next.php`
 models a copied `wp_options` import where a plugin settings savepoint discards
 tail frames for autoload/transient/active_plugins updates while the current
 reader keeps the retained schema/siteurl prefix visible.
@@ -19,7 +19,7 @@ reader keeps the retained schema/siteurl prefix visible.
 Focused verification:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointReaderTruncateSavepointCurrentSourceNext128Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointReaderTruncateSavepointCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 72 assertions, 0 failures

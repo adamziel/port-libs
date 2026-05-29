@@ -2,7 +2,7 @@
 
 ## Behavior
 
-`SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan` covers a
+`SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan` covers a
 reader-pinned restart checkpoint boundary that was not covered by the accepted
 reader snapshot, savepoint restart, or checkpoint transaction slices:
 
@@ -22,7 +22,7 @@ reader releases.
 Focused command:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 75 assertions, 0 failures
 ```

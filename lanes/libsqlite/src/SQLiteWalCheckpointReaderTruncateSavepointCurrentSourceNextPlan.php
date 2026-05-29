@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteWalCheckpointReaderTruncateSavepointCurrentSourceNext128Plan
+final class SQLiteWalCheckpointReaderTruncateSavepointCurrentSourceNextPlan
 {
     /**
      * @param list<int> $pageNumbers

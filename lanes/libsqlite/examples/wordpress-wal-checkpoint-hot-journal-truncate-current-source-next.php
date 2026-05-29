@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $pageSize = 512;
@@ -72,7 +72,7 @@ $stack->recordWalFrameWrite(4, 4, true);
 $stack->recordWalFrameWrite(5, 2, true);
 $stack->recordWalFrameWrite(6, 5, true);
 
-$plan = SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan(
+$plan = SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan(
     $databasePath,
     $dirtyDatabaseBytes,
     $journalBytes,

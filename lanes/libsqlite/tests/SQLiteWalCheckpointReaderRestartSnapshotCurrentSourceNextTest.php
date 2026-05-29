@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalAppendPlan;
-use PortLibs\LibSqlite\SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $tests = [];
@@ -48,7 +48,7 @@ $transactions = static fn (): array => [[
     ],
     'database_page_count' => 5,
 ]];
-$plan = static fn (int $reader = 2, bool $syncWal = true, bool $syncDirectory = true, array $pages = [1, 2, 3, 4, 5], ?string $sourceBytes = null): array => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan::plan(
+$plan = static fn (int $reader = 2, bool $syncWal = true, bool $syncDirectory = true, array $pages = [1, 2, 3, 4, 5], ?string $sourceBytes = null): array => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan::plan(
     $databasePath,
     $wal,
     $sourceBytes ?? $walBytes,
@@ -155,14 +155,14 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty path rejected' => static fn () => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan::plan('', $wal, $walBytes, $databaseBytes, $transactions(), [1], 2),
-    'empty pages rejected' => static fn () => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan::plan($databasePath, $wal, $walBytes, $databaseBytes, $transactions(), [], 2),
-    'negative reader rejected' => static fn () => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan::plan($databasePath, $wal, $walBytes, $databaseBytes, $transactions(), [1], -1),
-    'reader past wal rejected' => static fn () => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan::plan($databasePath, $wal, $walBytes, $databaseBytes, $transactions(), [1], 6),
+    'empty path rejected' => static fn () => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan::plan('', $wal, $walBytes, $databaseBytes, $transactions(), [1], 2),
+    'empty pages rejected' => static fn () => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan::plan($databasePath, $wal, $walBytes, $databaseBytes, $transactions(), [], 2),
+    'negative reader rejected' => static fn () => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan::plan($databasePath, $wal, $walBytes, $databaseBytes, $transactions(), [1], -1),
+    'reader past wal rejected' => static fn () => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan::plan($databasePath, $wal, $walBytes, $databaseBytes, $transactions(), [1], 6),
     'stale source header rejected' => static fn () => $plan(2, true, true, [1], $staleHeaderBytes),
     'mutated source frame rejected' => static fn () => $plan(2, true, true, [1], $mutatedWalBytes),
     'non integer page rejected' => static fn () => $plan(2, true, true, ['1']),
-    'empty transactions rejected' => static fn () => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan::plan($databasePath, $wal, $walBytes, $databaseBytes, [], [1], 2),
+    'empty transactions rejected' => static fn () => SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan::plan($databasePath, $wal, $walBytes, $databaseBytes, [], [1], 2),
 ];
 
 foreach ($throws as $name => $callback) {

@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $tests = [];
@@ -84,7 +84,7 @@ $makeStack = static function (): SQLiteSavepointStack {
 };
 
 $plan = static function (?int $reader = 2, array $pages = [1, 2, 3, 4, 5], bool $reserved = false, bool $requiresSuper = false, ?bool $superExists = null) use ($databasePath, $databaseBytes, $journalBytes, $makeStack, $wal, $walBytes): array {
-    return SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan(
+    return SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan(
         $databasePath,
         $databaseBytes,
         $journalBytes,
@@ -187,17 +187,17 @@ foreach ($cases as $name => [$actual, $expected]) {
 }
 
 $throws = [
-    'empty path rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan('', $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, [1]),
-    'empty database rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan($databasePath, '', $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, [1]),
-    'empty journal rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan($databasePath, $databaseBytes, '', $makeStack(), 'plugin-batch-next138', $wal, $walBytes, [1]),
-    'empty savepoint rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), '', $wal, $walBytes, [1]),
-    'empty wal rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, '', [1]),
-    'empty pages rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, []),
-    'stale wal bytes rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, substr($walBytes, 0, -1) . 'x', [1]),
-    'unaligned database rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan($databasePath, 'short', $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, [1]),
-    'non integer page rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, ['1']),
-    'reader outside range rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, [1], 3),
-    'missing savepoint rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNext138Plan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'missing-next138', $wal, $walBytes, [1]),
+    'empty path rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan('', $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, [1]),
+    'empty database rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan($databasePath, '', $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, [1]),
+    'empty journal rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan($databasePath, $databaseBytes, '', $makeStack(), 'plugin-batch-next138', $wal, $walBytes, [1]),
+    'empty savepoint rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), '', $wal, $walBytes, [1]),
+    'empty wal rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, '', [1]),
+    'empty pages rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, []),
+    'stale wal bytes rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, substr($walBytes, 0, -1) . 'x', [1]),
+    'unaligned database rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan($databasePath, 'short', $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, [1]),
+    'non integer page rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, ['1']),
+    'reader outside range rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'plugin-batch-next138', $wal, $walBytes, [1], 3),
+    'missing savepoint rejected' => static fn () => SQLiteWalCheckpointHotJournalTruncateCurrentSourceNextPlan::plan($databasePath, $databaseBytes, $journalBytes, $makeStack(), 'missing-next138', $wal, $walBytes, [1]),
 ];
 
 foreach ($throws as $name => $callback) {

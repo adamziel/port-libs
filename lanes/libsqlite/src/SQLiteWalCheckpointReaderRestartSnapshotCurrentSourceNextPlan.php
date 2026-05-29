@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNext124Plan
+final class SQLiteWalCheckpointReaderRestartSnapshotCurrentSourceNextPlan
 {
     /**
      * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions

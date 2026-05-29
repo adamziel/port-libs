@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -83,7 +83,7 @@ $plan = static fn (
     bool $reservedLock = false,
     array $pages = [1, 2, 3, 4, 5],
     ?int $readerEndFrame = 4,
-): array => SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan::plan(
+): array => SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan::plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -189,12 +189,12 @@ foreach ($cases as $name => [$callback, $expected]) {
 $throws = [
     'empty checkpoint database rejected' => static fn () => $plan($hotDatabase, $walBytes, ''),
     'unaligned checkpoint database rejected' => static fn () => $plan($hotDatabase, $walBytes, $checkpointDatabase . 'x'),
-    'empty path rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan::plan('', $dirtyDatabase, $journalBytes, $currentWal, $walBytes, $hotDatabase, $walBytes, $checkpointDatabase, [1], 1),
-    'empty dirty database rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan::plan($databasePath, '', $journalBytes, $currentWal, $walBytes, $hotDatabase, $walBytes, $checkpointDatabase, [1], 1),
-    'empty journal rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan::plan($databasePath, $dirtyDatabase, '', $currentWal, $walBytes, $hotDatabase, $walBytes, $checkpointDatabase, [1], 1),
-    'empty wal rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, '', $hotDatabase, $walBytes, $checkpointDatabase, [1], 1),
-    'empty reader database rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $walBytes, '', $walBytes, $checkpointDatabase, [1], 1),
-    'empty pages rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $walBytes, $hotDatabase, $walBytes, $checkpointDatabase, [], 1),
+    'empty path rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan::plan('', $dirtyDatabase, $journalBytes, $currentWal, $walBytes, $hotDatabase, $walBytes, $checkpointDatabase, [1], 1),
+    'empty dirty database rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan::plan($databasePath, '', $journalBytes, $currentWal, $walBytes, $hotDatabase, $walBytes, $checkpointDatabase, [1], 1),
+    'empty journal rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, '', $currentWal, $walBytes, $hotDatabase, $walBytes, $checkpointDatabase, [1], 1),
+    'empty wal rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, '', $hotDatabase, $walBytes, $checkpointDatabase, [1], 1),
+    'empty reader database rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $walBytes, '', $walBytes, $checkpointDatabase, [1], 1),
+    'empty pages rejected by base' => static fn () => SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $walBytes, $hotDatabase, $walBytes, $checkpointDatabase, [], 1),
     'zero page rejected' => static fn () => $plan($hotDatabase, $walBytes, $checkpointDatabase, false, [0]),
     'string page rejected' => static fn () => $plan($hotDatabase, $walBytes, $checkpointDatabase, false, ['1']),
     'page outside checkpoint rejected' => static fn () => $plan($hotDatabase, $walBytes, $checkpointDatabase, false, [6]),

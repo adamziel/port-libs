@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $sectorSize = 512;
@@ -56,7 +56,7 @@ $checkpointDatabase = $page('wp next148 reader schema draft')
     . $page('wp next148 checkpoint wp_options commit')
     . $page('wp next148 clean active_plugins');
 
-$plan = SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan::plan(
+$plan = SQLiteWalHotJournalReaderCheckpointCurrentSourceNextPlan::plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

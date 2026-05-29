@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointReaderTruncateSavepointCurrentSourceNext128Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointReaderTruncateSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -51,7 +51,7 @@ $walBytes = $makeWal([
     [5, 5, 'wp discarded active_plugins tail in savepoint'],
 ]);
 $wal = SQLiteWal::parse($walBytes, $pageSize, true);
-$plan = SQLiteWalCheckpointReaderTruncateSavepointCurrentSourceNext128Plan::plan(
+$plan = SQLiteWalCheckpointReaderTruncateSavepointCurrentSourceNextPlan::plan(
     $stack,
     'plugin-settings-next128',
     $wal,
