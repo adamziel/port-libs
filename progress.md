@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 20:10 UTC):
+  Seventy-eighth safe consolidation follow-up is integrated and pushed as
+  `af9057c5d`. The batch accepts the fresh current-base `suffix-cv` handoff
+  from `c8233eb`: STAT4 expression-range production suffix cleanup renames the
+  canonical caller to `compareExpressionRange()`, removes `Next104` from
+  private helper names, and renames the paired test/example while preserving
+  observable dependency/scenario metadata. Validation passed PHP lint for the
+  changed source/test/example, `git diff --check`, direct STAT4 expression
+  range test `1 file / 64 assertions / 0 failures`, broad STAT4
+  expression-partial plus expression-range family `134 files / 7601 assertions
+  / 0 failures`, changed WordPress example JSON execution, exact user-named
+  150 suffix scan clean in `src`/`tests`/`examples`, production numbered
+  file/class audits at `0`, numbered production helper-method audit down to
+  `1698`, and unique numbered production symbol audit down to `1930`. Public
+  pass/mapped counters remain `154019 pass / 0 fail` and `830 / 1589` because
+  this is consolidation-only. Pager-master, upstream-suite, B-tree, and one
+  rowvalue-window handoff remain deferred pending baseline comparison or
+  rebase.
+
 - 2026-05-29 supervisor continuation (shell samples 20:08 UTC):
   Seventy-seventh safe consolidation follow-up is integrated and pushed as
   `c8233eb99`. The batch accepts 4 more handoffs while excluding stale worker
