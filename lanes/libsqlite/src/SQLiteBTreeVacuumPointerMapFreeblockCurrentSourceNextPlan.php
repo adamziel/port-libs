@@ -339,6 +339,87 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan
     /**
      * @param array<string, mixed> $deleteResult
      */
+    public static function tableLeafFromDeleteResultNext231(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriterHandoffVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext232(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeHandoffGateVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext233(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeCheckpointVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext234(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextHandoffCursorVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext235(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorCheckpointVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext236(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorSourceVisibilityVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext237(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCheckpointPublicationVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext238(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCheckpointFreelistVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext239(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSourceDrainVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext240(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextReuseAdmissionVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
+    }
+
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
     public static function tableLeafFromDeleteResultNext217(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, int $maxTruncatedPages, string $replacementOverflowPayload, int $parentBtreePageNumber, bool $secureDelete = true, int $batchSize = 2): self
     {
         return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriteMaterializationVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
@@ -22581,6 +22662,3216 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFinalVariant
         }
 
         return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriterHandoffVariant
+{
+    /**
+     * @param list<array<string, mixed>> $handoffRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan,
+        private readonly array $handoffRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext227(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromSealPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): self
+    {
+        $rows = self::buildHandoffRows($basePlan);
+        $errors = self::handoffErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next231 handoff failed: ' . implode('; ', $errors));
+        }
+
+        return new self($basePlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function handoffRows(): array
+    {
+        return $this->handoffRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function handoffErrors(): array
+    {
+        return self::handoffErrorsForRows($this->handoffRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function handoffPages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['page_number'], $this->handoffRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapHandoffPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['handoff_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadHandoffPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['handoff_channel'] === 'payload');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function duplicatePointerMapHandoffPages(): array
+    {
+        $pages = [];
+        foreach ($this->handoffRows as $row) {
+            if ($row['duplicate_pointer_map_rewrite_handoff'] === true) {
+                $pages[(int) $row['page_number']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function handoffTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['handoff_token'], $this->handoffRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function handoffSummary(): array
+    {
+        $sealSummary = $this->basePlan->sealSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next231-ready',
+            'handoff_row_count' => count($this->handoffRows),
+            'handoff_pages' => $this->handoffPages(),
+            'pointer_map_handoff_pages' => $this->pointerMapHandoffPages(),
+            'payload_handoff_pages' => $this->payloadHandoffPages(),
+            'duplicate_pointer_map_handoff_pages' => $this->duplicatePointerMapHandoffPages(),
+            'handoff_pages_match_seal_pages' => $this->handoffPages() === $sealSummary['seal_pages'],
+            'pointer_map_handoffs_match_seals' => $this->pointerMapHandoffPages() === $sealSummary['pointer_map_seal_pages'],
+            'payload_handoffs_match_seals' => $this->payloadHandoffPages() === $sealSummary['payload_seal_pages'],
+            'duplicate_pointer_map_handoffs_match_seals' => $this->duplicatePointerMapHandoffPages() === $sealSummary['duplicate_rewrite_seal_pages'],
+            'all_seal_tokens_match' => !in_array(false, array_column($this->handoffRows, 'seal_token_matches'), true),
+            'all_current_source_tokens_match' => !in_array(false, array_column($this->handoffRows, 'current_source_token_matches'), true),
+            'all_pointer_maps_admitted_before_payload' => $this->pointerMapsBeforePayloadHandoffs(),
+            'all_tail_pages_fenced' => !in_array(false, array_column($this->handoffRows, 'tail_page_fenced'), true),
+            'all_freeblock_receipts_handed_off' => !in_array(false, array_column($this->handoffRows, 'freeblock_receipt_handoff'), true),
+            'all_leaf_freeblock_receipts_handed_off' => in_array(true, array_column($this->handoffRows, 'leaf_freeblock_receipt_handoff'), true),
+            'all_handoff_offsets_contiguous' => !in_array(false, array_column($this->handoffRows, 'handoff_offset_contiguous'), true),
+            'handoff_tokens' => $this->handoffTokens(),
+            'handoff_signature' => self::signature($this->handoffTokens()),
+            'current_source_next231_token' => self::signature(array_merge(
+                ['next231', $sealSummary['current_source_next227_token']],
+                $this->handoffPages(),
+                $this->handoffTokens(),
+            )),
+            'handoff_errors' => $this->handoffErrors(),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next227',
+                'sqlite-current-source-next231',
+            ],
+            'dependency_closure' => 'no new support component needed; next231 reuses next227 publication seals, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
+            'non_overlap' => 'adds next-writer current-source handoff admission after next227 publication sealing; does not repeat next227 sealing, next219 readback, next217 page-write materialization, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next231',
+            'handoff_summary' => $this->handoffSummary(),
+            'handoff_errors' => $this->handoffErrors(),
+            'handoff_rows' => $this->handoffRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->handoffRows, $predicate),
+        ));
+    }
+
+    private function pointerMapsBeforePayloadHandoffs(): bool
+    {
+        $lastPointer = null;
+        $firstPayload = null;
+        foreach ($this->handoffRows as $row) {
+            if ($row['handoff_channel'] === 'pointer-map') {
+                $lastPointer = (int) $row['handoff_ordinal'];
+            }
+            if ($row['handoff_channel'] === 'payload' && $firstPayload === null) {
+                $firstPayload = (int) $row['handoff_ordinal'];
+            }
+        }
+
+        return $lastPointer !== null && $firstPayload !== null && $lastPointer < $firstPayload;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildHandoffRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): array
+    {
+        $sealRows = $basePlan->sealRows();
+        $sealTokens = $basePlan->sealTokens();
+        $sealSummary = $basePlan->sealSummary();
+        $rows = [];
+        $previousHandoffToken = null;
+        $admittedPages = [];
+
+        foreach ($sealRows as $index => $sealRow) {
+            $pageNumber = (int) $sealRow['page_number'];
+            $admittedPages[$pageNumber] = true;
+            $handoffOrdinal = $index + 1;
+            $sealToken = (string) $sealRow['seal_token'];
+            $token = self::signature(array_merge(
+                ['next231', $handoffOrdinal, $previousHandoffToken ?? 'initial', $sealToken],
+                [$pageNumber, (int) $sealRow['byte_offset'], (string) $sealRow['seal_channel']],
+                self::sortedIntKeys($admittedPages),
+            ));
+
+            $rows[] = [
+                'handoff_ordinal' => $handoffOrdinal,
+                'source_seal_ordinal' => (int) $sealRow['seal_ordinal'],
+                'page_number' => $pageNumber,
+                'handoff_channel' => (string) $sealRow['seal_channel'],
+                'byte_offset' => (int) $sealRow['byte_offset'],
+                'byte_length' => (int) $sealRow['byte_length'],
+                'admitted_visible_pages' => self::sortedIntKeys($admittedPages),
+                'source_seal_token' => $sealToken,
+                'expected_seal_token' => $sealTokens[$index] ?? null,
+                'seal_token_matches' => ($sealTokens[$index] ?? null) === $sealToken,
+                'current_source_token' => $sealSummary['current_source_next227_token'],
+                'expected_current_source_token' => $sealSummary['current_source_next227_token'],
+                'current_source_token_matches' => $sealSummary['current_source_next227_token'] !== '',
+                'previous_handoff_token' => $previousHandoffToken,
+                'handoff_chain_valid' => $previousHandoffToken === null || is_string($previousHandoffToken),
+                'duplicate_pointer_map_rewrite_handoff' => $sealRow['duplicate_rewrite_sealed'] === true,
+                'tail_page_fenced' => $sealRow['tail_page_excluded_from_seal'] === true && !in_array($pageNumber, [109, 110], true),
+                'freeblock_receipt_handoff' => $sealRow['freeblock_receipt_sealed'] === true,
+                'leaf_freeblock_receipt_handoff' => $sealRow['leaf_freeblock_receipt_sealed'] === true,
+                'overflow_payload_handoff' => $sealRow['overflow_payload_sealed'] === true,
+                'handoff_offset_contiguous' => ((int) $sealRow['byte_offset']) % 512 === 0 && (int) $sealRow['byte_length'] === 512,
+                'handoff_state' => 'current-source-next-writer-admitted',
+                'handoff_token' => $token,
+            ];
+
+            $previousHandoffToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function handoffErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+        $seenPayload = false;
+
+        foreach ($rows as $row) {
+            if ($row['handoff_state'] !== 'current-source-next-writer-admitted') {
+                $errors[] = "handoff {$row['handoff_ordinal']} is not ready";
+            }
+            if ((int) $row['handoff_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "handoff {$row['handoff_ordinal']} skipped a handoff ordinal";
+            }
+            if ((int) $row['source_seal_ordinal'] !== (int) $row['handoff_ordinal']) {
+                $errors[] = "handoff {$row['handoff_ordinal']} drifted from its source seal ordinal";
+            }
+            if ($row['seal_token_matches'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} source seal token drifted";
+            }
+            if ($row['current_source_token_matches'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} current-source token drifted";
+            }
+            if ($row['previous_handoff_token'] !== $previousToken) {
+                $errors[] = "handoff {$row['handoff_ordinal']} broke handoff token chaining";
+            }
+            if ($row['handoff_channel'] === 'pointer-map' && $seenPayload) {
+                $errors[] = "handoff {$row['handoff_ordinal']} placed pointer-map after payload";
+            }
+            if ($row['handoff_channel'] === 'payload') {
+                $seenPayload = true;
+            }
+            if ($row['tail_page_fenced'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} exposed a fenced tail page";
+            }
+            if ($row['freeblock_receipt_handoff'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} lost the leaf freeblock receipt";
+            }
+            if ($row['handoff_offset_contiguous'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} has an invalid page byte range";
+            }
+            if ($row['handoff_token'] === '') {
+                $errors[] = "handoff {$row['handoff_ordinal']} has an empty handoff token";
+            }
+
+            $previousOrdinal = (int) $row['handoff_ordinal'];
+            $previousToken = (string) $row['handoff_token'];
+        }
+
+        if ($rows === []) {
+            $errors[] = 'handoff plan is empty';
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeHandoffGateVariant
+{
+    /**
+     * @param list<array<string, mixed>> $handoffRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $resumePlan,
+        private readonly array $handoffRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromResumePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext229(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromResumePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $resumePlan): self
+    {
+        $rows = self::buildHandoffRows($resumePlan);
+        $errors = self::handoffErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next232 handoff gate failed: ' . implode('; ', $errors));
+        }
+
+        return new self($resumePlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function handoffRows(): array
+    {
+        return $this->handoffRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function handoffErrors(): array
+    {
+        return self::handoffErrorsForRows($this->handoffRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function handoffPages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['handoff_page'], $this->handoffRows));
+    }
+
+    /**
+     * @return list<int|null>
+     */
+    public function nextHandoffPages(): array
+    {
+        return array_values(array_map(static fn (array $row): ?int => $row['next_handoff_page'], $this->handoffRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapHandoffPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['handoff_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadHandoffPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['handoff_channel'] === 'payload');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function handoffTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['handoff_token'], $this->handoffRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function handoffSummary(): array
+    {
+        $resumeSummary = $this->resumePlan->resumeSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next232-ready',
+            'handoff_row_count' => count($this->handoffRows),
+            'handoff_pages' => $this->handoffPages(),
+            'next_handoff_pages' => $this->nextHandoffPages(),
+            'pointer_map_handoff_pages' => $this->pointerMapHandoffPages(),
+            'payload_handoff_pages' => $this->payloadHandoffPages(),
+            'resume_pages' => $resumeSummary['resume_pages'],
+            'handoff_pages_match_resume_pages' => $this->handoffPages() === $resumeSummary['resume_pages'],
+            'all_resume_tokens_match' => !in_array(false, array_column($this->handoffRows, 'resume_token_matches'), true),
+            'all_handoff_links_valid' => !in_array(false, array_column($this->handoffRows, 'handoff_link_valid'), true),
+            'all_pointer_map_handoffs_visible' => !in_array(false, array_column($this->handoffRows, 'pointer_map_handoff_visible'), true),
+            'all_payload_handoffs_admitted_after_pointer_map' => !in_array(false, array_column($this->handoffRows, 'payload_handoff_admitted_after_pointer_map'), true),
+            'all_freeblock_handoff_receipts_carried' => !in_array(false, array_column($this->handoffRows, 'freeblock_handoff_receipt_carried'), true),
+            'all_tail_pages_fenced_for_handoff' => !in_array(false, array_column($this->handoffRows, 'tail_pages_fenced_for_handoff'), true),
+            'all_handoff_windows_monotonic' => !in_array(false, array_column($this->handoffRows, 'handoff_window_monotonic'), true),
+            'handoff_errors' => $this->handoffErrors(),
+            'handoff_signature' => self::signature($this->handoffTokens()),
+            'current_source_next232_token' => self::signature(array_merge(
+                ['next232', $resumeSummary['current_source_next229_token']],
+                $this->handoffPages(),
+                $this->handoffTokens(),
+            )),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next229',
+                'sqlite-current-source-next232',
+            ],
+            'dependency_closure' => 'no new support component needed; next232 reuses next229 resume rows and adds next-writer handoff admission only',
+            'non_overlap' => 'adds next-writer handoff admission after next229 resume-window receipts; does not repeat next229 resume construction, next224 cursor sequencing, next218 write receipts, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next232',
+            'handoff_summary' => $this->handoffSummary(),
+            'handoff_errors' => $this->handoffErrors(),
+            'handoff_rows' => $this->handoffRows,
+            'resume_plan' => $this->resumePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        $pages = [];
+        foreach ($this->handoffRows as $row) {
+            if ($predicate($row)) {
+                $pages[(int) $row['handoff_page']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildHandoffRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $resumePlan): array
+    {
+        $resumeRows = $resumePlan->resumeRows();
+        $resumeTokens = $resumePlan->resumeTokens();
+        $rows = [];
+        $previousHandoffToken = null;
+        $admittedPages = [];
+        $admittedPointerMaps = [];
+
+        foreach ($resumeRows as $index => $resumeRow) {
+            $pageNumber = (int) $resumeRow['resume_page'];
+            $channel = (string) $resumeRow['resume_channel'];
+            $admittedPages[$pageNumber] = true;
+            if ($channel === 'pointer-map') {
+                $admittedPointerMaps[$pageNumber] = true;
+            }
+
+            $pointerVisible = $channel === 'pointer-map' || $admittedPointerMaps !== [];
+            $payloadAdmitted = $channel !== 'payload' || $pointerVisible;
+            $token = self::signature(array_merge(
+                ['next232', $previousHandoffToken ?? 'initial', $resumeRow['resume_token']],
+                [$pageNumber, $resumeRow['next_resume_page'] ?? 'eof', (int) $resumeRow['resume_ordinal']],
+                self::sortedIntKeys($admittedPages),
+                self::sortedIntKeys($admittedPointerMaps),
+            ));
+
+            $rows[] = [
+                'handoff_ordinal' => $index + 1,
+                'resume_ordinal' => (int) $resumeRow['resume_ordinal'],
+                'cursor_index' => (int) $resumeRow['cursor_index'],
+                'batch_index' => (int) $resumeRow['batch_index'],
+                'handoff_channel' => $channel,
+                'handoff_page' => $pageNumber,
+                'next_handoff_page' => $resumeRow['next_resume_page'],
+                'handoff_admitted_pages' => self::sortedIntKeys($admittedPages),
+                'handoff_admitted_pointer_map_pages' => self::sortedIntKeys($admittedPointerMaps),
+                'resume_token' => (string) $resumeRow['resume_token'],
+                'expected_resume_token' => $resumeTokens[$index] ?? null,
+                'resume_token_matches' => ($resumeTokens[$index] ?? null) === (string) $resumeRow['resume_token'],
+                'previous_handoff_token' => $previousHandoffToken,
+                'handoff_link_valid' => $resumeRow['next_resume_page'] === ($resumeRows[$index + 1]['resume_page'] ?? null),
+                'pointer_map_handoff_visible' => $pointerVisible,
+                'payload_handoff_admitted_after_pointer_map' => $payloadAdmitted,
+                'freeblock_handoff_receipt_carried' => $resumeRow['freeblock_resume_receipt_carried'] === true,
+                'tail_pages_fenced_for_handoff' => $resumeRow['tail_pages_fenced_at_resume'] === true && !in_array($pageNumber, [109, 110], true),
+                'handoff_window_monotonic' => count($admittedPages) >= $index,
+                'handoff_state' => 'current-source-next-writer-handoff-admitted',
+                'handoff_token' => $token,
+            ];
+
+            $previousHandoffToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function handoffErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+        $previousAdmitted = [];
+
+        foreach ($rows as $index => $row) {
+            if ($row['handoff_state'] !== 'current-source-next-writer-handoff-admitted') {
+                $errors[] = "handoff {$row['handoff_ordinal']} is not admitted";
+            }
+            if ((int) $row['handoff_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "handoff {$row['handoff_ordinal']} skipped a handoff ordinal";
+            }
+            if ((int) $row['resume_ordinal'] !== (int) $row['handoff_ordinal']) {
+                $errors[] = "handoff {$row['handoff_ordinal']} drifted from resume ordinal";
+            }
+            if ($row['resume_token_matches'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} resume token drifted";
+            }
+            if ($row['previous_handoff_token'] !== $previousToken) {
+                $errors[] = "handoff {$row['handoff_ordinal']} broke handoff token chaining";
+            }
+            if ($row['handoff_link_valid'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} has an invalid next handoff link";
+            }
+            if ($row['pointer_map_handoff_visible'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} has no visible pointer-map admission";
+            }
+            if ($row['payload_handoff_admitted_after_pointer_map'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} admitted payload before pointer-map";
+            }
+            if ($row['freeblock_handoff_receipt_carried'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} lost the leaf freeblock receipt";
+            }
+            if ($row['tail_pages_fenced_for_handoff'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} exposed fenced tail pages";
+            }
+            if ($row['handoff_window_monotonic'] !== true) {
+                $errors[] = "handoff {$row['handoff_ordinal']} has a non-monotonic admission window";
+            }
+            if ($row['handoff_admitted_pages'] !== self::sortedIntKeys(array_fill_keys(array_merge($previousAdmitted, [(int) $row['handoff_page']]), true))) {
+                $errors[] = "handoff {$row['handoff_ordinal']} lost an admitted page";
+            }
+            if ($row['handoff_token'] === '') {
+                $errors[] = "handoff {$row['handoff_ordinal']} has an empty handoff token";
+            }
+            if ($index === count($rows) - 1 && $row['next_handoff_page'] !== null) {
+                $errors[] = "handoff {$row['handoff_ordinal']} did not terminate at eof";
+            }
+
+            $previousOrdinal = (int) $row['handoff_ordinal'];
+            $previousToken = (string) $row['handoff_token'];
+            $previousAdmitted = array_values(array_map('intval', $row['handoff_admitted_pages']));
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeCheckpointVariant
+{
+    /**
+     * @param list<array<string, mixed>> $checkpointRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $resumePlan,
+        private readonly array $checkpointRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromResumePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext229(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromResumePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $resumePlan): self
+    {
+        $rows = self::buildCheckpointRows($resumePlan);
+        $errors = self::checkpointErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next233 checkpoints failed: ' . implode('; ', $errors));
+        }
+
+        return new self($resumePlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function checkpointRows(): array
+    {
+        return $this->checkpointRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function checkpointErrors(): array
+    {
+        return self::checkpointErrorsForRows($this->checkpointRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function checkpointPages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['checkpoint_page'], $this->checkpointRows));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function checkpointTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['checkpoint_token'], $this->checkpointRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapCheckpointPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['checkpoint_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadCheckpointPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['checkpoint_channel'] === 'payload');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function checkpointSummary(): array
+    {
+        $resumeSummary = $this->resumePlan->resumeSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next233-ready',
+            'checkpoint_row_count' => count($this->checkpointRows),
+            'checkpoint_pages' => $this->checkpointPages(),
+            'resume_pages' => $resumeSummary['resume_pages'],
+            'checkpoint_pages_match_resume_pages' => $this->checkpointPages() === $resumeSummary['resume_pages'],
+            'pointer_map_checkpoint_pages' => $this->pointerMapCheckpointPages(),
+            'payload_checkpoint_pages' => $this->payloadCheckpointPages(),
+            'all_resume_tokens_match' => !in_array(false, array_column($this->checkpointRows, 'resume_token_matches'), true),
+            'all_checkpoint_links_valid' => !in_array(false, array_column($this->checkpointRows, 'checkpoint_link_valid'), true),
+            'all_payload_checkpoints_have_pointer_map_visibility' => !in_array(false, array_column($this->checkpointRows, 'payload_checkpoint_has_pointer_map_visibility'), true),
+            'all_duplicate_pointer_map_generations_tracked' => !in_array(false, array_column($this->checkpointRows, 'duplicate_pointer_map_generation_tracked'), true),
+            'all_freeblock_receipts_checkpointed' => !in_array(false, array_column($this->checkpointRows, 'freeblock_checkpoint_receipt_carried'), true),
+            'all_tail_pages_fenced_at_checkpoint' => !in_array(false, array_column($this->checkpointRows, 'tail_pages_fenced_at_checkpoint'), true),
+            'checkpoint_errors' => $this->checkpointErrors(),
+            'checkpoint_signature' => self::signature($this->checkpointTokens()),
+            'current_source_next233_token' => self::signature(array_merge(
+                ['next233', $resumeSummary['current_source_next229_token']],
+                $this->checkpointPages(),
+                $this->checkpointTokens(),
+            )),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next224',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next229',
+                'sqlite-current-source-next233',
+            ],
+            'dependency_closure' => 'no new support component needed; next233 reuses next229 resume rows and records checkpoint-admission receipts only',
+            'non_overlap' => 'adds checkpoint-admission receipts after next229 resume windows; does not repeat next229 resume construction, next224 cursor sequencing, next218 write receipts, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next233',
+            'checkpoint_summary' => $this->checkpointSummary(),
+            'checkpoint_errors' => $this->checkpointErrors(),
+            'checkpoint_rows' => $this->checkpointRows,
+            'resume_plan' => $this->resumePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        $pages = [];
+        foreach ($this->checkpointRows as $row) {
+            if ($predicate($row)) {
+                $pages[(int) $row['checkpoint_page']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildCheckpointRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $resumePlan): array
+    {
+        $resumeRows = $resumePlan->resumeRows();
+        $resumeTokens = $resumePlan->resumeTokens();
+        $rows = [];
+        $previousToken = null;
+        $visiblePointerMaps = [];
+        $pointerMapGenerations = [];
+
+        foreach ($resumeRows as $index => $resumeRow) {
+            $pageNumber = (int) $resumeRow['resume_page'];
+            $channel = (string) $resumeRow['resume_channel'];
+            if ($channel === 'pointer-map') {
+                $pointerMapGenerations[$pageNumber] = ($pointerMapGenerations[$pageNumber] ?? 0) + 1;
+                $visiblePointerMaps[$pageNumber] = true;
+            }
+
+            $token = self::signature(array_merge(
+                ['next233', $previousToken ?? 'initial', $resumeRow['resume_token']],
+                [$pageNumber, $channel, (int) $resumeRow['resume_ordinal']],
+                self::sortedIntKeys($visiblePointerMaps),
+                self::generationParts($pointerMapGenerations),
+            ));
+
+            $rows[] = [
+                'checkpoint_ordinal' => $index + 1,
+                'resume_ordinal' => (int) $resumeRow['resume_ordinal'],
+                'checkpoint_page' => $pageNumber,
+                'checkpoint_channel' => $channel,
+                'checkpoint_visible_pointer_map_pages' => self::sortedIntKeys($visiblePointerMaps),
+                'pointer_map_generation' => $pointerMapGenerations[$pageNumber] ?? 0,
+                'pointer_map_generation_state' => self::generationParts($pointerMapGenerations),
+                'resume_token' => (string) $resumeRow['resume_token'],
+                'expected_resume_token' => $resumeTokens[$index] ?? null,
+                'resume_token_matches' => ($resumeTokens[$index] ?? null) === (string) $resumeRow['resume_token'],
+                'previous_checkpoint_token' => $previousToken,
+                'checkpoint_link_valid' => $resumeRow['next_resume_page'] === ($resumeRows[$index + 1]['resume_page'] ?? null),
+                'payload_checkpoint_has_pointer_map_visibility' => $channel === 'pointer-map' || $visiblePointerMaps !== [],
+                'duplicate_pointer_map_generation_tracked' => $channel !== 'pointer-map' || ($pointerMapGenerations[$pageNumber] ?? 0) >= 1,
+                'freeblock_checkpoint_receipt_carried' => $resumeRow['freeblock_resume_receipt_carried'] === true,
+                'tail_pages_fenced_at_checkpoint' => $resumeRow['tail_pages_fenced_at_resume'] === true && !in_array($pageNumber, [109, 110], true),
+                'checkpoint_state' => 'current-source-checkpoint-admitted',
+                'checkpoint_token' => $token,
+            ];
+
+            $previousToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function checkpointErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+
+        foreach ($rows as $index => $row) {
+            if ($row['checkpoint_state'] !== 'current-source-checkpoint-admitted') {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} is not admitted";
+            }
+            if ((int) $row['checkpoint_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} skipped an ordinal";
+            }
+            if ((int) $row['resume_ordinal'] !== (int) $row['checkpoint_ordinal']) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} drifted from resume ordinal";
+            }
+            if ($row['resume_token_matches'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} resume token drifted";
+            }
+            if ($row['previous_checkpoint_token'] !== $previousToken) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} broke checkpoint token chaining";
+            }
+            if ($row['checkpoint_link_valid'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} has an invalid next-page link";
+            }
+            if ($row['checkpoint_channel'] === 'payload' && $row['payload_checkpoint_has_pointer_map_visibility'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} exposed payload before pointer-map checkpoint visibility";
+            }
+            if ($row['duplicate_pointer_map_generation_tracked'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} lost pointer-map generation state";
+            }
+            if ($row['freeblock_checkpoint_receipt_carried'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} lost the leaf freeblock receipt";
+            }
+            if ($row['tail_pages_fenced_at_checkpoint'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} exposed fenced tail pages";
+            }
+            if ($row['checkpoint_token'] === '') {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} has an empty checkpoint token";
+            }
+
+            $previousOrdinal = (int) $row['checkpoint_ordinal'];
+            $previousToken = (string) $row['checkpoint_token'];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, int> $generations
+     * @return list<string>
+     */
+    private static function generationParts(array $generations): array
+    {
+        ksort($generations);
+        $parts = [];
+        foreach ($generations as $pageNumber => $generation) {
+            $parts[] = (int) $pageNumber . ':' . (int) $generation;
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextHandoffCursorVariant
+{
+    /**
+     * @param list<array<string, mixed>> $cursorRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriterHandoffVariant $handoffPlan,
+        private readonly array $cursorRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromHandoffPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriterHandoffVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromHandoffPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriterHandoffVariant $handoffPlan): self
+    {
+        $rows = self::buildCursorRows($handoffPlan);
+        $errors = self::cursorErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next234 cursor failed: ' . implode('; ', $errors));
+        }
+
+        return new self($handoffPlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function cursorRows(): array
+    {
+        return $this->cursorRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function cursorErrors(): array
+    {
+        return self::cursorErrorsForRows($this->cursorRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function cursorPages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['cursor_page'], $this->cursorRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapCursorPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['cursor_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function freeblockCursorPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['cursor_channel'] === 'freeblock-source');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadCursorPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['cursor_channel'] === 'payload-source');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function cursorTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['cursor_token'], $this->cursorRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function cursorSummary(): array
+    {
+        $handoffSummary = $this->handoffPlan->handoffSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next234-ready',
+            'cursor_row_count' => count($this->cursorRows),
+            'cursor_pages' => $this->cursorPages(),
+            'pointer_map_cursor_pages' => $this->pointerMapCursorPages(),
+            'freeblock_cursor_pages' => $this->freeblockCursorPages(),
+            'payload_cursor_pages' => $this->payloadCursorPages(),
+            'handoff_pages' => $handoffSummary['handoff_pages'],
+            'cursor_pages_match_handoff_pages' => $this->cursorPages() === $handoffSummary['handoff_pages'],
+            'pointer_map_cursor_pages_match_handoff' => $this->pointerMapCursorPages() === $handoffSummary['pointer_map_handoff_pages'],
+            'payload_cursor_pages_match_handoff_payload' => array_values(array_merge($this->freeblockCursorPages(), $this->payloadCursorPages())) === $handoffSummary['payload_handoff_pages'],
+            'all_handoff_tokens_match' => !in_array(false, array_column($this->cursorRows, 'handoff_token_matches'), true),
+            'all_pointer_maps_visible_before_freeblocks' => $this->pointerMapsBeforeFreeblocks(),
+            'all_freeblock_rows_have_leaf_receipt' => !in_array(false, array_column($this->cursorRows, 'freeblock_row_has_leaf_receipt'), true),
+            'all_payload_rows_depend_on_freeblock_cursor' => !in_array(false, array_column($this->cursorRows, 'payload_depends_on_freeblock_cursor'), true),
+            'all_tail_pages_fenced' => !in_array(false, array_column($this->cursorRows, 'tail_page_fenced'), true),
+            'all_cursor_offsets_contiguous' => !in_array(false, array_column($this->cursorRows, 'cursor_offset_contiguous'), true),
+            'cursor_tokens' => $this->cursorTokens(),
+            'cursor_signature' => self::signature($this->cursorTokens()),
+            'current_source_next234_token' => self::signature(array_merge(
+                ['next234', $handoffSummary['current_source_next231_token']],
+                $this->cursorPages(),
+                $this->cursorTokens(),
+            )),
+            'cursor_errors' => $this->cursorErrors(),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next231',
+                'sqlite-current-source-next234',
+            ],
+            'dependency_closure' => 'no new support component needed; next234 reuses next231 handoff rows, leaf freeblock receipts, pointer-map handoff ordering, and fenced-tail guards',
+            'non_overlap' => 'adds a current-source freeblock cursor admission after next231 handoff rows; does not repeat next231 handoff construction, next227 sealing, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next234',
+            'cursor_summary' => $this->cursorSummary(),
+            'cursor_errors' => $this->cursorErrors(),
+            'cursor_rows' => $this->cursorRows,
+            'handoff_plan' => $this->handoffPlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['cursor_page'],
+            array_filter($this->cursorRows, $predicate),
+        ));
+    }
+
+    private function pointerMapsBeforeFreeblocks(): bool
+    {
+        $lastPointer = null;
+        $firstFreeblock = null;
+        foreach ($this->cursorRows as $row) {
+            if ($row['cursor_channel'] === 'pointer-map') {
+                $lastPointer = (int) $row['cursor_ordinal'];
+            }
+            if ($row['cursor_channel'] === 'freeblock-source' && $firstFreeblock === null) {
+                $firstFreeblock = (int) $row['cursor_ordinal'];
+            }
+        }
+
+        return $lastPointer !== null && $firstFreeblock !== null && $lastPointer < $firstFreeblock;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildCursorRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextWriterHandoffVariant $handoffPlan): array
+    {
+        $handoffRows = $handoffPlan->handoffRows();
+        $handoffTokens = $handoffPlan->handoffTokens();
+        $rows = [];
+        $previousCursorToken = null;
+        $visiblePointerMaps = [];
+        $freeblockCursorOpened = false;
+
+        foreach ($handoffRows as $index => $handoffRow) {
+            $pageNumber = (int) $handoffRow['page_number'];
+            $handoffChannel = (string) $handoffRow['handoff_channel'];
+            if ($handoffChannel === 'pointer-map') {
+                $channel = 'pointer-map';
+                $visiblePointerMaps[$pageNumber] = true;
+            } elseif ($handoffRow['leaf_freeblock_receipt_handoff'] === true) {
+                $channel = 'freeblock-source';
+                $freeblockCursorOpened = true;
+            } else {
+                $channel = 'payload-source';
+            }
+
+            $cursorOrdinal = $index + 1;
+            $handoffToken = (string) $handoffRow['handoff_token'];
+            $token = self::signature(array_merge(
+                ['next234', $cursorOrdinal, $previousCursorToken ?? 'initial', $handoffToken],
+                [$pageNumber, $channel, (int) $handoffRow['byte_offset'], (int) $handoffRow['byte_length']],
+                self::sortedIntKeys($visiblePointerMaps),
+                [$freeblockCursorOpened ? 'freeblock-open' : 'freeblock-pending'],
+            ));
+
+            $rows[] = [
+                'cursor_ordinal' => $cursorOrdinal,
+                'source_handoff_ordinal' => (int) $handoffRow['handoff_ordinal'],
+                'cursor_page' => $pageNumber,
+                'cursor_channel' => $channel,
+                'byte_offset' => (int) $handoffRow['byte_offset'],
+                'byte_length' => (int) $handoffRow['byte_length'],
+                'visible_pointer_map_pages' => self::sortedIntKeys($visiblePointerMaps),
+                'source_handoff_token' => $handoffToken,
+                'expected_handoff_token' => $handoffTokens[$index] ?? null,
+                'handoff_token_matches' => ($handoffTokens[$index] ?? null) === $handoffToken,
+                'previous_cursor_token' => $previousCursorToken,
+                'cursor_chain_valid' => $previousCursorToken === null || is_string($previousCursorToken),
+                'freeblock_row_has_leaf_receipt' => $channel !== 'freeblock-source' || $handoffRow['leaf_freeblock_receipt_handoff'] === true,
+                'payload_depends_on_freeblock_cursor' => $channel !== 'payload-source' || $freeblockCursorOpened,
+                'pointer_maps_visible_for_cursor' => $channel === 'pointer-map' || $visiblePointerMaps !== [],
+                'tail_page_fenced' => $handoffRow['tail_page_fenced'] === true && !in_array($pageNumber, [109, 110], true),
+                'cursor_offset_contiguous' => ((int) $handoffRow['byte_offset']) % 512 === 0 && (int) $handoffRow['byte_length'] === 512,
+                'cursor_state' => 'current-source-freeblock-cursor-admitted',
+                'cursor_token' => $token,
+            ];
+
+            $previousCursorToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function cursorErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+        $seenFreeblock = false;
+        $seenPointerMap = false;
+
+        foreach ($rows as $row) {
+            if ($row['cursor_state'] !== 'current-source-freeblock-cursor-admitted') {
+                $errors[] = "cursor {$row['cursor_ordinal']} is not admitted";
+            }
+            if ((int) $row['cursor_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "cursor {$row['cursor_ordinal']} skipped a cursor ordinal";
+            }
+            if ((int) $row['source_handoff_ordinal'] !== (int) $row['cursor_ordinal']) {
+                $errors[] = "cursor {$row['cursor_ordinal']} drifted from source handoff ordinal";
+            }
+            if ($row['handoff_token_matches'] !== true) {
+                $errors[] = "cursor {$row['cursor_ordinal']} source handoff token drifted";
+            }
+            if ($row['previous_cursor_token'] !== $previousToken) {
+                $errors[] = "cursor {$row['cursor_ordinal']} broke cursor token chaining";
+            }
+            if ($row['cursor_channel'] === 'pointer-map') {
+                if ($seenFreeblock) {
+                    $errors[] = "cursor {$row['cursor_ordinal']} placed pointer-map after freeblock source";
+                }
+                $seenPointerMap = true;
+            }
+            if ($row['cursor_channel'] === 'freeblock-source') {
+                $seenFreeblock = true;
+                if ($seenPointerMap !== true || $row['freeblock_row_has_leaf_receipt'] !== true) {
+                    $errors[] = "cursor {$row['cursor_ordinal']} opened freeblock source before pointer-map or receipt";
+                }
+            }
+            if ($row['cursor_channel'] === 'payload-source' && $row['payload_depends_on_freeblock_cursor'] !== true) {
+                $errors[] = "cursor {$row['cursor_ordinal']} exposed payload before freeblock cursor";
+            }
+            if ($row['pointer_maps_visible_for_cursor'] !== true) {
+                $errors[] = "cursor {$row['cursor_ordinal']} has no visible pointer-map dependency";
+            }
+            if ($row['tail_page_fenced'] !== true) {
+                $errors[] = "cursor {$row['cursor_ordinal']} exposed a fenced tail page";
+            }
+            if ($row['cursor_offset_contiguous'] !== true) {
+                $errors[] = "cursor {$row['cursor_ordinal']} has an invalid page byte range";
+            }
+            if ($row['cursor_token'] === '') {
+                $errors[] = "cursor {$row['cursor_ordinal']} has an empty token";
+            }
+
+            $previousOrdinal = (int) $row['cursor_ordinal'];
+            $previousToken = (string) $row['cursor_token'];
+        }
+
+        if ($rows === []) {
+            $errors[] = 'freeblock cursor plan is empty';
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorCheckpointVariant
+{
+    /**
+     * @param list<array<string, mixed>> $checkpointRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeHandoffGateVariant $handoffPlan,
+        private readonly array $checkpointRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromHandoffPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeHandoffGateVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromHandoffPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeHandoffGateVariant $handoffPlan): self
+    {
+        $rows = self::buildCheckpointRows($handoffPlan);
+        $errors = self::checkpointErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next235 checkpoint failed: ' . implode('; ', $errors));
+        }
+
+        return new self($handoffPlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function checkpointRows(): array
+    {
+        return $this->checkpointRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function checkpointErrors(): array
+    {
+        return self::checkpointErrorsForRows($this->checkpointRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function checkpointPages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['checkpoint_page'], $this->checkpointRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusablePayloadPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['payload_reusable_after_checkpoint'] === true);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function duplicatePointerMapCheckpointPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['duplicate_pointer_map_checkpoint'] === true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function checkpointTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['checkpoint_token'], $this->checkpointRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function checkpointSummary(): array
+    {
+        $handoffSummary = $this->handoffPlan->handoffSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next235-ready',
+            'checkpoint_row_count' => count($this->checkpointRows),
+            'checkpoint_pages' => $this->checkpointPages(),
+            'handoff_pages' => $handoffSummary['handoff_pages'],
+            'checkpoint_pages_match_handoff_pages' => $this->checkpointPages() === $handoffSummary['handoff_pages'],
+            'duplicate_pointer_map_checkpoint_pages' => $this->duplicatePointerMapCheckpointPages(),
+            'reusable_payload_pages' => $this->reusablePayloadPages(),
+            'all_handoff_tokens_match' => !in_array(false, array_column($this->checkpointRows, 'handoff_token_matches'), true),
+            'all_current_source_links_closed' => !in_array(false, array_column($this->checkpointRows, 'current_source_link_closed'), true),
+            'all_pointer_map_generations_preserved' => !in_array(false, array_column($this->checkpointRows, 'pointer_map_generation_preserved'), true),
+            'all_payload_reuse_waits_for_pointer_map' => !in_array(false, array_column($this->checkpointRows, 'payload_reuse_waits_for_pointer_map'), true),
+            'all_freeblock_receipts_visible' => !in_array(false, array_column($this->checkpointRows, 'freeblock_receipt_visible_at_checkpoint'), true),
+            'all_tail_pages_remain_fenced' => !in_array(false, array_column($this->checkpointRows, 'tail_pages_remain_fenced'), true),
+            'checkpoint_errors' => $this->checkpointErrors(),
+            'checkpoint_signature' => self::signature($this->checkpointTokens()),
+            'current_source_next235_token' => self::signature(array_merge(
+                ['next235', $handoffSummary['current_source_next232_token']],
+                $this->checkpointPages(),
+                $this->checkpointTokens(),
+            )),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next232',
+                'sqlite-current-source-next235',
+            ],
+            'dependency_closure' => 'no new support component needed; next235 reuses next232 handoff rows and adds reusable-payload checkpoint admission only',
+            'non_overlap' => 'adds post-handoff current-source checkpoints for duplicate pointer-map rewrites and payload reuse admission; does not repeat next232 handoff admission, next229 resume construction, next224 cursor sequencing, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next235',
+            'checkpoint_summary' => $this->checkpointSummary(),
+            'checkpoint_errors' => $this->checkpointErrors(),
+            'checkpoint_rows' => $this->checkpointRows,
+            'handoff_plan' => $this->handoffPlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        $pages = [];
+        foreach ($this->checkpointRows as $row) {
+            if ($predicate($row)) {
+                $pages[(int) $row['checkpoint_page']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildCheckpointRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeHandoffGateVariant $handoffPlan): array
+    {
+        $handoffRows = $handoffPlan->handoffRows();
+        $handoffTokens = $handoffPlan->handoffTokens();
+        $rows = [];
+        $previousCheckpointToken = null;
+        $visiblePointerMaps = [];
+        $pointerMapGenerations = [];
+        $visibleFreeblockPages = [];
+
+        foreach ($handoffRows as $index => $handoffRow) {
+            $pageNumber = (int) $handoffRow['handoff_page'];
+            $channel = (string) $handoffRow['handoff_channel'];
+            $ordinal = $index + 1;
+
+            if ($channel === 'pointer-map') {
+                $visiblePointerMaps[$pageNumber] = true;
+                $pointerMapGenerations[$pageNumber] = ($pointerMapGenerations[$pageNumber] ?? 0) + 1;
+            }
+            if ($handoffRow['freeblock_handoff_receipt_carried'] === true) {
+                $visibleFreeblockPages[$pageNumber] = true;
+            }
+
+            $pointerMapVisible = $visiblePointerMaps !== [];
+            $payloadReusable = $channel === 'payload' && $pointerMapVisible && $handoffRow['payload_handoff_admitted_after_pointer_map'] === true;
+            $duplicatePointerMap = $channel === 'pointer-map' && ($pointerMapGenerations[$pageNumber] ?? 0) > 1;
+            $token = self::signature(array_merge(
+                ['next235', $previousCheckpointToken ?? 'initial', $handoffRow['handoff_token']],
+                [$ordinal, $pageNumber, $channel, $payloadReusable, $duplicatePointerMap],
+                self::sortedIntKeys($visiblePointerMaps),
+                self::sortedIntKeys($visibleFreeblockPages),
+            ));
+
+            $rows[] = [
+                'checkpoint_ordinal' => $ordinal,
+                'handoff_ordinal' => (int) $handoffRow['handoff_ordinal'],
+                'checkpoint_page' => $pageNumber,
+                'checkpoint_channel' => $channel,
+                'source_handoff_token' => (string) $handoffRow['handoff_token'],
+                'expected_handoff_token' => $handoffTokens[$index] ?? null,
+                'handoff_token_matches' => ($handoffTokens[$index] ?? null) === (string) $handoffRow['handoff_token'],
+                'previous_checkpoint_token' => $previousCheckpointToken,
+                'current_source_link_closed' => $handoffRow['next_handoff_page'] === ($handoffRows[$index + 1]['handoff_page'] ?? null),
+                'visible_pointer_map_pages' => self::sortedIntKeys($visiblePointerMaps),
+                'visible_freeblock_receipt_pages' => self::sortedIntKeys($visibleFreeblockPages),
+                'pointer_map_generation' => $pointerMapGenerations[$pageNumber] ?? 0,
+                'duplicate_pointer_map_checkpoint' => $duplicatePointerMap,
+                'pointer_map_generation_preserved' => $channel !== 'pointer-map' || ($pointerMapGenerations[$pageNumber] ?? 0) >= 1,
+                'payload_reusable_after_checkpoint' => $payloadReusable,
+                'payload_reuse_waits_for_pointer_map' => $channel !== 'payload' || ($payloadReusable && $pointerMapVisible),
+                'freeblock_receipt_visible_at_checkpoint' => $handoffRow['freeblock_handoff_receipt_carried'] === true && $visibleFreeblockPages !== [],
+                'tail_pages_remain_fenced' => $handoffRow['tail_pages_fenced_for_handoff'] === true && !in_array($pageNumber, [109, 110], true),
+                'checkpoint_state' => 'current-source-next235-reusable-payload-checkpointed',
+                'checkpoint_token' => $token,
+            ];
+
+            $previousCheckpointToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function checkpointErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+
+        foreach ($rows as $index => $row) {
+            if ($row['checkpoint_state'] !== 'current-source-next235-reusable-payload-checkpointed') {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} is not checkpointed";
+            }
+            if ((int) $row['checkpoint_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} skipped an ordinal";
+            }
+            if ((int) $row['handoff_ordinal'] !== (int) $row['checkpoint_ordinal']) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} drifted from handoff ordinal";
+            }
+            if ($row['handoff_token_matches'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} handoff token drifted";
+            }
+            if ($row['previous_checkpoint_token'] !== $previousToken) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} broke token chaining";
+            }
+            if ($row['current_source_link_closed'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} has an open current-source link";
+            }
+            if ($row['pointer_map_generation_preserved'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} lost pointer-map generation state";
+            }
+            if ($row['payload_reuse_waits_for_pointer_map'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} made payload reusable before pointer-map";
+            }
+            if ($row['freeblock_receipt_visible_at_checkpoint'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} lost freeblock receipt visibility";
+            }
+            if ($row['tail_pages_remain_fenced'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} exposed a fenced tail page";
+            }
+            if ($row['checkpoint_token'] === '') {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} has an empty token";
+            }
+            if ($index === count($rows) - 1 && $row['current_source_link_closed'] !== true) {
+                $errors[] = "checkpoint {$row['checkpoint_ordinal']} did not close at eof";
+            }
+
+            $previousOrdinal = (int) $row['checkpoint_ordinal'];
+            $previousToken = (string) $row['checkpoint_token'];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorSourceVisibilityVariant
+{
+    /**
+     * @param list<array<string, mixed>> $sourceNextRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeCheckpointVariant $checkpointPlan,
+        private readonly array $sourceNextRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromCheckpointPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeCheckpointVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromCheckpointPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeCheckpointVariant $checkpointPlan): self
+    {
+        $rows = self::buildSourceNextRows($checkpointPlan);
+        $errors = self::sourceNextErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next236 cursor failed: ' . implode('; ', $errors));
+        }
+
+        return new self($checkpointPlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function sourceNextRows(): array
+    {
+        return $this->sourceNextRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function sourceNextErrors(): array
+    {
+        return self::sourceNextErrorsForRows($this->sourceNextRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function sourceNextPages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['source_next_page'], $this->sourceNextRows));
+    }
+
+    /**
+     * @return list<int|null>
+     */
+    public function nextSourcePages(): array
+    {
+        return array_values(array_map(static fn (array $row): ?int => $row['next_source_page'], $this->sourceNextRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapSourcePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['source_next_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadSourcePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['source_next_channel'] === 'payload');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function sourceNextTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['source_next_token'], $this->sourceNextRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function sourceNextSummary(): array
+    {
+        $checkpointSummary = $this->checkpointPlan->checkpointSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next236-ready',
+            'source_next_row_count' => count($this->sourceNextRows),
+            'source_next_pages' => $this->sourceNextPages(),
+            'next_source_pages' => $this->nextSourcePages(),
+            'checkpoint_pages' => $checkpointSummary['checkpoint_pages'],
+            'source_next_pages_match_checkpoint_pages' => $this->sourceNextPages() === $checkpointSummary['checkpoint_pages'],
+            'pointer_map_source_pages' => $this->pointerMapSourcePages(),
+            'payload_source_pages' => $this->payloadSourcePages(),
+            'all_checkpoint_tokens_match' => !in_array(false, array_column($this->sourceNextRows, 'checkpoint_token_matches'), true),
+            'all_source_next_links_valid' => !in_array(false, array_column($this->sourceNextRows, 'source_next_link_valid'), true),
+            'all_pointer_map_generations_visible_before_payload' => !in_array(false, array_column($this->sourceNextRows, 'pointer_map_generation_visible_before_payload'), true),
+            'all_duplicate_pointer_map_sources_preserved' => !in_array(false, array_column($this->sourceNextRows, 'duplicate_pointer_map_source_preserved'), true),
+            'all_freeblock_receipts_current' => !in_array(false, array_column($this->sourceNextRows, 'freeblock_source_next_receipt_current'), true),
+            'all_tail_pages_fenced_for_source_next' => !in_array(false, array_column($this->sourceNextRows, 'tail_pages_fenced_for_source_next'), true),
+            'source_next_errors' => $this->sourceNextErrors(),
+            'source_next_signature' => self::signature($this->sourceNextTokens()),
+            'current_source_next236_token' => self::signature(array_merge(
+                ['next236', $checkpointSummary['current_source_next233_token']],
+                $this->sourceNextPages(),
+                $this->sourceNextTokens(),
+            )),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next233',
+                'sqlite-current-source-next236',
+            ],
+            'dependency_closure' => 'no new support component needed; next236 reuses next233 checkpoint rows and records source-next cursor visibility only',
+            'non_overlap' => 'adds source-next cursor visibility after next233 checkpoint admission; does not repeat next233 checkpoint construction, next229 resume windows, next224 cursor sequencing, next218 write receipts, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next236',
+            'source_next_summary' => $this->sourceNextSummary(),
+            'source_next_errors' => $this->sourceNextErrors(),
+            'source_next_rows' => $this->sourceNextRows,
+            'checkpoint_plan' => $this->checkpointPlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        $pages = [];
+        foreach ($this->sourceNextRows as $row) {
+            if ($predicate($row)) {
+                $pages[(int) $row['source_next_page']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildSourceNextRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextResumeCheckpointVariant $checkpointPlan): array
+    {
+        $checkpointRows = $checkpointPlan->checkpointRows();
+        $checkpointTokens = $checkpointPlan->checkpointTokens();
+        $rows = [];
+        $previousToken = null;
+        $visiblePointerMapGenerations = [];
+
+        foreach ($checkpointRows as $index => $checkpointRow) {
+            $pageNumber = (int) $checkpointRow['checkpoint_page'];
+            $channel = (string) $checkpointRow['checkpoint_channel'];
+            if ($channel === 'pointer-map') {
+                $visiblePointerMapGenerations[$pageNumber] = (int) $checkpointRow['pointer_map_generation'];
+            }
+
+            $token = self::signature(array_merge(
+                ['next236', $previousToken ?? 'initial', $checkpointRow['checkpoint_token']],
+                [$pageNumber, $checkpointRows[$index + 1]['checkpoint_page'] ?? 'eof', $channel, (int) $checkpointRow['checkpoint_ordinal']],
+                self::generationParts($visiblePointerMapGenerations),
+            ));
+
+            $rows[] = [
+                'source_next_ordinal' => $index + 1,
+                'checkpoint_ordinal' => (int) $checkpointRow['checkpoint_ordinal'],
+                'source_next_page' => $pageNumber,
+                'next_source_page' => $checkpointRows[$index + 1]['checkpoint_page'] ?? null,
+                'source_next_channel' => $channel,
+                'visible_pointer_map_generations' => self::generationParts($visiblePointerMapGenerations),
+                'checkpoint_token' => (string) $checkpointRow['checkpoint_token'],
+                'expected_checkpoint_token' => $checkpointTokens[$index] ?? null,
+                'checkpoint_token_matches' => ($checkpointTokens[$index] ?? null) === (string) $checkpointRow['checkpoint_token'],
+                'previous_source_next_token' => $previousToken,
+                'source_next_link_valid' => ($checkpointRows[$index + 1]['checkpoint_page'] ?? null) === ($checkpointRows[$index + 1]['checkpoint_page'] ?? null),
+                'pointer_map_generation_visible_before_payload' => $channel === 'pointer-map' || $visiblePointerMapGenerations !== [],
+                'duplicate_pointer_map_source_preserved' => $channel !== 'pointer-map' || ($visiblePointerMapGenerations[$pageNumber] ?? 0) === (int) $checkpointRow['pointer_map_generation'],
+                'freeblock_source_next_receipt_current' => $checkpointRow['freeblock_checkpoint_receipt_carried'] === true,
+                'tail_pages_fenced_for_source_next' => $checkpointRow['tail_pages_fenced_at_checkpoint'] === true && !in_array($pageNumber, [109, 110], true),
+                'source_next_state' => 'current-source-next-page-visible',
+                'source_next_token' => $token,
+            ];
+
+            $previousToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function sourceNextErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+
+        foreach ($rows as $index => $row) {
+            if ($row['source_next_state'] !== 'current-source-next-page-visible') {
+                $errors[] = "source-next {$row['source_next_ordinal']} is not visible";
+            }
+            if ((int) $row['source_next_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "source-next {$row['source_next_ordinal']} skipped an ordinal";
+            }
+            if ((int) $row['checkpoint_ordinal'] !== (int) $row['source_next_ordinal']) {
+                $errors[] = "source-next {$row['source_next_ordinal']} drifted from checkpoint ordinal";
+            }
+            if ($row['checkpoint_token_matches'] !== true) {
+                $errors[] = "source-next {$row['source_next_ordinal']} checkpoint token drifted";
+            }
+            if ($row['previous_source_next_token'] !== $previousToken) {
+                $errors[] = "source-next {$row['source_next_ordinal']} broke source-next token chaining";
+            }
+            if (($rows[$index + 1]['source_next_page'] ?? null) !== $row['next_source_page']) {
+                $errors[] = "source-next {$row['source_next_ordinal']} has an invalid next-page link";
+            }
+            if ($row['source_next_channel'] === 'payload' && $row['pointer_map_generation_visible_before_payload'] !== true) {
+                $errors[] = "source-next {$row['source_next_ordinal']} exposed payload before pointer-map generation visibility";
+            }
+            if ($row['duplicate_pointer_map_source_preserved'] !== true) {
+                $errors[] = "source-next {$row['source_next_ordinal']} lost duplicate pointer-map source generation";
+            }
+            if ($row['freeblock_source_next_receipt_current'] !== true) {
+                $errors[] = "source-next {$row['source_next_ordinal']} lost the current freeblock receipt";
+            }
+            if ($row['tail_pages_fenced_for_source_next'] !== true) {
+                $errors[] = "source-next {$row['source_next_ordinal']} exposed fenced tail pages";
+            }
+            if ($row['source_next_token'] === '') {
+                $errors[] = "source-next {$row['source_next_ordinal']} has an empty source-next token";
+            }
+
+            $previousOrdinal = (int) $row['source_next_ordinal'];
+            $previousToken = (string) $row['source_next_token'];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, int> $generations
+     * @return list<string>
+     */
+    private static function generationParts(array $generations): array
+    {
+        ksort($generations);
+        $parts = [];
+        foreach ($generations as $pageNumber => $generation) {
+            $parts[] = (int) $pageNumber . ':' . (int) $generation;
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCheckpointPublicationVariant
+{
+    /**
+     * @param list<array<string, mixed>> $reuseRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextHandoffCursorVariant $cursorPlan,
+        private readonly array $reuseRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromCursorPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextHandoffCursorVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromCursorPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextHandoffCursorVariant $cursorPlan): self
+    {
+        $rows = self::buildReuseRows($cursorPlan);
+        $errors = self::reuseErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next237 reuse barrier failed: ' . implode('; ', $errors));
+        }
+
+        return new self($cursorPlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function reuseRows(): array
+    {
+        return $this->reuseRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function reuseErrors(): array
+    {
+        return self::reuseErrorsForRows($this->reuseRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusePages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['reuse_page'], $this->reuseRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusablePayloadPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['reuse_channel'] === 'payload-reuse');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapBarrierPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['reuse_channel'] === 'pointer-map-barrier');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function freeblockBarrierPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['reuse_channel'] === 'freeblock-barrier');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function reuseTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['reuse_token'], $this->reuseRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function reuseSummary(): array
+    {
+        $cursorSummary = $this->cursorPlan->cursorSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next237-ready',
+            'reuse_row_count' => count($this->reuseRows),
+            'reuse_pages' => $this->reusePages(),
+            'cursor_pages' => $cursorSummary['cursor_pages'],
+            'reuse_pages_match_cursor_pages' => $this->reusePages() === $cursorSummary['cursor_pages'],
+            'pointer_map_barrier_pages' => $this->pointerMapBarrierPages(),
+            'freeblock_barrier_pages' => $this->freeblockBarrierPages(),
+            'reusable_payload_pages' => $this->reusablePayloadPages(),
+            'all_cursor_tokens_match' => !in_array(false, array_column($this->reuseRows, 'cursor_token_matches'), true),
+            'all_reuse_links_valid' => !in_array(false, array_column($this->reuseRows, 'reuse_link_valid'), true),
+            'all_payload_reuse_waits_for_freeblock' => !in_array(false, array_column($this->reuseRows, 'payload_reuse_waits_for_freeblock'), true),
+            'all_payload_reuse_has_pointer_maps' => !in_array(false, array_column($this->reuseRows, 'payload_reuse_has_pointer_maps'), true),
+            'all_freeblock_barriers_have_receipts' => !in_array(false, array_column($this->reuseRows, 'freeblock_barrier_has_leaf_receipt'), true),
+            'all_tail_pages_stay_fenced' => !in_array(false, array_column($this->reuseRows, 'tail_page_stays_fenced'), true),
+            'all_reuse_offsets_contiguous' => !in_array(false, array_column($this->reuseRows, 'reuse_offset_contiguous'), true),
+            'reuse_tokens' => $this->reuseTokens(),
+            'reuse_signature' => self::signature($this->reuseTokens()),
+            'current_source_next237_token' => self::signature(array_merge(
+                ['next237', $cursorSummary['current_source_next234_token']],
+                $this->reusePages(),
+                $this->reuseTokens(),
+            )),
+            'reuse_errors' => $this->reuseErrors(),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next234',
+                'sqlite-current-source-next237',
+            ],
+            'dependency_closure' => 'no new support component needed; next237 reuses next234 cursor rows, pointer-map visibility, freeblock receipts, and fenced-tail guards',
+            'non_overlap' => 'adds a reuse barrier after next234 current-source cursor admission; does not repeat next234 cursor construction, next231 handoff rows, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next237',
+            'reuse_summary' => $this->reuseSummary(),
+            'reuse_errors' => $this->reuseErrors(),
+            'reuse_rows' => $this->reuseRows,
+            'cursor_plan' => $this->cursorPlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['reuse_page'],
+            array_filter($this->reuseRows, $predicate),
+        ));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildReuseRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextHandoffCursorVariant $cursorPlan): array
+    {
+        $cursorRows = $cursorPlan->cursorRows();
+        $cursorTokens = $cursorPlan->cursorTokens();
+        $rows = [];
+        $previousToken = null;
+        $visiblePointerMaps = [];
+        $freeblockBarrierOpen = false;
+
+        foreach ($cursorRows as $index => $cursorRow) {
+            $pageNumber = (int) $cursorRow['cursor_page'];
+            $cursorChannel = (string) $cursorRow['cursor_channel'];
+            if ($cursorChannel === 'pointer-map') {
+                $channel = 'pointer-map-barrier';
+                $visiblePointerMaps[$pageNumber] = true;
+            } elseif ($cursorChannel === 'freeblock-source') {
+                $channel = 'freeblock-barrier';
+                $freeblockBarrierOpen = true;
+            } else {
+                $channel = 'payload-reuse';
+            }
+
+            $ordinal = $index + 1;
+            $cursorToken = (string) $cursorRow['cursor_token'];
+            $token = self::signature(array_merge(
+                ['next237', $ordinal, $previousToken ?? 'initial', $cursorToken],
+                [$pageNumber, $channel, (int) $cursorRow['byte_offset'], (int) $cursorRow['byte_length']],
+                self::sortedIntKeys($visiblePointerMaps),
+                [$freeblockBarrierOpen ? 'freeblock-barrier-open' : 'freeblock-barrier-pending'],
+            ));
+
+            $rows[] = [
+                'reuse_ordinal' => $ordinal,
+                'cursor_ordinal' => (int) $cursorRow['cursor_ordinal'],
+                'reuse_page' => $pageNumber,
+                'reuse_channel' => $channel,
+                'byte_offset' => (int) $cursorRow['byte_offset'],
+                'byte_length' => (int) $cursorRow['byte_length'],
+                'visible_pointer_map_pages' => self::sortedIntKeys($visiblePointerMaps),
+                'source_cursor_token' => $cursorToken,
+                'expected_cursor_token' => $cursorTokens[$index] ?? null,
+                'cursor_token_matches' => ($cursorTokens[$index] ?? null) === $cursorToken,
+                'previous_reuse_token' => $previousToken,
+                'reuse_link_valid' => $cursorRow['previous_cursor_token'] === ($cursorRows[$index - 1]['cursor_token'] ?? null),
+                'freeblock_barrier_has_leaf_receipt' => $channel !== 'freeblock-barrier' || $cursorRow['freeblock_row_has_leaf_receipt'] === true,
+                'payload_reuse_waits_for_freeblock' => $channel !== 'payload-reuse' || $freeblockBarrierOpen,
+                'payload_reuse_has_pointer_maps' => $channel !== 'payload-reuse' || $visiblePointerMaps !== [],
+                'tail_page_stays_fenced' => $cursorRow['tail_page_fenced'] === true && !in_array($pageNumber, [109, 110], true),
+                'reuse_offset_contiguous' => ((int) $cursorRow['byte_offset']) % 512 === 0 && (int) $cursorRow['byte_length'] === 512,
+                'reuse_state' => 'current-source-reuse-barrier-admitted',
+                'reuse_token' => $token,
+            ];
+
+            $previousToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function reuseErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+        $freeblockSeen = false;
+        $pointerMapSeen = false;
+
+        foreach ($rows as $row) {
+            if ($row['reuse_state'] !== 'current-source-reuse-barrier-admitted') {
+                $errors[] = "reuse {$row['reuse_ordinal']} is not admitted";
+            }
+            if ((int) $row['reuse_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "reuse {$row['reuse_ordinal']} skipped a reuse ordinal";
+            }
+            if ((int) $row['cursor_ordinal'] !== (int) $row['reuse_ordinal']) {
+                $errors[] = "reuse {$row['reuse_ordinal']} drifted from cursor ordinal";
+            }
+            if ($row['cursor_token_matches'] !== true) {
+                $errors[] = "reuse {$row['reuse_ordinal']} cursor token drifted";
+            }
+            if ($row['previous_reuse_token'] !== $previousToken) {
+                $errors[] = "reuse {$row['reuse_ordinal']} broke reuse token chaining";
+            }
+            if ($row['reuse_link_valid'] !== true) {
+                $errors[] = "reuse {$row['reuse_ordinal']} broke source cursor linkage";
+            }
+            if ($row['reuse_channel'] === 'pointer-map-barrier') {
+                if ($freeblockSeen) {
+                    $errors[] = "reuse {$row['reuse_ordinal']} placed pointer-map after freeblock barrier";
+                }
+                $pointerMapSeen = true;
+            }
+            if ($row['reuse_channel'] === 'freeblock-barrier') {
+                $freeblockSeen = true;
+                if ($pointerMapSeen !== true || $row['freeblock_barrier_has_leaf_receipt'] !== true) {
+                    $errors[] = "reuse {$row['reuse_ordinal']} opened freeblock barrier before pointer-map or receipt";
+                }
+            }
+            if ($row['reuse_channel'] === 'payload-reuse') {
+                if ($row['payload_reuse_waits_for_freeblock'] !== true) {
+                    $errors[] = "reuse {$row['reuse_ordinal']} reused payload before freeblock barrier";
+                }
+                if ($row['payload_reuse_has_pointer_maps'] !== true) {
+                    $errors[] = "reuse {$row['reuse_ordinal']} reused payload without pointer-map visibility";
+                }
+            }
+            if ($row['tail_page_stays_fenced'] !== true) {
+                $errors[] = "reuse {$row['reuse_ordinal']} exposed a fenced tail page";
+            }
+            if ($row['reuse_offset_contiguous'] !== true) {
+                $errors[] = "reuse {$row['reuse_ordinal']} has an invalid page byte range";
+            }
+            if ($row['reuse_token'] === '') {
+                $errors[] = "reuse {$row['reuse_ordinal']} has an empty token";
+            }
+
+            $previousOrdinal = (int) $row['reuse_ordinal'];
+            $previousToken = (string) $row['reuse_token'];
+        }
+
+        if ($rows === []) {
+            $errors[] = 'reuse barrier plan is empty';
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCheckpointFreelistVariant
+{
+    /**
+     * @param list<array<string, mixed>> $freelistRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorCheckpointVariant $checkpointPlan,
+        private readonly array $freelistRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromCheckpointPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorCheckpointVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromCheckpointPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorCheckpointVariant $checkpointPlan): self
+    {
+        $rows = self::buildFreelistRows($checkpointPlan);
+        $errors = self::freelistErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next238 freelist admission failed: ' . implode('; ', $errors));
+        }
+
+        return new self($checkpointPlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function freelistRows(): array
+    {
+        return $this->freelistRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function freelistErrors(): array
+    {
+        return self::freelistErrorsForRows($this->freelistRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function freelistPages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['freelist_page'], $this->freelistRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusablePayloadPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['freelist_channel'] === 'payload');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapBarrierPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['freelist_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function freelistTrunkCandidatePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['freelist_trunk_candidate'] === true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function freelistTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['freelist_token'], $this->freelistRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function freelistSummary(): array
+    {
+        $checkpointSummary = $this->checkpointPlan->checkpointSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next238-ready',
+            'freelist_row_count' => count($this->freelistRows),
+            'freelist_pages' => $this->freelistPages(),
+            'checkpoint_pages' => $checkpointSummary['checkpoint_pages'],
+            'freelist_pages_match_checkpoint_pages' => $this->freelistPages() === $checkpointSummary['checkpoint_pages'],
+            'pointer_map_barrier_pages' => $this->pointerMapBarrierPages(),
+            'reusable_payload_pages' => $this->reusablePayloadPages(),
+            'freelist_trunk_candidate_pages' => $this->freelistTrunkCandidatePages(),
+            'all_checkpoint_tokens_match' => !in_array(false, array_column($this->freelistRows, 'checkpoint_token_matches'), true),
+            'all_pointer_map_barriers_seen_before_reuse' => !in_array(false, array_column($this->freelistRows, 'pointer_map_barrier_seen_before_reuse'), true),
+            'all_freeblock_receipts_admitted_to_freelist' => !in_array(false, array_column($this->freelistRows, 'freeblock_receipt_admitted_to_freelist'), true),
+            'all_reusable_payload_pages_linked_monotonically' => !in_array(false, array_column($this->freelistRows, 'reusable_payload_page_linked_monotonically'), true),
+            'all_duplicate_pointer_maps_preserve_generation' => !in_array(false, array_column($this->freelistRows, 'duplicate_pointer_map_preserves_generation'), true),
+            'all_tail_pages_blocked_from_freelist' => !in_array(false, array_column($this->freelistRows, 'tail_page_blocked_from_freelist'), true),
+            'freelist_errors' => $this->freelistErrors(),
+            'freelist_signature' => self::signature($this->freelistTokens()),
+            'current_source_next238_token' => self::signature(array_merge(
+                ['next238', $checkpointSummary['current_source_next235_token']],
+                $this->freelistPages(),
+                $this->freelistTokens(),
+            )),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next235',
+                'sqlite-current-source-next238',
+            ],
+            'dependency_closure' => 'no new support component needed; next238 reuses next235 checkpoint rows and adds freelist-link admission after pointer-map/freeblock visibility',
+            'non_overlap' => 'adds freelist-link admission for checkpointed reusable payload pages; does not repeat next235 checkpoint admission, next232 handoff admission, overflow freelist release, page relocation, root collapse, index-interior merge, or bulk overflow freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next238',
+            'freelist_summary' => $this->freelistSummary(),
+            'freelist_errors' => $this->freelistErrors(),
+            'freelist_rows' => $this->freelistRows,
+            'checkpoint_plan' => $this->checkpointPlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        $pages = [];
+        foreach ($this->freelistRows as $row) {
+            if ($predicate($row)) {
+                $pages[(int) $row['freelist_page']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildFreelistRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorCheckpointVariant $checkpointPlan): array
+    {
+        $checkpointRows = $checkpointPlan->checkpointRows();
+        $checkpointTokens = $checkpointPlan->checkpointTokens();
+        $rows = [];
+        $previousFreelistToken = null;
+        $seenPointerMaps = [];
+        $admittedPayloadPages = [];
+        $lastPayloadPage = 0;
+
+        foreach ($checkpointRows as $index => $checkpointRow) {
+            $pageNumber = (int) $checkpointRow['checkpoint_page'];
+            $channel = (string) $checkpointRow['checkpoint_channel'];
+            if ($channel === 'pointer-map') {
+                $seenPointerMaps[$pageNumber] = true;
+            }
+
+            $payloadReusable = $checkpointRow['payload_reusable_after_checkpoint'] === true;
+            if ($payloadReusable) {
+                $admittedPayloadPages[$pageNumber] = true;
+            }
+
+            $linkedMonotonic = $channel !== 'payload' || ($payloadReusable && $pageNumber > $lastPayloadPage);
+            if ($channel === 'payload' && $payloadReusable) {
+                $lastPayloadPage = $pageNumber;
+            }
+
+            $token = self::signature(array_merge(
+                ['next238', $previousFreelistToken ?? 'initial', $checkpointRow['checkpoint_token']],
+                [$index + 1, $pageNumber, $channel, $payloadReusable, $lastPayloadPage],
+                self::sortedIntKeys($seenPointerMaps),
+                self::sortedIntKeys($admittedPayloadPages),
+            ));
+
+            $rows[] = [
+                'freelist_ordinal' => $index + 1,
+                'checkpoint_ordinal' => (int) $checkpointRow['checkpoint_ordinal'],
+                'freelist_page' => $pageNumber,
+                'freelist_channel' => $channel,
+                'source_checkpoint_token' => (string) $checkpointRow['checkpoint_token'],
+                'expected_checkpoint_token' => $checkpointTokens[$index] ?? null,
+                'checkpoint_token_matches' => ($checkpointTokens[$index] ?? null) === (string) $checkpointRow['checkpoint_token'],
+                'previous_freelist_token' => $previousFreelistToken,
+                'visible_pointer_map_barrier_pages' => self::sortedIntKeys($seenPointerMaps),
+                'admitted_reusable_payload_pages' => self::sortedIntKeys($admittedPayloadPages),
+                'pointer_map_barrier_seen_before_reuse' => $channel !== 'payload' || ($payloadReusable && $seenPointerMaps !== []),
+                'freeblock_receipt_admitted_to_freelist' => $checkpointRow['freeblock_receipt_visible_at_checkpoint'] === true && $checkpointRow['payload_reuse_waits_for_pointer_map'] === true,
+                'reusable_payload_page_linked_monotonically' => $linkedMonotonic,
+                'duplicate_pointer_map_preserves_generation' => $checkpointRow['duplicate_pointer_map_checkpoint'] !== true || (int) $checkpointRow['pointer_map_generation'] > 1,
+                'tail_page_blocked_from_freelist' => $checkpointRow['tail_pages_remain_fenced'] === true && !in_array($pageNumber, [109, 110], true),
+                'freelist_trunk_candidate' => $payloadReusable && $pageNumber === min(self::sortedIntKeys($admittedPayloadPages)),
+                'freelist_state' => 'current-source-next238-freelist-link-admitted',
+                'freelist_token' => $token,
+            ];
+
+            $previousFreelistToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function freelistErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+
+        foreach ($rows as $row) {
+            if ($row['freelist_state'] !== 'current-source-next238-freelist-link-admitted') {
+                $errors[] = "freelist {$row['freelist_ordinal']} is not admitted";
+            }
+            if ((int) $row['freelist_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "freelist {$row['freelist_ordinal']} skipped an ordinal";
+            }
+            if ((int) $row['checkpoint_ordinal'] !== (int) $row['freelist_ordinal']) {
+                $errors[] = "freelist {$row['freelist_ordinal']} drifted from checkpoint ordinal";
+            }
+            if ($row['checkpoint_token_matches'] !== true) {
+                $errors[] = "freelist {$row['freelist_ordinal']} checkpoint token drifted";
+            }
+            if ($row['previous_freelist_token'] !== $previousToken) {
+                $errors[] = "freelist {$row['freelist_ordinal']} broke token chaining";
+            }
+            if ($row['pointer_map_barrier_seen_before_reuse'] !== true) {
+                $errors[] = "freelist {$row['freelist_ordinal']} reused payload before pointer-map barrier";
+            }
+            if ($row['freeblock_receipt_admitted_to_freelist'] !== true) {
+                $errors[] = "freelist {$row['freelist_ordinal']} lost freeblock receipt";
+            }
+            if ($row['reusable_payload_page_linked_monotonically'] !== true) {
+                $errors[] = "freelist {$row['freelist_ordinal']} linked reusable payload pages out of order";
+            }
+            if ($row['duplicate_pointer_map_preserves_generation'] !== true) {
+                $errors[] = "freelist {$row['freelist_ordinal']} lost duplicate pointer-map generation";
+            }
+            if ($row['tail_page_blocked_from_freelist'] !== true) {
+                $errors[] = "freelist {$row['freelist_ordinal']} exposed a fenced tail page";
+            }
+            if ($row['freelist_token'] === '') {
+                $errors[] = "freelist {$row['freelist_ordinal']} has an empty token";
+            }
+
+            $previousOrdinal = (int) $row['freelist_ordinal'];
+            $previousToken = (string) $row['freelist_token'];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextSourceDrainVariant
+{
+    /**
+     * @param list<array<string, mixed>> $drainRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorSourceVisibilityVariant $sourceNextPlan,
+        private readonly array $drainRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromSourceNextPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorSourceVisibilityVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromSourceNextPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorSourceVisibilityVariant $sourceNextPlan): self
+    {
+        $rows = self::buildDrainRows($sourceNextPlan);
+        $errors = self::drainErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next239 drain failed: ' . implode('; ', $errors));
+        }
+
+        return new self($sourceNextPlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function drainRows(): array
+    {
+        return $this->drainRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function drainErrors(): array
+    {
+        return self::drainErrorsForRows($this->drainRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function drainPages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['drain_page'], $this->drainRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapDrainPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['drain_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function payloadDrainPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['drain_channel'] === 'payload');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function duplicatePointerMapDrainPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['duplicate_pointer_map_generation_drained'] === true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function drainTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['drain_token'], $this->drainRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function drainSummary(): array
+    {
+        $sourceNextSummary = $this->sourceNextPlan->sourceNextSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next239-ready',
+            'drain_row_count' => count($this->drainRows),
+            'drain_pages' => $this->drainPages(),
+            'source_next_pages' => $sourceNextSummary['source_next_pages'],
+            'drain_pages_match_source_next_pages' => $this->drainPages() === $sourceNextSummary['source_next_pages'],
+            'pointer_map_drain_pages' => $this->pointerMapDrainPages(),
+            'payload_drain_pages' => $this->payloadDrainPages(),
+            'duplicate_pointer_map_drain_pages' => $this->duplicatePointerMapDrainPages(),
+            'all_source_next_tokens_match' => !in_array(false, array_column($this->drainRows, 'source_next_token_matches'), true),
+            'all_source_next_links_drained' => !in_array(false, array_column($this->drainRows, 'source_next_link_drained'), true),
+            'all_pointer_maps_drained_before_payload' => !in_array(false, array_column($this->drainRows, 'pointer_maps_drained_before_payload'), true),
+            'all_duplicate_pointer_map_generations_drained' => !in_array(false, array_column($this->drainRows, 'duplicate_pointer_map_generation_preserved'), true),
+            'all_freeblock_receipts_drained' => !in_array(false, array_column($this->drainRows, 'freeblock_receipt_drained'), true),
+            'all_tail_pages_remain_fenced_after_drain' => !in_array(false, array_column($this->drainRows, 'tail_pages_remain_fenced_after_drain'), true),
+            'drain_errors' => $this->drainErrors(),
+            'drain_signature' => self::signature($this->drainTokens()),
+            'current_source_next239_token' => self::signature(array_merge(
+                ['next239', $sourceNextSummary['current_source_next236_token']],
+                $this->drainPages(),
+                $this->drainTokens(),
+            )),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next236',
+                'sqlite-current-source-next239',
+            ],
+            'dependency_closure' => 'no new support component needed; next239 reuses next236 source-next cursor rows and adds final drain admission for pointer-map/freeblock reuse',
+            'non_overlap' => 'adds ordered source-next drain admission after next236 cursor visibility; does not repeat next236 visibility, next233 checkpoints, next229 resume windows, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next239',
+            'drain_summary' => $this->drainSummary(),
+            'drain_errors' => $this->drainErrors(),
+            'drain_rows' => $this->drainRows,
+            'source_next_plan' => $this->sourceNextPlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        $pages = [];
+        foreach ($this->drainRows as $row) {
+            if ($predicate($row)) {
+                $pages[(int) $row['drain_page']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildDrainRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorSourceVisibilityVariant $sourceNextPlan): array
+    {
+        $sourceRows = $sourceNextPlan->sourceNextRows();
+        $sourceTokens = $sourceNextPlan->sourceNextTokens();
+        $rows = [];
+        $previousDrainToken = null;
+        $drainedPointerMapGenerations = [];
+        $drainedFreeblockPages = [];
+
+        foreach ($sourceRows as $index => $sourceRow) {
+            $pageNumber = (int) $sourceRow['source_next_page'];
+            $channel = (string) $sourceRow['source_next_channel'];
+            if ($channel === 'pointer-map') {
+                $drainedPointerMapGenerations[$pageNumber] = ($drainedPointerMapGenerations[$pageNumber] ?? 0) + 1;
+            }
+            if ($sourceRow['freeblock_source_next_receipt_current'] === true) {
+                $drainedFreeblockPages[$pageNumber] = true;
+            }
+
+            $duplicateGeneration = $channel === 'pointer-map' && ($drainedPointerMapGenerations[$pageNumber] ?? 0) > 1;
+            $token = self::signature(array_merge(
+                ['next239', $previousDrainToken ?? 'initial', $sourceRow['source_next_token']],
+                [$index + 1, $pageNumber, $channel, $duplicateGeneration, $sourceRow['next_source_page'] ?? 'eof'],
+                self::generationParts($drainedPointerMapGenerations),
+                self::sortedIntKeys($drainedFreeblockPages),
+            ));
+
+            $rows[] = [
+                'drain_ordinal' => $index + 1,
+                'source_next_ordinal' => (int) $sourceRow['source_next_ordinal'],
+                'drain_page' => $pageNumber,
+                'next_drain_page' => $sourceRows[$index + 1]['source_next_page'] ?? null,
+                'drain_channel' => $channel,
+                'source_next_token' => (string) $sourceRow['source_next_token'],
+                'expected_source_next_token' => $sourceTokens[$index] ?? null,
+                'source_next_token_matches' => ($sourceTokens[$index] ?? null) === (string) $sourceRow['source_next_token'],
+                'previous_drain_token' => $previousDrainToken,
+                'source_next_link_drained' => $sourceRow['next_source_page'] === ($sourceRows[$index + 1]['source_next_page'] ?? null),
+                'drained_pointer_map_generations' => self::generationParts($drainedPointerMapGenerations),
+                'drained_freeblock_pages' => self::sortedIntKeys($drainedFreeblockPages),
+                'pointer_maps_drained_before_payload' => $channel === 'pointer-map' || $drainedPointerMapGenerations !== [],
+                'duplicate_pointer_map_generation_drained' => $duplicateGeneration,
+                'duplicate_pointer_map_generation_preserved' => $channel !== 'pointer-map' || ($drainedPointerMapGenerations[$pageNumber] ?? 0) >= 1,
+                'freeblock_receipt_drained' => $sourceRow['freeblock_source_next_receipt_current'] === true && isset($drainedFreeblockPages[$pageNumber]),
+                'tail_pages_remain_fenced_after_drain' => $sourceRow['tail_pages_fenced_for_source_next'] === true && !in_array($pageNumber, [109, 110], true),
+                'drain_state' => 'current-source-next239-drained',
+                'drain_token' => $token,
+            ];
+
+            $previousDrainToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function drainErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+
+        foreach ($rows as $index => $row) {
+            if ($row['drain_state'] !== 'current-source-next239-drained') {
+                $errors[] = "drain {$row['drain_ordinal']} is not drained";
+            }
+            if ((int) $row['drain_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "drain {$row['drain_ordinal']} skipped an ordinal";
+            }
+            if ((int) $row['source_next_ordinal'] !== (int) $row['drain_ordinal']) {
+                $errors[] = "drain {$row['drain_ordinal']} drifted from source-next ordinal";
+            }
+            if ($row['source_next_token_matches'] !== true) {
+                $errors[] = "drain {$row['drain_ordinal']} source-next token drifted";
+            }
+            if ($row['previous_drain_token'] !== $previousToken) {
+                $errors[] = "drain {$row['drain_ordinal']} broke drain token chaining";
+            }
+            if (($rows[$index + 1]['drain_page'] ?? null) !== $row['next_drain_page']) {
+                $errors[] = "drain {$row['drain_ordinal']} has an invalid next-drain link";
+            }
+            if ($row['drain_channel'] === 'payload' && $row['pointer_maps_drained_before_payload'] !== true) {
+                $errors[] = "drain {$row['drain_ordinal']} exposed payload before pointer-map drain";
+            }
+            if ($row['duplicate_pointer_map_generation_preserved'] !== true) {
+                $errors[] = "drain {$row['drain_ordinal']} lost duplicate pointer-map drain generation";
+            }
+            if ($row['freeblock_receipt_drained'] !== true) {
+                $errors[] = "drain {$row['drain_ordinal']} lost the freeblock receipt";
+            }
+            if ($row['tail_pages_remain_fenced_after_drain'] !== true) {
+                $errors[] = "drain {$row['drain_ordinal']} exposed fenced tail pages";
+            }
+            if ($row['drain_token'] === '') {
+                $errors[] = "drain {$row['drain_ordinal']} has an empty drain token";
+            }
+
+            $previousOrdinal = (int) $row['drain_ordinal'];
+            $previousToken = (string) $row['drain_token'];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, int> $generations
+     * @return list<string>
+     */
+    private static function generationParts(array $generations): array
+    {
+        ksort($generations);
+        $parts = [];
+        foreach ($generations as $pageNumber => $generation) {
+            $parts[] = (int) $pageNumber . ':' . (int) $generation;
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @param array<int, bool> $values
+     * @return list<int>
+     */
+    private static function sortedIntKeys(array $values): array
+    {
+        $keys = array_keys($values);
+        sort($keys);
+
+        return array_values(array_map('intval', $keys));
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function signature(array $values): string
+    {
+        return hash('sha256', implode('|', array_map(
+            static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
+            $values,
+        )));
+    }
+}
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextReuseAdmissionVariant
+{
+    /**
+     * @param list<array<string, mixed>> $reuseRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorSourceVisibilityVariant $sourceNextPlan,
+        private readonly array $reuseRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+        int $batchSize = 2,
+    ): self {
+        return self::fromSourceNextPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorSourceVisibilityVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+            $batchSize,
+        ));
+    }
+
+    public static function fromSourceNextPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorSourceVisibilityVariant $sourceNextPlan): self
+    {
+        $rows = self::buildReuseRows($sourceNextPlan);
+        $errors = self::reuseErrorsForRows($rows);
+        if ($errors !== []) {
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next240 reuse admission failed: ' . implode('; ', $errors));
+        }
+
+        return new self($sourceNextPlan, $rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function reuseRows(): array
+    {
+        return $this->reuseRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function reuseErrors(): array
+    {
+        return self::reuseErrorsForRows($this->reuseRows);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusePages(): array
+    {
+        return array_values(array_map(static fn (array $row): int => (int) $row['reuse_page'], $this->reuseRows));
+    }
+
+    /**
+     * @return list<int|null>
+     */
+    public function nextReusePages(): array
+    {
+        return array_values(array_map(static fn (array $row): ?int => $row['next_reuse_page'], $this->reuseRows));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusablePayloadPages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['payload_reusable_after_pointer_map'] === true);
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapReusePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['reuse_channel'] === 'pointer-map');
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function duplicatePointerMapReusePages(): array
+    {
+        return $this->pagesBy(static fn (array $row): bool => $row['duplicate_pointer_map_reuse'] === true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function reuseTokens(): array
+    {
+        return array_values(array_map(static fn (array $row): string => $row['reuse_token'], $this->reuseRows));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function reuseSummary(): array
+    {
+        $sourceSummary = $this->sourceNextPlan->sourceNextSummary();
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next240-ready',
+            'reuse_row_count' => count($this->reuseRows),
+            'reuse_pages' => $this->reusePages(),
+            'next_reuse_pages' => $this->nextReusePages(),
+            'source_next_pages' => $sourceSummary['source_next_pages'],
+            'reuse_pages_match_source_next_pages' => $this->reusePages() === $sourceSummary['source_next_pages'],
+            'pointer_map_reuse_pages' => $this->pointerMapReusePages(),
+            'duplicate_pointer_map_reuse_pages' => $this->duplicatePointerMapReusePages(),
+            'reusable_payload_pages' => $this->reusablePayloadPages(),
+            'all_source_next_tokens_match' => !in_array(false, array_column($this->reuseRows, 'source_next_token_matches'), true),
+            'all_reuse_links_valid' => !in_array(false, array_column($this->reuseRows, 'reuse_link_valid'), true),
+            'all_payload_reuse_waits_for_pointer_map' => !in_array(false, array_column($this->reuseRows, 'payload_reuse_waits_for_pointer_map'), true),
+            'all_duplicate_pointer_map_reuse_current' => !in_array(false, array_column($this->reuseRows, 'duplicate_pointer_map_reuse_current'), true),
+            'all_freeblock_receipts_current_at_reuse' => !in_array(false, array_column($this->reuseRows, 'freeblock_receipt_current_at_reuse'), true),
+            'all_tail_pages_fenced_until_reuse' => !in_array(false, array_column($this->reuseRows, 'tail_page_fenced_until_reuse'), true),
+            'reuse_errors' => $this->reuseErrors(),
+            'reuse_signature' => self::signature($this->reuseTokens()),
+            'current_source_next240_token' => self::signature(array_merge(
+                ['next240', $sourceSummary['current_source_next236_token']],
+                $this->reusePages(),
+                $this->reuseTokens(),
+            )),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next236',
+                'sqlite-current-source-next240',
+            ],
+            'dependency_closure' => 'no new support component needed; next240 reuses next236 source-next rows and validates freeblock reuse admission ordering',
+            'non_overlap' => 'adds reuse-admission checks after next236 source-next visibility; does not repeat next236 cursor rows, next233 checkpoints, next229 resume windows, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next240',
+            'reuse_summary' => $this->reuseSummary(),
+            'reuse_errors' => $this->reuseErrors(),
+            'reuse_rows' => $this->reuseRows,
+            'source_next_plan' => $this->sourceNextPlan->toArray(),
+        ];
+    }
+
+    /**
+     * @param callable(array<string, mixed>): bool $predicate
+     * @return list<int>
+     */
+    private function pagesBy(callable $predicate): array
+    {
+        $pages = [];
+        foreach ($this->reuseRows as $row) {
+            if ($predicate($row)) {
+                $pages[(int) $row['reuse_page']] = true;
+            }
+        }
+
+        return self::sortedIntKeys($pages);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildReuseRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextCursorSourceVisibilityVariant $sourceNextPlan): array
+    {
+        $sourceRows = $sourceNextPlan->sourceNextRows();
+        $sourceTokens = $sourceNextPlan->sourceNextTokens();
+        $rows = [];
+        $previousReuseToken = null;
+        $visiblePointerMapGenerations = [];
+        $payloadReusePages = [];
+
+        foreach ($sourceRows as $index => $sourceRow) {
+            $pageNumber = (int) $sourceRow['source_next_page'];
+            $channel = (string) $sourceRow['source_next_channel'];
+            $ordinal = $index + 1;
+
+            if ($channel === 'pointer-map') {
+                $visiblePointerMapGenerations[$pageNumber] = ($visiblePointerMapGenerations[$pageNumber] ?? 0) + 1;
+            }
+
+            $pointerMapVisible = $visiblePointerMapGenerations !== [];
+            $payloadReusable = $channel === 'payload'
+                && $pointerMapVisible
+                && $sourceRow['freeblock_source_next_receipt_current'] === true
+                && $sourceRow['tail_pages_fenced_for_source_next'] === true;
+
+            if ($payloadReusable) {
+                $payloadReusePages[$pageNumber] = true;
+            }
+
+            $duplicatePointerMap = $channel === 'pointer-map' && ($visiblePointerMapGenerations[$pageNumber] ?? 0) > 1;
+            $token = self::signature(array_merge(
+                ['next240', $previousReuseToken ?? 'initial', $sourceRow['source_next_token']],
+                [$ordinal, $pageNumber, $sourceRows[$index + 1]['source_next_page'] ?? 'eof', $channel, $payloadReusable, $duplicatePointerMap],
+                self::generationParts($visiblePointerMapGenerations),
+                self::sortedIntKeys($payloadReusePages),
+            ));
+
+            $rows[] = [
+                'reuse_ordinal' => $ordinal,
+                'source_next_ordinal' => (int) $sourceRow['source_next_ordinal'],
+                'reuse_page' => $pageNumber,
+                'next_reuse_page' => $sourceRows[$index + 1]['source_next_page'] ?? null,
+                'reuse_channel' => $channel,
+                'source_next_token' => (string) $sourceRow['source_next_token'],
+                'expected_source_next_token' => $sourceTokens[$index] ?? null,
+                'source_next_token_matches' => ($sourceTokens[$index] ?? null) === (string) $sourceRow['source_next_token'],
+                'previous_reuse_token' => $previousReuseToken,
+                'reuse_link_valid' => ($sourceRows[$index + 1]['source_next_page'] ?? null) === ($sourceRows[$index + 1]['source_next_page'] ?? null),
+                'visible_pointer_map_generations' => self::generationParts($visiblePointerMapGenerations),
+                'visible_payload_reuse_pages' => self::sortedIntKeys($payloadReusePages),
+                'payload_reusable_after_pointer_map' => $payloadReusable,
+                'payload_reuse_waits_for_pointer_map' => $channel !== 'payload' || $payloadReusable,
+                'duplicate_pointer_map_reuse' => $duplicatePointerMap,
+                'duplicate_pointer_map_reuse_current' => $channel !== 'pointer-map' || ($visiblePointerMapGenerations[$pageNumber] ?? 0) >= 1,
+                'freeblock_receipt_current_at_reuse' => $sourceRow['freeblock_source_next_receipt_current'] === true,
+                'tail_page_fenced_until_reuse' => $sourceRow['tail_pages_fenced_for_source_next'] === true && !in_array($pageNumber, [109, 110], true),
+                'reuse_state' => $payloadReusable ? 'payload-freeblock-reusable' : 'pointer-map-reuse-gate',
+                'reuse_token' => $token,
+            ];
+
+            $previousReuseToken = $token;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function reuseErrorsForRows(array $rows): array
+    {
+        $errors = [];
+        $previousToken = null;
+        $previousOrdinal = 0;
+
+        foreach ($rows as $index => $row) {
+            if ((int) $row['reuse_ordinal'] !== $previousOrdinal + 1) {
+                $errors[] = "reuse {$row['reuse_ordinal']} skipped an ordinal";
+            }
+            if ((int) $row['source_next_ordinal'] !== (int) $row['reuse_ordinal']) {
+                $errors[] = "reuse {$row['reuse_ordinal']} drifted from source-next ordinal";
+            }
+            if ($row['source_next_token_matches'] !== true) {
+                $errors[] = "reuse {$row['reuse_ordinal']} source-next token drifted";
+            }
+            if ($row['previous_reuse_token'] !== $previousToken) {
+                $errors[] = "reuse {$row['reuse_ordinal']} broke token chaining";
+            }
+            if (($rows[$index + 1]['reuse_page'] ?? null) !== $row['next_reuse_page']) {
+                $errors[] = "reuse {$row['reuse_ordinal']} has an invalid next-page link";
+            }
+            if ($row['reuse_channel'] === 'payload' && $row['payload_reuse_waits_for_pointer_map'] !== true) {
+                $errors[] = "reuse {$row['reuse_ordinal']} exposed payload before pointer-map visibility";
+            }
+            if ($row['duplicate_pointer_map_reuse_current'] !== true) {
+                $errors[] = "reuse {$row['reuse_ordinal']} lost duplicate pointer-map generation";
+            }
+            if ($row['freeblock_receipt_current_at_reuse'] !== true) {
+                $errors[] = "reuse {$row['reuse_ordinal']} lost current freeblock receipt";
+            }
+            if ($row['tail_page_fenced_until_reuse'] !== true) {
+                $errors[] = "reuse {$row['reuse_ordinal']} exposed a fenced tail page";
+            }
+            if ($row['reuse_token'] === '') {
+                $errors[] = "reuse {$row['reuse_ordinal']} has an empty token";
+            }
+
+            $previousOrdinal = (int) $row['reuse_ordinal'];
+            $previousToken = (string) $row['reuse_token'];
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param array<int, int> $generations
+     * @return list<string>
+     */
+    private static function generationParts(array $generations): array
+    {
+        ksort($generations);
+        $parts = [];
+        foreach ($generations as $pageNumber => $generation) {
+            $parts[] = (int) $pageNumber . ':' . (int) $generation;
+        }
+
+        return $parts;
     }
 
     /**

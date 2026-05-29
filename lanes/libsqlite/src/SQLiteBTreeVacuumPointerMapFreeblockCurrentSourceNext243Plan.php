@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext243Plan
      * @param list<array<string, mixed>> $applyRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext240Plan $reusePlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $reusePlan,
         private readonly array $applyRows,
     ) {
     }
@@ -28,7 +28,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext243Plan
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromReusePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext240Plan::tableLeafFromDeleteResult(
+        return self::fromReusePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext240(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -40,7 +40,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext243Plan
         ));
     }
 
-    public static function fromReusePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext240Plan $reusePlan): self
+    public static function fromReusePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $reusePlan): self
     {
         $rows = self::buildApplyRows($reusePlan);
         $errors = self::applyErrorsForRows($rows);
@@ -196,7 +196,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext243Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildApplyRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext240Plan $reusePlan): array
+    private static function buildApplyRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $reusePlan): array
     {
         $reuseRows = $reusePlan->reuseRows();
         $reuseTokens = $reusePlan->reuseTokens();

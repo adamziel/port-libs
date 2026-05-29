@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext248Plan
      * @param list<array<string, mixed>> $sealRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext235Plan $checkpointPlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $checkpointPlan,
         private readonly array $sealRows,
     ) {
     }
@@ -28,7 +28,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext248Plan
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromCheckpointPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext235Plan::tableLeafFromDeleteResult(
+        return self::fromCheckpointPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext235(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -40,7 +40,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext248Plan
         ));
     }
 
-    public static function fromCheckpointPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext235Plan $checkpointPlan): self
+    public static function fromCheckpointPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $checkpointPlan): self
     {
         $rows = self::buildSealRows($checkpointPlan);
         $errors = self::sealErrorsForRows($rows);
@@ -177,7 +177,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext248Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildSealRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext235Plan $checkpointPlan): array
+    private static function buildSealRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $checkpointPlan): array
     {
         $checkpointRows = $checkpointPlan->checkpointRows();
         $checkpointTokens = $checkpointPlan->checkpointTokens();

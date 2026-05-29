@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext242Plan
      * @param list<array<string, mixed>> $currentSourceRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext238Plan $freelistPlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $freelistPlan,
         private readonly array $currentSourceRows,
     ) {
     }
@@ -28,7 +28,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext242Plan
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromFreelistPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext238Plan::tableLeafFromDeleteResult(
+        return self::fromFreelistPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext238(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -40,7 +40,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext242Plan
         ));
     }
 
-    public static function fromFreelistPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext238Plan $freelistPlan): self
+    public static function fromFreelistPlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $freelistPlan): self
     {
         $rows = self::buildCurrentSourceRows($freelistPlan);
         $errors = self::currentSourceErrorsForRows($rows);
@@ -179,7 +179,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext242Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildCurrentSourceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext238Plan $freelistPlan): array
+    private static function buildCurrentSourceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $freelistPlan): array
     {
         $freelistRows = $freelistPlan->freelistRows();
         $freelistTokens = $freelistPlan->freelistTokens();
