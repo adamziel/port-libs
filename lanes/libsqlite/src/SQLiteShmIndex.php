@@ -161,7 +161,7 @@ final class SQLiteShmIndex
             'read_locks' => $readLocks,
             'dependencies' => array_values(array_unique(array_merge(
                 ['sqlite-shm-index', 'wal-index-read-marks', 'wal-index-read-locks', 'checkpoint-backfill-state'],
-                $extra === [] ? [] : ['vfs-wal-shm-lock-byte-current-source']
+                $extra === [] ? [] : ['vfs-wal-shm-lock-byte']
             ))),
             'read_marks' => $marks,
         ];

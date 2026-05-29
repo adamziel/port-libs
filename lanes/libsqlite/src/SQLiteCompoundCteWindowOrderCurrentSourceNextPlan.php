@@ -14,47 +14,47 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext134(string $sql, array $currentTables, array $nextTables): array
+        public static function compareCteWindowOrder(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
             if (!isset($currentPlan['compound'], $nextPlan['compound']) || !is_array($currentPlan['compound']) || !is_array($nextPlan['compound'])) {
-                throw new \InvalidArgumentException('SQLite compound CTE window ORDER current-source next134 plan needs a compound SELECT');
+                throw new \InvalidArgumentException('SQLite compound CTE window ORDER current-source plan needs a compound SELECT');
             }
 
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
-            $currentWindows = self::windowTermsNext134($currentPlan);
-            $nextWindows = self::windowTermsNext134($nextPlan);
+            $currentWindows = self::windowTerms($currentPlan);
+            $nextWindows = self::windowTerms($nextPlan);
 
             return [
-                'status' => 'compound-cte-window-order-current-source-next134-ready',
+                'status' => 'compound-cte-window-order-current-source-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
-                'currentSignatures' => self::rowSignaturesNext134($currentRows),
-                'nextSignatures' => self::rowSignaturesNext134($nextRows),
-                'changedSignatures' => self::changedSignaturesNext134($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignatures($currentRows),
+                'nextSignatures' => self::rowSignatures($nextRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
                 'compound' => [
                     'operators' => array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? [])),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext134($currentPlan),
-                    'orderDirections' => self::orderDirectionsNext134($currentPlan),
+                    'orderColumns' => self::orderColumns($currentPlan),
+                    'orderDirections' => self::orderDirections($currentPlan),
                     'limit' => $currentPlan['compound']['limit'] ?? null,
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
                 ],
                 'cte' => [
-                    'current' => self::cteNamesNext134($currentPlan),
-                    'next' => self::cteNamesNext134($nextPlan),
-                    'materialized' => self::materializedNamesNext134($sql),
+                    'current' => self::cteNames($currentPlan),
+                    'next' => self::cteNames($nextPlan),
+                    'materialized' => self::materializedNames($sql),
                 ],
                 'windows' => [
                     'current' => $currentWindows,
                     'next' => $nextWindows,
-                    'orderedAliases' => self::orderedAliasesNext134($currentWindows),
+                    'orderedAliases' => self::orderedAliases($currentWindows),
                 ],
-                'orderBoundary' => self::orderBoundaryNext134($currentRows, $nextRows),
-                'replanReasons' => self::replanReasonsNext134($currentRows, $nextRows, $currentPlan, $nextPlan, $currentWindows, $nextWindows),
+                'orderBoundary' => self::orderBoundary($currentRows, $nextRows),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentPlan, $nextPlan, $currentWindows, $nextWindows),
                 'dependencies' => [
                     'sqlite-select-sql-with-materialized-cte',
                     'sqlite-select-sql-compound-cte-arms',
@@ -68,7 +68,7 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext134(array $plan): array
+        private static function orderColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -85,7 +85,7 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderDirectionsNext134(array $plan): array
+        private static function orderDirections(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -102,7 +102,7 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function cteNamesNext134(array $plan): array
+        private static function cteNames(array $plan): array
         {
             $names = is_array($plan['with'] ?? null) ? $plan['with'] : [];
 
@@ -112,7 +112,7 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
         /**
          * @return list<string>
          */
-        private static function materializedNamesNext134(string $sql): array
+        private static function materializedNames(string $sql): array
         {
             if (preg_match_all('/\b([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^)]*\))?\s+AS\s+MATERIALIZED\s*\(/i', $sql, $matches) !== false && isset($matches[1])) {
                 return array_values(array_map(static fn (string $name): string => strtolower($name), $matches[1]));
@@ -125,7 +125,7 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext134(array $plan): array
+        private static function windowTerms(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -163,7 +163,7 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
          * @param list<array<string,mixed>> $windows
          * @return list<string>
          */
-        private static function orderedAliasesNext134(array $windows): array
+        private static function orderedAliases(array $windows): array
         {
             $aliases = [];
             foreach ($windows as $window) {
@@ -180,7 +180,7 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return array<string,mixed>
          */
-        private static function orderBoundaryNext134(array $currentRows, array $nextRows): array
+        private static function orderBoundary(array $currentRows, array $nextRows): array
         {
             return [
                 'currentFirst' => $currentRows[0] ?? null,
@@ -196,7 +196,7 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext134(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -206,10 +206,10 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext134(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext134($currentRows);
-            $next = self::rowSignaturesNext134($nextRows);
+            $current = self::rowSignatures($currentRows);
+            $next = self::rowSignatures($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -223,22 +223,22 @@ final class SQLiteCompoundCteWindowOrderCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextWindows
          * @return list<string>
          */
-        private static function replanReasonsNext134(array $currentRows, array $nextRows, array $currentPlan, array $nextPlan, array $currentWindows, array $nextWindows): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentPlan, array $nextPlan, array $currentWindows, array $nextWindows): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext134($currentRows) !== self::rowSignaturesNext134($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'compound-cte-rowset-changed';
             }
-            if (self::cteNamesNext134($currentPlan) !== []) {
+            if (self::cteNames($currentPlan) !== []) {
                 $reasons[] = 'cte-materialized-source';
             }
-            if (self::orderedAliasesNext134($currentWindows) !== []) {
+            if (self::orderedAliases($currentWindows) !== []) {
                 $reasons[] = 'window-order-source';
             }
-            if (self::orderColumnsNext134($currentPlan) !== []) {
+            if (self::orderColumns($currentPlan) !== []) {
                 $reasons[] = 'compound-final-order';
             }
-            if (self::cteNamesNext134($currentPlan) !== self::cteNamesNext134($nextPlan) || self::rowSignaturesNext134($currentWindows) !== self::rowSignaturesNext134($nextWindows)) {
+            if (self::cteNames($currentPlan) !== self::cteNames($nextPlan) || self::rowSignatures($currentWindows) !== self::rowSignatures($nextWindows)) {
                 $reasons[] = 'plan-shape-changed';
             }
 

@@ -33,7 +33,7 @@ $next = [
     'nested_path' => '[0].rules',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedOrderCostNext139(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedOrderCostPlan(
     'json_tree',
     $current,
     $next,
@@ -56,14 +56,14 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedOrderCostNext139(
 );
 
 $summary = [
-    'operation' => 'json-table-generated-order-cost-current-source-next139',
+    'operation' => 'json-table-generated-order-cost-current-source-plan',
     'optionName' => $current['option_name'],
     'currentOrderedRowids' => $plan['currentGeneratedOrderCost']['orderedRowids'],
     'nextOrderedRowids' => $plan['nextGeneratedOrderCost']['orderedRowids'],
     'currentCostClass' => $plan['currentGeneratedOrderCost']['costClass'],
     'nextCostClass' => $plan['nextGeneratedOrderCost']['costClass'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
-    'replanReasons' => $plan['next139ReplanReasons'],
+    'replanReasons' => $plan['generatedOrderCostReplanReasons'],
     'dependencies' => $plan['dependencies'],
     'wordpressUse' => 'Copied wp_options plugin settings can filter json_tree() rows through generated priority/enabled values and then order the remaining generated rows by rank/slug as the next JSON source is prepared.',
 ];
@@ -79,8 +79,8 @@ if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE
         fwrite(STDERR, "expected next generated-order rowids\n");
         exit(1);
     }
-    if (!in_array('sqlite-json-table-generated-order-cost-current-source-next139', $summary['dependencies'], true)) {
-        fwrite(STDERR, "expected next139 dependency marker\n");
+    if (!in_array('sqlite-json-table-generated-order-cost-current-source-plan', $summary['dependencies'], true)) {
+        fwrite(STDERR, "expected generated order cost dependency marker\n");
         exit(1);
     }
 }

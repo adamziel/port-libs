@@ -56,14 +56,14 @@ SELECT option_id AS id,
  LIMIT 6
 SQL;
 
-$result = SQLiteCompoundCteWindowOrderCurrentSourceNextPlan::compareNext134(
+$result = SQLiteCompoundCteWindowOrderCurrentSourceNextPlan::compareCteWindowOrder(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],
 );
 
 $summary = [
-    'scenario' => 'wordpress-compound-cte-window-order-current-source-next134',
+    'scenario' => 'wordpress-compound-cte-window-order-current-source',
     'wordpressUse' => 'Copied wp_options import previews can materialize option subsets in CTEs, run ordered window frames inside compound SELECT arms, and apply the final compound ORDER BY against current and next source snapshots without requiring ext/sqlite.',
     'currentFirst' => $result['orderBoundary']['currentFirst'],
     'nextFirst' => $result['orderBoundary']['nextFirst'],
@@ -82,7 +82,7 @@ if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE
         fwrite(STDERR, 'unexpected compound CTE window order metadata' . PHP_EOL);
         exit(1);
     }
-    echo "wordpress-compound-cte-window-order-current-source-next134 self-test passed\n";
+    echo "wordpress-compound-cte-window-order-current-source-self-test passed\n";
 }
 
 return $summary;

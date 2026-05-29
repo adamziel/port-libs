@@ -1,15 +1,15 @@
-# compound-select-cte-window-order-current-source-next134
+# compound-select-cte-window-order-current-source
 
 ## Behavior
 
-Adds a bounded current-source/next-source diagnostic for compound SELECT text whose arms read materialized CTE rowsets, compute ordered window functions inside each arm, and then apply the final compound ORDER BY/LIMIT over the renamed compound output columns.
+Adds a bounded current-source/candidate-source diagnostic for compound SELECT text whose arms read materialized CTE rowsets, compute ordered window functions inside each arm, and then apply the final compound ORDER BY/LIMIT over the renamed compound output columns.
 
 This avoids the accepted compound row-composition, compound HAVING/window, recursive affinity/window, compound frame LIMIT, grouped SELECT text, subquery, and expression ORDER BY clusters by focusing on CTE materialization feeding ordered window expressions inside compound arms.
 
 ## Evidence
 
-- Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundCteWindowOrderCurrentSourceNext134Test.php`
-- Example smoke: `php lanes/libsqlite/examples/wordpress-compound-cte-window-order-current-source-next134.php`
+- Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundCteWindowOrderCurrentSourceTest.php`
+- Example smoke: `php lanes/libsqlite/examples/wordpress-compound-cte-window-order-current-source.php`
 - PHP lint: changed PHP files under this slice.
 - Whitespace: `git diff --check -- lanes/libsqlite`
 

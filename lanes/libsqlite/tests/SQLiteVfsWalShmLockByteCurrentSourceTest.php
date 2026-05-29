@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsWalShmLockByteCurrentSourceNext;
+use PortLibs\LibSqlite\SQLiteVfsWalShmLockBytePlan;
 
 $path = '/srv/www/wp-content/database/.ht.sqlite';
 
-$run = static fn (array $current, array $operations): array => SQLiteVfsWalShmLockByteCurrentSourceNext::plan($current, $operations);
+$run = static fn (array $current, array $operations): array => SQLiteVfsWalShmLockBytePlan::plan($current, $operations);
 
 $writer = static fn (): array => $run([], [
     'lock shared wp-reader 4',
@@ -59,7 +59,7 @@ $multi = static fn (): array => $run([], [
 ]);
 
 return [
-    'vfs wal shm lock byte current source writer dependency' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-wal-shm-lock-byte-current-source', $writer()['dependencies'], true)),
+    'vfs wal shm lock byte canonical writer dependency' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-wal-shm-lock-byte', $writer()['dependencies'], true)),
     'vfs wal shm lock byte current source writer event count' => static fn (TestRunner $t) => $t->same(9, count($writer()['events'])),
     'vfs wal shm lock byte current source reader shared planned' => static fn (TestRunner $t) => $t->same('planned', $writer()['events'][0]['status']),
     'vfs wal shm lock byte current source reader shared offset' => static fn (TestRunner $t) => $t->same(1073741830, $writer()['events'][0]['plan']['acquire'][0]['offset']),
@@ -117,7 +117,7 @@ return [
     'vfs wal shm lock byte current source shm exclusive blocked by shared' => static fn (TestRunner $t) => $t->same(['a:shared'], $run([], ['shm read0 shared a', 'shm read0 exclusive b'])['events'][1]['blocking']),
     'vfs wal shm lock byte current source shm shared blocked by exclusive' => static fn (TestRunner $t) => $t->same(['a:exclusive'], $run([], ['shm read0 exclusive a', 'shm read0 shared b'])['events'][1]['blocking']),
 
-    'vfs wal shm lock byte current source rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsWalShmLockByteCurrentSourceNext::plan([], [])),
+    'vfs wal shm lock byte canonical rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsWalShmLockBytePlan::plan([], [])),
     'vfs wal shm lock byte current source rejects bad operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run([], ['checkpoint wp'])),
     'vfs wal shm lock byte current source rejects bad path' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run([], [['op' => 'lock', 'path' => '', 'level' => 'shared', 'connection' => 'wp']])),
     'vfs wal shm lock byte current source rejects bad connection' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run([], [['op' => 'lock', 'level' => 'shared', 'connection' => '']])),

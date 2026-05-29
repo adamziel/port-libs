@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteVfsWalShmLockByteCurrentSourceNext
+final class SQLiteVfsWalShmLockBytePlan
 {
     /**
      * @param array<string,mixed> $current
@@ -66,7 +66,7 @@ final class SQLiteVfsWalShmLockByteCurrentSourceNext
             'dependencies' => [
                 'sqlite-lock-byte-range-current-next',
                 'sqlite-wal-shm-locks',
-                'vfs-wal-shm-lock-byte-current-source',
+                'vfs-wal-shm-lock-byte',
             ],
         ];
     }

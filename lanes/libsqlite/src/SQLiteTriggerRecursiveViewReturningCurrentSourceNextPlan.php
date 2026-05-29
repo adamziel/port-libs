@@ -8667,10 +8667,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column?:string,recursive_suffix?:string,audit_label?:string} $currentView
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column?:string,recursive_suffix?:string,audit_label?:string} $nextView
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,array<string,mixed>,?array<string,mixed>,string,int,int,string):mixed> $returning
-     * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,drained_current_pages?:int,resume_source_signature?:string,savepoint_action?:string,restart_cursor?:string,current_source_epoch?:int,snapshot_token?:string,expected_snapshot_token?:string,current_schema_cookie?:int,expected_current_schema_cookie?:int,current_source_generation?:string,expected_current_source_generation?:string,trigger_source_generation?:string,expected_trigger_source_generation?:string,returning_cursor_generation?:string,nested_epoch?:string,expected_nested_epoch?:string,drained_nested_depths?:list<int>,required_nested_depths?:list<int>,outer_publish_requested?:bool,current_watermark?:string,expected_current_watermark?:string,acknowledged_current_ordinals?:list<int>,auto_ack_current_ordinals?:bool,require_contiguous_ordinals?:bool,fingerprint_salt?:string,expected_fingerprint_salt?:string,acknowledged_current_fingerprints?:list<string>,auto_ack_current_fingerprints?:bool,require_fingerprint_order?:bool,current_source_token_next195?:string,expected_current_source_token_next195?:string,next_resume_token_next195?:string,expected_next_resume_token_next195?:string,acknowledged_current_source_receipts_next195?:list<string>,auto_ack_current_source_receipts_next195?:bool,require_receipt_order_next195?:bool} $options
+     * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,drained_current_pages?:int,resume_source_signature?:string,savepoint_action?:string,restart_cursor?:string,current_source_epoch?:int,snapshot_token?:string,expected_snapshot_token?:string,current_schema_cookie?:int,expected_current_schema_cookie?:int,current_source_generation?:string,expected_current_source_generation?:string,trigger_source_generation?:string,expected_trigger_source_generation?:string,returning_cursor_generation?:string,nested_epoch?:string,expected_nested_epoch?:string,drained_nested_depths?:list<int>,required_nested_depths?:list<int>,outer_publish_requested?:bool,current_watermark?:string,expected_current_watermark?:string,acknowledged_current_ordinals?:list<int>,auto_ack_current_ordinals?:bool,require_contiguous_ordinals?:bool,fingerprint_salt?:string,expected_fingerprint_salt?:string,acknowledged_current_fingerprints?:list<string>,auto_ack_current_fingerprints?:bool,require_fingerprint_order?:bool,current_source_token_source_resume?:string,expected_current_source_token_source_resume?:string,next_resume_token_source_resume?:string,expected_next_resume_token_source_resume?:string,acknowledged_current_source_receipts_source_resume?:list<string>,auto_ack_current_source_receipts_source_resume?:bool,require_receipt_order_source_resume?:bool} $options
      * @return array<string,mixed>
      */
-    public static function executeNext195(
+    public static function executeCurrentSourceReceiptResumeFence(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -8679,11 +8679,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $sourceToken = self::tokenNext195((string) ($options['current_source_token_next195'] ?? 'wp.recursive.view.current.source.195'), 'current source token');
-        $expectedSourceToken = self::tokenNext195((string) ($options['expected_current_source_token_next195'] ?? $sourceToken), 'expected current source token');
-        $resumeToken = self::tokenNext195((string) ($options['next_resume_token_next195'] ?? 'wp.recursive.view.next.resume.195'), 'next resume token');
-        $expectedResumeToken = self::tokenNext195((string) ($options['expected_next_resume_token_next195'] ?? $resumeToken), 'expected next resume token');
-        $requireOrder = (bool) ($options['require_receipt_order_next195'] ?? true);
+        $sourceToken = self::tokenForSourceResume((string) ($options['current_source_token_source_resume'] ?? 'wp.recursive.view.current.source.195'), 'current source token');
+        $expectedSourceToken = self::tokenForSourceResume((string) ($options['expected_current_source_token_source_resume'] ?? $sourceToken), 'expected current source token');
+        $resumeToken = self::tokenForSourceResume((string) ($options['next_resume_token_source_resume'] ?? 'wp.recursive.view.next.resume.195'), 'next resume token');
+        $expectedResumeToken = self::tokenForSourceResume((string) ($options['expected_next_resume_token_source_resume'] ?? $resumeToken), 'expected next resume token');
+        $requireOrder = (bool) ($options['require_receipt_order_source_resume'] ?? true);
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext191(
             $rows,
@@ -8698,10 +8698,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $currentRows = self::rowsNext195($base['current_fingerprint_rows_next191'] ?? [], 'current rows');
-        $nextRows = self::rowsNext195($base['attempted_next_fingerprint_rows_next191'] ?? [], 'attempted next rows');
-        $required = self::sourceReceiptsNext195($currentRows, $sourceToken, $resumeToken);
-        $acknowledged = self::acknowledgedReceiptsNext195($options, $required);
+        $currentRows = self::returningRowsForCurrentSourceResume($base['current_fingerprint_rows_next191'] ?? [], 'current rows');
+        $nextRows = self::returningRowsForCurrentSourceResume($base['attempted_next_fingerprint_rows_next191'] ?? [], 'attempted next rows');
+        $required = self::currentSourceResumeReceipts($currentRows, $sourceToken, $resumeToken);
+        $acknowledged = self::acknowledgedCurrentSourceResumeReceipts($options, $required);
         $missing = array_values(array_diff($required, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $required));
         $orderMatches = !$requireOrder || $required === $acknowledged;
@@ -8710,7 +8710,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $basePublishAllowed = (bool) ($base['next_source_publish_allowed_next191'] ?? false);
         $receiptFenceClear = $missing === [] && $unexpected === [] && $orderMatches;
         $resumeNext = $basePublishAllowed && $sourceMatches && $resumeMatches && $receiptFenceClear;
-        $blockedReasons = self::blockedReasonsNext195(
+        $blockedReasons = self::blockedReasonsForSourceResume(
             $base['blocked_reasons_next191'] ?? [],
             $basePublishAllowed,
             $sourceMatches,
@@ -8721,45 +8721,45 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $orderMatches,
         );
 
-        $currentTagged = self::tagCurrentRowsNext195($currentRows, $required, $sourceToken, $resumeToken);
-        $nextTagged = self::tagNextRowsNext195($nextRows, $resumeNext, $sourceToken, $resumeToken, $blockedReasons);
+        $currentTagged = self::tagCurrentRowsForSourceResume($currentRows, $required, $sourceToken, $resumeToken);
+        $nextTagged = self::tagNextRowsForSourceResume($nextRows, $resumeNext, $sourceToken, $resumeToken, $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentTagged, $nextTagged),
-            static fn (array $row): bool => $row['visible_after_current_source_receipts_next195']
+            static fn (array $row): bool => $row['visible_after_current_source_receipts_source_resume']
         ));
         $heldRows = array_values(array_filter(
             $nextTagged,
-            static fn (array $row): bool => !$row['visible_after_current_source_receipts_next195']
+            static fn (array $row): bool => !$row['visible_after_current_source_receipts_source_resume']
         ));
 
         return $base + [
-            'status_next195' => self::statusNext195($basePublishAllowed, $sourceMatches, $resumeMatches, $receiptFenceClear, $resumeNext),
-            'current_source_token_next195' => $sourceToken,
-            'expected_current_source_token_next195' => $expectedSourceToken,
-            'current_source_token_matches_next195' => $sourceMatches,
-            'next_resume_token_next195' => $resumeToken,
-            'expected_next_resume_token_next195' => $expectedResumeToken,
-            'next_resume_token_matches_next195' => $resumeMatches,
-            'required_current_source_receipts_next195' => $required,
-            'acknowledged_current_source_receipts_next195' => $acknowledged,
-            'missing_current_source_receipts_next195' => $missing,
-            'unexpected_current_source_receipts_next195' => $unexpected,
-            'require_receipt_order_next195' => $requireOrder,
-            'current_source_receipt_order_matches_next195' => $orderMatches,
-            'current_source_receipt_fence_clear_next195' => $receiptFenceClear,
-            'next_source_resume_allowed_next195' => $resumeNext,
-            'current_source_receipt_rows_next195' => $currentTagged,
-            'attempted_next_source_receipt_rows_next195' => $nextTagged,
-            'visible_returning_rows_next195' => $visibleRows,
-            'held_next_source_rows_next195' => $heldRows,
-            'visible_returning_payloads_next195' => array_column($visibleRows, 'returning'),
-            'held_next_returning_payloads_next195' => array_column($heldRows, 'returning'),
-            'current_source_receipt_row_count_next195' => count($currentTagged),
-            'attempted_next_source_receipt_row_count_next195' => count($nextTagged),
-            'visible_row_count_next195' => count($visibleRows),
-            'held_next_row_count_next195' => count($heldRows),
-            'blocked_reasons_next195' => $blockedReasons,
-            'current_source_receipt_plan_next195' => [
+            'status_source_resume' => self::statusForSourceResume($basePublishAllowed, $sourceMatches, $resumeMatches, $receiptFenceClear, $resumeNext),
+            'current_source_token_source_resume' => $sourceToken,
+            'expected_current_source_token_source_resume' => $expectedSourceToken,
+            'current_source_token_matches_source_resume' => $sourceMatches,
+            'next_resume_token_source_resume' => $resumeToken,
+            'expected_next_resume_token_source_resume' => $expectedResumeToken,
+            'next_resume_token_matches_source_resume' => $resumeMatches,
+            'required_current_source_receipts_source_resume' => $required,
+            'acknowledged_current_source_receipts_source_resume' => $acknowledged,
+            'missing_current_source_receipts_source_resume' => $missing,
+            'unexpected_current_source_receipts_source_resume' => $unexpected,
+            'require_receipt_order_source_resume' => $requireOrder,
+            'current_source_receipt_order_matches_source_resume' => $orderMatches,
+            'current_source_receipt_fence_clear_source_resume' => $receiptFenceClear,
+            'next_source_resume_allowed_source_resume' => $resumeNext,
+            'current_source_receipt_rows_source_resume' => $currentTagged,
+            'attempted_next_source_receipt_rows_source_resume' => $nextTagged,
+            'visible_returning_rows_source_resume' => $visibleRows,
+            'held_next_source_rows_source_resume' => $heldRows,
+            'visible_returning_payloads_source_resume' => array_column($visibleRows, 'returning'),
+            'held_next_returning_payloads_source_resume' => array_column($heldRows, 'returning'),
+            'current_source_receipt_row_count_source_resume' => count($currentTagged),
+            'attempted_next_source_receipt_row_count_source_resume' => count($nextTagged),
+            'visible_row_count_source_resume' => count($visibleRows),
+            'held_next_row_count_source_resume' => count($heldRows),
+            'blocked_reasons_source_resume' => $blockedReasons,
+            'current_source_receipt_plan_source_resume' => [
                 'base_publish_allowed' => $basePublishAllowed,
                 'source_token_matches' => $sourceMatches,
                 'resume_token_matches' => $resumeMatches,
@@ -8773,17 +8773,17 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'next_source_resume_allowed' => $resumeNext,
                 'decision' => $resumeNext ? 'resume-next-source-after-current-source-receipts' : 'hold-next-source-until-current-source-receipts',
             ],
-            'yield_boundary_next195' => $resumeNext
-                ? 'recursive-view-returning-next195-current-source-receipts-then-next'
-                : 'recursive-view-returning-next195-current-source-receipts-fence-next',
-            'dependencies_next195' => [
-                'sqlite-trigger-recursive-view-returning-current-source-next195',
+            'yield_boundary_source_resume' => $resumeNext
+                ? 'recursive-view-returning-source_resume-current-source-receipts-then-next'
+                : 'recursive-view-returning-source_resume-current-source-receipts-fence-next',
+            'dependencies_source_resume' => [
+                'sqlite-trigger-recursive-view-returning-current-source-source_resume',
                 'sqlite-returning-current-source-drain-receipts',
                 'sqlite-view-trigger-next-source-resume-token',
-                'wordpress-recursive-view-returning-current-source-next195',
+                'wordpress-recursive-view-returning-current-source-source_resume',
             ],
-            'dependency_closure_next195' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-fingerprint-fence-and-adds-drain-receipt-resume-model',
-            'non_overlap_next195' => 'adds current-source drain receipts before next-source resume after next191 fingerprint admission; avoids accepted next191 fingerprint fencing, next188 ordinal watermarks, savepoint rollback, row-value RETURNING, schema reparse, WAL/VFS, and trigger/FK cascade clusters',
+            'dependency_closure_source_resume' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-fingerprint-fence-and-adds-drain-receipt-resume-model',
+            'non_overlap_source_resume' => 'adds current-source drain receipts before next-source resume after next191 fingerprint admission; avoids accepted next191 fingerprint fencing, next188 ordinal watermarks, savepoint rollback, row-value RETURNING, schema reparse, WAL/VFS, and trigger/FK cascade clusters',
         ];
     }
 
@@ -8791,7 +8791,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function sourceReceiptsNext195(array $rows, string $sourceToken, string $resumeToken): array
+    private static function currentSourceResumeReceipts(array $rows, string $sourceToken, string $resumeToken): array
     {
         $receipts = [];
         foreach ($rows as $index => $row) {
@@ -8814,27 +8814,27 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedReceiptsNext195(array $options, array $required): array
+    private static function acknowledgedCurrentSourceResumeReceipts(array $options, array $required): array
     {
-        if (($options['auto_ack_current_source_receipts_next195'] ?? false) === true) {
+        if (($options['auto_ack_current_source_receipts_source_resume'] ?? false) === true) {
             return $required;
         }
 
-        return self::receiptListNext195($options['acknowledged_current_source_receipts_next195'] ?? [], 'acknowledged current source receipts');
+        return self::currentSourceResumeReceiptList($options['acknowledged_current_source_receipts_source_resume'] ?? [], 'acknowledged current source receipts');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function receiptListNext195(mixed $values, string $label): array
+    private static function currentSourceResumeReceiptList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next195 {$label} must be a list");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source_resume {$label} must be a list");
         }
         foreach ($values as $value) {
             if (!is_string($value) || preg_match('/^[a-f0-9]{28}$/', $value) !== 1) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next195 {$label} contain a malformed receipt");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING source_resume {$label} contain a malformed receipt");
             }
         }
 
@@ -8845,14 +8845,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext195(mixed $rows, string $label): array
+    private static function returningRowsForCurrentSourceResume(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next195 {$label} are malformed");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source_resume {$label} are malformed");
         }
         foreach ($rows as $row) {
             if (!is_array($row) || !isset($row['returning']) || !is_array($row['returning'])) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next195 {$label} contain a malformed row");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING source_resume {$label} contain a malformed row");
             }
         }
 
@@ -8864,17 +8864,17 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $receipts
      * @return list<array<string,mixed>>
      */
-    private static function tagCurrentRowsNext195(array $rows, array $receipts, string $sourceToken, string $resumeToken): array
+    private static function tagCurrentRowsForSourceResume(array $rows, array $receipts, string $sourceToken, string $resumeToken): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
             $out[] = $row + [
-                'receipt_phase_next195' => 'current',
-                'current_source_token_next195' => $sourceToken,
-                'next_resume_token_next195' => $resumeToken,
-                'current_source_receipt_next195' => $receipts[$index] ?? null,
-                'visible_after_current_source_receipts_next195' => true,
-                'held_by_current_source_receipt_reasons_next195' => [],
+                'receipt_phase_source_resume' => 'current',
+                'current_source_token_source_resume' => $sourceToken,
+                'next_resume_token_source_resume' => $resumeToken,
+                'current_source_receipt_source_resume' => $receipts[$index] ?? null,
+                'visible_after_current_source_receipts_source_resume' => true,
+                'held_by_current_source_receipt_reasons_source_resume' => [],
             ];
         }
 
@@ -8886,17 +8886,17 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagNextRowsNext195(array $rows, bool $visible, string $sourceToken, string $resumeToken, array $reasons): array
+    private static function tagNextRowsForSourceResume(array $rows, bool $visible, string $sourceToken, string $resumeToken, array $reasons): array
     {
         $out = [];
         foreach ($rows as $row) {
             $out[] = $row + [
-                'receipt_phase_next195' => 'next',
-                'current_source_token_next195' => $sourceToken,
-                'next_resume_token_next195' => $resumeToken,
-                'current_source_receipt_next195' => null,
-                'visible_after_current_source_receipts_next195' => $visible,
-                'held_by_current_source_receipt_reasons_next195' => $visible ? [] : $reasons,
+                'receipt_phase_source_resume' => 'next',
+                'current_source_token_source_resume' => $sourceToken,
+                'next_resume_token_source_resume' => $resumeToken,
+                'current_source_receipt_source_resume' => null,
+                'visible_after_current_source_receipts_source_resume' => $visible,
+                'held_by_current_source_receipt_reasons_source_resume' => $visible ? [] : $reasons,
             ];
         }
 
@@ -8909,7 +8909,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext195(
+    private static function blockedReasonsForSourceResume(
         mixed $baseReasons,
         bool $basePublishAllowed,
         bool $sourceMatches,
@@ -8920,7 +8920,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         bool $orderMatches,
     ): array {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
-            throw new InvalidArgumentException('SQLite recursive view RETURNING next195 base blocked reasons are malformed');
+            throw new InvalidArgumentException('SQLite recursive view RETURNING source_resume base blocked reasons are malformed');
         }
         $reasons = array_map(static fn (mixed $reason): string => (string) $reason, $baseReasons);
         if (!$basePublishAllowed && $reasons === []) {
@@ -8945,31 +8945,31 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext195(bool $basePublishAllowed, bool $sourceMatches, bool $resumeMatches, bool $receiptFenceClear, bool $resumeNext): string
+    private static function statusForSourceResume(bool $basePublishAllowed, bool $sourceMatches, bool $resumeMatches, bool $receiptFenceClear, bool $resumeNext): string
     {
         if ($resumeNext) {
-            return 'trigger-recursive-view-returning-current-source-receipts-released-next195';
+            return 'trigger-recursive-view-returning-current-source-receipts-released-source_resume';
         }
         if (!$basePublishAllowed) {
-            return 'trigger-recursive-view-returning-current-source-receipts-base-held-next195';
+            return 'trigger-recursive-view-returning-current-source-receipts-base-held-source_resume';
         }
         if (!$sourceMatches) {
-            return 'trigger-recursive-view-returning-current-source-receipts-source-held-next195';
+            return 'trigger-recursive-view-returning-current-source-receipts-source-held-source_resume';
         }
         if (!$resumeMatches) {
-            return 'trigger-recursive-view-returning-current-source-receipts-resume-held-next195';
+            return 'trigger-recursive-view-returning-current-source-receipts-resume-held-source_resume';
         }
         if (!$receiptFenceClear) {
-            return 'trigger-recursive-view-returning-current-source-receipts-held-next195';
+            return 'trigger-recursive-view-returning-current-source-receipts-held-source_resume';
         }
 
-        return 'trigger-recursive-view-returning-current-source-receipts-pending-next195';
+        return 'trigger-recursive-view-returning-current-source-receipts-pending-source_resume';
     }
 
-    private static function tokenNext195(string $value, string $label): string
+    private static function tokenForSourceResume(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@\\/-]+$/', $value) !== 1) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next195 {$label} is malformed");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source_resume {$label} is malformed");
         }
 
         return $value;
@@ -9622,7 +9622,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'wordpress-recursive-view-returning-current-source-generation-depth-fence',
             ]))),
             'dependency_closure_generationDepthFence' => 'no new support component needed; reuses following child drain and adds current view generation/depth acknowledgement fencing',
-            'non_overlap_generationDepthFence' => 'adds current view generation and recursive depth acknowledgement fencing after accepted next196 child-ordinal drains; avoids next195 receipt fences, following child drain, row-value RETURNING, schema reparse, FK, WAL, VFS, JSON, planner, and B-tree slices',
+            'non_overlap_generationDepthFence' => 'adds current view generation and recursive depth acknowledgement fencing after accepted next196 child-ordinal drains; avoids source_resume receipt fences, following child drain, row-value RETURNING, schema reparse, FK, WAL, VFS, JSON, planner, and B-tree slices',
         ];
     }
 
@@ -9962,7 +9962,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-returning-current-source-generation-handoff',
                 'wordpress-recursive-view-returning-current-source-next203',
             ]))),
-            'non_overlap_next203' => 'adds current-source generation handoff receipts after following child drain; avoids accepted following child drain, next195 receipt fence, next191 fingerprint fencing, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_next203' => 'adds current-source generation handoff receipts after following child drain; avoids accepted following child drain, source_resume receipt fence, next191 fingerprint fencing, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -10285,7 +10285,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-returning-current-source-sequence-fence',
                 'wordpress-recursive-view-returning-current-source-source-sequence',
             ]))),
-            'non_overlap_source_sequence_fence' => 'adds a source-sequence fence after next203 generation receipts; avoids accepted next203 generation handoff, following child drain, next195 receipt fence, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_source_sequence_fence' => 'adds a source-sequence fence after next203 generation receipts; avoids accepted next203 generation handoff, following child drain, source_resume receipt fence, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -10589,7 +10589,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-returning-current-source-yield-watermark',
                 'wordpress-recursive-view-returning-current-source-next206',
             ]))),
-            'non_overlap_next206' => 'adds current-source yield watermark admission after next203 generation receipts; avoids accepted next203 generation handoff, following child drain, next195 receipt fences, next191 fingerprint fencing, row-value RETURNING, DML trigger conflicts, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_next206' => 'adds current-source yield watermark admission after next203 generation receipts; avoids accepted next203 generation handoff, following child drain, source_resume receipt fences, next191 fingerprint fencing, row-value RETURNING, DML trigger conflicts, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 

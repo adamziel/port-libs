@@ -1,17 +1,18 @@
-# Trigger Recursive View RETURNING Current Source Next195
+# Trigger Recursive View RETURNING Source Resume
 
 Status: focused PHP behavior growth for recursive `INSTEAD OF` view-trigger
 `RETURNING` rows where a next view source cannot resume until every current
 source `RETURNING` row has a durable drain receipt.
 
-This slice adds `SQLiteTriggerRecursiveViewReturningCurrentSourceNext195Plan`.
+This slice consolidates the numbered receipt-resume wrapper into
+`SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceReceiptResumeFence()`.
 It layers a current-source receipt fence after the accepted next191 payload
 fingerprint fence. The plan stamps each current `RETURNING` row with a
 source/resume receipt, validates acknowledged receipts, rejects stale current
 source or next-resume tokens, and keeps attempted next-source rows hidden until
 the current source is fully drained.
 
-WordPress path: `wordpress-trigger-recursive-view-returning-current-source-next195.php`
+WordPress path: `wordpress-trigger-recursive-view-returning-source-resume.php`
 covers copied `wp_options` import rows flowing through a recursive view trigger.
 The current import source must drain before the next copied source can resume
 and emit `RETURNING` rows.
@@ -19,11 +20,11 @@ and emit `RETURNING` rows.
 Focused verification:
 
 ```bash
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext195Test.php
-php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next195.php
-php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext195Plan.php
-php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext195Test.php
-php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next195.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningSourceResumeTest.php
+php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-source-resume.php
+php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningSourceResumeTest.php
+php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-source-resume.php
 git diff --check -- lanes/libsqlite
 ```
 

@@ -65,7 +65,7 @@ $invalidMarkPlan = static fn (): array => $makeIndex([4 => 99])->checkpointPlanW
 ]);
 
 return [
-    'shm index vfs locks adds dependency' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-wal-shm-lock-byte-current-source', $vfsPlan()['dependencies'], true)),
+    'shm index vfs locks adds dependency' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-wal-shm-lock-byte', $vfsPlan()['dependencies'], true)),
     'shm index vfs locks reports lock source' => static fn (TestRunner $t) => $t->same('vfs-shm-lock-table', $vfsPlan()['lock_source']),
     'shm index vfs locks current read locks' => static fn (TestRunner $t) => $t->same([false, true, true, true, false], $vfsPlan()['read_locks']),
     'shm index vfs locks holder map read one' => static fn (TestRunner $t) => $t->same(['wp-reader-a'], $vfsPlan()['lock_holders']['read1']),

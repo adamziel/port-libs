@@ -4,29 +4,29 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
-$current139 = [
+$currentSource = [
     'option_id' => 139,
     'option_name' => 'wp_plugin_generated_order_cost',
     'option_value' => '{"plugin":{"groups":[{"name":"core","rules":[{"slug":"seo","priority":2,"enabled":true,"rank":30},{"slug":"cache","priority":7,"enabled":false,"rank":10},{"slug":"forms","priority":4,"enabled":true,"rank":20}]}]}}',
     'base_root' => '$.plugin.groups',
     'nested_path' => '[0].rules',
 ];
-$next139 = [
+$nextSource = [
     'option_id' => 139,
     'option_name' => 'wp_plugin_generated_order_cost',
     'option_value' => '{"plugin":{"groups":[{"name":"core","rules":[{"slug":"seo","priority":8,"enabled":true,"rank":30},{"slug":"cache","priority":1,"enabled":false,"rank":10},{"slug":"forms","priority":4,"enabled":true,"rank":20},{"slug":"shop","priority":5,"enabled":true,"rank":15}]}]}}',
     'base_root' => '$.plugin.groups',
     'nested_path' => '[0].rules',
 ];
-$constraints139 = [
+$constraints = [
     ['column' => 'type', 'operator' => '=', 'value' => 'object'],
     ['column' => 'fullkey', 'operator' => 'LIKE', 'value' => '$.plugin.groups[0].rules[%]'],
 ];
-$generatedConstraints139 = [
+$generatedConstraints = [
     ['name' => 'generated_priority', 'source' => 'value', 'path' => '$.priority', 'operator' => 'BETWEEN', 'value' => [3, 6]],
     ['name' => 'generated_enabled', 'source' => 'value', 'path' => '$.enabled', 'operator' => 'IS', 'value' => 1],
 ];
-$generatedOrder139 = [
+$generatedOrder = [
     ['name' => 'generated_rank', 'source' => 'value', 'path' => '$.rank', 'direction' => 'ASC'],
     ['name' => 'generated_slug', 'source' => 'value', 'path' => '$.slug', 'direction' => 'DESC'],
 ];
@@ -34,58 +34,58 @@ $generatedOrder139 = [
 $plan139 = static fn (
     ?array $current = null,
     ?array $next = null,
-    ?array $constraints = null,
-    ?array $generatedConstraints = null,
-    ?array $generatedOrder = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedOrderCostNext139(
+    ?array $constraintInput = null,
+    ?array $generatedConstraintInput = null,
+    ?array $generatedOrderInput = null,
+): array => SQLiteJsonTablePlan::currentSourceGeneratedOrderCostPlan(
     'json_tree',
-    $current ?? $current139,
-    $next ?? $next139,
+    $current ?? $currentSource,
+    $next ?? $nextSource,
     'option_value',
     'base_root',
     'nested_path',
-    $constraints ?? $constraints139,
+    $constraintInput ?? $constraints,
     [['column' => 'id']],
-    $generatedConstraints ?? $generatedConstraints139,
-    $generatedOrder ?? $generatedOrder139,
+    $generatedConstraintInput ?? $generatedConstraints,
+    $generatedOrderInput ?? $generatedOrder,
 );
 
-$stable139 = static fn (): array => $plan139($current139, $current139);
+$stable139 = static fn (): array => $plan139($currentSource, $currentSource);
 $point139 = static fn (): array => $plan139(
-    $current139,
-    $current139,
-    $constraints139,
+    $currentSource,
+    $currentSource,
+    $constraints,
     [['name' => 'generated_slug', 'source' => 'value', 'path' => '$.slug', 'operator' => '=', 'value' => 'seo']],
-    $generatedOrder139,
+    $generatedOrder,
 );
 $empty139 = static fn (): array => $plan139(
-    $current139,
-    $current139,
-    $constraints139,
+    $currentSource,
+    $currentSource,
+    $constraints,
     [['name' => 'generated_priority', 'source' => 'value', 'path' => '$.priority', 'operator' => 'BETWEEN', 'value' => [40, 50]]],
-    $generatedOrder139,
+    $generatedOrder,
 );
 $desc139 = static fn (): array => $plan139(
-    $current139,
-    $next139,
-    $constraints139,
-    $generatedConstraints139,
+    $currentSource,
+    $nextSource,
+    $constraints,
+    $generatedConstraints,
     [['name' => 'generated_rank', 'source' => 'value', 'path' => '$.rank', 'direction' => 'DESC']],
 );
 $unrunnable139 = static fn (): array => $plan139(
-    $current139,
-    array_replace($next139, ['option_value' => null]),
+    $currentSource,
+    array_replace($nextSource, ['option_value' => null]),
 );
 
 $tests = [
     'normalizes function' => static fn (TestRunner $t) => $t->same('json_tree', $plan139()['function']),
-    'records next139 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-order-cost-current-source-next139', $plan139()['dependencies'], true)),
+    'records generated order cost dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-order-cost-current-source-plan', $plan139()['dependencies'], true)),
     'preserves next136 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-hidden-cost-current-source-next136', $plan139()['dependencies'], true)),
     'pins current reader' => static fn (TestRunner $t) => $t->same('pin-current-json-table-generated-order-cost-source-until-cursor-reset', $plan139()['currentReaderPolicy']),
     'prepares changed next reader' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-generated-order-cost-plan', $plan139()['nextReaderPolicy']),
     'stable reader reuses plan' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-order-cost-plan', $stable139()['nextReaderPolicy']),
-    'stable reasons are empty' => static fn (TestRunner $t) => $t->same([], $stable139()['next139ReplanReasons']),
-    'generated order terms normalize' => static fn (TestRunner $t) => $t->same($generatedOrder139, $plan139()['currentGeneratedOrderCost']['generatedOrderBy']),
+    'stable reasons are empty' => static fn (TestRunner $t) => $t->same([], $stable139()['generatedOrderCostReplanReasons']),
+    'generated order terms normalize' => static fn (TestRunner $t) => $t->same($generatedOrder, $plan139()['currentGeneratedOrderCost']['generatedOrderBy']),
     'current filtered row count comes from generated constraints' => static fn (TestRunner $t) => $t->same(1, $plan139()['currentGeneratedOrderCost']['filteredRowCount']),
     'next filtered row count includes inserted rule' => static fn (TestRunner $t) => $t->same(2, $plan139()['nextGeneratedOrderCost']['filteredRowCount']),
     'current ordered rowid is forms rule' => static fn (TestRunner $t) => $t->same([11], $plan139()['currentGeneratedOrderCost']['orderedRowids']),
@@ -119,24 +119,24 @@ $tests = [
     'sorter transition changes' => static fn (TestRunner $t) => $t->same(true, $plan139()['generatedOrderCostTransitions'][5]['changed']),
     'effective cost transition changes' => static fn (TestRunner $t) => $t->same(true, $plan139()['generatedOrderCostTransitions'][6]['changed']),
     'cost class transition changes' => static fn (TestRunner $t) => $t->same(true, $plan139()['generatedOrderCostTransitions'][7]['changed']),
-    'reasons include generated order row count' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-order-row-count-changed', $plan139()['next139ReplanReasons'], true)),
-    'reasons include generated order output' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-order-output-changed', $plan139()['next139ReplanReasons'], true)),
-    'reasons include generated order keys' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-order-keys-changed', $plan139()['next139ReplanReasons'], true)),
-    'reasons include generated order sorter' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-order-sorter-changed', $plan139()['next139ReplanReasons'], true)),
-    'reasons include generated order cost' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-order-cost-changed', $plan139()['next139ReplanReasons'], true)),
-    'reasons preserve generated hidden row count' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-hidden-row-count-changed', $plan139()['next139ReplanReasons'], true)),
+    'reasons include generated order row count' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-order-row-count-changed', $plan139()['generatedOrderCostReplanReasons'], true)),
+    'reasons include generated order output' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-order-output-changed', $plan139()['generatedOrderCostReplanReasons'], true)),
+    'reasons include generated order keys' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-order-keys-changed', $plan139()['generatedOrderCostReplanReasons'], true)),
+    'reasons include generated order sorter' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-order-sorter-changed', $plan139()['generatedOrderCostReplanReasons'], true)),
+    'reasons include generated order cost' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-order-cost-changed', $plan139()['generatedOrderCostReplanReasons'], true)),
+    'reasons preserve generated hidden row count' => static fn (TestRunner $t) => $t->true(in_array('json-table-generated-hidden-row-count-changed', $plan139()['generatedOrderCostReplanReasons'], true)),
     'unrunnable next cost class is sentinel' => static fn (TestRunner $t) => $t->same('unrunnable-json-table', $unrunnable139()['nextGeneratedOrderCost']['costClass']),
     'unrunnable next effective cost is sentinel' => static fn (TestRunner $t) => $t->same(1000000, $unrunnable139()['nextGeneratedOrderCost']['effectiveEstimatedCost']),
     'unrunnable next has no ordered rowids' => static fn (TestRunner $t) => $t->same([], $unrunnable139()['nextGeneratedOrderCost']['orderedRowids']),
-    'empty generated order is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan139($current139, $next139, $constraints139, $generatedConstraints139, [])),
-    'bad generated order direction is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan139($current139, $next139, $constraints139, $generatedConstraints139, [['name' => 'bad', 'source' => 'value', 'path' => '$.rank', 'direction' => 'SIDEWAYS']])),
-    'bad generated order source is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan139($current139, $next139, $constraints139, $generatedConstraints139, [['name' => 'bad', 'source' => 'missing', 'path' => '$.rank']])),
-    'bad generated order path is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan139($current139, $next139, $constraints139, $generatedConstraints139, [['name' => 'bad', 'source' => 'value', 'path' => '$[#-]']])),
+    'empty generated order is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan139($currentSource, $nextSource, $constraints, $generatedConstraints, [])),
+    'bad generated order direction is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan139($currentSource, $nextSource, $constraints, $generatedConstraints, [['name' => 'bad', 'source' => 'value', 'path' => '$.rank', 'direction' => 'SIDEWAYS']])),
+    'bad generated order source is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan139($currentSource, $nextSource, $constraints, $generatedConstraints, [['name' => 'bad', 'source' => 'missing', 'path' => '$.rank']])),
+    'bad generated order path is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan139($currentSource, $nextSource, $constraints, $generatedConstraints, [['name' => 'bad', 'source' => 'value', 'path' => '$[#-]']])),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 
 foreach ($tests as $name => $case) {
-    $tests['json table generated order cost current source next139 ' . $name] = $case;
+    $tests['json table generated order cost current source plan ' . $name] = $case;
     unset($tests[$name]);
 }
 

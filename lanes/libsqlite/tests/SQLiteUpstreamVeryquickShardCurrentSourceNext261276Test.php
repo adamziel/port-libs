@@ -60,8 +60,18 @@ function libsqlite_suite_next261276_record(
     ?int $expected = 160,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next261276_evidence()->upstreamVeryquickShardCurrentSourceNext261276(
+    return libsqlite_suite_next261276_evidence()->upstreamVeryquickShardCurrentSourceWindow(
         $rows,
+        261,
+        276,
+        'next261-276',
+        [
+            'counts_upstream_veryquick_shard_current_source_next261_276',
+            'counts_upstream_veryquick_shard_current_source_next245_260',
+            'counts_upstream_veryquick_shard_current_source_next229_244',
+            'counts_upstream_veryquick_shard_current_source_next213_228',
+            'counts_upstream_veryquick_shard_current_source_next197_212',
+        ],
         670,
         133150,
         $launcherBase,

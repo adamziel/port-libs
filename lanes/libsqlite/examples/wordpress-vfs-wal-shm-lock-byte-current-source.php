@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteVfsWalShmLockByteCurrentSourceNext;
+use PortLibs\LibSqlite\SQLiteVfsWalShmLockBytePlan;
 
 $path = '/srv/www/wp-content/database/.ht.sqlite';
-$plan = SQLiteVfsWalShmLockByteCurrentSourceNext::plan([
+$plan = SQLiteVfsWalShmLockBytePlan::plan([
     'selected_path' => $path,
     'sources' => [
         $path => [

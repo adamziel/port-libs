@@ -56,7 +56,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['checkpointCanFinish'] === false);
     assert($summary['resetBlocked'] === true);
     assert($summary['readLocks'] === [false, true, true, true, false]);
-    assert(in_array('vfs-wal-shm-lock-byte-current-source', $summary['dependencies'], true));
+    assert(in_array('vfs-wal-shm-lock-byte', $summary['dependencies'], true));
     echo "wordpress-wal-shm-vfs-lock-current self-test passed\n";
     return;
 }

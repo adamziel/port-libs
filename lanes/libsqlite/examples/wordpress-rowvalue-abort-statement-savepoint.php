@@ -53,10 +53,10 @@ if (($argv[1] ?? '') === '--self-test') {
     ];
     foreach ($checks as $label => $ok) {
         if (!$ok) {
-            throw new RuntimeException("next200 smoke failed: {$label}");
+            throw new RuntimeException("abort statement savepoint smoke failed: {$label}");
         }
     }
-    echo "wordpress-rowvalue-abort-savepoint-current-source-next200 self-test passed\n";
+    echo "wordpress-rowvalue-abort-statement-savepoint self-test passed\n";
     return;
 }
 

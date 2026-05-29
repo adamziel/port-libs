@@ -63,13 +63,13 @@ $baseOptions = [
     'fingerprint_salt' => 'wp.recursive.view.returning.fingerprint.195',
     'expected_fingerprint_salt' => 'wp.recursive.view.returning.fingerprint.195',
     'auto_ack_current_fingerprints' => true,
-    'current_source_token_next195' => 'wp.recursive.view.current.source.195',
-    'expected_current_source_token_next195' => 'wp.recursive.view.current.source.195',
-    'next_resume_token_next195' => 'wp.recursive.view.next.resume.195',
-    'expected_next_resume_token_next195' => 'wp.recursive.view.next.resume.195',
+    'current_source_token_source_resume' => 'wp.recursive.view.current.source.195',
+    'expected_current_source_token_source_resume' => 'wp.recursive.view.current.source.195',
+    'next_resume_token_source_resume' => 'wp.recursive.view.next.resume.195',
+    'expected_next_resume_token_source_resume' => 'wp.recursive.view.next.resume.195',
 ];
 
-$plan = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext195(
+$plan = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceReceiptResumeFence(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
@@ -94,18 +94,18 @@ $plan = static fn (array $options = []): array => SQLiteTriggerRecursiveViewRetu
     $options + $baseOptions,
 );
 
-$receipts = $plan()['required_current_source_receipts_next195'];
-$released = $plan(['acknowledged_current_source_receipts_next195' => $receipts]);
-$held = $plan(['acknowledged_current_source_receipts_next195' => array_slice($receipts, 0, -1)]);
+$receipts = $plan()['required_current_source_receipts_source_resume'];
+$released = $plan(['acknowledged_current_source_receipts_source_resume' => $receipts]);
+$held = $plan(['acknowledged_current_source_receipts_source_resume' => array_slice($receipts, 0, -1)]);
 
 if (
-    $released['status_next195'] !== 'trigger-recursive-view-returning-current-source-receipts-released-next195'
-    || $held['status_next195'] !== 'trigger-recursive-view-returning-current-source-receipts-held-next195'
-    || $released['visible_row_count_next195'] !== 8
-    || $held['held_next_row_count_next195'] !== 4
+    $released['status_source_resume'] !== 'trigger-recursive-view-returning-current-source-receipts-released-source_resume'
+    || $held['status_source_resume'] !== 'trigger-recursive-view-returning-current-source-receipts-held-source_resume'
+    || $released['visible_row_count_source_resume'] !== 8
+    || $held['held_next_row_count_source_resume'] !== 4
 ) {
-    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-next195 self-test failed\n");
+    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-source_resume self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-trigger-recursive-view-returning-current-source-next195 self-test passed\n";
+echo "wordpress-trigger-recursive-view-returning-current-source-source_resume self-test passed\n";

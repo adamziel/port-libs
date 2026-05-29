@@ -61,12 +61,12 @@ SELECT option_id AS id,
  LIMIT 6
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundCteWindowOrderCurrentSourceNextPlan::compareNext134($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundCteWindowOrderCurrentSourceNextPlan::compareCteWindowOrder($sql, $currentTables, $nextTables);
 $tests = [];
 
-$tests['compound cte window order current source next134 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound cte window order current source status and dependencies'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
-    $t->same('compound-cte-window-order-current-source-next134-ready', $plan['status']);
+    $t->same('compound-cte-window-order-current-source-ready', $plan['status']);
     $t->same([
         'sqlite-select-sql-with-materialized-cte',
         'sqlite-select-sql-compound-cte-arms',
@@ -75,7 +75,7 @@ $tests['compound cte window order current source next134 status and dependencies
     ], $plan['dependencies']);
 };
 
-$tests['compound cte window order current source next134 compound shape'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound cte window order current source compound shape'] = static function (TestRunner $t) use ($summary): void {
     $compound = $summary()['compound'];
     $t->same(['UNION ALL'], $compound['operators']);
     $t->same(2, $compound['currentArms']);
@@ -86,14 +86,14 @@ $tests['compound cte window order current source next134 compound shape'] = stat
     $t->same(0, $compound['offset']);
 };
 
-$tests['compound cte window order current source next134 cte metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound cte window order current source cte metadata'] = static function (TestRunner $t) use ($summary): void {
     $cte = $summary()['cte'];
     $t->same(['ranked', 'yes_rows', 'no_rows'], $cte['current']);
     $t->same(['ranked', 'yes_rows', 'no_rows'], $cte['next']);
     $t->same(['ranked'], $cte['materialized']);
 };
 
-$tests['compound cte window order current source next134 current ordered rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound cte window order current source current ordered rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentRows'];
     $t->same([3, 1, 2, 4, 5], array_column($rows, 'id'));
     $t->same(['theme_mods', 'siteurl', 'home', 'plugin_alpha', 'plugin_beta'], array_column($rows, 'name'));
@@ -101,7 +101,7 @@ $tests['compound cte window order current source next134 current ordered rows'] 
     $t->same([50, 35, 23, 10, 8], array_column($rows, 'frame_bytes'));
 };
 
-$tests['compound cte window order current source next134 next ordered rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound cte window order current source next ordered rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same([7, 6, 3, 1, 2, 4], array_column($rows, 'id'));
     $t->same(['transient_cleanup', 'plugin_gamma', 'theme_mods', 'siteurl', 'home', 'plugin_alpha'], array_column($rows, 'name'));
@@ -109,7 +109,7 @@ $tests['compound cte window order current source next134 next ordered rows'] = s
     $t->same([75, 70, 50, 35, 23, 10], array_column($rows, 'frame_bytes'));
 };
 
-$tests['compound cte window order current source next134 window metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound cte window order current source window metadata'] = static function (TestRunner $t) use ($summary): void {
     $windows = $summary()['windows']['current'];
     $t->same(['row_number', 'sum', 'row_number', 'sum'], array_column($windows, 'function'));
     $t->same(['source_rank', 'frame_bytes', 'source_rank', 'frame_bytes'], $summary()['windows']['orderedAliases']);
@@ -119,7 +119,7 @@ $tests['compound cte window order current source next134 window metadata'] = sta
     $t->same([null, 1, null, 1], array_column($windows, 'following'));
 };
 
-$tests['compound cte window order current source next134 boundary shifts'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound cte window order current source boundary shifts'] = static function (TestRunner $t) use ($summary): void {
     $boundary = $summary()['orderBoundary'];
     $t->same(3, $boundary['currentFirst']['id']);
     $t->same(7, $boundary['nextFirst']['id']);
@@ -129,14 +129,14 @@ $tests['compound cte window order current source next134 boundary shifts'] = sta
     $t->same(6, $boundary['nextCount']);
 };
 
-$tests['compound cte window order current source next134 changed signatures name next rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound cte window order current source changed signatures name next rows'] = static function (TestRunner $t) use ($summary): void {
     $changed = implode("\n", $summary()['changedSignatures']);
     $t->true(str_contains($changed, 'plugin_gamma'));
     $t->true(str_contains($changed, 'transient_cleanup'));
     $t->true(str_contains($changed, '"frame_bytes":75'));
 };
 
-$tests['compound cte window order current source next134 replan reasons'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound cte window order current source replan reasons'] = static function (TestRunner $t) use ($summary): void {
     $reasons = $summary()['replanReasons'];
     $t->true(in_array('compound-cte-rowset-changed', $reasons, true));
     $t->true(in_array('cte-materialized-source', $reasons, true));
@@ -145,7 +145,7 @@ $tests['compound cte window order current source next134 replan reasons'] = stat
 };
 
 foreach (range(1, 48) as $variant) {
-    $tests['compound cte window order current source next134 generated ordered cte variant ' . $variant] = static function (TestRunner $t) use ($variant, $currentTables): void {
+    $tests['compound cte window order current source generated ordered cte variant ' . $variant] = static function (TestRunner $t) use ($variant, $currentTables): void {
         $minimumBytes = 6 + ($variant % 8);
         $limit = 2 + ($variant % 4);
         $direction = $variant % 2 === 0 ? 'DESC' : 'ASC';
@@ -159,8 +159,8 @@ foreach (range(1, 48) as $variant) {
     };
 }
 
-$tests['compound cte window order current source next134 rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundCteWindowOrderCurrentSourceNextPlan::compareNext134(
+$tests['compound cte window order current source rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundCteWindowOrderCurrentSourceNextPlan::compareCteWindowOrder(
         'WITH ranked AS MATERIALIZED (SELECT option_id FROM wp_options) SELECT option_id AS id FROM ranked ORDER BY id',
         $currentTables,
         $currentTables,

@@ -28,7 +28,7 @@ $pages[1] = $firstPage;
 $pages[2] = str_repeat("\0", 512);
 $pages[3] = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next249', str_repeat('cache:', 42)])),
+    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_allocation_publication', str_repeat('cache:', 42)])),
     SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'rewrite_rules', str_repeat('rewrite:', 8)])),
 ]);
 $pages[105] = str_repeat("\0", 512);
@@ -72,7 +72,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafAllo
         'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
     ],
     2,
-    str_repeat('next249-source-next-freeblock-', 40),
+    str_repeat('allocation-publication-freeblock-', 40),
     3,
     true,
     2,
@@ -80,7 +80,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafAllo
 $summary = $plan->nextSourceSummary();
 
 echo json_encode([
-    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-next249',
+    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-allocation-publication',
     'wordpressUse' => 'After deleting an overflow-backed copied wp_options transient, publish next-source freeblock allocations only after pointer-map cursor epochs and leaf receipts carry forward.',
     'status' => $summary['status'],
     'next_source_pages' => $summary['next_source_pages'],
@@ -94,7 +94,7 @@ echo json_encode([
 ], JSON_PRETTY_PRINT) . PHP_EOL;
 
 if (
-    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-next249-ready'
+    $summary['status'] === 'btree-vacuum-pointermap-freeblock-allocation-publication-ready'
     && $summary['next_source_pages'] === [2, 3, 105, 106, 105, 107, 108]
     && $summary['pointer_map_epoch_pages'] === [2, 105]
     && $summary['reusable_allocation_pages'] === [3, 106, 107, 108]
@@ -104,5 +104,5 @@ if (
     && $summary['all_leaf_receipts_carried_forward'] === true
     && $summary['all_next_source_links_valid'] === true
 ) {
-    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-next249 self-test passed\n";
+    echo "wordpress-btree-vacuum-pointermap-freeblock-allocation-publication self-test passed\n";
 }

@@ -7618,23 +7618,23 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $abortStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_abort_statement_next200',
+        string $savepoint = 'wp_options_rowvalue_abort_statement',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next200 needs outer statements');
+            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint needs outer statements');
         }
         if ($savepointStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next200 needs savepoint statements');
+            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint needs savepoint statements');
         }
         if ($abortStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next200 needs abort statements');
+            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint needs abort statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next200 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next200 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint needs unique constraints');
         }
         self::assertIdentifierAbortRollbackConflict($savepoint, 'savepoint');
 
@@ -7644,7 +7644,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $outerStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'outer-before-savepoint-next200',
+            'outer-before-savepoint',
         );
 
         $savepointImage = $afterOuter;
@@ -7653,7 +7653,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $savepointStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'savepoint-before-abort-next200',
+            'savepoint-before-abort',
         );
 
         [$afterAbort, $abortExecuted, $abortReason, $abortOrdinal] = self::runAbortStatementsAbortRollbackConflict(
@@ -7668,12 +7668,12 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'retry-after-abort-next200',
+            'retry-after-abort',
         );
 
         return [
             'savepoint' => $savepoint,
-            'status' => 'rowvalue-update-delete-returning-abort-statement-current-source-next200',
+            'status' => 'rowvalue-update-delete-returning-abort-statement-current-source',
             'statement_aborted' => $abortReason !== null,
             'rolled_back_to_savepoint' => false,
             'savepoint_preserved_after_abort' => true,
@@ -7705,9 +7705,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_retry' => self::changedTablesAbortRollbackConflict($initialTables, $afterRetry),
             'row_counts' => self::rowCountsAbortRollbackConflict($afterRetry),
             'dependencies' => [
-                'sqlite-update-or-abort-rowvalue-returning-discards-failed-statement-next200',
-                'sqlite-savepoint-current-source-survives-abort-statement-next200',
-                'sqlite-rowvalue-update-delete-retry-reads-post-abort-current-source-next200',
+                'sqlite-update-or-abort-rowvalue-returning-discards-failed-statement',
+                'sqlite-savepoint-current-source-survives-abort-statement',
+                'sqlite-rowvalue-update-delete-retry-reads-post-abort-current-source',
             ],
         ];
     }
@@ -7763,7 +7763,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             }
 
             $current = $result['tables'];
-            $executed[] = self::statementSummaryAbortRollbackConflict('abort-attempt-before-conflict-next200', $ordinal, $sql, $result, $before, $rowIdColumn, null);
+            $executed[] = self::statementSummaryAbortRollbackConflict('abort-attempt-before-conflict', $ordinal, $sql, $result, $before, $rowIdColumn, null);
         }
 
         return [$current, $executed, null, null];
@@ -7818,7 +7818,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         }
 
         return [
-            'phase' => 'abort-conflict-suppressed-next200',
+            'phase' => 'abort-conflict-suppressed',
             'ordinal' => $ordinal,
             'sql' => $sql,
             'action' => $parsed['action'],
@@ -7843,11 +7843,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next200 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value ABORT savepoint tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next200 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value ABORT savepoint rows must be arrays');
                 }
             }
         }
@@ -7870,11 +7870,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value ABORT savepoint next200 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value ABORT savepoint rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value ABORT savepoint next200 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value ABORT savepoint rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -7945,7 +7945,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function assertIdentifierAbortRollbackConflict(string $value, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
-            throw new \InvalidArgumentException("SQLite row-value ABORT savepoint next200 {$label} must be an identifier");
+            throw new \InvalidArgumentException("SQLite row-value ABORT savepoint {$label} must be an identifier");
         }
     }
 
@@ -9174,7 +9174,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'sqlite-rowvalue-savepoint-rollback-discards-or-fail-prefix-or-fail-savepoint-retry',
                 'wordpress-rowvalue-fail-retry-current-source-or-fail-savepoint-retry',
             ],
-            'non_overlap_or-fail-savepoint-retry' => 'adds OR FAIL prefix-preservation plus ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted OR ABORT next200, release release_followup_read, parenthesized next202, OR ROLLBACK next178, OR REPLACE/IGNORE conflict, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_or-fail-savepoint-retry' => 'adds OR FAIL prefix-preservation plus ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted OR ABORT abort-statement-savepoint, release release_followup_read, parenthesized next202, OR ROLLBACK next178, OR REPLACE/IGNORE conflict, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -11239,7 +11239,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'sqlite-rowvalue-returning-suppressed-after-rollback-to-next218',
                 'wordpress-rowvalue-update-delete-returning-savepoint-rollback-next218',
             ],
-            'non_overlap_next218' => 'models explicit ROLLBACK TO savepoint image restoration after successful row-value UPDATE/DELETE RETURNING attempts; avoids accepted next200 statement ABORT preservation, release_followup_read RELEASE current-source admission, next211 OR IGNORE/savepoint behavior, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_next218' => 'models explicit ROLLBACK TO savepoint image restoration after successful row-value UPDATE/DELETE RETURNING attempts; avoids accepted abort-statement-savepoint preservation, release_followup_read RELEASE current-source admission, next211 OR IGNORE/savepoint behavior, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -12912,7 +12912,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'sqlite-rowvalue-update-delete-returning-retry-after-outer-rollback-next230',
                 'wordpress-rowvalue-nested-savepoint-current-source-next230',
             ],
-            'non_overlap_next230' => 'adds nested inner RELEASE plus outer ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted simple rollback next212, OR FAIL or-fail-savepoint-retry, OR ABORT next200, OR ROLLBACK/RELEASE variants, WAL/VFS, JSON table, planner, trigger, and B-tree clusters',
+            'non_overlap_next230' => 'adds nested inner RELEASE plus outer ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted simple rollback next212, OR FAIL or-fail-savepoint-retry, OR ABORT abort-statement-savepoint, OR ROLLBACK/RELEASE variants, WAL/VFS, JSON table, planner, trigger, and B-tree clusters',
         ];
     }
 

@@ -48,7 +48,7 @@ $customPlan200 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavep
     [$abortSql200],
     [$retryUpdateSql200],
     $unique200,
-    'wp_custom_next200',
+    'wp_custom_abort_statement',
 );
 
 $cases200 = [
@@ -71,8 +71,8 @@ $cases200 = [
     'retry delete selected ids' => [static fn (): mixed => $retryDeleteResult200()['plan']->selectedIds, [4, 11]],
     'retry delete network home flag' => [static fn (): mixed => array_column($retryDeleteResult200()['returning'], 'dropped_network_home'), [0, 1]],
 
-    'plan status' => [static fn (): mixed => $plan200()['status'], 'rowvalue-update-delete-returning-abort-statement-current-source-next200'],
-    'plan savepoint' => [static fn (): mixed => $plan200()['savepoint'], 'wp_options_rowvalue_abort_statement_next200'],
+    'plan status' => [static fn (): mixed => $plan200()['status'], 'rowvalue-update-delete-returning-abort-statement-current-source'],
+    'plan savepoint' => [static fn (): mixed => $plan200()['savepoint'], 'wp_options_rowvalue_abort_statement'],
     'plan statement aborted' => [static fn (): mixed => $plan200()['statement_aborted'], true],
     'plan not rolled back to savepoint' => [static fn (): mixed => $plan200()['rolled_back_to_savepoint'], false],
     'plan savepoint preserved after abort' => [static fn (): mixed => $plan200()['savepoint_preserved_after_abort'], true],
@@ -106,10 +106,10 @@ $cases200 = [
     'plan next source equals current' => [static fn (): mixed => $plan200()['next_source_tables'], $plan200()['current_source_tables']],
     'plan changed tables' => [static fn (): mixed => $plan200()['changed_tables_after_retry'], ['wp_options']],
     'plan row count after retry' => [static fn (): mixed => $plan200()['row_counts']['wp_options'], 8],
-    'plan dependency abort statement' => [static fn (): mixed => in_array('sqlite-update-or-abort-rowvalue-returning-discards-failed-statement-next200', $plan200()['dependencies'], true), true],
-    'plan dependency current source survives' => [static fn (): mixed => in_array('sqlite-savepoint-current-source-survives-abort-statement-next200', $plan200()['dependencies'], true), true],
-    'plan dependency retry source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-retry-reads-post-abort-current-source-next200', $plan200()['dependencies'], true), true],
-    'custom plan savepoint' => [static fn (): mixed => $customPlan200()['savepoint'], 'wp_custom_next200'],
+    'plan dependency abort statement' => [static fn (): mixed => in_array('sqlite-update-or-abort-rowvalue-returning-discards-failed-statement', $plan200()['dependencies'], true), true],
+    'plan dependency current source survives' => [static fn (): mixed => in_array('sqlite-savepoint-current-source-survives-abort-statement', $plan200()['dependencies'], true), true],
+    'plan dependency retry source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-retry-reads-post-abort-current-source', $plan200()['dependencies'], true), true],
+    'custom plan savepoint' => [static fn (): mixed => $customPlan200()['savepoint'], 'wp_custom_abort_statement'],
     'custom plan retry count' => [static fn (): mixed => $customPlan200()['yielded_after_retry_count'], 2],
     'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortRollbackConflict($tables200, [], [$savepointUpdateSql200], [$abortSql200], [$retryUpdateSql200], $unique200), InvalidArgumentException::class],
     'malformed empty savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortRollbackConflict($tables200, [$outerSql200], [], [$abortSql200], [$retryUpdateSql200], $unique200), InvalidArgumentException::class],
@@ -122,7 +122,7 @@ $cases200 = [
 
 $tests = [];
 foreach ($cases200 as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next200 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue update delete returning abort statement savepoint ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

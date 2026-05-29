@@ -1671,7 +1671,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedOrderCostNext139(
+    public static function currentSourceGeneratedOrderCostPlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -1699,34 +1699,34 @@ final class SQLiteJsonTablePlan
             $generatedConstraints,
         );
 
-        $currentProfile = self::jsonTableGeneratedOrderCostProfile139(
+        $currentProfile = self::jsonTableGeneratedOrderCostProfile(
             $plan['currentGeneratedHiddenCost'],
             $plan['current'],
             $generatedOrder,
         );
-        $nextProfile = self::jsonTableGeneratedOrderCostProfile139(
+        $nextProfile = self::jsonTableGeneratedOrderCostProfile(
             $plan['nextGeneratedHiddenCost'],
             $plan['next'],
             $generatedOrder,
         );
-        $transitions = self::jsonTableGeneratedOrderCostTransitions139($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedOrderCostReplanReasons139($transitions);
+        $transitions = self::jsonTableGeneratedOrderCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedOrderCostReplanReasons($transitions);
 
         $plan['currentGeneratedOrderCost'] = $currentProfile;
         $plan['nextGeneratedOrderCost'] = $nextProfile;
         $plan['generatedOrderCostTransitions'] = $transitions;
-        $plan['next139ReplanReasons'] = array_values(array_unique(array_merge(
+        $plan['generatedOrderCostReplanReasons'] = array_values(array_unique(array_merge(
             $plan['next136ReplanReasons'],
             $reasons,
         )));
-        $plan['replanRequired'] = $plan['next139ReplanReasons'] !== [];
+        $plan['replanRequired'] = $plan['generatedOrderCostReplanReasons'] !== [];
         $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-order-cost-source-until-cursor-reset';
-        $plan['nextReaderPolicy'] = $plan['next139ReplanReasons'] === []
+        $plan['nextReaderPolicy'] = $plan['generatedOrderCostReplanReasons'] === []
             ? 'reuse-current-json-table-generated-order-cost-plan'
             : 'prepare-next-json-table-generated-order-cost-plan';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-generated-order-cost-current-source-next139'],
+            ['sqlite-json-table-generated-order-cost-current-source-plan'],
         )));
 
         return $plan;
@@ -9654,7 +9654,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
      * @return array{root:string,generatedOrderBy:list<array{name:string,source:string,path:string,direction:string}>,filteredRowCount:int,orderedRowids:list<int|null>,orderedFullkeys:list<mixed>,orderedGeneratedKeys:list<list<mixed>>,generatedOrderTape:list<array{rowid:int|null,fullkey:mixed,key:list<mixed>,matched:bool}>,firstOrderedRowid:int|null,lastOrderedRowid:int|null,filterEffectiveCost:int,generatedSortPenalty:int,effectiveEstimatedCost:int,requiresGeneratedSorter:bool,costClass:string}
      */
-    private static function jsonTableGeneratedOrderCostProfile139(array $generatedHidden, array $plan, array $generatedOrder): array
+    private static function jsonTableGeneratedOrderCostProfile(array $generatedHidden, array $plan, array $generatedOrder): array
     {
         $terms = self::normalizeGeneratedOrderTerms132($generatedOrder);
         $matchedByRowid = [];
@@ -9708,11 +9708,11 @@ final class SQLiteJsonTablePlan
             'generatedSortPenalty' => $sortPenalty,
             'effectiveEstimatedCost' => $effectiveCost,
             'requiresGeneratedSorter' => $requiresSorter,
-            'costClass' => self::jsonTableGeneratedOrderCostClass139((string) $generatedHidden['costClass'], $filteredCount, $requiresSorter, $effectiveCost),
+            'costClass' => self::jsonTableGeneratedOrderCostClass((string) $generatedHidden['costClass'], $filteredCount, $requiresSorter, $effectiveCost),
         ];
     }
 
-    private static function jsonTableGeneratedOrderCostClass139(string $filterCostClass, int $filteredCount, bool $requiresSorter, int $effectiveCost): string
+    private static function jsonTableGeneratedOrderCostClass(string $filterCostClass, int $filteredCount, bool $requiresSorter, int $effectiveCost): string
     {
         if ($filterCostClass === 'unrunnable-json-table') {
             return 'unrunnable-json-table';
@@ -9734,7 +9734,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedOrderCostTransitions139(array $current, array $next): array
+    private static function jsonTableGeneratedOrderCostTransitions(array $current, array $next): array
     {
         return [
             [
@@ -9792,7 +9792,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedOrderCostReplanReasons139(array $transitions): array
+    private static function jsonTableGeneratedOrderCostReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
