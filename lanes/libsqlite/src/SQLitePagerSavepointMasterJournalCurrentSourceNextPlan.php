@@ -88,7 +88,7 @@ final class SQLitePagerSavepointMasterJournalCurrentSourceNextPlan
             ];
         }
 
-        $payloadKey = $primaryDatabasePath . '#savepoint-master-current-source-next92';
+        $payloadKey = $primaryDatabasePath . '#savepoint-master-current-source-retry';
         $applyOperations = [];
         if ($masterRecovery['recovered_database_count'] > 0) {
             $applyOperations = $masterRecovery['operations'];
@@ -125,7 +125,7 @@ final class SQLitePagerSavepointMasterJournalCurrentSourceNextPlan
         return [
             'status' => $masterRecovery['recovered_database_count'] === 0
                 ? 'master_journal_recovery_blocked_before_retry_savepoint'
-                : 'master_journal_recovered_retry_savepoint_current_source_next',
+                : 'master_journal_recovered_retry_savepoint_current_source',
             'reason' => 'retry_savepoint_uses_master_journal_recovered_current_source',
             'master_recovery' => $masterRecovery,
             'primary_database_path' => $primaryDatabasePath,
@@ -141,7 +141,7 @@ final class SQLitePagerSavepointMasterJournalCurrentSourceNextPlan
             'dependencies' => array_values(array_unique(array_merge(
                 $masterRecovery['dependencies'],
                 [
-                    'sqlite-pager-savepoint-master-journal-current-source-next92',
+                    'sqlite-pager-savepoint-master-journal-current-source',
                     'sqlite-savepoint-before-image-after-master-journal-recovery',
                 ]
             ))),

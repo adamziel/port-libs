@@ -28,7 +28,7 @@ $retryUpdateSql181 = "UPDATE wp_options SET (status, option_value) = ('kept181',
 
 $deleteIn181 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($deleteInSql181, $tables181, 'option_id', $unique181);
 $deleteNotIn181 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($deleteNotInSql181, $tables181, 'option_id', $unique181);
-$plan181 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext173(
+$plan181 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInPredicateRetrySavepointBatch(
     $tables181,
     [$stageSql181, $rollbackSql181],
     [$retryDeleteSql181, $retryUpdateSql181],

@@ -30,13 +30,13 @@ $parsedRetry = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($ret
 $plainFail = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failSql, $tables, 'option_id', $unique);
 $preservedFail = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failSql, $tables, 'option_id', $unique, true);
 $retryUpdateOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdateSql, $tables, 'option_id', $unique);
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext173(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInPredicateRetrySavepointBatch(
     $tables,
     [$failSql, $cleanSql],
     [$retryUpdateSql, $retryDeleteSql],
     $unique,
 );
-$cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext173(
+$cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInPredicateRetrySavepointBatch(
     $tables,
     [$cleanSql],
     [$retryDeleteSql],
@@ -115,11 +115,11 @@ $cases = [
     'clean plan yielded delete row three' => [static fn (): mixed => array_column($cleanPlan()['yielded_returning'][0]['rows'], 'option_id'), [3]],
     'clean plan current row seven clean release' => [static fn (): mixed => array_column($cleanPlan()['current_source_tables']['wp_options'], 'status', 'option_id')[7], 'clean-release'],
 
-    'malformed empty attempts rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext173($tables, [], [$retryUpdateSql], $unique), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext173($tables, [$cleanSql], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext173($tables, [$cleanSql], [$retryDeleteSql], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext173($tables, [$cleanSql], [$retryDeleteSql], $unique, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext173(['wp_options' => ['bad']], [$cleanSql], [$retryDeleteSql], $unique), InvalidArgumentException::class],
+    'malformed empty attempts rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInPredicateRetrySavepointBatch($tables, [], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInPredicateRetrySavepointBatch($tables, [$cleanSql], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInPredicateRetrySavepointBatch($tables, [$cleanSql], [$retryDeleteSql], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInPredicateRetrySavepointBatch($tables, [$cleanSql], [$retryDeleteSql], $unique, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInPredicateRetrySavepointBatch(['wp_options' => ['bad']], [$cleanSql], [$retryDeleteSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

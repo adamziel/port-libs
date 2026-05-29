@@ -215,7 +215,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext156(
+    public static function executeYieldReturningSavepointBatch(
         array $tables,
         array $statements,
         array $uniqueConstraints,
@@ -233,7 +233,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING rollback ordinal must be non-negative');
         }
 
-        $savepointImage = self::normalizeTablesNext156($tables);
+        $savepointImage = self::normalizeTablesYieldReturningSavepointBatch($tables);
         $current = $savepointImage;
         $executed = [];
         $yielded = [];
@@ -243,7 +243,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $summary = self::statementSummaryNext156($ordinal, $sql, $result, $rowIdColumn, $before);
+            $summary = self::statementSummaryYieldReturningSavepointBatch($ordinal, $sql, $result, $rowIdColumn, $before);
             $executed[] = $summary;
             $yielded[] = [
                 'ordinal' => $ordinal,
@@ -273,13 +273,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'attempted_statements_before_rollback' => $executed,
             'yielded_returning' => $rollbackRequested ? [] : $yielded,
             'attempted_returning_before_rollback' => $yielded,
-            'discarded_returning_count' => $rollbackRequested ? self::returningCountNext156($yielded) : 0,
-            'changes' => $rollbackRequested ? 0 : self::changeCountNext156($executed),
-            'attempted_changes_before_rollback' => self::changeCountNext156($executed),
-            'ignored_row_count' => self::countNestedRowsNext156($executed, 'ignored_rows'),
-            'deleted_conflict_row_count' => self::countNestedRowsNext156($executed, 'deleted_conflict_rows'),
-            'savepoint_changed_tables' => self::changedTablesNext156($savepointImage, $final),
-            'row_counts' => self::rowCountsNext156($final),
+            'discarded_returning_count' => $rollbackRequested ? self::returningCountYieldReturningSavepointBatch($yielded) : 0,
+            'changes' => $rollbackRequested ? 0 : self::changeCountYieldReturningSavepointBatch($executed),
+            'attempted_changes_before_rollback' => self::changeCountYieldReturningSavepointBatch($executed),
+            'ignored_row_count' => self::countNestedRowsYieldReturningSavepointBatch($executed, 'ignored_rows'),
+            'deleted_conflict_row_count' => self::countNestedRowsYieldReturningSavepointBatch($executed, 'deleted_conflict_rows'),
+            'savepoint_changed_tables' => self::changedTablesYieldReturningSavepointBatch($savepointImage, $final),
+            'row_counts' => self::rowCountsYieldReturningSavepointBatch($final),
             'dependencies' => [
                 'sqlite-update-or-ignore-rowvalue-returning-yields-successful-rows-only',
                 'sqlite-update-or-replace-rowvalue-returning-deletes-conflict-before-yield',
@@ -293,7 +293,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext156(array $tables): array
+    private static function normalizeTablesYieldReturningSavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -314,7 +314,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext156(int $ordinal, string $sql, array $result, string $rowIdColumn, array $before): array
+    private static function statementSummaryYieldReturningSavepointBatch(int $ordinal, string $sql, array $result, string $rowIdColumn, array $before): array
     {
         return [
             'ordinal' => $ordinal,
@@ -324,7 +324,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext156($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsYieldReturningSavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -337,7 +337,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext156(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsYieldReturningSavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -364,7 +364,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext156(array $yielded): int
+    private static function returningCountYieldReturningSavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -377,7 +377,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext156(array $executed): int
+    private static function changeCountYieldReturningSavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -391,7 +391,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function countNestedRowsNext156(array $executed, string $key): int
+    private static function countNestedRowsYieldReturningSavepointBatch(array $executed, string $key): int
     {
         $count = 0;
         foreach ($executed as $statement) {
@@ -409,7 +409,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext156(array $before, array $after): array
+    private static function changedTablesYieldReturningSavepointBatch(array $before, array $after): array
     {
         $names = array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
         sort($names);
@@ -427,7 +427,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext156(array $tables): array
+    private static function rowCountsYieldReturningSavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -723,7 +723,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext158(
+    public static function executePreflightRetrySavepointBatch(
         array $tables,
         array $beforeRollbackStatements,
         array $afterRollbackStatements,
@@ -741,8 +741,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING savepoint next158 needs unique constraints');
         }
 
-        $savepointImage = self::normalizeTablesNext158($tables);
-        [$attemptedBeforeRollback, $preRollbackExecuted, $preRollbackYielded] = self::runStatementsNext158(
+        $savepointImage = self::normalizeTablesPreflightRetrySavepointBatch($tables);
+        [$attemptedBeforeRollback, $preRollbackExecuted, $preRollbackYielded] = self::runStatementsPreflightRetrySavepointBatch(
             $savepointImage,
             $beforeRollbackStatements,
             $uniqueConstraints,
@@ -751,7 +751,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         );
 
         $rollbackToImage = $savepointImage;
-        [$retryCurrent, $retryExecuted, $retryYielded] = self::runStatementsNext158(
+        [$retryCurrent, $retryExecuted, $retryYielded] = self::runStatementsPreflightRetrySavepointBatch(
             $rollbackToImage,
             $afterRollbackStatements,
             $uniqueConstraints,
@@ -774,10 +774,10 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'retry_statements' => $retryExecuted,
             'discarded_returning' => $preRollbackYielded,
             'yielded_returning' => $retryYielded,
-            'discarded_returning_count' => self::returningCountNext158($preRollbackYielded),
-            'changes_after_release' => self::changeCountNext158($retryExecuted),
-            'discarded_changes_before_rollback_to' => self::changeCountNext158($preRollbackExecuted),
-            'row_counts' => self::rowCountsNext158($retryCurrent),
+            'discarded_returning_count' => self::returningCountPreflightRetrySavepointBatch($preRollbackYielded),
+            'changes_after_release' => self::changeCountPreflightRetrySavepointBatch($retryExecuted),
+            'discarded_changes_before_rollback_to' => self::changeCountPreflightRetrySavepointBatch($preRollbackExecuted),
+            'row_counts' => self::rowCountsPreflightRetrySavepointBatch($retryCurrent),
             'dependencies' => [
                 'sqlite-rollback-to-savepoint-keeps-savepoint-active',
                 'sqlite-row-value-update-delete-returning-discarded-on-rollback-to',
@@ -792,7 +792,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runStatementsNext158(
+    private static function runStatementsPreflightRetrySavepointBatch(
         array $tables,
         array $statements,
         array $uniqueConstraints,
@@ -807,7 +807,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext158($phase, $ordinal, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryPreflightRetrySavepointBatch($phase, $ordinal, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => $phase,
                 'ordinal' => $ordinal,
@@ -825,7 +825,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext158(string $phase, int $ordinal, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryPreflightRetrySavepointBatch(string $phase, int $ordinal, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -835,7 +835,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext158($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsPreflightRetrySavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -847,7 +847,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext158(array $tables): array
+    private static function normalizeTablesPreflightRetrySavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -868,7 +868,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext158(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsPreflightRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -895,7 +895,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext158(array $yielded): int
+    private static function returningCountPreflightRetrySavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -908,7 +908,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext158(array $executed): int
+    private static function changeCountPreflightRetrySavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -923,7 +923,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext158(array $tables): array
+    private static function rowCountsPreflightRetrySavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -942,7 +942,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext161(
+    public static function executeConflictRetrySavepointBatch(
         array $tables,
         array $beforeRollbackStatements,
         array $retryStatements,
@@ -960,8 +960,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry next161 needs unique constraints');
         }
 
-        $savepointImage = self::normalizeTablesNext161($tables);
-        [$failedCurrent, $failedStatements, $failedReturning, $failedConflict, $failedOrdinal] = self::runUntilFailNext161(
+        $savepointImage = self::normalizeTablesConflictRetrySavepointBatch($tables);
+        [$failedCurrent, $failedStatements, $failedReturning, $failedConflict, $failedOrdinal] = self::runUntilFailConflictRetrySavepointBatch(
             $savepointImage,
             $beforeRollbackStatements,
             $uniqueConstraints,
@@ -969,7 +969,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         );
 
         $rollbackToImage = $savepointImage;
-        [$retryCurrent, $retryStatementsSummary, $retryReturning] = self::runRetryStatementsNext161(
+        [$retryCurrent, $retryStatementsSummary, $retryReturning] = self::runRetryStatementsConflictRetrySavepointBatch(
             $rollbackToImage,
             $retryStatements,
             $uniqueConstraints,
@@ -994,12 +994,12 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'retry_statements' => $retryStatementsSummary,
             'discarded_returning' => $failedReturning,
             'yielded_returning' => $retryReturning,
-            'discarded_returning_count' => self::returningCountNext161($failedReturning),
-            'yielded_returning_count' => self::returningCountNext161($retryReturning),
-            'failed_changes_before_rollback_to' => self::changeCountNext161($failedStatements),
-            'changes_after_release' => self::changeCountNext161($retryStatementsSummary),
-            'row_counts' => self::rowCountsNext161($retryCurrent),
-            'changed_tables_after_retry' => self::changedTablesNext161($savepointImage, $retryCurrent),
+            'discarded_returning_count' => self::returningCountConflictRetrySavepointBatch($failedReturning),
+            'yielded_returning_count' => self::returningCountConflictRetrySavepointBatch($retryReturning),
+            'failed_changes_before_rollback_to' => self::changeCountConflictRetrySavepointBatch($failedStatements),
+            'changes_after_release' => self::changeCountConflictRetrySavepointBatch($retryStatementsSummary),
+            'row_counts' => self::rowCountsConflictRetrySavepointBatch($retryCurrent),
+            'changed_tables_after_retry' => self::changedTablesConflictRetrySavepointBatch($savepointImage, $retryCurrent),
             'dependencies' => [
                 'sqlite-update-or-fail-preserves-prior-rowvalue-returning-until-rollback-to',
                 'sqlite-rollback-to-savepoint-discards-fail-returning-stream',
@@ -1014,7 +1014,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>,3:?array<string,mixed>,4:?int}
      */
-    private static function runUntilFailNext161(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
+    private static function runUntilFailConflictRetrySavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
     {
         $current = $tables;
         $executed = [];
@@ -1026,7 +1026,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints, true);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext161('before-rollback', $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryConflictRetrySavepointBatch('before-rollback', $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'ordinal' => $ordinal,
                 'action' => $result['action'],
@@ -1050,7 +1050,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runRetryStatementsNext161(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
+    private static function runRetryStatementsConflictRetrySavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
     {
         $current = $tables;
         $executed = [];
@@ -1060,7 +1060,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext161('after-rollback', $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryConflictRetrySavepointBatch('after-rollback', $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'ordinal' => $ordinal,
                 'action' => $result['action'],
@@ -1077,7 +1077,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext161(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryConflictRetrySavepointBatch(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -1088,7 +1088,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext161($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsConflictRetrySavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -1101,7 +1101,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext161(array $tables): array
+    private static function normalizeTablesConflictRetrySavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -1122,7 +1122,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext161(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsConflictRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -1149,7 +1149,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext161(array $yielded): int
+    private static function returningCountConflictRetrySavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -1162,7 +1162,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext161(array $executed): int
+    private static function changeCountConflictRetrySavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -1177,7 +1177,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext161(array $tables): array
+    private static function rowCountsConflictRetrySavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -1192,7 +1192,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext161(array $before, array $after): array
+    private static function changedTablesConflictRetrySavepointBatch(array $before, array $after): array
     {
         $names = array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
         sort($names);
@@ -1669,7 +1669,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext164(
+    public static function executeNullInequalityRetrySavepointBatch(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -1687,8 +1687,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value ROLLBACK retry next164 needs unique constraints');
         }
 
-        $transactionImage = self::normalizeTablesNext164($tables);
-        [$attemptedCurrent, $attempted, $attemptedReturning, $rollbackReason, $rollbackOrdinal] = self::runUntilRollbackNext164(
+        $transactionImage = self::normalizeTablesNullInequalityRetrySavepointBatch($tables);
+        [$attemptedCurrent, $attempted, $attemptedReturning, $rollbackReason, $rollbackOrdinal] = self::runUntilRollbackNullInequalityRetrySavepointBatch(
             $transactionImage,
             $attemptStatements,
             $uniqueConstraints,
@@ -1696,7 +1696,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         );
         $rolledBack = $rollbackReason !== null;
         $retryBase = $rolledBack ? $transactionImage : $attemptedCurrent;
-        [$retryCurrent, $retry, $retryReturning] = self::runRetryNext164(
+        [$retryCurrent, $retry, $retryReturning] = self::runRetryNullInequalityRetrySavepointBatch(
             $retryBase,
             $retryStatements,
             $uniqueConstraints,
@@ -1720,12 +1720,12 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'attempted_returning_before_rollback' => $attemptedReturning,
             'discarded_returning' => $rolledBack ? $attemptedReturning : [],
             'yielded_returning' => $retryReturning,
-            'discarded_returning_count' => $rolledBack ? self::returningCountNext164($attemptedReturning) : 0,
-            'yielded_returning_count' => self::returningCountNext164($retryReturning),
-            'attempted_changes_before_rollback' => self::changeCountNext164($attempted),
-            'changes_after_retry' => self::changeCountNext164($retry),
-            'changed_tables_after_retry' => self::changedTablesNext164($transactionImage, $retryCurrent),
-            'row_counts' => self::rowCountsNext164($retryCurrent),
+            'discarded_returning_count' => $rolledBack ? self::returningCountNullInequalityRetrySavepointBatch($attemptedReturning) : 0,
+            'yielded_returning_count' => self::returningCountNullInequalityRetrySavepointBatch($retryReturning),
+            'attempted_changes_before_rollback' => self::changeCountNullInequalityRetrySavepointBatch($attempted),
+            'changes_after_retry' => self::changeCountNullInequalityRetrySavepointBatch($retry),
+            'changed_tables_after_retry' => self::changedTablesNullInequalityRetrySavepointBatch($transactionImage, $retryCurrent),
+            'row_counts' => self::rowCountsNullInequalityRetrySavepointBatch($retryCurrent),
             'dependencies' => [
                 'sqlite-update-or-rollback-rowvalue-returning-cancels-savepoint-transaction',
                 'sqlite-rollback-conflict-discards-attempted-returning-streams',
@@ -1740,7 +1740,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>,3:?string,4:?int}
      */
-    private static function runUntilRollbackNext164(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
+    private static function runUntilRollbackNullInequalityRetrySavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
     {
         $current = $tables;
         $executed = [];
@@ -1762,7 +1762,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             }
 
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext164('before-rollback', $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryNullInequalityRetrySavepointBatch('before-rollback', $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => 'before-rollback',
                 'ordinal' => $ordinal,
@@ -1781,7 +1781,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runRetryNext164(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
+    private static function runRetryNullInequalityRetrySavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
     {
         $current = $tables;
         $executed = [];
@@ -1791,7 +1791,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext164('after-rollback', $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryNullInequalityRetrySavepointBatch('after-rollback', $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => 'after-rollback',
                 'ordinal' => $ordinal,
@@ -1809,7 +1809,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext164(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryNullInequalityRetrySavepointBatch(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -1820,7 +1820,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext164($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsNullInequalityRetrySavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -1832,7 +1832,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext164(array $tables): array
+    private static function normalizeTablesNullInequalityRetrySavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -1853,7 +1853,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext164(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsNullInequalityRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -1880,7 +1880,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext164(array $yielded): int
+    private static function returningCountNullInequalityRetrySavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -1893,7 +1893,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext164(array $executed): int
+    private static function changeCountNullInequalityRetrySavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -1909,7 +1909,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext164(array $before, array $after): array
+    private static function changedTablesNullInequalityRetrySavepointBatch(array $before, array $after): array
     {
         $names = array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
         sort($names);
@@ -1927,7 +1927,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext164(array $tables): array
+    private static function rowCountsNullInequalityRetrySavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -1945,7 +1945,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext165(
+    public static function executeIgnoreReturningSavepointBatch(
         array $tables,
         array $statements,
         array $uniqueConstraints,
@@ -1958,9 +1958,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         if ($uniqueConstraints === []) {
             throw new \InvalidArgumentException('SQLite row-value UPDATE/DELETE RETURNING savepoint next165 needs unique constraints');
         }
-        self::identifierNext165($savepoint, 'savepoint');
+        self::identifierIgnoreReturningSavepointBatch($savepoint, 'savepoint');
 
-        $savepointImage = self::normalizeTablesNext165($tables);
+        $savepointImage = self::normalizeTablesIgnoreReturningSavepointBatch($tables);
         $current = $savepointImage;
         $executed = [];
         $yielded = [];
@@ -1970,7 +1970,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $summary = self::statementSummaryNext165($ordinal, $sql, $result, $before, $rowIdColumn);
+            $summary = self::statementSummaryIgnoreReturningSavepointBatch($ordinal, $sql, $result, $before, $rowIdColumn);
             $executed[] = $summary;
 
             $yielded[] = [
@@ -2001,11 +2001,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'executed_statements' => $executed,
             'yielded_returning' => $yielded,
             'ignored_returning' => $ignoredStreams,
-            'ignored_returning_count' => self::ignoredCountNext165($ignoredStreams),
-            'yielded_returning_count' => self::returningCountNext165($yielded),
-            'changes' => self::changeCountNext165($executed),
-            'savepoint_changed_tables' => self::changedTablesNext165($savepointImage, $current),
-            'row_counts' => self::rowCountsNext165($current),
+            'ignored_returning_count' => self::ignoredCountIgnoreReturningSavepointBatch($ignoredStreams),
+            'yielded_returning_count' => self::returningCountIgnoreReturningSavepointBatch($yielded),
+            'changes' => self::changeCountIgnoreReturningSavepointBatch($executed),
+            'savepoint_changed_tables' => self::changedTablesIgnoreReturningSavepointBatch($savepointImage, $current),
+            'row_counts' => self::rowCountsIgnoreReturningSavepointBatch($current),
             'dependencies' => [
                 'sqlite-rowvalue-update-or-ignore-suppresses-returning',
                 'sqlite-delete-returning-after-ignored-rowvalue-conflict-continues',
@@ -2018,7 +2018,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext165(array $tables): array
+    private static function normalizeTablesIgnoreReturningSavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -2034,7 +2034,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $tables;
     }
 
-    private static function identifierNext165(string $value, string $label): void
+    private static function identifierIgnoreReturningSavepointBatch(string $value, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
             throw new \InvalidArgumentException("SQLite row-value UPDATE/DELETE RETURNING savepoint next165 {$label} is malformed");
@@ -2046,7 +2046,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext165(int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryIgnoreReturningSavepointBatch(int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'ordinal' => $ordinal,
@@ -2056,7 +2056,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext165($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsIgnoreReturningSavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -2070,7 +2070,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext165(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsIgnoreReturningSavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -2097,7 +2097,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext165(array $yielded): int
+    private static function returningCountIgnoreReturningSavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -2110,7 +2110,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $ignored
      */
-    private static function ignoredCountNext165(array $ignored): int
+    private static function ignoredCountIgnoreReturningSavepointBatch(array $ignored): int
     {
         $count = 0;
         foreach ($ignored as $stream) {
@@ -2123,7 +2123,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext165(array $executed): int
+    private static function changeCountIgnoreReturningSavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -2138,7 +2138,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext165(array $tables): array
+    private static function rowCountsIgnoreReturningSavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -2153,7 +2153,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext165(array $before, array $after): array
+    private static function changedTablesIgnoreReturningSavepointBatch(array $before, array $after): array
     {
         $changed = [];
         foreach (array_unique(array_merge(array_keys($before), array_keys($after))) as $table) {
@@ -2177,7 +2177,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext166(
+    public static function executeNestedRetrySavepointBatch(
         array $tables,
         array $innerStatements,
         array $outerStatements,
@@ -2203,15 +2203,15 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value nested savepoint next166 needs distinct savepoint names');
         }
 
-        $outerImage = self::normalizeTablesNext166($tables);
-        [$innerReleasedCurrent, $innerExecuted, $innerReturning] = self::runStatementsNext166(
+        $outerImage = self::normalizeTablesNestedRetrySavepointBatch($tables);
+        [$innerReleasedCurrent, $innerExecuted, $innerReturning] = self::runStatementsNestedRetrySavepointBatch(
             $outerImage,
             $innerStatements,
             $uniqueConstraints,
             $rowIdColumn,
             'inner-released',
         );
-        [$outerAttemptedCurrent, $outerExecuted, $outerReturning] = self::runStatementsNext166(
+        [$outerAttemptedCurrent, $outerExecuted, $outerReturning] = self::runStatementsNestedRetrySavepointBatch(
             $innerReleasedCurrent,
             $outerStatements,
             $uniqueConstraints,
@@ -2220,7 +2220,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         );
 
         $rollbackToOuter = $outerImage;
-        [$retryCurrent, $retryExecuted, $retryReturning] = self::runStatementsNext166(
+        [$retryCurrent, $retryExecuted, $retryReturning] = self::runStatementsNestedRetrySavepointBatch(
             $rollbackToOuter,
             $retryStatements,
             $uniqueConstraints,
@@ -2252,12 +2252,12 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'outer_attempted_returning' => $outerReturning,
             'discarded_returning' => $discardedReturning,
             'yielded_returning' => $retryReturning,
-            'discarded_returning_count' => self::returningCountNext166($discardedReturning),
-            'yielded_returning_count' => self::returningCountNext166($retryReturning),
-            'discarded_changes_before_outer_rollback_to' => self::changeCountNext166($discardedStatements),
-            'changes_after_retry_release' => self::changeCountNext166($retryExecuted),
-            'row_counts' => self::rowCountsNext166($retryCurrent),
-            'changed_tables_after_retry' => self::changedTablesNext166($outerImage, $retryCurrent),
+            'discarded_returning_count' => self::returningCountNestedRetrySavepointBatch($discardedReturning),
+            'yielded_returning_count' => self::returningCountNestedRetrySavepointBatch($retryReturning),
+            'discarded_changes_before_outer_rollback_to' => self::changeCountNestedRetrySavepointBatch($discardedStatements),
+            'changes_after_retry_release' => self::changeCountNestedRetrySavepointBatch($retryExecuted),
+            'row_counts' => self::rowCountsNestedRetrySavepointBatch($retryCurrent),
+            'changed_tables_after_retry' => self::changedTablesNestedRetrySavepointBatch($outerImage, $retryCurrent),
             'dependencies' => [
                 'sqlite-release-inner-savepoint-merges-rowvalue-returning-into-outer-savepoint-next166',
                 'sqlite-rollback-to-outer-savepoint-discards-released-inner-returning-next166',
@@ -2272,7 +2272,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runStatementsNext166(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    private static function runStatementsNestedRetrySavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
     {
         $current = $tables;
         $executed = [];
@@ -2282,7 +2282,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext166($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryNestedRetrySavepointBatch($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => $phase,
                 'ordinal' => $ordinal,
@@ -2300,7 +2300,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext166(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryNestedRetrySavepointBatch(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -2311,7 +2311,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext166($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsNestedRetrySavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -2324,7 +2324,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext166(array $tables): array
+    private static function normalizeTablesNestedRetrySavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -2345,7 +2345,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext166(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsNestedRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -2372,7 +2372,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext166(array $yielded): int
+    private static function returningCountNestedRetrySavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -2385,7 +2385,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext166(array $executed): int
+    private static function changeCountNestedRetrySavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -2400,7 +2400,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext166(array $tables): array
+    private static function rowCountsNestedRetrySavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -2415,7 +2415,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext166(array $before, array $after): array
+    private static function changedTablesNestedRetrySavepointBatch(array $before, array $after): array
     {
         $names = array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
         sort($names);
@@ -2439,7 +2439,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext168(
+    public static function executeNestedIgnoreRetrySavepointBatch(
         array $tables,
         array $outerStatements,
         array $innerAttemptStatements,
@@ -2462,8 +2462,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite nested row-value savepoint next168 needs unique constraints');
         }
 
-        $outerImage = self::normalizeTablesNext168($tables);
-        [$afterOuter, $outerExecuted, $outerReturning] = self::runStatementsNext168(
+        $outerImage = self::normalizeTablesNestedIgnoreRetrySavepointBatch($tables);
+        [$afterOuter, $outerExecuted, $outerReturning] = self::runStatementsNestedIgnoreRetrySavepointBatch(
             $outerImage,
             $outerStatements,
             $uniqueConstraints,
@@ -2472,7 +2472,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         );
 
         $innerImage = $afterOuter;
-        [$attemptedInner, $innerAttempted, $innerAttemptReturning] = self::runStatementsNext168(
+        [$attemptedInner, $innerAttempted, $innerAttemptReturning] = self::runStatementsNestedIgnoreRetrySavepointBatch(
             $innerImage,
             $innerAttemptStatements,
             $uniqueConstraints,
@@ -2481,7 +2481,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         );
 
         $afterRollbackToInner = $innerImage;
-        [$afterRetry, $innerRetry, $innerRetryReturning] = self::runStatementsNext168(
+        [$afterRetry, $innerRetry, $innerRetryReturning] = self::runStatementsNestedIgnoreRetrySavepointBatch(
             $afterRollbackToInner,
             $innerRetryStatements,
             $uniqueConstraints,
@@ -2509,15 +2509,15 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'yielded_outer_returning' => $outerReturning,
             'discarded_inner_returning' => $innerAttemptReturning,
             'yielded_inner_retry_returning' => $innerRetryReturning,
-            'yielded_outer_returning_count' => self::returningCountNext168($outerReturning),
-            'discarded_inner_returning_count' => self::returningCountNext168($innerAttemptReturning),
-            'yielded_inner_retry_returning_count' => self::returningCountNext168($innerRetryReturning),
-            'outer_changes' => self::changeCountNext168($outerExecuted),
-            'discarded_inner_changes' => self::changeCountNext168($innerAttempted),
-            'changes_after_inner_retry' => self::changeCountNext168($innerRetry),
-            'total_released_changes' => self::changeCountNext168($outerExecuted) + self::changeCountNext168($innerRetry),
-            'changed_tables_after_release' => self::changedTablesNext168($outerImage, $afterRetry),
-            'row_counts' => self::rowCountsNext168($afterRetry),
+            'yielded_outer_returning_count' => self::returningCountNestedIgnoreRetrySavepointBatch($outerReturning),
+            'discarded_inner_returning_count' => self::returningCountNestedIgnoreRetrySavepointBatch($innerAttemptReturning),
+            'yielded_inner_retry_returning_count' => self::returningCountNestedIgnoreRetrySavepointBatch($innerRetryReturning),
+            'outer_changes' => self::changeCountNestedIgnoreRetrySavepointBatch($outerExecuted),
+            'discarded_inner_changes' => self::changeCountNestedIgnoreRetrySavepointBatch($innerAttempted),
+            'changes_after_inner_retry' => self::changeCountNestedIgnoreRetrySavepointBatch($innerRetry),
+            'total_released_changes' => self::changeCountNestedIgnoreRetrySavepointBatch($outerExecuted) + self::changeCountNestedIgnoreRetrySavepointBatch($innerRetry),
+            'changed_tables_after_release' => self::changedTablesNestedIgnoreRetrySavepointBatch($outerImage, $afterRetry),
+            'row_counts' => self::rowCountsNestedIgnoreRetrySavepointBatch($afterRetry),
             'dependencies' => [
                 'sqlite-nested-savepoint-rollback-to-preserves-outer-rowvalue-returning-next168',
                 'sqlite-rowvalue-update-delete-returning-discards-inner-rollback-stream-next168',
@@ -2532,7 +2532,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runStatementsNext168(
+    private static function runStatementsNestedIgnoreRetrySavepointBatch(
         array $tables,
         array $statements,
         array $uniqueConstraints,
@@ -2547,7 +2547,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext168($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryNestedIgnoreRetrySavepointBatch($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => $phase,
                 'ordinal' => $ordinal,
@@ -2565,7 +2565,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext168(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryNestedIgnoreRetrySavepointBatch(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -2576,7 +2576,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext168($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsNestedIgnoreRetrySavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -2588,7 +2588,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext168(array $tables): array
+    private static function normalizeTablesNestedIgnoreRetrySavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -2609,7 +2609,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext168(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsNestedIgnoreRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -2636,7 +2636,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext168(array $yielded): int
+    private static function returningCountNestedIgnoreRetrySavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -2649,7 +2649,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext168(array $executed): int
+    private static function changeCountNestedIgnoreRetrySavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -2665,7 +2665,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext168(array $before, array $after): array
+    private static function changedTablesNestedIgnoreRetrySavepointBatch(array $before, array $after): array
     {
         $names = array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
         sort($names);
@@ -2683,7 +2683,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext168(array $tables): array
+    private static function rowCountsNestedIgnoreRetrySavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -2984,7 +2984,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext170(
+    public static function executeAbortReturningSavepointBatch(
         array $tables,
         array $statements,
         array $retryStatements,
@@ -2998,11 +2998,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         if ($uniqueConstraints === []) {
             throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next170 needs unique constraints');
         }
-        self::identifierNext170($savepoint, 'savepoint');
+        self::identifierAbortReturningSavepointBatch($savepoint, 'savepoint');
 
-        $savepointImage = self::normalizeTablesNext170($tables);
-        [$current, $executed, $yielded, $aborted] = self::runUntilAbortNext170($savepointImage, $statements, $uniqueConstraints, $rowIdColumn);
-        [$retryCurrent, $retryExecuted, $retryYielded] = self::runRetryNext170($current, $retryStatements, $uniqueConstraints, $rowIdColumn);
+        $savepointImage = self::normalizeTablesAbortReturningSavepointBatch($tables);
+        [$current, $executed, $yielded, $aborted] = self::runUntilAbortAbortReturningSavepointBatch($savepointImage, $statements, $uniqueConstraints, $rowIdColumn);
+        [$retryCurrent, $retryExecuted, $retryYielded] = self::runRetryAbortReturningSavepointBatch($current, $retryStatements, $uniqueConstraints, $rowIdColumn);
 
         return [
             'savepoint' => $savepoint,
@@ -3020,14 +3020,14 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'yielded_returning' => $yielded,
             'retry_statements' => $retryExecuted,
             'retry_returning' => $retryYielded,
-            'yielded_returning_count_before_abort' => self::returningCountNext170($yielded),
-            'retry_returning_count' => self::returningCountNext170($retryYielded),
-            'changes_before_abort' => self::changeCountNext170($executed),
-            'changes_after_retry' => self::changeCountNext170($retryExecuted),
-            'savepoint_changed_tables_after_abort' => self::changedTablesNext170($savepointImage, $current),
-            'changed_tables_after_retry' => self::changedTablesNext170($savepointImage, $retryCurrent),
-            'row_counts_after_abort' => self::rowCountsNext170($current),
-            'row_counts_after_retry' => self::rowCountsNext170($retryCurrent),
+            'yielded_returning_count_before_abort' => self::returningCountAbortReturningSavepointBatch($yielded),
+            'retry_returning_count' => self::returningCountAbortReturningSavepointBatch($retryYielded),
+            'changes_before_abort' => self::changeCountAbortReturningSavepointBatch($executed),
+            'changes_after_retry' => self::changeCountAbortReturningSavepointBatch($retryExecuted),
+            'savepoint_changed_tables_after_abort' => self::changedTablesAbortReturningSavepointBatch($savepointImage, $current),
+            'changed_tables_after_retry' => self::changedTablesAbortReturningSavepointBatch($savepointImage, $retryCurrent),
+            'row_counts_after_abort' => self::rowCountsAbortReturningSavepointBatch($current),
+            'row_counts_after_retry' => self::rowCountsAbortReturningSavepointBatch($retryCurrent),
             'dependencies' => [
                 'sqlite-update-or-abort-rolls-back-current-rowvalue-statement-only',
                 'sqlite-prior-update-delete-returning-streams-survive-abort-statement',
@@ -3042,7 +3042,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>,3:?array<string,mixed>}
      */
-    private static function runUntilAbortNext170(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
+    private static function runUntilAbortAbortReturningSavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
     {
         $current = $tables;
         $executed = [];
@@ -3067,7 +3067,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             }
 
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext170($ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryAbortReturningSavepointBatch($ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'ordinal' => $ordinal,
                 'action' => $result['action'],
@@ -3085,7 +3085,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runRetryNext170(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
+    private static function runRetryAbortReturningSavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
     {
         $current = $tables;
         $executed = [];
@@ -3095,7 +3095,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext170($ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryAbortReturningSavepointBatch($ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'ordinal' => $ordinal,
                 'action' => $result['action'],
@@ -3112,7 +3112,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext170(int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryAbortReturningSavepointBatch(int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'ordinal' => $ordinal,
@@ -3122,7 +3122,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext170($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsAbortReturningSavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -3135,7 +3135,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext170(array $tables): array
+    private static function normalizeTablesAbortReturningSavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -3151,7 +3151,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $tables;
     }
 
-    private static function identifierNext170(string $value, string $label): void
+    private static function identifierAbortReturningSavepointBatch(string $value, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
             throw new \InvalidArgumentException("SQLite row-value ABORT savepoint next170 {$label} is malformed");
@@ -3163,7 +3163,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext170(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsAbortReturningSavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -3190,7 +3190,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext170(array $yielded): int
+    private static function returningCountAbortReturningSavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -3203,7 +3203,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext170(array $executed): int
+    private static function changeCountAbortReturningSavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -3219,7 +3219,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext170(array $before, array $after): array
+    private static function changedTablesAbortReturningSavepointBatch(array $before, array $after): array
     {
         $changed = [];
         foreach (array_unique(array_merge(array_keys($before), array_keys($after))) as $name) {
@@ -3237,7 +3237,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext170(array $tables): array
+    private static function rowCountsAbortReturningSavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -3257,7 +3257,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext172(
+    public static function executeYieldCheckpointSavepointBatch(
         array $tables,
         array $yieldedBeforeRollbackStatements,
         array $discardedBeforeRollbackStatements,
@@ -3282,15 +3282,15 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value yield savepoint next172 savepoint name must be an identifier');
         }
 
-        $savepointImage = self::normalizeTablesNext172($tables);
-        [$yieldedAttemptCurrent, $yieldedStatements, $deliveredReturning] = self::runStatementsNext172(
+        $savepointImage = self::normalizeTablesYieldCheckpointSavepointBatch($tables);
+        [$yieldedAttemptCurrent, $yieldedStatements, $deliveredReturning] = self::runStatementsYieldCheckpointSavepointBatch(
             $savepointImage,
             $yieldedBeforeRollbackStatements,
             $uniqueConstraints,
             $rowIdColumn,
             'yielded-before-rollback',
         );
-        [$discardAttemptCurrent, $discardedStatements, $discardedReturning] = self::runStatementsNext172(
+        [$discardAttemptCurrent, $discardedStatements, $discardedReturning] = self::runStatementsYieldCheckpointSavepointBatch(
             $yieldedAttemptCurrent,
             $discardedBeforeRollbackStatements,
             $uniqueConstraints,
@@ -3299,7 +3299,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         );
 
         $rollbackToCurrent = $savepointImage;
-        [$retryCurrent, $retryStatementsExecuted, $retryReturning] = self::runStatementsNext172(
+        [$retryCurrent, $retryStatementsExecuted, $retryReturning] = self::runStatementsYieldCheckpointSavepointBatch(
             $rollbackToCurrent,
             $retryStatements,
             $uniqueConstraints,
@@ -3331,14 +3331,14 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'discarded_before_rollback_returning' => $discardedReturning,
             'suppressed_by_rollback_returning' => $allSuppressed,
             'yielded_after_retry_returning' => $retryReturning,
-            'delivered_before_rollback_count' => self::returningCountNext172($deliveredReturning),
-            'discarded_before_rollback_count' => self::returningCountNext172($discardedReturning),
-            'suppressed_by_rollback_count' => self::returningCountNext172($allSuppressed),
-            'yielded_after_retry_count' => self::returningCountNext172($retryReturning),
-            'attempted_changes_before_rollback_to' => self::changeCountNext172($allAttempted),
-            'changes_after_retry_release' => self::changeCountNext172($retryStatementsExecuted),
-            'row_counts' => self::rowCountsNext172($retryCurrent),
-            'changed_tables_after_retry' => self::changedTablesNext172($savepointImage, $retryCurrent),
+            'delivered_before_rollback_count' => self::returningCountYieldCheckpointSavepointBatch($deliveredReturning),
+            'discarded_before_rollback_count' => self::returningCountYieldCheckpointSavepointBatch($discardedReturning),
+            'suppressed_by_rollback_count' => self::returningCountYieldCheckpointSavepointBatch($allSuppressed),
+            'yielded_after_retry_count' => self::returningCountYieldCheckpointSavepointBatch($retryReturning),
+            'attempted_changes_before_rollback_to' => self::changeCountYieldCheckpointSavepointBatch($allAttempted),
+            'changes_after_retry_release' => self::changeCountYieldCheckpointSavepointBatch($retryStatementsExecuted),
+            'row_counts' => self::rowCountsYieldCheckpointSavepointBatch($retryCurrent),
+            'changed_tables_after_retry' => self::changedTablesYieldCheckpointSavepointBatch($savepointImage, $retryCurrent),
             'dependencies' => [
                 'sqlite-rowvalue-returning-yield-before-savepoint-rollback-next172',
                 'sqlite-rollback-to-suppresses-yielded-returning-durability-next172',
@@ -3353,7 +3353,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runStatementsNext172(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    private static function runStatementsYieldCheckpointSavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
     {
         $current = $tables;
         $executed = [];
@@ -3363,7 +3363,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext172($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryYieldCheckpointSavepointBatch($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => $phase,
                 'ordinal' => $ordinal,
@@ -3381,7 +3381,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext172(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryYieldCheckpointSavepointBatch(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -3392,7 +3392,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext172($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsYieldCheckpointSavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -3405,7 +3405,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext172(array $tables): array
+    private static function normalizeTablesYieldCheckpointSavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -3426,7 +3426,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext172(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsYieldCheckpointSavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -3453,7 +3453,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext172(array $yielded): int
+    private static function returningCountYieldCheckpointSavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -3466,7 +3466,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext172(array $executed): int
+    private static function changeCountYieldCheckpointSavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -3481,7 +3481,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext172(array $tables): array
+    private static function rowCountsYieldCheckpointSavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -3496,7 +3496,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext172(array $before, array $after): array
+    private static function changedTablesYieldCheckpointSavepointBatch(array $before, array $after): array
     {
         $names = array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
         sort($names);
@@ -3519,7 +3519,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext173(
+    public static function executeInPredicateRetrySavepointBatch(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -3536,10 +3536,10 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         if ($uniqueConstraints === []) {
             throw new \InvalidArgumentException('SQLite row-value update/delete RETURNING next173 needs unique constraints');
         }
-        self::identifierNext173($savepoint, 'savepoint');
+        self::identifierInPredicateRetrySavepointBatch($savepoint, 'savepoint');
 
-        $savepointImage = self::normalizeTablesNext173($tables);
-        [$failedCurrent, $attempted, $attemptedReturning, $failedConflict, $failedOrdinal] = self::runAttemptNext173(
+        $savepointImage = self::normalizeTablesInPredicateRetrySavepointBatch($tables);
+        [$failedCurrent, $attempted, $attemptedReturning, $failedConflict, $failedOrdinal] = self::runAttemptInPredicateRetrySavepointBatch(
             $savepointImage,
             $attemptStatements,
             $uniqueConstraints,
@@ -3547,7 +3547,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         );
 
         $rollbackToCurrent = $failedConflict === null ? $failedCurrent : $savepointImage;
-        [$releasedCurrent, $retry, $yieldedReturning] = self::runRetryNext173(
+        [$releasedCurrent, $retry, $yieldedReturning] = self::runRetryInPredicateRetrySavepointBatch(
             $rollbackToCurrent,
             $retryStatements,
             $uniqueConstraints,
@@ -3574,12 +3574,12 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'attempted_returning_before_rollback' => $attemptedReturning,
             'discarded_returning' => $failedConflict === null ? [] : $attemptedReturning,
             'yielded_returning' => $yieldedReturning,
-            'discarded_returning_count' => $failedConflict === null ? 0 : self::returningCountNext173($attemptedReturning),
-            'yielded_returning_count' => self::returningCountNext173($yieldedReturning),
-            'attempted_changes_before_rollback_to' => self::changeCountNext173($attempted),
-            'changes_after_retry_release' => self::changeCountNext173($retry),
-            'changed_tables_after_retry' => self::changedTablesNext173($savepointImage, $releasedCurrent),
-            'row_counts' => self::rowCountsNext173($releasedCurrent),
+            'discarded_returning_count' => $failedConflict === null ? 0 : self::returningCountInPredicateRetrySavepointBatch($attemptedReturning),
+            'yielded_returning_count' => self::returningCountInPredicateRetrySavepointBatch($yieldedReturning),
+            'attempted_changes_before_rollback_to' => self::changeCountInPredicateRetrySavepointBatch($attempted),
+            'changes_after_retry_release' => self::changeCountInPredicateRetrySavepointBatch($retry),
+            'changed_tables_after_retry' => self::changedTablesInPredicateRetrySavepointBatch($savepointImage, $releasedCurrent),
+            'row_counts' => self::rowCountsInPredicateRetrySavepointBatch($releasedCurrent),
             'dependencies' => [
                 'sqlite-update-or-fail-rowvalue-returning-stream-before-savepoint-rollback-next173',
                 'sqlite-rollback-to-discards-update-delete-returning-stream-next173',
@@ -3594,7 +3594,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>,3:?array<string,mixed>,4:?int}
      */
-    private static function runAttemptNext173(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
+    private static function runAttemptInPredicateRetrySavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
     {
         $current = $tables;
         $executed = [];
@@ -3606,7 +3606,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints, true);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext173('before-rollback-to', $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryInPredicateRetrySavepointBatch('before-rollback-to', $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => 'before-rollback-to',
                 'ordinal' => $ordinal,
@@ -3630,7 +3630,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runRetryNext173(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
+    private static function runRetryInPredicateRetrySavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
     {
         $current = $tables;
         $executed = [];
@@ -3640,7 +3640,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext173('after-rollback-to', $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryInPredicateRetrySavepointBatch('after-rollback-to', $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => 'after-rollback-to',
                 'ordinal' => $ordinal,
@@ -3658,7 +3658,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext173(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryInPredicateRetrySavepointBatch(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -3669,7 +3669,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext173($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsInPredicateRetrySavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -3682,7 +3682,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext173(array $tables): array
+    private static function normalizeTablesInPredicateRetrySavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -3698,7 +3698,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $tables;
     }
 
-    private static function identifierNext173(string $value, string $label): void
+    private static function identifierInPredicateRetrySavepointBatch(string $value, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
             throw new \InvalidArgumentException("SQLite row-value update/delete RETURNING next173 {$label} is malformed");
@@ -3710,7 +3710,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext173(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsInPredicateRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -3737,7 +3737,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $streams
      */
-    private static function returningCountNext173(array $streams): int
+    private static function returningCountInPredicateRetrySavepointBatch(array $streams): int
     {
         $count = 0;
         foreach ($streams as $stream) {
@@ -3750,7 +3750,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext173(array $executed): int
+    private static function changeCountInPredicateRetrySavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -3766,7 +3766,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext173(array $before, array $after): array
+    private static function changedTablesInPredicateRetrySavepointBatch(array $before, array $after): array
     {
         $names = array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
         sort($names);
@@ -3784,7 +3784,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext173(array $tables): array
+    private static function rowCountsInPredicateRetrySavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -4298,7 +4298,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext178(
+    public static function executeValuesRetrySavepointBatch(
         array $tables,
         array $outerStatements,
         array $savepointStatements,
@@ -4321,8 +4321,8 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value OR ROLLBACK next178 needs unique constraints');
         }
 
-        $transactionImage = self::normalizeTablesNext178($tables);
-        [$outerCurrent, $outerExecuted, $outerReturning] = self::runStatementsNext178(
+        $transactionImage = self::normalizeTablesValuesRetrySavepointBatch($tables);
+        [$outerCurrent, $outerExecuted, $outerReturning] = self::runStatementsValuesRetrySavepointBatch(
             $transactionImage,
             $outerStatements,
             $uniqueConstraints,
@@ -4330,7 +4330,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'outer',
         );
         $savepointImage = $outerCurrent;
-        [$failedCurrent, $savepointExecuted, $savepointReturning, $rollbackReason, $rollbackOrdinal] = self::runSavepointUntilRollbackNext178(
+        [$failedCurrent, $savepointExecuted, $savepointReturning, $rollbackReason, $rollbackOrdinal] = self::runSavepointUntilRollbackValuesRetrySavepointBatch(
             $savepointImage,
             $savepointStatements,
             $uniqueConstraints,
@@ -4339,7 +4339,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
 
         $rolledBackTransaction = $rollbackReason !== null;
         $retrySource = $rolledBackTransaction ? $transactionImage : $failedCurrent;
-        [$retryCurrent, $retryExecuted, $retryReturning] = self::runStatementsNext178(
+        [$retryCurrent, $retryExecuted, $retryReturning] = self::runStatementsValuesRetrySavepointBatch(
             $retrySource,
             $retryStatements,
             $uniqueConstraints,
@@ -4371,12 +4371,12 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'retry_statements' => $retryExecuted,
             'discarded_returning' => $discardedReturning,
             'yielded_returning' => $retryReturning,
-            'discarded_returning_count' => self::returningCountNext178($discardedReturning),
-            'yielded_returning_count' => self::returningCountNext178($retryReturning),
-            'attempted_changes_before_rollback' => self::changeCountNext178(array_merge($outerExecuted, $savepointExecuted)),
-            'changes_after_retry' => self::changeCountNext178($retryExecuted),
-            'changed_tables_after_retry' => self::changedTablesNext178($transactionImage, $retryCurrent),
-            'row_counts' => self::rowCountsNext178($retryCurrent),
+            'discarded_returning_count' => self::returningCountValuesRetrySavepointBatch($discardedReturning),
+            'yielded_returning_count' => self::returningCountValuesRetrySavepointBatch($retryReturning),
+            'attempted_changes_before_rollback' => self::changeCountValuesRetrySavepointBatch(array_merge($outerExecuted, $savepointExecuted)),
+            'changes_after_retry' => self::changeCountValuesRetrySavepointBatch($retryExecuted),
+            'changed_tables_after_retry' => self::changedTablesValuesRetrySavepointBatch($transactionImage, $retryCurrent),
+            'row_counts' => self::rowCountsValuesRetrySavepointBatch($retryCurrent),
             'dependencies' => [
                 'sqlite-update-or-rollback-rowvalue-returning-rolls-back-transaction-next178',
                 'sqlite-rollback-conflict-discards-outer-and-savepoint-returning-next178',
@@ -4391,7 +4391,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runStatementsNext178(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    private static function runStatementsValuesRetrySavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
     {
         $current = $tables;
         $executed = [];
@@ -4401,7 +4401,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext178($phase, $ordinal, $sql, $result, $before, $rowIdColumn, null);
+            $executed[] = self::statementSummaryValuesRetrySavepointBatch($phase, $ordinal, $sql, $result, $before, $rowIdColumn, null);
             $yielded[] = [
                 'phase' => $phase,
                 'ordinal' => $ordinal,
@@ -4420,7 +4420,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>,3:?string,4:?int}
      */
-    private static function runSavepointUntilRollbackNext178(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
+    private static function runSavepointUntilRollbackValuesRetrySavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn): array
     {
         $current = $tables;
         $executed = [];
@@ -4437,7 +4437,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                     'sql' => $sql,
                     'action' => str_starts_with(strtoupper(ltrim($sql)), 'DELETE') ? 'delete' : 'update',
                     'conflict_action' => str_contains(strtoupper($sql), ' OR ROLLBACK ') ? 'rollback' : 'abort',
-                    'table' => self::statementTableNameNext178($sql),
+                    'table' => self::statementTableNameValuesRetrySavepointBatch($sql),
                     'selected_ids' => [],
                     'mutation_ids' => [],
                     'source_rows' => [],
@@ -4452,7 +4452,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             }
 
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext178('savepoint', $ordinal, $sql, $result, $before, $rowIdColumn, null);
+            $executed[] = self::statementSummaryValuesRetrySavepointBatch('savepoint', $ordinal, $sql, $result, $before, $rowIdColumn, null);
             $yielded[] = [
                 'phase' => 'savepoint',
                 'ordinal' => $ordinal,
@@ -4470,7 +4470,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext178(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn, ?array $failedConflict): array
+    private static function statementSummaryValuesRetrySavepointBatch(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn, ?array $failedConflict): array
     {
         return [
             'phase' => $phase,
@@ -4481,7 +4481,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext178($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsValuesRetrySavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -4490,7 +4490,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         ];
     }
 
-    private static function statementTableNameNext178(string $sql): string
+    private static function statementTableNameValuesRetrySavepointBatch(string $sql): string
     {
         if (preg_match('/^\s*DELETE\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)/i', $sql, $match) === 1) {
             return $match[1];
@@ -4506,7 +4506,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext178(array $tables): array
+    private static function normalizeTablesValuesRetrySavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -4527,7 +4527,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext178(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsValuesRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -4554,7 +4554,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext178(array $yielded): int
+    private static function returningCountValuesRetrySavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -4567,7 +4567,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext178(array $executed): int
+    private static function changeCountValuesRetrySavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -4583,7 +4583,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext178(array $before, array $after): array
+    private static function changedTablesValuesRetrySavepointBatch(array $before, array $after): array
     {
         $names = array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
         sort($names);
@@ -4601,7 +4601,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext178(array $tables): array
+    private static function rowCountsValuesRetrySavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -4622,7 +4622,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext180(
+    public static function executeIgnoreNestedRetrySavepointBatch(
         array $tables,
         array $outerStatements,
         array $innerYieldedStatements,
@@ -4649,15 +4649,15 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value inner rollback next180 needs unique constraints');
         }
 
-        $outerImage = self::normalizeTablesNext180($tables);
-        [$afterOuter, $outerExecuted, $outerReturning] = self::runStatementsNext180($outerImage, $outerStatements, $uniqueConstraints, $rowIdColumn, 'outer-before-inner');
+        $outerImage = self::normalizeTablesIgnoreNestedRetrySavepointBatch($tables);
+        [$afterOuter, $outerExecuted, $outerReturning] = self::runStatementsIgnoreNestedRetrySavepointBatch($outerImage, $outerStatements, $uniqueConstraints, $rowIdColumn, 'outer-before-inner');
 
         $innerImage = $afterOuter;
-        [$afterYielded, $yieldedExecuted, $yieldedReturning] = self::runStatementsNext180($innerImage, $innerYieldedStatements, $uniqueConstraints, $rowIdColumn, 'inner-yielded-before-rollback');
-        [$afterDiscarded, $discardedExecuted, $discardedReturning] = self::runStatementsNext180($afterYielded, $innerDiscardedStatements, $uniqueConstraints, $rowIdColumn, 'inner-discarded-before-rollback');
+        [$afterYielded, $yieldedExecuted, $yieldedReturning] = self::runStatementsIgnoreNestedRetrySavepointBatch($innerImage, $innerYieldedStatements, $uniqueConstraints, $rowIdColumn, 'inner-yielded-before-rollback');
+        [$afterDiscarded, $discardedExecuted, $discardedReturning] = self::runStatementsIgnoreNestedRetrySavepointBatch($afterYielded, $innerDiscardedStatements, $uniqueConstraints, $rowIdColumn, 'inner-discarded-before-rollback');
 
         $afterInnerRollback = $innerImage;
-        [$afterInnerRetry, $retryExecuted, $retryReturning] = self::runStatementsNext180($afterInnerRollback, $innerRetryStatements, $uniqueConstraints, $rowIdColumn, 'inner-retry-after-rollback');
+        [$afterInnerRetry, $retryExecuted, $retryReturning] = self::runStatementsIgnoreNestedRetrySavepointBatch($afterInnerRollback, $innerRetryStatements, $uniqueConstraints, $rowIdColumn, 'inner-retry-after-rollback');
 
         $innerSuppressedReturning = array_merge($yieldedReturning, $discardedReturning);
         $innerAttempted = array_merge($yieldedExecuted, $discardedExecuted);
@@ -4688,16 +4688,16 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'inner_discarded_before_rollback_returning' => $discardedReturning,
             'inner_suppressed_by_rollback_returning' => $innerSuppressedReturning,
             'inner_yielded_after_retry_returning' => $retryReturning,
-            'outer_yielded_returning_count' => self::returningCountNext180($outerReturning),
-            'inner_yielded_before_rollback_count' => self::returningCountNext180($yieldedReturning),
-            'inner_discarded_before_rollback_count' => self::returningCountNext180($discardedReturning),
-            'inner_suppressed_by_rollback_count' => self::returningCountNext180($innerSuppressedReturning),
-            'inner_yielded_after_retry_count' => self::returningCountNext180($retryReturning),
-            'outer_changes_preserved' => self::changeCountNext180($outerExecuted),
-            'inner_attempted_changes_before_rollback_to' => self::changeCountNext180($innerAttempted),
-            'inner_changes_after_retry_release' => self::changeCountNext180($retryExecuted),
-            'changed_tables_after_inner_retry' => self::changedTablesNext180($outerImage, $afterInnerRetry),
-            'row_counts' => self::rowCountsNext180($afterInnerRetry),
+            'outer_yielded_returning_count' => self::returningCountIgnoreNestedRetrySavepointBatch($outerReturning),
+            'inner_yielded_before_rollback_count' => self::returningCountIgnoreNestedRetrySavepointBatch($yieldedReturning),
+            'inner_discarded_before_rollback_count' => self::returningCountIgnoreNestedRetrySavepointBatch($discardedReturning),
+            'inner_suppressed_by_rollback_count' => self::returningCountIgnoreNestedRetrySavepointBatch($innerSuppressedReturning),
+            'inner_yielded_after_retry_count' => self::returningCountIgnoreNestedRetrySavepointBatch($retryReturning),
+            'outer_changes_preserved' => self::changeCountIgnoreNestedRetrySavepointBatch($outerExecuted),
+            'inner_attempted_changes_before_rollback_to' => self::changeCountIgnoreNestedRetrySavepointBatch($innerAttempted),
+            'inner_changes_after_retry_release' => self::changeCountIgnoreNestedRetrySavepointBatch($retryExecuted),
+            'changed_tables_after_inner_retry' => self::changedTablesIgnoreNestedRetrySavepointBatch($outerImage, $afterInnerRetry),
+            'row_counts' => self::rowCountsIgnoreNestedRetrySavepointBatch($afterInnerRetry),
             'dependencies' => [
                 'sqlite-inner-savepoint-rowvalue-ignore-yields-no-returning-next180',
                 'sqlite-rollback-to-inner-savepoint-preserves-outer-current-source-next180',
@@ -4712,7 +4712,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runStatementsNext180(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    private static function runStatementsIgnoreNestedRetrySavepointBatch(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
     {
         $current = $tables;
         $executed = [];
@@ -4722,7 +4722,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryNext180($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryIgnoreNestedRetrySavepointBatch($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => $phase,
                 'ordinal' => $ordinal,
@@ -4740,7 +4740,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext180(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryIgnoreNestedRetrySavepointBatch(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -4751,7 +4751,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext180($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsIgnoreNestedRetrySavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -4764,7 +4764,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext180(array $tables): array
+    private static function normalizeTablesIgnoreNestedRetrySavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -4785,7 +4785,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext180(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsIgnoreNestedRetrySavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -4812,7 +4812,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext180(array $yielded): int
+    private static function returningCountIgnoreNestedRetrySavepointBatch(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -4825,7 +4825,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext180(array $executed): int
+    private static function changeCountIgnoreNestedRetrySavepointBatch(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -4841,7 +4841,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext180(array $before, array $after): array
+    private static function changedTablesIgnoreNestedRetrySavepointBatch(array $before, array $after): array
     {
         $changed = [];
         foreach ($after as $table => $rows) {
@@ -4857,7 +4857,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext180(array $tables): array
+    private static function rowCountsIgnoreNestedRetrySavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $table => $rows) {
@@ -13156,7 +13156,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext160(
+    public static function executeUpdateDeleteReturningSavepointBatch(
         array $tables,
         array $beforeStatements,
         array $protectedStatements,
@@ -13172,20 +13172,20 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         if ($uniqueConstraints === []) {
             throw new \InvalidArgumentException('SQLite row-value savepoint next160 needs unique constraints');
         }
-        $savepoint = self::identifierNext160($savepoint, 'savepoint');
+        $savepoint = self::identifierUpdateDeleteReturningSavepointBatch($savepoint, 'savepoint');
         if ($rollbackToProtectedOrdinal !== null && ($rollbackToProtectedOrdinal < 0 || $rollbackToProtectedOrdinal >= count($protectedStatements))) {
             throw new \InvalidArgumentException('SQLite row-value savepoint next160 rollback ordinal is outside protected statement list');
         }
 
-        $transactionImage = self::normalizeTablesNext160($tables);
-        $before = self::runStatementsNext160($beforeStatements, $transactionImage, $uniqueConstraints, $rowIdColumn, 'before');
+        $transactionImage = self::normalizeTablesUpdateDeleteReturningSavepointBatch($tables);
+        $before = self::runStatementsUpdateDeleteReturningSavepointBatch($beforeStatements, $transactionImage, $uniqueConstraints, $rowIdColumn, 'before');
         $savepointImage = $before['tables'];
 
         $protectedCurrent = $savepointImage;
         $protectedExecuted = [];
         $protectedYielded = [];
         foreach ($protectedStatements as $ordinal => $sql) {
-            $result = self::runStatementNext160($sql, $protectedCurrent, $uniqueConstraints, $rowIdColumn, 'protected', $ordinal);
+            $result = self::runStatementUpdateDeleteReturningSavepointBatch($sql, $protectedCurrent, $uniqueConstraints, $rowIdColumn, 'protected', $ordinal);
             $protectedCurrent = $result['tables'];
             $protectedExecuted[] = $result['statement'];
             $protectedYielded[] = $result['yield'];
@@ -13196,7 +13196,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
 
         $rolledBack = $rollbackToProtectedOrdinal !== null;
         $afterStart = $rolledBack ? $savepointImage : $protectedCurrent;
-        $after = self::runStatementsNext160($afterStatements, $afterStart, $uniqueConstraints, $rowIdColumn, 'after');
+        $after = self::runStatementsUpdateDeleteReturningSavepointBatch($afterStatements, $afterStart, $uniqueConstraints, $rowIdColumn, 'after');
         $final = $after['tables'];
 
         return [
@@ -13218,12 +13218,12 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'after_returning' => $after['yielded'],
             'yielded_returning' => array_merge($before['yielded'], $rolledBack ? [] : $protectedYielded, $after['yielded']),
             'discarded_returning' => $rolledBack ? $protectedYielded : [],
-            'discarded_returning_count' => $rolledBack ? self::returningCountNext160($protectedYielded) : 0,
-            'changes' => self::changeCountNext160(array_merge($before['statements'], $rolledBack ? [] : $protectedExecuted, $after['statements'])),
-            'attempted_changes_before_rollback' => self::changeCountNext160(array_merge($before['statements'], $protectedExecuted)),
-            'source_cursor' => self::sourceCursorNext160($before['statements'], $protectedExecuted, $after['statements'], $rolledBack),
-            'row_counts' => self::rowCountsNext160($final),
-            'changed_tables' => self::changedTablesNext160($transactionImage, $final),
+            'discarded_returning_count' => $rolledBack ? self::returningCountUpdateDeleteReturningSavepointBatch($protectedYielded) : 0,
+            'changes' => self::changeCountUpdateDeleteReturningSavepointBatch(array_merge($before['statements'], $rolledBack ? [] : $protectedExecuted, $after['statements'])),
+            'attempted_changes_before_rollback' => self::changeCountUpdateDeleteReturningSavepointBatch(array_merge($before['statements'], $protectedExecuted)),
+            'source_cursor' => self::sourceCursorUpdateDeleteReturningSavepointBatch($before['statements'], $protectedExecuted, $after['statements'], $rolledBack),
+            'row_counts' => self::rowCountsUpdateDeleteReturningSavepointBatch($final),
+            'changed_tables' => self::changedTablesUpdateDeleteReturningSavepointBatch($transactionImage, $final),
             'dependencies' => [
                 'sqlite-rowvalue-update-delete-returning-savepoint-current-source-next160',
                 'sqlite-rollback-to-savepoint-suppresses-update-delete-returning-yields-next160',
@@ -13239,13 +13239,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{tables:array<string,list<array<string,mixed>>>,statements:list<array<string,mixed>>,yielded:list<array<string,mixed>>}
      */
-    private static function runStatementsNext160(array $statements, array $startTables, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    private static function runStatementsUpdateDeleteReturningSavepointBatch(array $statements, array $startTables, array $uniqueConstraints, string $rowIdColumn, string $phase): array
     {
         $current = $startTables;
         $executed = [];
         $yielded = [];
         foreach ($statements as $ordinal => $sql) {
-            $result = self::runStatementNext160($sql, $current, $uniqueConstraints, $rowIdColumn, $phase, $ordinal);
+            $result = self::runStatementUpdateDeleteReturningSavepointBatch($sql, $current, $uniqueConstraints, $rowIdColumn, $phase, $ordinal);
             $current = $result['tables'];
             $executed[] = $result['statement'];
             $yielded[] = $result['yield'];
@@ -13259,7 +13259,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{tables:array<string,list<array<string,mixed>>>,statement:array<string,mixed>,yield:array<string,mixed>}
      */
-    private static function runStatementNext160(string $sql, array $tables, array $uniqueConstraints, string $rowIdColumn, string $phase, int $ordinal): array
+    private static function runStatementUpdateDeleteReturningSavepointBatch(string $sql, array $tables, array $uniqueConstraints, string $rowIdColumn, string $phase, int $ordinal): array
     {
         if (!is_string($sql) || trim($sql) === '') {
             throw new \InvalidArgumentException('SQLite row-value savepoint next160 statement must be SQL text');
@@ -13280,7 +13280,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'returning' => $parsed['returning'],
                 'selected_ids' => $result['plan']->selectedIds,
                 'mutation_ids' => $result['plan']->mutationIds,
-                'source_rows' => self::rowsByIdsNext160($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+                'source_rows' => self::rowsByIdsUpdateDeleteReturningSavepointBatch($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
                 'returning_rows' => $result['returning'],
                 'ignored_rows' => $result['ignored_rows'],
                 'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -13301,7 +13301,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<array<string,mixed>> $after
      * @return list<array{phase:string,ordinal:int,action:string,selected_ids:list<int|string>,yielded:bool}>
      */
-    private static function sourceCursorNext160(array $before, array $protected, array $after, bool $rolledBack): array
+    private static function sourceCursorUpdateDeleteReturningSavepointBatch(array $before, array $protected, array $after, bool $rolledBack): array
     {
         $cursor = [];
         foreach ([$before, $protected, $after] as $groupIndex => $group) {
@@ -13323,7 +13323,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $streams
      */
-    private static function returningCountNext160(array $streams): int
+    private static function returningCountUpdateDeleteReturningSavepointBatch(array $streams): int
     {
         $count = 0;
         foreach ($streams as $stream) {
@@ -13336,7 +13336,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $statements
      */
-    private static function changeCountNext160(array $statements): int
+    private static function changeCountUpdateDeleteReturningSavepointBatch(array $statements): int
     {
         $changes = 0;
         foreach ($statements as $statement) {
@@ -13351,7 +13351,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext160(array $tables): array
+    private static function normalizeTablesUpdateDeleteReturningSavepointBatch(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !array_is_list($rows)) {
@@ -13367,7 +13367,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $tables;
     }
 
-    private static function identifierNext160(string $value, string $label): string
+    private static function identifierUpdateDeleteReturningSavepointBatch(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
             throw new \InvalidArgumentException("SQLite row-value savepoint next160 {$label} is malformed");
@@ -13381,7 +13381,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext160(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsUpdateDeleteReturningSavepointBatch(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -13409,7 +13409,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext160(array $tables): array
+    private static function rowCountsUpdateDeleteReturningSavepointBatch(array $tables): array
     {
         $counts = [];
         foreach ($tables as $name => $rows) {
@@ -13424,7 +13424,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext160(array $before, array $after): array
+    private static function changedTablesUpdateDeleteReturningSavepointBatch(array $before, array $after): array
     {
         $changed = [];
         foreach (array_unique(array_merge(array_keys($before), array_keys($after))) as $name) {

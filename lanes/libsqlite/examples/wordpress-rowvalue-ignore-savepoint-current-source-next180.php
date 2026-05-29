@@ -23,7 +23,7 @@ $innerUpdateSql = "UPDATE wp_options SET (status, option_value, bytes) = ('inner
 $discardSql = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed')) RETURNING option_id, option_name ORDER BY option_id";
 $retrySql = "UPDATE wp_options SET (status, option_value, bytes) = ('retry180', option_value || ':retry180', bytes + 5) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'orphaned_cache')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext180(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreNestedRetrySavepointBatch(
     ['wp_options' => $rows],
     [$outerSql],
     [$ignoredSql, $innerUpdateSql],

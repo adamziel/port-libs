@@ -31,7 +31,7 @@ $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (VALUES (
 
 $deleteOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($valuesDelete, $tables, 'option_id', $unique);
 $notInUpdate = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($valuesNotInUpdate, $tables, 'option_id', $unique);
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext178(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeValuesRetrySavepointBatch(
     $tables,
     [$outerDelete, $outerUpdate],
     [$savepointDelete, $rollbackUpdate],

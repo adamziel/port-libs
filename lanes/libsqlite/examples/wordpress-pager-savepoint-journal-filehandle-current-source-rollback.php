@@ -32,9 +32,9 @@ use PortLibs\LibSqlite\SQLiteWalHeader;
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
 $makeWalBytes = static function () use ($pageSize, $page): string {
-    $salt1 = 0x99999999;
-    $salt2 = 0x19191919;
-    $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 99, $salt1, $salt2);
+    $salt1 = 0x94949494;
+    $salt2 = 0x14141414;
+    $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 94, $salt1, $salt2);
     $seed = SQLiteWal::checksumPair($prefix, false);
     $bytes = $prefix . pack('N*', $seed[0], $seed[1]);
     $append = static function (int $pageNumber, int $commit, string $image) use (&$bytes, &$seed, $salt1, $salt2): void {
@@ -42,15 +42,15 @@ $makeWalBytes = static function () use ($pageSize, $page): string {
         $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $image, false, $seed[0], $seed[1]);
         $bytes .= $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
     };
-    $append(2, 0, $page('wal retained option draft next99'));
-    $append(2, 3, $page('wal retained option commit next99'));
-    $append(3, 0, $page('wal discarded retry draft next99'));
-    $append(3, 3, $page('wal discarded retry commit next99'));
+    $append(2, 0, $page('wal retained autoload draft rollback'));
+    $append(2, 3, $page('wal retained autoload commit rollback'));
+    $append(3, 0, $page('wal discard option draft rollback'));
+    $append(3, 3, $page('wal discard option commit rollback'));
 
     return $bytes;
 };
 
-$root = sys_get_temp_dir() . '/libsqlite-wordpress-savepoint-filehandle-next99-' . bin2hex(random_bytes(4));
+$root = sys_get_temp_dir() . '/libsqlite-wordpress-savepoint-filehandle-current-source-rollback-' . bin2hex(random_bytes(4));
 $dir = $root . '/wp-content/database';
 mkdir($dir, 0777, true);
 $databasePath = 'wp-content/database/wp.sqlite';
@@ -59,63 +59,56 @@ $journals = [
     'update-plugin-option' => 'wp-content/database/plugin.stmt',
     'insert-plugin-child' => 'wp-content/database/child.stmt',
 ];
-$nextJournal = 'wp-content/database/retry.stmt';
 
-file_put_contents($dir . '/wp.sqlite', $page('schema dirty next99') . $page('plugin dirty autoload next99') . $page('plugin child dirty next99'));
+file_put_contents($dir . '/wp.sqlite', $page('schema dirty rollback') . $page('plugin dirty autoload rollback') . $page('plugin child dirty rollback'));
 file_put_contents($dir . '/wp.sqlite-wal', $makeWalBytes());
-file_put_contents($dir . '/outer.stmt', 'outer statement journal remains next99');
-file_put_contents($dir . '/plugin.stmt', 'plugin statement journal is stale next99');
-file_put_contents($dir . '/child.stmt', 'child statement journal is stale next99');
+file_put_contents($dir . '/outer.stmt', 'outer statement journal remains rollback');
+file_put_contents($dir . '/plugin.stmt', 'plugin statement journal is stale rollback');
+file_put_contents($dir . '/child.stmt', 'child statement journal is stale rollback');
 
 $stack = new SQLiteSavepointStack();
 $stack->beginTransaction('wp-import');
-$stack->recordPageImageWrite(1, $page('before schema page next99'));
+$stack->recordPageImageWrite(1, $page('before schema page rollback'));
 $stack->recordWalFrameWrite(1, 2);
 $stack->recordWalFrameWrite(2, 2, true);
 $stack->savepoint('plugin-settings');
 $stack->beginStatementJournal('update-plugin-option');
-$stack->recordStatementPageImageWrite('update-plugin-option', 2, $page('before plugin autoload next99'));
-$stack->recordPageImageWrite(2, $page('before plugin autoload next99'));
+$stack->recordStatementPageImageWrite('update-plugin-option', 2, $page('before plugin autoload rollback'));
+$stack->recordPageImageWrite(2, $page('before plugin autoload rollback'));
 $stack->recordStatementWalFrameWrite('update-plugin-option', 3, 2);
 $stack->savepoint('plugin-child');
 $stack->beginStatementJournal('insert-plugin-child');
-$stack->recordStatementPageImageWrite('insert-plugin-child', 3, $page('before plugin child next99'));
-$stack->recordPageImageWrite(3, $page('before plugin child next99'));
+$stack->recordStatementPageImageWrite('insert-plugin-child', 3, $page('before plugin child rollback'));
+$stack->recordPageImageWrite(3, $page('before plugin child rollback'));
 $stack->recordStatementWalFrameWrite('insert-plugin-child', 4, 3, true);
 
 try {
-    $result = (new SQLiteVfsFileWriter($root))->applySavepointRollbackAndBeginNextStatementFromCurrentSourceNext99(
+    $writer = new SQLiteVfsFileWriter($root);
+    $result = $writer->applySavepointRollbackFromCurrentSource(
         $stack,
         'plugin-settings',
         $databasePath,
         $pageSize,
-        'retry-plugin-option',
-        $nextJournal,
-        2,
-        true,
         $journals
     );
 
     $summary = [
-        'status' => 'pager_savepoint_journal_filehandle_current_source_next99',
+        'status' => 'pager_savepoint_journal_filehandle_current_source_rollback',
         'applied' => $result['applied'],
         'filesDeleted' => $result['files_deleted'],
         'databaseBytesAfter' => $result['current_source']['database_bytes_after'],
         'walBytesAfter' => $result['current_source']['wal_bytes_after'],
-        'nextStatementJournal' => $result['next_statement']['journal_path'],
-        'nextStatementSourcePrefix' => $result['next_statement']['source_prefix'],
-        'retryStatementJournalWritten' => is_file($dir . '/retry.stmt'),
-        'retryStatementJournalFromRestoredSource' => str_contains((string) file_get_contents($dir . '/retry.stmt'), 'before plugin autoload next99'),
+        'restoredPages' => $result['database_image']['restored_page_numbers'],
+        'discardedStatementJournals' => $result['statement_journals']['discarded'],
         'outerStatementJournalPreserved' => is_file($dir . '/outer.stmt'),
         'pluginStatementJournalDeleted' => !is_file($dir . '/plugin.stmt'),
         'childStatementJournalDeleted' => !is_file($dir . '/child.stmt'),
-        'wordpressUse' => 'Rollback a failed copied wp_options plugin import savepoint from current file handles, then seed the next retry statement journal from the restored current source page.',
+        'wordpressUse' => 'Rollback a failed copied wp_options plugin import savepoint from current VFS file handles, restore database pages, truncate the WAL prefix, and delete only stale statement journals while preserving the outer import journal.',
     ];
 
     if (($argv[1] ?? '') === '--self-test') {
         assert($summary['filesDeleted'] === 2);
-        assert($summary['retryStatementJournalWritten'] === true);
-        assert($summary['retryStatementJournalFromRestoredSource'] === true);
+        assert($summary['restoredPages'] === [2, 3]);
         assert($summary['outerStatementJournalPreserved'] === true);
         assert($summary['pluginStatementJournalDeleted'] === true);
         assert($summary['childStatementJournalDeleted'] === true);
@@ -123,7 +116,7 @@ try {
 
     echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 } finally {
-    foreach (['wp.sqlite-wal', 'wp.sqlite', 'outer.stmt', 'plugin.stmt', 'child.stmt', 'retry.stmt'] as $file) {
+    foreach (['wp.sqlite-wal', 'wp.sqlite', 'outer.stmt', 'plugin.stmt', 'child.stmt'] as $file) {
         $path = $dir . '/' . $file;
         if (is_file($path)) {
             unlink($path);

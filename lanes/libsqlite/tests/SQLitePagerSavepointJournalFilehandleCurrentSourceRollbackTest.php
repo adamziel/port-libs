@@ -24,10 +24,10 @@ $makeWalBytes = static function () use ($pageSize, $page): string {
         $bytes .= $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
     };
 
-    $append(2, 0, $page('wal retained autoload draft next94'));
-    $append(2, 3, $page('wal retained autoload commit next94'));
-    $append(3, 0, $page('wal discard option draft next94'));
-    $append(3, 3, $page('wal discard option commit next94'));
+    $append(2, 0, $page('wal retained autoload draft rollback'));
+    $append(2, 3, $page('wal retained autoload commit rollback'));
+    $append(3, 0, $page('wal discard option draft rollback'));
+    $append(3, 3, $page('wal discard option commit rollback'));
 
     return $bytes;
 };
@@ -35,37 +35,37 @@ $makeWalBytes = static function () use ($pageSize, $page): string {
 $makeStack = static function () use ($page): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
     $stack->beginTransaction('wp-import');
-    $stack->recordPageImageWrite(1, $page('before schema page next94'));
+    $stack->recordPageImageWrite(1, $page('before schema page rollback'));
     $stack->recordWalFrameWrite(1, 2);
     $stack->recordWalFrameWrite(2, 2, true);
 
     $stack->savepoint('plugin-settings');
     $stack->beginStatementJournal('update-plugin-option');
-    $stack->recordStatementPageImageWrite('update-plugin-option', 2, $page('before plugin autoload next94'));
-    $stack->recordPageImageWrite(2, $page('before plugin autoload next94'));
+    $stack->recordStatementPageImageWrite('update-plugin-option', 2, $page('before plugin autoload rollback'));
+    $stack->recordPageImageWrite(2, $page('before plugin autoload rollback'));
     $stack->recordStatementWalFrameWrite('update-plugin-option', 3, 2);
 
     $stack->savepoint('plugin-child');
     $stack->beginStatementJournal('insert-plugin-child');
-    $stack->recordStatementPageImageWrite('insert-plugin-child', 3, $page('before plugin child next94'));
-    $stack->recordPageImageWrite(3, $page('before plugin child next94'));
+    $stack->recordStatementPageImageWrite('insert-plugin-child', 3, $page('before plugin child rollback'));
+    $stack->recordPageImageWrite(3, $page('before plugin child rollback'));
     $stack->recordStatementWalFrameWrite('insert-plugin-child', 4, 3, true);
 
     return $stack;
 };
 
 $withTemp = static function (callable $callback) use ($pageSize, $page, $makeWalBytes): mixed {
-    $root = sys_get_temp_dir() . '/libsqlite-savepoint-journal-filehandle-next94-' . bin2hex(random_bytes(4));
+    $root = sys_get_temp_dir() . '/libsqlite-savepoint-journal-filehandle-current-source-rollback-' . bin2hex(random_bytes(4));
     if (!mkdir($root, 0777, true) && !is_dir($root)) {
         throw new RuntimeException('Unable to create temp root');
     }
     $dir = $root . '/wp-content/database';
     mkdir($dir, 0777, true);
-    file_put_contents($dir . '/wp.sqlite', $page('schema dirty next94') . $page('plugin dirty autoload next94') . $page('plugin child dirty next94'));
+    file_put_contents($dir . '/wp.sqlite', $page('schema dirty rollback') . $page('plugin dirty autoload rollback') . $page('plugin child dirty rollback'));
     file_put_contents($dir . '/wp.sqlite-wal', $makeWalBytes());
-    file_put_contents($dir . '/outer.stmt', 'outer statement journal remains next94');
-    file_put_contents($dir . '/plugin.stmt', 'plugin statement journal is stale next94');
-    file_put_contents($dir . '/child.stmt', 'child statement journal is stale next94');
+    file_put_contents($dir . '/outer.stmt', 'outer statement journal remains rollback');
+    file_put_contents($dir . '/plugin.stmt', 'plugin statement journal is stale rollback');
+    file_put_contents($dir . '/child.stmt', 'child statement journal is stale rollback');
 
     try {
         return $callback($root, 'wp-content/database/wp.sqlite', [
@@ -94,7 +94,7 @@ $withTemp = static function (callable $callback) use ($pageSize, $page, $makeWal
 
 $run = static fn (): array => $withTemp(static function (string $root, string $databasePath, array $journals, int $pageSize) use ($makeStack): array {
     $writer = new SQLiteVfsFileWriter($root);
-    return $writer->applySavepointRollbackFromCurrentSourceNext94(
+    return $writer->applySavepointRollbackFromCurrentSource(
         $makeStack(),
         'plugin-settings',
         $databasePath,
@@ -105,7 +105,7 @@ $run = static fn (): array => $withTemp(static function (string $root, string $d
 
 $snapshot = static fn (): array => $withTemp(static function (string $root, string $databasePath, array $journals, int $pageSize) use ($makeStack): array {
     $writer = new SQLiteVfsFileWriter($root);
-    $result = $writer->applySavepointRollbackFromCurrentSourceNext94(
+    $result = $writer->applySavepointRollbackFromCurrentSource(
         $makeStack(),
         'plugin-settings',
         $databasePath,
@@ -134,7 +134,7 @@ $cases = [
     'deleted two discarded statement journals' => [static fn (): mixed => $run()['files_deleted'], 2],
     'durable syncs database and wal' => [static fn (): mixed => $run()['durable_syncs'], 2],
     'directory sync once' => [static fn (): mixed => $run()['directory_syncs'], 1],
-    'dependency marker' => [static fn (): mixed => in_array('sqlite-savepoint-journal-filehandle-current-source-next94', $run()['dependencies'], true), true],
+    'dependency marker' => [static fn (): mixed => in_array('sqlite-savepoint-journal-filehandle-current-source', $run()['dependencies'], true), true],
     'vfs atomic dependency marker' => [static fn (): mixed => in_array('vfs-atomic-rollback-on-write-failure', $run()['dependencies'], true), true],
     'current source database path' => [static fn (): mixed => $run()['current_source']['database_path'], 'wp-content/database/wp.sqlite'],
     'current source database bytes before' => [static fn (): mixed => $run()['current_source']['database_bytes_before'], 3 * $pageSize],
@@ -169,40 +169,40 @@ $cases = [
     'operation six deletes plugin journal' => [static fn (): mixed => $run()['operations'][6]['path'], 'wp-content/database/plugin.stmt'],
     'operation seven deletes child journal' => [static fn (): mixed => $run()['operations'][7]['path'], 'wp-content/database/child.stmt'],
     'operation eight syncs directory' => [static fn (): mixed => $run()['operations'][8]['op'], 'sync_directory'],
-    'snapshot database restores plugin page' => [static fn (): mixed => str_contains($snapshot()['database'], 'before plugin autoload next94'), true],
-    'snapshot database restores child page' => [static fn (): mixed => str_contains($snapshot()['database'], 'before plugin child next94'), true],
-    'snapshot database keeps schema current' => [static fn (): mixed => str_contains($snapshot()['database'], 'schema dirty next94'), true],
-    'snapshot database removes dirty autoload' => [static fn (): mixed => str_contains($snapshot()['database'], 'plugin dirty autoload next94'), false],
-    'snapshot database removes dirty child' => [static fn (): mixed => str_contains($snapshot()['database'], 'plugin child dirty next94'), false],
+    'snapshot database restores plugin page' => [static fn (): mixed => str_contains($snapshot()['database'], 'before plugin autoload rollback'), true],
+    'snapshot database restores child page' => [static fn (): mixed => str_contains($snapshot()['database'], 'before plugin child rollback'), true],
+    'snapshot database keeps schema current' => [static fn (): mixed => str_contains($snapshot()['database'], 'schema dirty rollback'), true],
+    'snapshot database removes dirty autoload' => [static fn (): mixed => str_contains($snapshot()['database'], 'plugin dirty autoload rollback'), false],
+    'snapshot database removes dirty child' => [static fn (): mixed => str_contains($snapshot()['database'], 'plugin child dirty rollback'), false],
     'snapshot wal has two frames' => [static fn (): mixed => SQLiteWal::parse($snapshot()['wal'], null, true)->frameCount(), 2],
     'snapshot wal last commit retained' => [static fn (): mixed => SQLiteWal::parse($snapshot()['wal'], null, true)->lastCommitFrame()?->index, 2],
-    'snapshot wal omits discarded option' => [static fn (): mixed => str_contains($snapshot()['wal'], 'wal discard option commit next94'), false],
+    'snapshot wal omits discarded option' => [static fn (): mixed => str_contains($snapshot()['wal'], 'wal discard option commit rollback'), false],
     'snapshot outer journal preserved' => [static fn (): mixed => $snapshot()['outer_exists'], true],
     'snapshot plugin journal deleted' => [static fn (): mixed => $snapshot()['plugin_exists'], false],
     'snapshot child journal deleted' => [static fn (): mixed => $snapshot()['child_exists'], false],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['pager savepoint journal filehandle current source next94 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['pager savepoint journal filehandle current source rollback ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
-$tests['pager savepoint journal filehandle current source next94 rejects missing database'] = static function (TestRunner $t) use ($makeStack, $pageSize): void {
-    $root = sys_get_temp_dir() . '/libsqlite-savepoint-missing-next94-' . bin2hex(random_bytes(4));
+$tests['pager savepoint journal filehandle current source rollback rejects missing database'] = static function (TestRunner $t) use ($makeStack, $pageSize): void {
+    $root = sys_get_temp_dir() . '/libsqlite-savepoint-missing-current-source-rollback-' . bin2hex(random_bytes(4));
     mkdir($root, 0777, true);
     try {
         $writer = new SQLiteVfsFileWriter($root);
-        $t->throws(RuntimeException::class, static fn (): mixed => $writer->applySavepointRollbackFromCurrentSourceNext94($makeStack(), 'plugin-settings', 'missing.sqlite', $pageSize));
+        $t->throws(RuntimeException::class, static fn (): mixed => $writer->applySavepointRollbackFromCurrentSource($makeStack(), 'plugin-settings', 'missing.sqlite', $pageSize));
     } finally {
         rmdir($root);
     }
 };
 
-$tests['pager savepoint journal filehandle current source next94 rejects missing savepoint'] = static function (TestRunner $t) use ($withTemp, $makeStack): void {
+$tests['pager savepoint journal filehandle current source rollback rejects missing savepoint'] = static function (TestRunner $t) use ($withTemp, $makeStack): void {
     $withTemp(static function (string $root, string $databasePath, array $journals, int $pageSize) use ($makeStack, $t): void {
         $writer = new SQLiteVfsFileWriter($root);
-        $t->throws(InvalidArgumentException::class, static fn (): mixed => $writer->applySavepointRollbackFromCurrentSourceNext94($makeStack(), 'missing', $databasePath, $pageSize, $journals));
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => $writer->applySavepointRollbackFromCurrentSource($makeStack(), 'missing', $databasePath, $pageSize, $journals));
     });
 };
 

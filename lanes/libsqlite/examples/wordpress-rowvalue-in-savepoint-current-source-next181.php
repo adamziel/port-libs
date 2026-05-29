@@ -15,7 +15,7 @@ $rows = [
     ['option_id' => 6, 'blog_id' => 3, 'option_name' => 'pending_theme', 'autoload' => 'no', 'status' => 'pending', 'bucket' => null, 'bytes' => 7, 'option_value' => 'theme'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext173(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeInPredicateRetrySavepointBatch(
     ['wp_options' => $rows],
     [
         "UPDATE wp_options SET (option_name, status, option_value, bytes) = (option_name || ':stage181', status, option_value || ':stage181', bytes + 1) WHERE (blog_id, status, option_name) NOT IN ((1, NULL, 'active_plugins'), (2, NULL, 'rewrite_rules'), (4, 'queued', 'siteurl')) RETURNING option_id, option_name, status, (blog_id, status, option_name) NOT IN ((1, NULL, 'active_plugins'), (1, NULL, 'siteurl')) AS tuple_not_in ORDER BY option_id",

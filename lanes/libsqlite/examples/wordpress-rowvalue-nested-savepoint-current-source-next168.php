@@ -17,7 +17,7 @@ $tables = [
     ],
 ];
 
-$summary = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext168(
+$summary = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedIgnoreRetrySavepointBatch(
     $tables,
     ["UPDATE wp_options SET (option_name, status, option_value, bytes) = (option_name || ':outer168', 'outer', option_value || ':outer168', bytes + 2) WHERE option_id IN (4, 5) RETURNING option_id, option_name, status ORDER BY option_id"],
     [

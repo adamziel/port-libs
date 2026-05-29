@@ -18,7 +18,7 @@ $rows = [
     ['option_id' => 9, 'blog_id' => 3, 'option_name' => 'orphaned_cache', 'autoload' => 'no', 'status' => 'staged', 'bytes' => 5, 'option_value' => 'cache'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext170(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeAbortReturningSavepointBatch(
     ['wp_options' => $rows],
     [
         "UPDATE wp_options SET (status, option_value, bytes) = ('staged', option_value || ':staged', bytes + 2) WHERE option_id IN (7, 9) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id",

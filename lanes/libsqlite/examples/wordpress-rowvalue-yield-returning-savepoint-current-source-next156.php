@@ -18,7 +18,7 @@ $rows = [
     ['option_id' => 9, 'blog_id' => 3, 'option_name' => 'rewrite_rules', 'autoload' => 'yes', 'status' => 'queued', 'bytes' => 9, 'option_value' => 'rules'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext156(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeYieldReturningSavepointBatch(
     ['wp_options' => $rows],
     [
         "UPDATE OR IGNORE wp_options SET (blog_id, option_name, status, option_value, bytes) = (blog_id, 'siteurl', option_name || ':ignored', option_value || ':ignored', bytes + 10) WHERE option_id IN (8, 7) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id DESC",

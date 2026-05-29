@@ -61,9 +61,9 @@ foreach ($cases11351150 as $slice => [$updateAction, $deleteAction, $indexKind, 
     $tests["pragma index xinfo foreignkey current source next{$slice} reports next-only staged mixed-action {$status}"] = static function (TestRunner $t) use ($slice, $updateAction, $deleteAction, $indexKind, $actionColumn, $action, $status, $scenario11351150): void {
         $currentRecords = $scenario11351150($slice, $updateAction, $deleteAction, $indexKind, true);
         $nextRecords = $scenario11351150($slice, $updateAction, $deleteAction, $indexKind, false);
-        $method = 'page' . $slice;
-
-        $page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::$method(
+        $page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::actionRelationshipDiagnosticPage(
+            $slice,
+            $status,
             $currentRecords,
             $nextRecords,
             'PRAGMA main.index_xinfo(dummy)',

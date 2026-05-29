@@ -1240,7 +1240,7 @@ final class SQLiteVfsFileWriter
      * @param array<int,string> $retryPageWrites
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{master_journal_path:string,master_journal_exists:bool,database_paths:list<string>,database_bytes:array<string,int>,journal_bytes:array<string,int>}}
      */
-    public function applySavepointMasterJournalCurrentSourceNext92(
+    public function applySavepointMasterJournalFromCurrentSource(
         string $masterJournalPath,
         array $databases,
         int $pageSize,
@@ -2016,7 +2016,7 @@ final class SQLiteVfsFileWriter
      * @param array<string,string> $statementJournalPaths statement journal name to VFS path.
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint:string,database_image:array<string, mixed>,wal_truncation:array<string, mixed>|null,current_source:array<string, mixed>,statement_journals:array<string, mixed>,atomic:bool}
      */
-    public function applySavepointRollbackFromCurrentSourceNext94(
+    public function applySavepointRollbackFromCurrentSource(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         string $databasePath,
@@ -2150,7 +2150,7 @@ final class SQLiteVfsFileWriter
             $payloads,
             [
                 'sqlite-savepoint-page-image-rollback',
-                'sqlite-savepoint-journal-filehandle-current-source-next94',
+                'sqlite-savepoint-journal-filehandle-current-source',
                 'sqlite-savepoint-wal-rollback',
                 'vfs-file-write-coordination',
             ]
@@ -2185,7 +2185,7 @@ final class SQLiteVfsFileWriter
      * @param array<string,string> $statementJournalPaths statement journal name to VFS path.
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint:string,database_image:array<string, mixed>,wal_truncation:array<string, mixed>|null,current_source:array<string, mixed>,statement_journals:array<string, mixed>,next_statement:array<string, mixed>,atomic:bool}
      */
-    public function applySavepointRollbackAndBeginNextStatementFromCurrentSourceNext99(
+    public function applySavepointRollbackAndBeginNextStatementFromCurrentSource(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         string $databasePath,
@@ -2234,7 +2234,7 @@ final class SQLiteVfsFileWriter
             $commitFrame
         );
 
-        $applied = $this->applySavepointRollbackFromCurrentSourceNext94(
+        $applied = $this->applySavepointRollbackFromCurrentSource(
             $savepoints,
             $savepoint,
             $databasePath,
@@ -2269,7 +2269,7 @@ final class SQLiteVfsFileWriter
             $statementOperations,
             [$nextStatementJournalPath => $nextBeforeImage],
             [
-                'sqlite-savepoint-journal-filehandle-current-source-next99',
+                'sqlite-savepoint-journal-filehandle-current-source-next-statement',
                 'sqlite-statement-journal-current-next66',
                 'vfs-file-write-coordination',
             ]
@@ -2285,7 +2285,7 @@ final class SQLiteVfsFileWriter
         $applied['dependencies'] = array_values(array_unique(array_merge(
             $applied['dependencies'],
             $statementApplied['dependencies'],
-            ['sqlite-savepoint-journal-filehandle-current-source-next99']
+            ['sqlite-savepoint-journal-filehandle-current-source-next-statement']
         )));
         $applied['next_statement'] = [
             'name' => $nextStatementName,

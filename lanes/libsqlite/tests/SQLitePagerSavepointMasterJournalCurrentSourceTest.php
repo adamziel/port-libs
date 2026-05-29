@@ -41,17 +41,17 @@ $removeTree = static function (string $path) use (&$removeTree): void {
 };
 $local = static fn (string $root, string $path): string => rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($path, '/');
 
-$mainClean1 = $page('next92 clean main schema before crashed savepoint import');
-$mainClean2 = $page('next92 clean main active_plugins before crashed savepoint import');
-$mainClean3 = $page('next92 clean main options tail before crashed savepoint import');
-$mainDirty1 = $page('next92 dirty main schema after crashed savepoint import');
-$mainDirty2 = $page('next92 dirty main active_plugins after crashed savepoint import');
-$mainDirty3 = $page('next92 dirty main options tail after crashed savepoint import');
-$siteClean1 = $page('next92 clean site schema before attached savepoint import');
-$siteDirty1 = $page('next92 dirty site schema after attached savepoint import');
-$retry2 = $page('next92 retry writes recovered active_plugins from plugin batch');
-$retry4 = $page('next92 retry appends fresh plugin option after recovery');
-$staleMain = $page('next92 stale dirty cache page that must not be captured');
+$mainClean1 = $page('savepoint master clean main schema before crashed savepoint import');
+$mainClean2 = $page('savepoint master clean main active_plugins before crashet import');
+$mainClean3 = $page('savepoint master clean main options tail before crashed savepoint import');
+$mainDirty1 = $page('savepoint master dirty main schema after crashed savepoint import');
+$mainDirty2 = $page('savepoint master dirty main active_plugins after crashed savepoint import');
+$mainDirty3 = $page('savepoint master dirty main options tail after crashed savepoint import');
+$siteClean1 = $page('savepoint master clean site schema before attached savepoint import');
+$siteDirty1 = $page('savepoint master dirty site schema after attached savepoint import');
+$retry2 = $page('savepoint master retry writes recovered active_plugins from plugin batch');
+$retry4 = $page('savepoint master retry appends fresh plugin option after recovery');
+$staleMain = $page('savepoint master stale dirty cache page that must not be captured');
 
 $mainDatabase = $mainDirty1 . $mainDirty2 . $mainDirty3;
 $siteDatabase = $siteDirty1;
@@ -79,7 +79,7 @@ $plan = static fn (?string $master = null, array $input = null, array $writes = 
     $input ?? $databases,
     $pageSize,
     $mainPath,
-    'plugin-import-next92',
+    'plugin-import-savepoint-master',
     $writes ?? $retryWrites
 );
 $missing = static fn (): array => $plan(null);
@@ -92,7 +92,7 @@ $reserved = static function () use ($databases, $masterBytes, $masterPath, $page
         $copy,
         $pageSize,
         $mainPath,
-        'plugin-import-next92',
+        'plugin-import-savepoint-master',
         $retryWrites
     );
 };
@@ -112,7 +112,7 @@ $apply = static function (?string $master = null, array $entries = null) use ($w
     $root = sys_get_temp_dir() . '/port-libsqlite-savepoint-master-92-' . bin2hex(random_bytes(4));
     $writeFiles($root, func_num_args() >= 1 ? $master : $masterBytes, $entries ?? $databases);
     try {
-        return (new SQLiteVfsFileWriter($root))->applySavepointMasterJournalCurrentSourceNext92(
+        return (new SQLiteVfsFileWriter($root))->applySavepointMasterJournalFromCurrentSource(
             $masterPath,
             array_map(
                 static fn (array $entry): array => array_filter([
@@ -124,7 +124,7 @@ $apply = static function (?string $master = null, array $entries = null) use ($w
             ),
             $pageSize,
             $mainPath,
-            'plugin-import-next92',
+            'plugin-import-savepoint-master',
             $retryWrites
         );
     } finally {
@@ -165,9 +165,9 @@ $cases = [
     'apply last truncate reason' => static fn (): mixed => $plan()['apply_operations'][11]['reason'],
     'apply last sync reason' => static fn (): mixed => $plan()['apply_operations'][12]['reason'],
     'apply directory sync reason' => static fn (): mixed => $plan()['apply_operations'][13]['reason'],
-    'payload includes final' => static fn (): mixed => isset($plan()['payloads'][$mainPath . '#savepoint-master-current-source-next92']),
-    'payload final contains retry' => static fn (): mixed => str_contains($plan()['payloads'][$mainPath . '#savepoint-master-current-source-next92'], 'retry writes recovered'),
-    'dependency marker' => static fn (): mixed => in_array('sqlite-pager-savepoint-master-journal-current-source-next92', $plan()['dependencies'], true),
+    'payload includes final' => static fn (): mixed => isset($plan()['payloads'][$mainPath . '#savepoint-master-current-source-retry']),
+    'payload final contains retry' => static fn (): mixed => str_contains($plan()['payloads'][$mainPath . '#savepoint-master-current-source-retry'], 'retry writes recovered'),
+    'dependency marker' => static fn (): mixed => in_array('sqlite-pager-savepoint-master-journal-current-source', $plan()['dependencies'], true),
     'dependency master recovery' => static fn (): mixed => in_array('sqlite-pager-master-journal-hot-rollback-current-source-next89', $plan()['dependencies'], true),
     'missing status' => static fn (): mixed => $missing()['status'],
     'missing final preserves dirty' => static fn (): mixed => str_contains($missing()['final_database_bytes'], 'dirty main active_plugins'),
@@ -189,10 +189,10 @@ $cases = [
 ];
 
 $expected = [
-    'status' => 'master_journal_recovered_retry_savepoint_current_source_next',
+    'status' => 'master_journal_recovered_retry_savepoint_current_source',
     'reason' => 'retry_savepoint_uses_master_journal_recovered_current_source',
     'primary path' => $mainPath,
-    'savepoint' => 'plugin-import-next92',
+    'savepoint' => 'plugin-import-savepoint-master',
     'retry page numbers' => [2, 4],
     'master recovered complete' => 'master_journal_current_source_hot_rollback_complete',
     'master recovered count' => 2,
@@ -201,7 +201,7 @@ $expected = [
     'captured count' => 2,
     'captured first page' => 2,
     'captured first source' => 'master-journal-recovered-database',
-    'captured first clean prefix' => 'next92 clean main active_plugins before crashed savepoin',
+    'captured first clean prefix' => 'savepoint master clean main active_plugins before crashe',
     'captured first not dirty current' => false,
     'captured first not zero fill' => false,
     'captured second page' => 4,
@@ -228,7 +228,7 @@ $expected = [
     'missing status' => 'master_journal_recovery_blocked_before_retry_savepoint',
     'missing final preserves dirty' => true,
     'missing apply operations empty' => 0,
-    'reserved status' => 'master_journal_recovered_retry_savepoint_current_source_next',
+    'reserved status' => 'master_journal_recovered_retry_savepoint_current_source',
     'reserved master partial' => 'master_journal_current_source_hot_rollback_partial',
     'reserved first reason' => 'database_has_reserved_lock',
     'writer status' => 'applied',
@@ -245,7 +245,7 @@ $expected = [
 ];
 
 foreach ($cases as $name => $callback) {
-    $tests['pager savepoint master journal current source next92 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['pager savepoint master journal current source ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }
@@ -260,12 +260,12 @@ $throws = [
     'missing primary rejected' => static fn () => SQLitePagerSavepointMasterJournalCurrentSourceNextPlan::currentSourceNext($masterPath, $masterBytes, $databases, $pageSize, '/missing.sqlite', 's', $retryWrites),
     'writer missing database rejected' => static function () use ($masterPath, $pageSize, $mainPath, $retryWrites): void {
         $root = sys_get_temp_dir() . '/port-libsqlite-savepoint-master-92-' . bin2hex(random_bytes(4));
-        (new SQLiteVfsFileWriter($root))->applySavepointMasterJournalCurrentSourceNext92($masterPath, [['database_path' => $mainPath]], $pageSize, $mainPath, 's', $retryWrites);
+        (new SQLiteVfsFileWriter($root))->applySavepointMasterJournalFromCurrentSource($masterPath, [['database_path' => $mainPath]], $pageSize, $mainPath, 's', $retryWrites);
     },
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['pager savepoint master journal current source next92 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['pager savepoint master journal current source ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(Throwable::class, $callback);
     };
 }

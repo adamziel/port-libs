@@ -32,12 +32,12 @@ $afterIgnoreDelete = static function () use ($ignoreSql, $deleteSql, $tables, $u
 
     return SQLiteUpdateDeleteReturningSql::execute($deleteSql, $ignored['tables'], 'option_id', $unique);
 };
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext165(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreReturningSavepointBatch(
     $tables,
     [$ignoreSql, $deleteSql, $continueSql],
     $unique,
 );
-$cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext165(
+$cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreReturningSavepointBatch(
     $tables,
     [$cleanSql, $deleteSql],
     $unique,
@@ -107,10 +107,10 @@ $cases = [
     'clean plan changes four' => [static fn (): mixed => $cleanPlan()['changes'], 4],
     'clean plan final row seven clean' => [static fn (): mixed => array_column($cleanPlan()['current_source_tables']['wp_options'], 'status', 'option_id')[7], 'clean'],
 
-    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext165($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext165($tables, [$ignoreSql], []), InvalidArgumentException::class],
-    'malformed bad savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext165($tables, [$ignoreSql], $unique, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext165(['wp_options' => ['bad']], [$ignoreSql], $unique), InvalidArgumentException::class],
+    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreReturningSavepointBatch($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreReturningSavepointBatch($tables, [$ignoreSql], []), InvalidArgumentException::class],
+    'malformed bad savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreReturningSavepointBatch($tables, [$ignoreSql], $unique, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreReturningSavepointBatch(['wp_options' => ['bad']], [$ignoreSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

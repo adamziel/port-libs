@@ -32,7 +32,7 @@ $parsedProtectedDelete = static fn (): array => SQLiteUpdateDeleteReturningSql::
 $beforeOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($beforeSql, $tables, 'option_id', $unique);
 $protectedUpdateOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($protectedUpdateSql, $beforeOnly()['tables'], 'option_id', $unique);
 $protectedDeleteOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($protectedDeleteSql, $protectedUpdateOnly()['tables'], 'option_id', $unique);
-$rollbackPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext160(
+$rollbackPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch(
     $tables,
     [$beforeSql],
     [$protectedUpdateSql, $protectedDeleteSql],
@@ -41,7 +41,7 @@ $rollbackPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepo
     'wp_options_rowvalue_returning_next160',
     1,
 );
-$releasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext160(
+$releasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch(
     $tables,
     [$beforeSql],
     [$protectedUpdateSql],
@@ -109,13 +109,13 @@ $cases = [
     'release plan final row seven released' => [static fn (): mixed => array_column($releasePlan()['current_source_tables']['wp_options'], 'status', 'option_id')[7], 'released'],
     'release plan changes include protected' => [static fn (): mixed => $releasePlan()['changes'], 8],
 
-    'malformed empty before rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext160($tables, [], [$protectedUpdateSql], [$afterUpdateSql], $unique), InvalidArgumentException::class],
-    'malformed empty protected rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext160($tables, [$beforeSql], [], [$afterUpdateSql], $unique), InvalidArgumentException::class],
-    'malformed empty after rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext160($tables, [$beforeSql], [$protectedUpdateSql], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext160($tables, [$beforeSql], [$protectedUpdateSql], [$afterUpdateSql], []), InvalidArgumentException::class],
-    'malformed rollback ordinal rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext160($tables, [$beforeSql], [$protectedUpdateSql], [$afterUpdateSql], $unique, 'bad', 4), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext160($tables, [$beforeSql], [$protectedUpdateSql], [$afterUpdateSql], $unique, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext160(['wp_options' => ['bad']], [$beforeSql], [$protectedUpdateSql], [$afterUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty before rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch($tables, [], [$protectedUpdateSql], [$afterUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty protected rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch($tables, [$beforeSql], [], [$afterUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty after rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch($tables, [$beforeSql], [$protectedUpdateSql], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch($tables, [$beforeSql], [$protectedUpdateSql], [$afterUpdateSql], []), InvalidArgumentException::class],
+    'malformed rollback ordinal rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch($tables, [$beforeSql], [$protectedUpdateSql], [$afterUpdateSql], $unique, 'bad', 4), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch($tables, [$beforeSql], [$protectedUpdateSql], [$afterUpdateSql], $unique, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeUpdateDeleteReturningSavepointBatch(['wp_options' => ['bad']], [$beforeSql], [$protectedUpdateSql], [$afterUpdateSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];
