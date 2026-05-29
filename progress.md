@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 20:18 UTC):
+  Seventy-ninth safe consolidation follow-up is integrated and pushed as
+  `961d4422b`. The batch accepts 5 clean `cv` handoffs while excluding stale
+  worker status edits: STAT4 payload handoff helper cleanup, JSON-table
+  generated-path range/offset helper cleanup, rowvalue savepoint row-count
+  helper consolidation, WAL after-current checkpoint wrapper collapse, and
+  trigger RETURNING consolidation-guard hardening. Validation passed PHP lint
+  for 15 changed PHP files, `git diff --check`, direct combined tests
+  `9 files / 381 assertions / 0 failures`, changed examples `6 passed`, STAT4
+  expression-partial family `133 files / 7537 assertions / 0 failures`, JSON
+  table family `305 files / 20187 assertions / 0 failures`, rowvalue
+  savepoint family `86 files / 5518 assertions / 0 failures`, WAL
+  hot-journal checkpoint current-source-next selection `2 files / 11236
+  assertions / 0 failures`, trigger RETURNING family `61 files / 4571
+  assertions / 0 failures`, exact user-named 150 suffix scan clean in
+  `src`/`tests`/`examples`/`notes`, production numbered file/class audits at
+  `0`, numbered production helper-method audit down to `1669`, and unique
+  numbered production symbol audit down to `1901`. Public pass/mapped counters
+  remain `154019 pass / 0 fail` and `830 / 1589` because this is
+  consolidation-only. Pager-master, upstream-suite, B-tree, and one
+  rowvalue-window handoff remain deferred pending baseline comparison or
+  rebase.
+
 - 2026-05-29 supervisor continuation (shell samples 20:10 UTC):
   Seventy-eighth safe consolidation follow-up is integrated and pushed as
   `af9057c5d`. The batch accepts the fresh current-base `suffix-cv` handoff
