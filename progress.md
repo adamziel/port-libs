@@ -72,7 +72,11 @@
   root dashboard verification exposed and fixed a release-runner test helper
   redeclare between `SQLiteReleaseRunnerSuiteGapBurnupTest.php` and
   `SQLiteReleaseRunnerUpstreamBurnupTest.php`; the pair now passes together
-  with `2 files / 887 assertions / 0 failures` as commit `28c4c4720`.
+  with `2 files / 887 assertions / 0 failures` as commit `28c4c4720`. The
+  next root-dashboard attempt then exposed a default-memory rowvalue window
+  example blowup; `72ef61a45` now extracts only summary fields from the
+  next686-701 plans, and the focused test plus WordPress self-test pass with
+  `1 file / 17 assertions / 0 failures`.
 
 - 2026-05-29 supervisor continuation (shell samples 20:24 UTC):
   Eightieth safe consolidation follow-up is integrated and pushed as
