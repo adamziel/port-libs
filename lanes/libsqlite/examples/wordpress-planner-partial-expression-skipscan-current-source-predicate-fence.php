@@ -52,7 +52,7 @@ $current['rows'][] = ['rowid' => 11, 'autoload' => 'yes', 'option_name' => null,
 $current['stat4Samples'][] = ['prefix' => 'no', 'suffix' => 'plugin_security', 'nEq' => 1, 'nLt' => 2, 'nDLt' => 2];
 $current['stat4Samples'][] = ['prefix' => 'yes', 'suffix' => 'plugin_zeta', 'nEq' => 1, 'nLt' => 1, 'nDLt' => 1];
 
-$plan = SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan::materializeNext139(
+$plan = SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan::materializeCurrentPredicateFence(
     $prepared,
     $current,
     new SQLiteIndexPredicate('kind', SQLiteIndexPredicate::EQUALS, 'plugin'),

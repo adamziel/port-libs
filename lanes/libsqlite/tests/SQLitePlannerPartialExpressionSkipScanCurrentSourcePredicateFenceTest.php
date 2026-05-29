@@ -100,7 +100,7 @@ $plan139 = static fn (
     ?SQLiteIndexPredicate $currentPredicate = null,
     ?array $order = null,
     ?array $needed = null,
-): array => SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan::materializeNext139(
+): array => SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan::materializeCurrentPredicateFence(
     $prepared ?? $source139(),
     $current ?? $currentSource139(),
     $preparedPredicate ?? $preparedPredicate139,

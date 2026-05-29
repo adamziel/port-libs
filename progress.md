@@ -2785,3 +2785,26 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   coverage because this is consolidation-only. The pager broad family remains
   unsuitable as a standalone acceptance gate until unrelated later dispatch
   failures are baseline-compared or repaired.
+
+## Supervisor Rolling Integration 2026-05-29T19:05Z Shell Sample
+
+- Recycled remaining stale `CK` workers after confirming their base hashes and
+  refilled the visible pool with current-head `CL` workers. All active worker
+  loops sampled from current dashboard head `485a6bd2` before this intake.
+- Preflighted two current-base CL consolidation markers against dashboard head
+  `485a6bd2`: planner partial-expression skip-scan current-source predicate
+  fence cleanup and STAT4 expression-partial prepared-handoff continuation
+  wrapper cleanup. Worker `lane-status.json` edits were excluded and status was
+  updated manually from supervisor evidence.
+- Validation for the sixty-ninth reduced consolidation follow-up passed: 4
+  changed PHP files linted, direct affected tests passed with 4 files / 180
+  assertions / 0 failures, the affected planner/STAT4 family passed with 135
+  files / 7,664 assertions / 0 failures, the broader STAT4 family passed with
+  164 files / 9,386 assertions / 0 failures, the changed WordPress JSON smoke
+  emitted valid JSON, `git diff --check` passed, exact user-named 150 suffix
+  scan stayed clean in src/tests/examples, production numbered file/class
+  audits stayed at 0, numbered production helper methods reduced to 1,775, and
+  unique numbered production symbols reduced to 2,007.
+- Public libsqlite counts remain 154,019 pass / 0 fail and 830 / 1,589 mapped
+  coverage because this is consolidation-only. Continue accepting only
+  current-head/current-base handoffs with affected-domain evidence.

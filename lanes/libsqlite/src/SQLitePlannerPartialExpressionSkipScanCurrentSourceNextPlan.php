@@ -17,7 +17,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext139(
+        public static function materializeCurrentPredicateFence(
             array $preparedSource,
             array $currentSource,
             SQLiteIndexPredicate $preparedPredicate,
@@ -43,15 +43,15 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
                 $neededColumns,
             );
 
-            $preparedPlan = self::arrayValueNext139($preparedView, 'selectedPlan');
-            $currentPlan = self::arrayValueNext139($currentView, 'selectedPlan');
-            $preparedPredicateSignature = self::predicateSignatureNext139($preparedPredicate);
-            $currentPredicateSignature = self::predicateSignatureNext139($currentPredicate);
+            $preparedPlan = self::arrayValueCurrentPredicateFence($preparedView, 'selectedPlan');
+            $currentPlan = self::arrayValueCurrentPredicateFence($currentView, 'selectedPlan');
+            $preparedPredicateSignature = self::predicateSignatureCurrentPredicateFence($preparedPredicate);
+            $currentPredicateSignature = self::predicateSignatureCurrentPredicateFence($currentPredicate);
             $predicateChanged = $preparedPredicateSignature !== $currentPredicateSignature;
-            $preparedRowids = self::intListNext139($preparedPlan['rowids'] ?? []);
-            $currentRowids = self::intListNext139($currentPlan['rowids'] ?? []);
-            $currentRows = self::arrayListNext139($currentSource['rows'] ?? []);
-            $predicateDelta = self::predicateDeltaNext139($currentRows, $preparedPredicate, $currentPredicate, (string) ($currentSource['collation'] ?? 'BINARY'));
+            $preparedRowids = self::intListCurrentPredicateFence($preparedPlan['rowids'] ?? []);
+            $currentRowids = self::intListCurrentPredicateFence($currentPlan['rowids'] ?? []);
+            $currentRows = self::arrayListCurrentPredicateFence($currentSource['rows'] ?? []);
+            $predicateDelta = self::predicateDeltaCurrentPredicateFence($currentRows, $preparedPredicate, $currentPredicate, (string) ($currentSource['collation'] ?? 'BINARY'));
             $ready = ($currentView['status'] ?? null) === 'usable'
                 && ($currentPlan['expressionSkipScan'] ?? false) === true
                 && ($currentPlan['usesSkipScan'] ?? false) === true
@@ -63,8 +63,8 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
                 'currentPredicateSignature' => $currentPredicateSignature,
                 'partialPredicateChanged' => $predicateChanged,
                 'partialPredicateChangedOnly' => $predicateChanged && !((bool) ($currentView['schemaCookieChanged'] ?? false)) && !((bool) ($currentView['stat4GenerationChanged'] ?? false)),
-                'preparedPartialTerms' => self::predicateTermsNext139($preparedPredicate),
-                'currentPartialTerms' => self::predicateTermsNext139($currentPredicate),
+                'preparedPartialTerms' => self::predicateTermsCurrentPredicateFence($preparedPredicate),
+                'currentPartialTerms' => self::predicateTermsCurrentPredicateFence($currentPredicate),
                 'preparedSkipScanRowids' => $preparedRowids,
                 'currentSkipScanRowids' => $currentRowids,
                 'stalePredicateRejectedRowids' => array_values(array_diff($preparedRowids, $currentRowids)),
@@ -75,7 +75,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
                 'predicateRecheckRequired' => $predicateChanged,
                 'predicateRecheckOpcode' => $predicateChanged ? 'IfNotPartialPredicate' : null,
                 'currentSourceFence' => array_replace(
-                    self::arrayValueNext139($currentView, 'currentSourceFence'),
+                    self::arrayValueCurrentPredicateFence($currentView, 'currentSourceFence'),
                     [
                         'partialPredicateSignature' => $currentPredicateSignature,
                         'partialPredicateChanged' => $predicateChanged,
@@ -83,7 +83,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
                         'skipScanRowCount' => count($currentRowids),
                     ],
                 ),
-                'cursorTape' => self::cursorTapeNext139($currentPlan, $currentSource, $currentPredicateSignature, $predicateChanged),
+                'cursorTape' => self::cursorTapeCurrentPredicateFence($currentPlan, $currentSource, $currentPredicateSignature, $predicateChanged),
                 'detail' => ($currentView['detail'] ?? 'PARTIAL EXPRESSION SKIP-SCAN')
                     . ' current-partial-predicate=' . ($predicateChanged ? 'changed' : 'stable'),
                 'dependencies' => [
@@ -100,13 +100,13 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return array<string,mixed>
          */
-        private static function cursorTapeNext139(array $plan, array $source, string $predicateSignature, bool $predicateChanged): array
+        private static function cursorTapeCurrentPredicateFence(array $plan, array $source, string $predicateSignature, bool $predicateChanged): array
         {
             $program = [
                 [
                     'opcode' => 'ReprepareIfPartialPredicateStale',
-                    'source' => self::stringValueNext139($source, 'name'),
-                    'schemaCookie' => self::nonNegativeIntNext139($source, 'schemaCookie'),
+                    'source' => self::stringValueCurrentPredicateFence($source, 'name'),
+                    'schemaCookie' => self::nonNegativeIntCurrentPredicateFence($source, 'schemaCookie'),
                     'partialPredicateSignature' => $predicateSignature,
                 ],
                 [
@@ -114,7 +114,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
                     'index' => (string) ($plan['indexName'] ?? ''),
                     'skippedColumn' => (string) ($plan['skippedColumn'] ?? ''),
                     'rangeExpression' => (string) ($plan['rangeExpression'] ?? ''),
-                    'loopCount' => count(self::arrayListNext139($plan['loops'] ?? [])),
+                    'loopCount' => count(self::arrayListCurrentPredicateFence($plan['loops'] ?? [])),
                 ],
                 [
                     'opcode' => ((bool) ($plan['upperInclusive'] ?? true)) ? 'IdxGT' : 'IdxGE',
@@ -125,13 +125,13 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
             if ($predicateChanged) {
                 $program[] = [
                     'opcode' => 'IfNotPartialPredicate',
-                    'filteredRowids' => self::intListNext139($plan['partialPredicateFilteredRowids'] ?? []),
+                    'filteredRowids' => self::intListCurrentPredicateFence($plan['partialPredicateFilteredRowids'] ?? []),
                 ];
             }
             $program[] = [
                 'opcode' => 'Column',
                 'source' => 'index',
-                'columns' => self::stringListNext139($plan['neededColumns'] ?? []),
+                'columns' => self::stringListCurrentPredicateFence($plan['neededColumns'] ?? []),
             ];
             $program[] = [
                 'opcode' => ($plan['reverseScan'] ?? false) === true ? 'Prev' : 'Next',
@@ -141,7 +141,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
             return [
                 'source' => 'current',
                 'program' => $program,
-                'rowids' => self::intListNext139($plan['rowids'] ?? []),
+                'rowids' => self::intListCurrentPredicateFence($plan['rowids'] ?? []),
                 'estimatedRows' => (int) ($plan['estimatedRows'] ?? 0),
                 'estimatedCost' => (int) ($plan['estimatedCost'] ?? 0),
                 'predicateChanged' => $predicateChanged,
@@ -152,7 +152,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return array{rejected:list<int>,admitted:list<int>}
          */
-        private static function predicateDeltaNext139(array $rows, SQLiteIndexPredicate $prepared, SQLiteIndexPredicate $current, string $collation): array
+        private static function predicateDeltaCurrentPredicateFence(array $rows, SQLiteIndexPredicate $prepared, SQLiteIndexPredicate $current, string $collation): array
         {
             $rejected = [];
             $admitted = [];
@@ -160,9 +160,9 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite partial expression skip-scan current rows must be arrays');
                 }
-                $rowid = self::rowidNext139($row);
-                $preparedMatch = self::predicateMatchesRowNext139($prepared, $row, $collation);
-                $currentMatch = self::predicateMatchesRowNext139($current, $row, $collation);
+                $rowid = self::rowidCurrentPredicateFence($row);
+                $preparedMatch = self::predicateMatchesRowCurrentPredicateFence($prepared, $row, $collation);
+                $currentMatch = self::predicateMatchesRowCurrentPredicateFence($current, $row, $collation);
                 if ($preparedMatch && !$currentMatch) {
                     $rejected[] = $rowid;
                 }
@@ -175,14 +175,14 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function predicateMatchesRowNext139(SQLiteIndexPredicate $predicate, array $row, string $collation): bool
+        private static function predicateMatchesRowCurrentPredicateFence(SQLiteIndexPredicate $predicate, array $row, string $collation): bool
         {
             if ($predicate->operator === SQLiteIndexPredicate::AND) {
                 if (!is_array($predicate->value) || $predicate->value === []) {
                     return false;
                 }
                 foreach ($predicate->value as $child) {
-                    if (!$child instanceof SQLiteIndexPredicate || !self::predicateMatchesRowNext139($child, $row, $collation)) {
+                    if (!$child instanceof SQLiteIndexPredicate || !self::predicateMatchesRowCurrentPredicateFence($child, $row, $collation)) {
                         return false;
                     }
                 }
@@ -194,7 +194,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
                     return false;
                 }
                 foreach ($predicate->value as $child) {
-                    if ($child instanceof SQLiteIndexPredicate && self::predicateMatchesRowNext139($child, $row, $collation)) {
+                    if ($child instanceof SQLiteIndexPredicate && self::predicateMatchesRowCurrentPredicateFence($child, $row, $collation)) {
                         return true;
                     }
                 }
@@ -202,33 +202,33 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
                 return false;
             }
 
-            $value = self::rowColumnNext139($row, $predicate->columnName);
+            $value = self::rowColumnCurrentPredicateFence($row, $predicate->columnName);
 
             return match ($predicate->operator) {
                 SQLiteIndexPredicate::IS_NOT_NULL => $value !== null,
-                SQLiteIndexPredicate::EQUALS => self::compareNext139($value, $predicate->value, $collation) === 0,
-                SQLiteIndexPredicate::NOT_EQUALS => self::compareNext139($value, $predicate->value, $collation) !== 0,
-                SQLiteIndexPredicate::LESS_THAN => ($comparison = self::compareNext139($value, $predicate->value, $collation)) !== null && $comparison < 0,
-                SQLiteIndexPredicate::LESS_THAN_OR_EQUAL => ($comparison = self::compareNext139($value, $predicate->value, $collation)) !== null && $comparison <= 0,
-                SQLiteIndexPredicate::GREATER_THAN => ($comparison = self::compareNext139($value, $predicate->value, $collation)) !== null && $comparison > 0,
-                SQLiteIndexPredicate::GREATER_THAN_OR_EQUAL => ($comparison = self::compareNext139($value, $predicate->value, $collation)) !== null && $comparison >= 0,
+                SQLiteIndexPredicate::EQUALS => self::compareCurrentPredicateFence($value, $predicate->value, $collation) === 0,
+                SQLiteIndexPredicate::NOT_EQUALS => self::compareCurrentPredicateFence($value, $predicate->value, $collation) !== 0,
+                SQLiteIndexPredicate::LESS_THAN => ($comparison = self::compareCurrentPredicateFence($value, $predicate->value, $collation)) !== null && $comparison < 0,
+                SQLiteIndexPredicate::LESS_THAN_OR_EQUAL => ($comparison = self::compareCurrentPredicateFence($value, $predicate->value, $collation)) !== null && $comparison <= 0,
+                SQLiteIndexPredicate::GREATER_THAN => ($comparison = self::compareCurrentPredicateFence($value, $predicate->value, $collation)) !== null && $comparison > 0,
+                SQLiteIndexPredicate::GREATER_THAN_OR_EQUAL => ($comparison = self::compareCurrentPredicateFence($value, $predicate->value, $collation)) !== null && $comparison >= 0,
                 SQLiteIndexPredicate::BETWEEN => is_array($predicate->value)
                     && array_key_exists('lower', $predicate->value)
                     && array_key_exists('upper', $predicate->value)
-                    && ($lower = self::compareNext139($value, $predicate->value['lower'], $collation)) !== null
-                    && ($upper = self::compareNext139($value, $predicate->value['upper'], $collation)) !== null
+                    && ($lower = self::compareCurrentPredicateFence($value, $predicate->value['lower'], $collation)) !== null
+                    && ($upper = self::compareCurrentPredicateFence($value, $predicate->value['upper'], $collation)) !== null
                     && $lower >= 0
                     && $upper <= 0,
-                SQLiteIndexPredicate::IN_LIST => is_array($predicate->value) && self::inListNext139($value, $predicate->value, $collation),
+                SQLiteIndexPredicate::IN_LIST => is_array($predicate->value) && self::inListCurrentPredicateFence($value, $predicate->value, $collation),
                 default => false,
             };
         }
 
         /** @param list<mixed> $values */
-        private static function inListNext139(mixed $value, array $values, string $collation): bool
+        private static function inListCurrentPredicateFence(mixed $value, array $values, string $collation): bool
         {
             foreach ($values as $candidate) {
-                if (self::compareNext139($value, $candidate, $collation) === 0) {
+                if (self::compareCurrentPredicateFence($value, $candidate, $collation) === 0) {
                     return true;
                 }
             }
@@ -236,7 +236,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
             return false;
         }
 
-        private static function compareNext139(mixed $left, mixed $right, string $collation): ?int
+        private static function compareCurrentPredicateFence(mixed $left, mixed $right, string $collation): ?int
         {
             if ($left === null || $right === null) {
                 return null;
@@ -255,20 +255,20 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
             return $left === $right ? 0 : null;
         }
 
-        private static function predicateSignatureNext139(SQLiteIndexPredicate $predicate): string
+        private static function predicateSignatureCurrentPredicateFence(SQLiteIndexPredicate $predicate): string
         {
-            return hash('sha256', serialize(self::predicateTermsNext139($predicate)));
+            return hash('sha256', serialize(self::predicateTermsCurrentPredicateFence($predicate)));
         }
 
         /**
          * @return array<string,mixed>
          */
-        private static function predicateTermsNext139(SQLiteIndexPredicate $predicate): array
+        private static function predicateTermsCurrentPredicateFence(SQLiteIndexPredicate $predicate): array
         {
             $value = $predicate->value;
             if (is_array($value)) {
                 $value = array_map(
-                    static fn (mixed $item): mixed => $item instanceof SQLiteIndexPredicate ? self::predicateTermsNext139($item) : $item,
+                    static fn (mixed $item): mixed => $item instanceof SQLiteIndexPredicate ? self::predicateTermsCurrentPredicateFence($item) : $item,
                     $value,
                 );
             }
@@ -281,7 +281,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowColumnNext139(array $row, string $column): mixed
+        private static function rowColumnCurrentPredicateFence(array $row, string $column): mixed
         {
             foreach ($row as $key => $value) {
                 if (is_string($key) && strcasecmp($key, $column) === 0) {
@@ -293,7 +293,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowidNext139(array $row): int
+        private static function rowidCurrentPredicateFence(array $row): int
         {
             $rowid = $row['rowid'] ?? $row['_rowid_'] ?? $row['oid'] ?? null;
             if (!is_int($rowid) || $rowid < 0) {
@@ -304,7 +304,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
         }
 
         /** @return array<string,mixed> */
-        private static function arrayValueNext139(array $source, string $key): array
+        private static function arrayValueCurrentPredicateFence(array $source, string $key): array
         {
             $value = $source[$key] ?? [];
             if (!is_array($value)) {
@@ -315,7 +315,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
         }
 
         /** @return list<array<string,mixed>> */
-        private static function arrayListNext139(mixed $value): array
+        private static function arrayListCurrentPredicateFence(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -325,7 +325,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
         }
 
         /** @return list<int> */
-        private static function intListNext139(mixed $value): array
+        private static function intListCurrentPredicateFence(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -335,7 +335,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
         }
 
         /** @return list<string> */
-        private static function stringListNext139(mixed $value): array
+        private static function stringListCurrentPredicateFence(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -344,7 +344,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
             return array_values(array_map('strval', $value));
         }
 
-        private static function stringValueNext139(array $source, string $key): string
+        private static function stringValueCurrentPredicateFence(array $source, string $key): string
         {
             $value = $source[$key] ?? null;
             if (!is_string($value) || $value === '') {
@@ -354,7 +354,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
             return $value;
         }
 
-        private static function nonNegativeIntNext139(array $source, string $key): int
+        private static function nonNegativeIntCurrentPredicateFence(array $source, string $key): int
         {
             $value = $source[$key] ?? null;
             if (!is_int($value) || $value < 0) {
