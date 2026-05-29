@@ -16620,6 +16620,243 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
      * @param array{source_id:string,offset:int}|null $resume
      * @return array<string,mixed>
      */
+    public static function page225(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA current-source next225 offset must be non-negative');
+        }
+        if ($limit < 1) {
+            throw new InvalidArgumentException('SQLite PRAGMA current-source next225 limit must be positive');
+        }
+
+        $base = self::page223(
+            $currentRecords,
+            $nextRecords,
+            $indexXinfoSql,
+            $foreignKeySql,
+            0,
+            PHP_INT_MAX,
+        );
+
+        $currentRows = self::actionClauseRows225($currentRecords, 'current');
+        $nextRows = self::actionClauseRows225($nextRecords, 'next');
+        $sourceId = hash('sha256', json_encode([
+            'mode' => 'pragma-index-xinfo-foreignkey-current-source-next225',
+            'base' => $base['source_id'],
+            'current_action_clauses' => self::rowSummary225($currentRows),
+            'next_action_clauses' => self::rowSummary225($nextRows),
+        ], JSON_THROW_ON_ERROR));
+
+        if ($resume !== null) {
+            if (($resume['source_id'] ?? null) !== $sourceId) {
+                throw new InvalidArgumentException('SQLite PRAGMA current-source next225 resume cursor does not match current source');
+            }
+            if (($resume['offset'] ?? null) !== $offset) {
+                throw new InvalidArgumentException('SQLite PRAGMA current-source next225 resume cursor offset mismatch');
+            }
+        }
+
+        $allRows = array_values(array_merge($base['rows'], $currentRows, $nextRows));
+        $pageRows = array_slice($allRows, $offset, $limit);
+        $nextOffset = $offset + count($pageRows);
+        $currentCounts = self::actionCounts225($currentRows);
+        $nextCounts = self::actionCounts225($nextRows);
+
+        return [
+            ...$base,
+            'operation' => 'pragma-index-xinfo-foreignkey-current-source-next225',
+            'source_id' => $sourceId,
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($pageRows),
+            'total' => count($allRows),
+            'next' => $nextOffset < count($allRows) ? ['source_id' => $sourceId, 'offset' => $nextOffset] : null,
+            'next_row' => $allRows[$nextOffset] ?? null,
+            'current_source' => [
+                ...$base['current_source'],
+                'foreign_key_action_clause_source' => 'pragma_foreign_key_list_on_update_on_delete_columns',
+                'foreign_key_action_clause' => self::rowSummary225($currentRows),
+            ],
+            'next_source' => [
+                ...($base['next_source'] ?? []),
+                'foreign_key_action_clause_source' => 'pragma_foreign_key_list_on_update_on_delete_columns',
+                'foreign_key_action_clause' => self::rowSummary225($nextRows),
+            ],
+            'current' => [
+                ...$base['current'],
+                'foreign_key_action_clause' => $currentCounts,
+            ],
+            'next_counts' => [
+                ...$base['next_counts'],
+                'foreign_key_action_clause' => $nextCounts,
+            ],
+            'delta' => [
+                ...$base['delta'],
+                'foreign_key_action_clause_rows' => $nextCounts['rows'] - $currentCounts['rows'],
+                'foreign_key_action_clause_cascades' => $nextCounts['cascade_actions'] - $currentCounts['cascade_actions'],
+                'foreign_key_action_clause_defaults' => $nextCounts['set_default_actions'] - $currentCounts['set_default_actions'],
+                'foreign_key_action_clause_restricts' => $nextCounts['restrict_actions'] - $currentCounts['restrict_actions'],
+                'foreign_key_action_clause_changed' => self::rowSummary225($currentRows, false) !== self::rowSummary225($nextRows, false),
+            ],
+            'dependencies' => array_values(array_unique([
+                ...$base['dependencies'],
+                'sqlite-pragma-foreign-key-action-clauses',
+            ])),
+            'rows' => $pageRows,
+        ];
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function actionClauseRows225(array $records, string $phase = 'current'): array
+    {
+        self::validateRecords225($records);
+
+        $rows = [];
+        foreach (self::groupForeignKeyRows225(self::foreignKeyListRows175($records, $phase)) as $group) {
+            $first = $group[0];
+            $onUpdate = self::normalizeAction225((string) ($first['on_update'] ?? 'NO ACTION'));
+            $onDelete = self::normalizeAction225((string) ($first['on_delete'] ?? 'NO ACTION'));
+            foreach ($group as $row) {
+                $rows[] = [
+                    'phase' => $phase,
+                    'kind' => 'foreign_key_action_clause',
+                    'table' => (string) $row['table'],
+                    'foreign_key_id' => (int) $row['id'],
+                    'seq' => (int) $row['seq'],
+                    'parent' => (string) $row['parent'],
+                    'from' => (string) $row['from'],
+                    'to' => $row['to'] === null ? null : (string) $row['to'],
+                    'on_update' => $onUpdate,
+                    'on_delete' => $onDelete,
+                    'mutating_actions' => array_values(array_filter([$onUpdate, $onDelete], static fn (string $action): bool => $action !== 'NO ACTION')),
+                    'uses_cascade' => $onUpdate === 'CASCADE' || $onDelete === 'CASCADE',
+                    'uses_set_null' => $onUpdate === 'SET NULL' || $onDelete === 'SET NULL',
+                    'uses_set_default' => $onUpdate === 'SET DEFAULT' || $onDelete === 'SET DEFAULT',
+                    'uses_restrict' => $onUpdate === 'RESTRICT' || $onDelete === 'RESTRICT',
+                    'status' => $onUpdate === 'NO ACTION' && $onDelete === 'NO ACTION' ? 'no_action' : 'action_clause',
+                    'message' => "foreign key {$row['table']}->{$row['parent']} records ON UPDATE {$onUpdate} and ON DELETE {$onDelete} in PRAGMA foreign_key_list",
+                ];
+            }
+        }
+
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => [$left['phase'], $left['table'], $left['foreign_key_id'], $left['seq']]
+                <=> [$right['phase'], $right['table'], $right['foreign_key_id'], $right['seq']],
+        );
+
+        return $rows;
+    }
+
+    private static function normalizeAction225(string $action): string
+    {
+        $normalized = strtoupper(preg_replace('/\s+/', ' ', trim($action)) ?? '');
+
+        return $normalized === '' ? 'NO ACTION' : $normalized;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{rows:int,no_action:int,action_clause:int,cascade_actions:int,set_null_actions:int,set_default_actions:int,restrict_actions:int,composite_columns:int}
+     */
+    private static function actionCounts225(array $rows): array
+    {
+        $counts = [
+            'rows' => count($rows),
+            'no_action' => 0,
+            'action_clause' => 0,
+            'cascade_actions' => 0,
+            'set_null_actions' => 0,
+            'set_default_actions' => 0,
+            'restrict_actions' => 0,
+            'composite_columns' => 0,
+        ];
+        foreach ($rows as $row) {
+            if (($row['status'] ?? null) === 'no_action') {
+                $counts['no_action']++;
+            } else {
+                $counts['action_clause']++;
+            }
+            $counts['cascade_actions'] += ($row['uses_cascade'] ?? false) ? 1 : 0;
+            $counts['set_null_actions'] += ($row['uses_set_null'] ?? false) ? 1 : 0;
+            $counts['set_default_actions'] += ($row['uses_set_default'] ?? false) ? 1 : 0;
+            $counts['restrict_actions'] += ($row['uses_restrict'] ?? false) ? 1 : 0;
+            if ((int) ($row['seq'] ?? 0) > 0) {
+                $counts['composite_columns']++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function rowSummary225(array $rows, bool $includePhase = true): array
+    {
+        $summary = array_map(
+            static fn (array $row): string => implode(':', array_filter([
+                $includePhase ? (string) $row['phase'] : null,
+                (string) $row['table'] . '#' . (int) $row['foreign_key_id'] . '.' . (int) $row['seq'],
+                (string) $row['from'] . '->' . (string) $row['parent'] . '.' . (($row['to'] ?? null) === null ? 'null' : (string) $row['to']),
+                'update=' . (string) $row['on_update'],
+                'delete=' . (string) $row['on_delete'],
+                (string) ($row['status'] ?? ''),
+            ], static fn (?string $part): bool => $part !== null)),
+            $rows,
+        );
+        sort($summary);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<list<array<string,mixed>>>
+     */
+    private static function groupForeignKeyRows225(array $rows): array
+    {
+        $groups = [];
+        foreach ($rows as $row) {
+            $groups[strtolower((string) $row['table']) . '#' . (int) $row['id']][] = $row;
+        }
+        foreach ($groups as &$group) {
+            usort($group, static fn (array $left, array $right): int => (int) $left['seq'] <=> (int) $right['seq']);
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * @param list<mixed> $records
+     */
+    private static function validateRecords225(array $records): void
+    {
+        foreach ($records as $record) {
+            if (!$record instanceof SQLiteSchemaRecord) {
+                throw new InvalidArgumentException('SQLite PRAGMA current-source next225 records must be SQLiteSchemaRecord instances');
+            }
+        }
+    }
+
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
     public static function page226(
         array $currentRecords,
         array $nextRecords,
