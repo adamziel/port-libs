@@ -3,12 +3,13 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueYieldReturningSavepointCurrentSourceNext223Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueYieldReturningSavepointCurrentSourceNext223Plan;
+use PortLibs\LibSqlite\SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan;
 
 $tables = [
     'wp_options' => [
@@ -21,7 +22,7 @@ $tables = [
     ],
 ];
 
-$plan = SQLiteRowValueYieldReturningSavepointCurrentSourceNext223Plan::execute(
+$plan = SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan::execute(
     $tables,
     [
         "UPDATE wp_options SET (status, option_value, bytes) = ('yield223', option_value || ':yield223', bytes + 3) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id",

@@ -1,9 +1,9 @@
-# rowvalue-conflict-returning-distinct-current-source-next147
+# rowvalue-conflict-returning-distinct-current-source-next
 
 Status: focused PHP behavior growth for row-value `IS DISTINCT FROM` predicates
 combined with UPDATE conflict policy and `RETURNING` current-source behavior.
 
-This slice adds `SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan`.
+This slice adds `SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan`.
 It composes the existing native UPDATE/DELETE RETURNING executor to model a
 current-source sequence where:
 
@@ -19,27 +19,27 @@ current-source sequence where:
   current-source prefix rather than applying the failed statement image.
 
 WordPress smoke:
-`lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next147.php`
+`lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next.php`
 models copied `wp_options` drift repair for import cleanup and option-key
 deduplication.
 
 Verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan.php
+php -l lanes/libsqlite/src/SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan.php
 
-php -l lanes/libsqlite/tests/SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Test.php
-No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Test.php
+php -l lanes/libsqlite/tests/SQLiteRowValueConflictReturningDistinctCurrentSourceNextTest.php
+No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueConflictReturningDistinctCurrentSourceNextTest.php
 
-php -l lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next147.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next147.php
+php -l lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next.php
+No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next.php
 
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueConflictReturningDistinctCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 68 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next147.php
+php lanes/libsqlite/examples/wordpress-rowvalue-conflict-returning-distinct-current-source-next.php
 "status": "stopped-after-conflict"
 "returningCount": 4
 "ignoredCount": 1

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -36,7 +36,7 @@ $rollbackOnly = static function () use ($releaseSql, $rollbackSql, $tables, $uni
 
     return SQLiteUpdateDeleteReturningSql::execute($rollbackSql, $released['tables'], 'option_id', $unique);
 };
-$plan = static fn (): array => SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute(
+$plan = static fn (): array => SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute(
     $tables,
     [$releaseSql],
     [$rollbackSql, $failingSql],
@@ -44,7 +44,7 @@ $plan = static fn (): array => SQLiteRowValueSavepointReturningDistinctCurrentSo
     $unique,
     $distinct,
 );
-$cleanPlan = static fn (): array => SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute(
+$cleanPlan = static fn (): array => SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute(
     $tables,
     [$releaseSql],
     [$rollbackSql],
@@ -112,14 +112,14 @@ $cases = [
     'clean plan retry source equals attempted current source' => [static fn (): mixed => $cleanPlan()['retry_source_tables'], $cleanPlan()['attempted_current_source_tables']],
     'clean plan yielded phases include rollback stream' => [static fn (): mixed => array_column($cleanPlan()['yielded_returning'], 'phase'), ['released', 'rollback', 'retry']],
     'clean plan current row three gets second retry suffix' => [static fn (): mixed => array_column($cleanPlan()['current_source_tables']['wp_options'], 'option_value', 'option_id')[3], 'feed:reviewed:attempt:retry'],
-    'custom savepoint accepted' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute($tables, [$releaseSql], [$rollbackSql], [$retrySql], $unique, $distinct, 'wp_distinct_custom')['savepoint'], 'wp_distinct_custom'],
-    'malformed empty released statements rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute($tables, [], [$rollbackSql], [$retrySql], $unique, $distinct), InvalidArgumentException::class],
-    'malformed empty rollback statements rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute($tables, [$releaseSql], [], [$retrySql], $unique, $distinct), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute($tables, [$releaseSql], [$rollbackSql], [], $unique, $distinct), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute($tables, [$releaseSql], [$rollbackSql], [$retrySql], [], $distinct), InvalidArgumentException::class],
-    'malformed empty distinct columns rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute($tables, [$releaseSql], [$rollbackSql], [$retrySql], $unique, []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute(['wp_options' => ['bad']], [$releaseSql], [$rollbackSql], [$retrySql], $unique, $distinct), InvalidArgumentException::class],
-    'malformed missing distinct column rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute($tables, [$releaseSql], [$rollbackSql], [$retrySql], $unique, ['missing_column']), InvalidArgumentException::class],
+    'custom savepoint accepted' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute($tables, [$releaseSql], [$rollbackSql], [$retrySql], $unique, $distinct, 'wp_distinct_custom')['savepoint'], 'wp_distinct_custom'],
+    'malformed empty released statements rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute($tables, [], [$rollbackSql], [$retrySql], $unique, $distinct), InvalidArgumentException::class],
+    'malformed empty rollback statements rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute($tables, [$releaseSql], [], [$retrySql], $unique, $distinct), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute($tables, [$releaseSql], [$rollbackSql], [], $unique, $distinct), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute($tables, [$releaseSql], [$rollbackSql], [$retrySql], [], $distinct), InvalidArgumentException::class],
+    'malformed empty distinct columns rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute($tables, [$releaseSql], [$rollbackSql], [$retrySql], $unique, []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute(['wp_options' => ['bad']], [$releaseSql], [$rollbackSql], [$retrySql], $unique, $distinct), InvalidArgumentException::class],
+    'malformed missing distinct column rejected' => [static fn (): mixed => SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute($tables, [$releaseSql], [$rollbackSql], [$retrySql], $unique, ['missing_column']), InvalidArgumentException::class],
 ];
 
 $tests = [];

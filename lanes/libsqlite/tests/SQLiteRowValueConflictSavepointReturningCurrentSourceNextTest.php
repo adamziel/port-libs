@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueConflictSavepointReturningCurrentSourceNext143Plan;
+use PortLibs\LibSqlite\SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -30,13 +30,13 @@ $parsedStage = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($sta
 $parsedConflict = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($conflictSql);
 $stageOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($stageSql, $tables, 'option_id', $unique);
 $conflictOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($conflictSql, $tables, 'option_id', $unique);
-$plan = static fn (): array => SQLiteRowValueConflictSavepointReturningCurrentSourceNext143Plan::execute(
+$plan = static fn (): array => SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan::execute(
     $tables,
     [$stageSql, $cleanupSql, $conflictSql],
     [$retrySql, $retryCleanupSql],
     $unique,
 );
-$cleanPlan = static fn (): array => SQLiteRowValueConflictSavepointReturningCurrentSourceNext143Plan::execute(
+$cleanPlan = static fn (): array => SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan::execute(
     $tables,
     [$stageSql, $cleanupSql],
     [$retrySql],
@@ -106,11 +106,11 @@ $cases = [
     'clean plan pre rollback source equals rollback source' => [static fn (): mixed => $cleanPlan()['pre_rollback_current_source_tables'], $cleanPlan()['rollback_current_source_tables']],
     'clean plan still retries from current source' => [static fn (): mixed => $cleanPlan()['retry_statements'][0]['source_rows'][0]['option_name'], 'pending_theme:stage'],
     'clean plan final retry names include staged suffix' => [static fn (): mixed => array_column($cleanPlan()['post_retry_current_source_tables']['wp_options'], 'option_name', 'option_id')[7], 'pending_theme:stage:retry'],
-    'custom savepoint accepted' => [static fn (): mixed => SQLiteRowValueConflictSavepointReturningCurrentSourceNext143Plan::execute($tables, [$stageSql], [$retrySql], $unique, 'wp_retry_two')['savepoint'], 'wp_retry_two'],
-    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueConflictSavepointReturningCurrentSourceNext143Plan::execute($tables, [], [$retrySql], $unique), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueConflictSavepointReturningCurrentSourceNext143Plan::execute($tables, [$stageSql], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueConflictSavepointReturningCurrentSourceNext143Plan::execute($tables, [$stageSql], [$retrySql], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueConflictSavepointReturningCurrentSourceNext143Plan::execute(['wp_options' => ['bad']], [$stageSql], [$retrySql], $unique), InvalidArgumentException::class],
+    'custom savepoint accepted' => [static fn (): mixed => SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan::execute($tables, [$stageSql], [$retrySql], $unique, 'wp_retry_two')['savepoint'], 'wp_retry_two'],
+    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan::execute($tables, [], [$retrySql], $unique), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan::execute($tables, [$stageSql], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan::execute($tables, [$stageSql], [$retrySql], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan::execute(['wp_options' => ['bad']], [$stageSql], [$retrySql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

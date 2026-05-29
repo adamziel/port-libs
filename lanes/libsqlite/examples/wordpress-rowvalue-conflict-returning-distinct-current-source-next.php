@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'expected_status' => 'live', 'bytes' => 20, 'expected_bytes' => 20, 'option_value' => 'https://old.test'],
@@ -18,7 +18,7 @@ $rows = [
     ['option_id' => 9, 'blog_id' => 3, 'option_name' => 'rewrite_rules', 'autoload' => 'yes', 'status' => 'queued', 'expected_status' => 'queued', 'bytes' => 9, 'expected_bytes' => 9, 'option_value' => 'rules'],
 ];
 
-$plan = SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan::execute(
+$plan = SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan::execute(
     ['wp_options' => $rows],
     [
         "UPDATE OR IGNORE wp_options SET (blog_id, option_name, status, bytes, option_value) = (1, 'siteurl', 'ignored-conflict', bytes + 1, option_value || ':ignored') WHERE (status, bytes) IS DISTINCT FROM (expected_status, expected_bytes) AND option_id = 2 RETURNING option_id, blog_id, option_name, status, bytes, (status, bytes) IS DISTINCT FROM (expected_status, expected_bytes) AS still_drifted",
@@ -30,7 +30,7 @@ $plan = SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan::execute
 );
 
 $summary = [
-    'scenario' => 'wordpress-rowvalue-conflict-returning-distinct-current-source-next147',
+    'scenario' => 'wordpress-rowvalue-conflict-returning-distinct-current-source-next',
     'wordpressUse' => 'Model a copied wp_options drift repair where row-value IS DISTINCT FROM selects changed rows, OR IGNORE suppresses conflicting RETURNING rows, OR REPLACE deletes the current conflicting option before RETURNING, clean aligned rows are deleted, and a later OR ABORT leaves the prior current-source prefix intact.',
     'status' => $plan['status'],
     'failedReason' => $plan['failed_statement']['reason'] ?? null,

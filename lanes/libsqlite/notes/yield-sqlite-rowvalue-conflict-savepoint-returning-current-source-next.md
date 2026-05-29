@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteRowValueConflictSavepointReturningCurrentSourceNext143Plan` for a row-value `UPDATE ... RETURNING` import batch that yields earlier rows, hits a later `OR ABORT` unique conflict inside the same savepoint, rolls back to the savepoint image, and retries against the restored current source.
+- Adds `SQLiteRowValueConflictSavepointReturningCurrentSourceNextPlan` for a row-value `UPDATE ... RETURNING` import batch that yields earlier rows, hits a later `OR ABORT` unique conflict inside the same savepoint, rolls back to the savepoint image, and retries against the restored current source.
 - Covers SQLite-compatible savepoint visibility:
   - earlier `RETURNING` streams are observable before `ROLLBACK TO` but are discarded by the rollback plan;
   - the failed statement sees the current attempted source after prior successful statements;
@@ -12,7 +12,7 @@
 ## Focused Evidence
 
 ```text
-$ php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueConflictSavepointReturningCurrentSourceNext143Test.php
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueConflictSavepointReturningCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 64 assertions, 0 failures

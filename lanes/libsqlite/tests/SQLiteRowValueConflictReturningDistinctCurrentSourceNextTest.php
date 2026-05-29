@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -25,12 +25,12 @@ $replaceSql = "UPDATE OR REPLACE wp_options SET (blog_id, option_name, status, b
 $deleteCleanSql = "DELETE FROM wp_options WHERE (status, bytes) IS NOT DISTINCT FROM (expected_status, expected_bytes) AND autoload = 'yes' RETURNING option_id, option_name, (status, bytes) IS DISTINCT FROM (expected_status, expected_bytes) AS clean_drift ORDER BY option_id";
 $abortSql = "UPDATE OR ABORT wp_options SET (blog_id, option_name, status, option_value) = (1, 'siteurl', 'abort-conflict', option_value || ':abort') WHERE (status, bytes) IS DISTINCT FROM (expected_status, expected_bytes) AND option_id = 7 RETURNING option_id, blog_id, option_name, status, (status, expected_status) IS DISTINCT FROM (NULL, 'queued') AS one_sided_null";
 
-$plan = static fn (): array => SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan::execute(
+$plan = static fn (): array => SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan::execute(
     $tables,
     [$ignoreSql, $replaceSql, $deleteCleanSql, $abortSql],
     $unique,
 );
-$completed = static fn (): array => SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan::execute(
+$completed = static fn (): array => SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan::execute(
     $tables,
     [$ignoreSql, $replaceSql, $deleteCleanSql],
     $unique,
@@ -115,9 +115,9 @@ $cases = [
     'completed current row three bytes' => [static fn (): mixed => array_column($completed()['current_source_tables']['wp_options'], 'bytes', 'option_id')[3], 22],
     'completed current row five deleted' => [static fn (): mixed => in_array(5, array_column($completed()['current_source_tables']['wp_options'], 'option_id'), true), false],
     'abort only throws after completed prefix' => [$abortOnly, InvalidArgumentException::class],
-    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan::execute($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan::execute($tables, [$ignoreSql], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningDistinctCurrentSourceNext147Plan::execute(['wp_options' => ['bad']], [$ignoreSql], $unique), InvalidArgumentException::class],
+    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan::execute($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan::execute($tables, [$ignoreSql], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueConflictReturningDistinctCurrentSourceNextPlan::execute(['wp_options' => ['bad']], [$ignoreSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan;
 
 $tables = [
     'wp_options' => [
@@ -27,7 +27,7 @@ $failingSql = "DELETE FROM wp_options WHERE (status) IS DISTINCT FROM ('live') R
 $retrySql = "UPDATE wp_options SET (status, bucket, option_value, bytes) = ('retry', 'cache', option_value || ':retry', bytes + 5) WHERE (status, bucket) IS DISTINCT FROM ('live', 'core') RETURNING option_id, blog_id, option_name, status, bucket, (status, bucket) IS DISTINCT FROM ('live', 'core') AS not_core ORDER BY option_id LIMIT 4";
 $deleteRetrySql = "DELETE FROM wp_options WHERE (status, bucket) IS NOT DISTINCT FROM ('retry', 'cache') RETURNING option_id, blog_id, option_name, status, bucket ORDER BY option_id LIMIT 1";
 
-$summary = SQLiteRowValueSavepointReturningDistinctCurrentSourceNext148Plan::execute(
+$summary = SQLiteRowValueSavepointReturningDistinctCurrentSourceNextPlan::execute(
     $tables,
     [$releaseSql],
     [$rollbackSql, $failingSql],
@@ -49,10 +49,10 @@ if (array_column($summary['current_source_tables']['wp_options'], 'option_id') !
     exit(1);
 }
 
-echo "wordpress-rowvalue-savepoint-returning-distinct-current-source-next148 self-test passed\n";
+echo "wordpress-rowvalue-savepoint-returning-distinct-current-source-next self-test passed\n";
 
 return [
-    'scenario' => 'wordpress-rowvalue-savepoint-returning-distinct-current-source-next148',
+    'scenario' => 'wordpress-rowvalue-savepoint-returning-distinct-current-source-next',
     'wordpressUse' => 'Copied wp_options import cleanup can use row-value IS DISTINCT FROM / IS NOT DISTINCT FROM predicates, yield de-duplicated RETURNING stream diagnostics, roll back attempted inner savepoint rows, and retry from the restored current source without ext/sqlite.',
     'status' => $summary['status'],
     'changes' => $summary['changes'],
