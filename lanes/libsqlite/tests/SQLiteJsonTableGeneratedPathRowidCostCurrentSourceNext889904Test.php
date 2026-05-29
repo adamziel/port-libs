@@ -69,8 +69,8 @@ foreach (range(889, 904) as $next) {
     };
 }
 
-$tests['json table generated path rowid cost current source next904 rejects next905 alias'] = static function (TestRunner $t) use ($plan889904): void {
-    $t->throws(Error::class, static fn () => $plan889904(905));
+$tests['json table generated path rowid cost current source next904 hands off to next905 alias'] = static function (TestRunner $t) use ($plan889904): void {
+    $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next905', $plan889904(905)['dependencies'], true));
 };
 
 return $tests;
