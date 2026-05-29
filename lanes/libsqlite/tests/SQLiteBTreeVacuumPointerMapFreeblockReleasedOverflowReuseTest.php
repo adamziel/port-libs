@@ -88,25 +88,25 @@ $plan153 = static fn (bool $secureDelete = true): SQLiteBTreeVacuumPointerMapFre
     3,
     [
         [
-            'source' => 'wp_options-autoload-value-current-source-next153',
+            'source' => 'wp_options-autoload-value-released-overflow-reuse',
             'first_page' => 5,
             'overflow_payload_bytes' => 1016,
         ],
         [
-            'source' => 'wp_options-option-name-index-current-source-next153',
+            'source' => 'wp_options-option-name-index-released-overflow-reuse',
             'first_page' => 8,
             'overflow_payload_bytes' => 1016,
         ],
     ],
     [
         [
-            'source' => 'wp_options-autoload-value-current-source-next153',
+            'source' => 'wp_options-autoload-value-released-overflow-reuse',
             'rowid' => 15301,
             'obsolete_overflow_page_numbers' => [5, 6],
         ],
         [
-            'source' => 'wp_options-option-name-index-current-source-next153',
-            'record_values' => [['_transient_next153', 15301]],
+            'source' => 'wp_options-option-name-index-released-overflow-reuse',
+            'record_values' => [['_transient_reuse', 15301]],
             'obsolete_overflow_page_numbers' => [8, 9],
         ],
     ],
@@ -168,7 +168,7 @@ $cases153 = [
 ];
 
 $expected153 = [
-    'action label' => 'btree-vacuum-pointermap-freeblock-current-source-next153',
+    'action label' => 'btree-vacuum-pointermap-freeblock-released-overflow-reuse',
     'released pages' => [5, 6, 8, 9],
     'allocated pages' => [11, 9, 8, 6, 5],
     'reused released pages' => [5, 6, 8, 9],
@@ -178,8 +178,8 @@ $expected153 = [
     'row statuses' => ['leaf-freeblock-materialized', 'existing-freelist-reused', 'released-overflow-reused', 'released-overflow-reused', 'released-overflow-reused', 'released-overflow-reused'],
     'reuse row pages' => [9, 8, 6, 5],
     'freelist row pages' => [11],
-    'release sources' => ['wp_options-option-name-index-current-source-next153', 'wp_options-option-name-index-current-source-next153', 'wp_options-autoload-value-current-source-next153', 'wp_options-autoload-value-current-source-next153'],
-    'current sources' => ['wp_options-option-name-index-current-source-next153', 'wp_options-option-name-index-current-source-next153', 'wp_options-autoload-value-current-source-next153', 'wp_options-autoload-value-current-source-next153'],
+    'release sources' => ['wp_options-option-name-index-released-overflow-reuse', 'wp_options-option-name-index-released-overflow-reuse', 'wp_options-autoload-value-released-overflow-reuse', 'wp_options-autoload-value-released-overflow-reuse'],
+    'current sources' => ['wp_options-option-name-index-released-overflow-reuse', 'wp_options-option-name-index-released-overflow-reuse', 'wp_options-autoload-value-released-overflow-reuse', 'wp_options-autoload-value-released-overflow-reuse'],
     'current chain positions' => [1, 0, 1, 0],
     'current next pages' => [0, 9, 0, 6],
     'before pointer types' => ['overflow-page', 'first-overflow-page', 'overflow-page', 'first-overflow-page'],
@@ -205,13 +205,13 @@ $expected153 = [
 ];
 
 foreach ($cases153 as $name => $callback) {
-    $tests['btree vacuum pointermap freeblock current source next153 ' . $name] = static function (TestRunner $t) use ($callback, $expected153, $name): void {
+    $tests['btree vacuum pointermap freeblock released overflow reuse ' . $name] = static function (TestRunner $t) use ($callback, $expected153, $name): void {
         $t->same($expected153[$name], $callback());
     };
 }
 
 foreach (range(1, 40) as $index) {
-    $tests['btree vacuum pointermap freeblock current source next153 invariant ' . $index] = static function (TestRunner $t) use ($plan153): void {
+    $tests['btree vacuum pointermap freeblock released overflow reuse invariant ' . $index] = static function (TestRunner $t) use ($plan153): void {
         $plan = $plan153();
         $leaf = $plan->rows[0];
 

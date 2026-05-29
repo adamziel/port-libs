@@ -8,6 +8,7 @@ require_once __DIR__ . '/../src/SQLiteJsonEach.php';
 require_once __DIR__ . '/../src/SQLiteJsonTree.php';
 require_once __DIR__ . '/../src/SQLiteJsonTableCursor.php';
 require_once __DIR__ . '/../src/SQLiteJson5Parser.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteGroupedAggregate.php';
 require_once __DIR__ . '/../src/SQLiteWindowFunction.php';
 require_once __DIR__ . '/../src/SQLiteSelectExpression.php';
@@ -69,7 +70,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundWindowFrameLimitCurrentSourceNextPlan::compareNext131($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundWindowFrameLimitCurrentSourceNextPlan::compareWindowFrameLimit($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     if (array_column($summary['currentRows'], 'id') !== [2, 4, 5, 3, 6]) {
@@ -84,7 +85,7 @@ if (($argv[1] ?? '') === '--self-test') {
         fwrite(STDERR, "missing compound tail LIMIT diagnostic\n");
         exit(1);
     }
-    echo "wordpress-compound-window-frame-limit-current-source-next131 self-test passed\n";
+    echo "wordpress-compound-window-frame-limit-current-source self-test passed\n";
     exit(0);
 }
 

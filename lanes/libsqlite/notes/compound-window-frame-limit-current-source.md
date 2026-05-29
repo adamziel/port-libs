@@ -1,4 +1,4 @@
-# compound-window-frame-limit-current-source-next131
+# compound-window-frame-limit-current-source
 
 Status: focused PHP behavior growth for parser-level compound SELECT output where
 each arm computes current-row window frames and the compound tail applies
@@ -17,7 +17,7 @@ Behavior covered:
 Verification:
 
 ```bash
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundWindowFrameLimitCurrentSourceNext131Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundWindowFrameLimitCurrentSourceNextTest.php
 # Focused test run: 1 selected test files (root lock skipped)
 # ...
 # 1 test files, 156 assertions, 0 failures
@@ -31,8 +31,8 @@ frame, and LIMIT inventory.
 WordPress smoke:
 
 ```bash
-php lanes/libsqlite/examples/wordpress-compound-window-frame-limit-current-source-next131.php --self-test
-# wordpress-compound-window-frame-limit-current-source-next131 self-test passed
+php lanes/libsqlite/examples/wordpress-compound-window-frame-limit-current-source.php --self-test
+# wordpress-compound-window-frame-limit-current-source self-test passed
 ```
 
 Non-overlap: this does not repeat accepted compound recursive affinity/window

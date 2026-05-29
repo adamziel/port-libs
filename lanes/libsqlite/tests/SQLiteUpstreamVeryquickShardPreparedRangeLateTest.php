@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 
-function libsqlite_suite_next181196_evidence(): SQLiteUpstreamSuiteEvidence
+function libsqlite_suite_prepared_range_late_evidence(): SQLiteUpstreamSuiteEvidence
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 }
 
-function libsqlite_suite_next181196_output(int $passLines = 84, int $assertions = 84, int $failures = 0): string
+function libsqlite_suite_prepared_range_late_output(int $passLines = 84, int $assertions = 84, int $failures = 0): string
 {
     $lines = ['Focused test run: 1 selected test files (root lock skipped)'];
     for ($i = 1; $i <= $passLines; $i++) {
@@ -23,7 +23,7 @@ function libsqlite_suite_next181196_output(int $passLines = 84, int $assertions 
 /**
  * @return list<array<string, mixed>>
  */
-function libsqlite_suite_next181196_rows(
+function libsqlite_suite_prepared_range_late_rows(
     string $launcherBase = 'c0d758bef6c59b98504b251912fc1472b47d78aa',
     string $integrationSource = '8a447f445e5d2fd32fc9fd463117f585d1416551'
 ): array {
@@ -53,20 +53,22 @@ function libsqlite_suite_next181196_rows(
  * @param list<array<string, mixed>> $rows
  * @return array<string, mixed>
  */
-function libsqlite_suite_next181196_record(
+function libsqlite_suite_prepared_range_late_record(
     array $rows,
     ?string $output = null,
     ?int $expected = 84,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next181196_evidence()->upstreamVeryquickShardCurrentSourceNext181196(
+    return libsqlite_suite_prepared_range_late_evidence()->upstreamVeryquickShardPreparedRange(
         $rows,
+        181,
+        196,
         614,
         83340,
         'c0d758bef6c59b98504b251912fc1472b47d78aa',
         '8a447f445e5d2fd32fc9fd463117f585d1416551',
-        'lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext181196Test.php',
-        $output ?? libsqlite_suite_next181196_output(),
+        'lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardPreparedRangeLateTest.php',
+        $output ?? libsqlite_suite_prepared_range_late_output(),
         'current-source next181-196 suite evidence prep is a direct follow-on to merged next165-180, avoids individual next181 shard countability, accepted next165-180 suite evidence, exact-shard next148, release/all parity, mapped-count inflation, and live B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE work',
         $expected,
         $snapshot
@@ -76,9 +78,9 @@ function libsqlite_suite_next181196_record(
 $tests = [];
 
 $tests['current source next181-196 prepares suite evidence without mapped inflation'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_next181196_record(libsqlite_suite_next181196_rows());
+    $record = libsqlite_suite_prepared_range_late_record(libsqlite_suite_prepared_range_late_rows());
 
-    $t->same('current-source-next181-196-suite-evidence-prepared', $record['status']);
+    $t->same('upstream-veryquick-shard-prepared-range-evidence-prepared', $record['status']);
     $t->same(614, $record['current_mapped']);
     $t->same(614, $record['next_mapped']);
     $t->same(0, $record['mapped_delta']);
@@ -98,7 +100,7 @@ $tests['current source next181-196 prepares suite evidence without mapped inflat
 };
 
 $tests['current source next181-196 records concrete target scripts'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_next181196_record(libsqlite_suite_next181196_rows());
+    $record = libsqlite_suite_prepared_range_late_record(libsqlite_suite_prepared_range_late_rows());
 
     $t->same(17, $record['target_script_count']);
     $t->contains('veryquick-current-source-next181-evidence.test', implode(',', $record['target_scripts']));
@@ -107,9 +109,9 @@ $tests['current source next181-196 records concrete target scripts'] = static fu
 };
 
 $tests['current source next181-196 blocks missing slice'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next181196_rows();
+    $rows = libsqlite_suite_prepared_range_late_rows();
     array_splice($rows, 5, 1);
-    $record = libsqlite_suite_next181196_record($rows);
+    $record = libsqlite_suite_prepared_range_late_record($rows);
 
     $t->same('blocked', $record['status']);
     $t->same(['next186'], $record['missing_slices']);
@@ -117,9 +119,9 @@ $tests['current source next181-196 blocks missing slice'] = static function (Tes
 };
 
 $tests['current source next181-196 blocks stale provenance and non local notes'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next181196_rows(launcherBase: 'bad', integrationSource: 'stale');
+    $rows = libsqlite_suite_prepared_range_late_rows(launcherBase: 'bad', integrationSource: 'stale');
     $rows[0]['artifact_path'] = '/tmp/next181.md';
-    $record = libsqlite_suite_next181196_record($rows);
+    $record = libsqlite_suite_prepared_range_late_record($rows);
 
     $t->same('blocked', $record['status']);
     $ids = implode('; ', array_column($record['blockers'], 'id'));
@@ -129,10 +131,10 @@ $tests['current source next181-196 blocks stale provenance and non local notes']
 };
 
 $tests['current source next181-196 blocks unguarded or non zero runner rows'] = static function (TestRunner $t): void {
-    $rows = libsqlite_suite_next181196_rows();
+    $rows = libsqlite_suite_prepared_range_late_rows();
     $rows[0]['runner_command'] = './testfixture ../libsqlite/test/testrunner.tcl all';
     $rows[1]['errors'] = 1;
-    $record = libsqlite_suite_next181196_record($rows);
+    $record = libsqlite_suite_prepared_range_late_record($rows);
 
     $t->same('blocked', $record['status']);
     $ids = implode('; ', array_column($record['blockers'], 'id'));
@@ -141,8 +143,8 @@ $tests['current source next181-196 blocks unguarded or non zero runner rows'] = 
 };
 
 $tests['current source next181-196 blocks duplicate broad runner snapshot'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_next181196_record(
-        libsqlite_suite_next181196_rows(),
+    $record = libsqlite_suite_prepared_range_late_record(
+        libsqlite_suite_prepared_range_late_rows(),
         snapshot: "12345 ./testfixture ../libsqlite/test/testrunner.tcl release\n"
     );
 
@@ -152,9 +154,9 @@ $tests['current source next181-196 blocks duplicate broad runner snapshot'] = st
 };
 
 $tests['current source next181-196 blocks focused php mismatch'] = static function (TestRunner $t): void {
-    $record = libsqlite_suite_next181196_record(
-        libsqlite_suite_next181196_rows(),
-        output: libsqlite_suite_next181196_output(passLines: 83, assertions: 83)
+    $record = libsqlite_suite_prepared_range_late_record(
+        libsqlite_suite_prepared_range_late_rows(),
+        output: libsqlite_suite_prepared_range_late_output(passLines: 83, assertions: 83)
     );
 
     $t->same('blocked', $record['status']);
@@ -163,10 +165,10 @@ $tests['current source next181-196 blocks focused php mismatch'] = static functi
 
 $tests['current source next181-196 rejects empty row list'] = static function (TestRunner $t): void {
     try {
-        libsqlite_suite_next181196_record([]);
+        libsqlite_suite_prepared_range_late_record([]);
         $t->fail('Expected empty next181-196 row list to be rejected');
     } catch (InvalidArgumentException $exception) {
-        $t->contains('next181-196 suite evidence requires at least one row', $exception->getMessage());
+        $t->contains('upstream veryquick shard evidence requires at least one row', $exception->getMessage());
     }
 };
 

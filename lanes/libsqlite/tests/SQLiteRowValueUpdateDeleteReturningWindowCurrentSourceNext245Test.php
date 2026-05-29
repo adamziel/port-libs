@@ -27,7 +27,7 @@ $attemptDelete245 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3,
 $retryUpdate245 = "UPDATE wp_options SET (status, option_value, bytes) = ('retry245', option_value || ':retry245', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete245 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan245 = static fn (?array $ack = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext245(
+$plan245 = static fn (?array $ack = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeYieldGateWindow(
     $tables245,
     [$yieldUpdate245, $yieldDelete245],
     [$attemptUpdate245, $attemptDelete245],
@@ -37,7 +37,7 @@ $plan245 = static fn (?array $ack = null): array => SQLiteRowValueUpdateDeleteRe
     'option_id',
     $ack,
 );
-$customPlan245 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext245(
+$customPlan245 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeYieldGateWindow(
     $tables245,
     [$yieldUpdate245],
     [$attemptUpdate245],
@@ -109,10 +109,10 @@ $cases245 = [
     'custom yield ticket ids' => [static fn (): mixed => array_column($customPlan245()['yield_phase_tickets_next245'], 'option_id'), [7, 5]],
     'custom retry ticket ids' => [static fn (): mixed => array_column($customPlan245()['retry_phase_tickets_next245'], 'option_id'), [9, 7, 5]],
     'custom gate exposed' => [static fn (): mixed => $customPlan245()['next_source_exposed_next245'], true],
-    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext245($tables245, [], [$attemptUpdate245], [$retryUpdate245], $unique245), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext245($tables245, [$yieldUpdate245], [], [$retryUpdate245], $unique245), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext245($tables245, [$yieldUpdate245], [$attemptUpdate245], [], $unique245), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext245($tables245, [$yieldUpdate245], [$attemptUpdate245], [$retryUpdate245], $unique245, 'bad-name'), InvalidArgumentException::class],
+    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeYieldGateWindow($tables245, [], [$attemptUpdate245], [$retryUpdate245], $unique245), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeYieldGateWindow($tables245, [$yieldUpdate245], [], [$retryUpdate245], $unique245), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeYieldGateWindow($tables245, [$yieldUpdate245], [$attemptUpdate245], [], $unique245), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeYieldGateWindow($tables245, [$yieldUpdate245], [$attemptUpdate245], [$retryUpdate245], $unique245, 'bad-name'), InvalidArgumentException::class],
 ];
 
 $tests = [];

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas149152 = [
+$sourceHandoffSchemas = [
     'main' => [
         'schema_cookie' => 149,
         'tables' => ['wp_options', 'wp_posts'],
@@ -24,23 +24,23 @@ $schemas149152 = [
     ],
 ];
 
-$statements149152 = [
+$sourceHandoffStatements = [
     ['name' => 'options-reader', 'sql' => 'SELECT option_value FROM wp_options WHERE option_name = ?'],
     ['name' => 'main-posts-active-reader', 'sql' => 'SELECT post_title FROM main.wp_posts WHERE ID = ?', 'active' => true],
     ['name' => 'temp-indexed-reader', 'sql' => 'SELECT payload FROM temp.wp_import_queue INDEXED BY wp_import_queue_key WHERE import_key = ?'],
     ['name' => 'archive-writer', 'sql' => 'UPDATE archive.wp_options_archive SET option_value = ? WHERE option_name = ?'],
 ];
 
-$plan149152 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
-    $schemas ?? $schemas149152,
-    $statements ?? $statements149152,
+$sourceHandoffPlan = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
+    $schemas ?? $sourceHandoffSchemas,
+    $statements ?? $sourceHandoffStatements,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next149 temp table shadows unqualified option reader'] = static function (TestRunner $t) use ($plan149152): void {
-    $result = $plan149152([
+$tests['attach temp wal schema cache source handoff temp table shadows unqualified option reader'] = static function (TestRunner $t) use ($sourceHandoffPlan): void {
+    $result = $sourceHandoffPlan([
         ['op' => 'schema_write', 'schema' => 'temp', 'table' => 'wp_options'],
     ]);
 
@@ -52,8 +52,8 @@ $tests['attach temp wal schema cache current source next149 temp table shadows u
     $t->same(['options-reader', 'temp-indexed-reader'], $result['retryable_read_statements']);
 };
 
-$tests['attach temp wal schema cache current source next150 main wal drop lets active reader finish snapshot'] = static function (TestRunner $t) use ($plan149152): void {
-    $result = $plan149152([
+$tests['attach temp wal schema cache source handoff main wal drop lets active reader finish snapshot'] = static function (TestRunner $t) use ($sourceHandoffPlan): void {
+    $result = $sourceHandoffPlan([
         ['op' => 'drop_table', 'schema' => 'main', 'table' => 'wp_posts'],
     ]);
 
@@ -65,9 +65,9 @@ $tests['attach temp wal schema cache current source next150 main wal drop lets a
     $t->same(['main-posts-active-reader'], $result['active_current_snapshot_statements']);
 };
 
-$tests['attach temp wal schema cache current source next151 temp rename index expires indexed temp reader'] = static function (TestRunner $t) use ($plan149152): void {
-    $result = $plan149152([
-        ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_import_queue_key', 'to' => 'wp_import_queue_key_next151'],
+$tests['attach temp wal schema cache source handoff temp rename index expires indexed temp reader'] = static function (TestRunner $t) use ($sourceHandoffPlan): void {
+    $result = $sourceHandoffPlan([
+        ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_import_queue_key', 'to' => 'wp_import_queue_key_rebuilt'],
     ]);
 
     $t->same(['temp'], $result['changed_schemas']);
@@ -77,8 +77,8 @@ $tests['attach temp wal schema cache current source next151 temp rename index ex
     $t->same(['temp-indexed-reader'], $result['retryable_read_statements']);
 };
 
-$tests['attach temp wal schema cache current source next152 detach archive blocks stale archive writer'] = static function (TestRunner $t) use ($plan149152): void {
-    $result = $plan149152([
+$tests['attach temp wal schema cache source handoff detach archive blocks stale archive writer'] = static function (TestRunner $t) use ($sourceHandoffPlan): void {
+    $result = $sourceHandoffPlan([
         ['op' => 'detach', 'schema' => 'archive'],
     ]);
 
@@ -88,8 +88,8 @@ $tests['attach temp wal schema cache current source next152 detach archive block
     $t->same(['archive-writer'], $result['write_statements_blocked_before_retry']);
 };
 
-$tests['attach temp wal schema cache current source next149 152 ignores rolled back wal frames'] = static function (TestRunner $t) use ($plan149152): void {
-    $result = $plan149152([
+$tests['attach temp wal schema cache source handoff ignores rolled back wal frames'] = static function (TestRunner $t) use ($sourceHandoffPlan): void {
+    $result = $sourceHandoffPlan([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 152, 'commit' => false],
         ['op' => 'wal_commit', 'schema' => 'archive', 'schema_cookie' => 152, 'commit' => false],
     ]);
@@ -100,8 +100,8 @@ $tests['attach temp wal schema cache current source next149 152 ignores rolled b
     $t->same(['options-reader', 'main-posts-active-reader', 'temp-indexed-reader', 'archive-writer'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next149 152 rejects detach of source schema'] = static function (TestRunner $t) use ($plan149152): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan149152([
+$tests['attach temp wal schema cache source handoff rejects detach of source schema'] = static function (TestRunner $t) use ($sourceHandoffPlan): void {
+    $t->throws(InvalidArgumentException::class, static fn () => $sourceHandoffPlan([
         ['op' => 'detach', 'schema' => 'main'],
     ]));
 };

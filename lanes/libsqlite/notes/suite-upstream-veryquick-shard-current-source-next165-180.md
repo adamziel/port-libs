@@ -2,7 +2,7 @@
 
 ## Slice
 
-- Adds `SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSourceNext165180()`.
+- This historical slice is now served by `SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardPreparedRange()` with range arguments.
 - Prepares a larger bounded evidence bundle for next165 through next180 as a direct follow-on to merged next157-164.
 - Requires lane-local notes, guarded `testrunner.tcl --stop-on-error veryquick` commands, concrete `.test` scripts, launcher Base accepted HEAD `451cdc585bc4a38e033c2c799679392738aa5161`, integration-source provenance `8a447f445e5d2fd32fc9fd463117f585d1416551`, zero-error runner rows, duplicate broad-runner clearance, and focused TestRunner PASS-line admission.
 - Keeps `mapped_delta` at `0`, `next_mapped` equal to `current_mapped`, and release/all parity explicitly unclaimed.
@@ -16,7 +16,7 @@ This evidence-prep bundle avoids accepted next155/157/159/161/164 suite evidence
 Focused command:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext165180Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardPreparedRangeEarlyTest.php
 ```
 
 Expected focused result:

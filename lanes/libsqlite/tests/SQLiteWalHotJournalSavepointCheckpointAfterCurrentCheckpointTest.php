@@ -47,23 +47,42 @@ $receiptFor = static function (array $base, string $name): array {
     ];
 };
 
-$chain = static function () use ($base995, $receiptFor): array {
-    $next996 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next996AfterCurrentCheckpoint($base995, [$receiptFor($base995, 'next996-restart-salt-database-header')]);
-    $next997 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next997AfterCurrentCheckpoint($next996, [$receiptFor($next996, 'next997-reader-release-source-token')]);
-    $next998 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next998AfterCurrentCheckpoint($next997, [$receiptFor($next997, 'next998-page-cache-database-digest')]);
-    $next999 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next999AfterCurrentCheckpoint($next998, [$receiptFor($next998, 'next999-checkpoint-frame-schema-cookie')]);
-    $next1000 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1000AfterCurrentCheckpoint($next999, [$receiptFor($next999, 'next1000-commit-generation-checkpoint-frame')]);
-    $next1001 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1001AfterCurrentCheckpoint($next1000, [$receiptFor($next1000, 'next1001-hot-journal-delete-page-cache')]);
-    $next1002 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1002AfterCurrentCheckpoint($next1001, [$receiptFor($next1001, 'next1002-wal-index-reader-release')]);
-    $next1003 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1003AfterCurrentCheckpoint($next1002, [$receiptFor($next1002, 'next1003-current-source-seal')]);
-    $next1004 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1004AfterCurrentCheckpoint($next1003, [$receiptFor($next1003, 'next1004-restart-salt-database-digest')]);
-    $next1005 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1005AfterCurrentCheckpoint($next1004, [$receiptFor($next1004, 'next1005-reader-release-checkpoint-frame')]);
-    $next1006 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1006AfterCurrentCheckpoint($next1005, [$receiptFor($next1005, 'next1006-page-cache-source-token')]);
-    $next1007 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1007AfterCurrentCheckpoint($next1006, [$receiptFor($next1006, 'next1007-schema-cookie-database-header')]);
-    $next1008 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1008AfterCurrentCheckpoint($next1007, [$receiptFor($next1007, 'next1008-commit-generation-wal-index')]);
-    $next1009 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1009AfterCurrentCheckpoint($next1008, [$receiptFor($next1008, 'next1009-hot-journal-reader-release')]);
-    $next1010 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1010AfterCurrentCheckpoint($next1009, [$receiptFor($next1009, 'next1010-wal-index-page-cache')]);
-    $next1011 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1011AfterCurrentCheckpoint($next1010, [$receiptFor($next1010, 'next1011-current-source-seal')]);
+$verificationSteps = [
+    996 => 'verify_after_ready_checkpoint_restart_salt_database_header',
+    997 => 'verify_after_ready_checkpoint_reader_mark_release_source_token',
+    998 => 'verify_after_ready_checkpoint_page_cache_database_digest',
+    999 => 'verify_after_ready_checkpoint_checkpoint_frame_schema_cookie',
+    1000 => 'verify_after_ready_checkpoint_commit_generation_checkpoint_frame',
+    1001 => 'verify_after_ready_checkpoint_hot_journal_delete_page_cache',
+    1002 => 'verify_after_ready_checkpoint_wal_index_salt_reader_release',
+    1003 => 'seal_after_ready_checkpoint_current_source_next996_1003',
+    1004 => 'verify_after_ready_checkpoint_restart_salt_database_digest',
+    1005 => 'verify_after_ready_checkpoint_reader_mark_release_checkpoint_frame',
+    1006 => 'verify_after_ready_checkpoint_page_cache_source_token',
+    1007 => 'verify_after_ready_checkpoint_schema_cookie_database_header',
+    1008 => 'verify_after_ready_checkpoint_commit_generation_wal_index_salt',
+    1009 => 'verify_after_ready_checkpoint_hot_journal_absence_reader_release',
+    1010 => 'verify_after_ready_checkpoint_wal_index_salt_page_cache',
+    1011 => 'seal_after_ready_checkpoint_current_source_next1004_1011',
+];
+
+$chain = static function () use ($base995, $receiptFor, $verificationSteps): array {
+    $next996 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($base995, [$receiptFor($base995, 'next996-restart-salt-database-header')], 996, $verificationSteps[996]);
+    $next997 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next996, [$receiptFor($next996, 'next997-reader-release-source-token')], 997, $verificationSteps[997]);
+    $next998 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next997, [$receiptFor($next997, 'next998-page-cache-database-digest')], 998, $verificationSteps[998]);
+    $next999 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next998, [$receiptFor($next998, 'next999-checkpoint-frame-schema-cookie')], 999, $verificationSteps[999]);
+    $next1000 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next999, [$receiptFor($next999, 'next1000-commit-generation-checkpoint-frame')], 1000, $verificationSteps[1000]);
+    $next1001 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1000, [$receiptFor($next1000, 'next1001-hot-journal-delete-page-cache')], 1001, $verificationSteps[1001]);
+    $next1002 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1001, [$receiptFor($next1001, 'next1002-wal-index-reader-release')], 1002, $verificationSteps[1002]);
+    $next1003 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1002, [$receiptFor($next1002, 'next1003-current-source-seal')], 1003, $verificationSteps[1003]);
+    $next1004 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1003, [$receiptFor($next1003, 'next1004-restart-salt-database-digest')], 1004, $verificationSteps[1004]);
+    $next1005 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1004, [$receiptFor($next1004, 'next1005-reader-release-checkpoint-frame')], 1005, $verificationSteps[1005]);
+    $next1006 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1005, [$receiptFor($next1005, 'next1006-page-cache-source-token')], 1006, $verificationSteps[1006]);
+    $next1007 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1006, [$receiptFor($next1006, 'next1007-schema-cookie-database-header')], 1007, $verificationSteps[1007]);
+    $next1008 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1007, [$receiptFor($next1007, 'next1008-commit-generation-wal-index')], 1008, $verificationSteps[1008]);
+    $next1009 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1008, [$receiptFor($next1008, 'next1009-hot-journal-reader-release')], 1009, $verificationSteps[1009]);
+    $next1010 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1009, [$receiptFor($next1009, 'next1010-wal-index-page-cache')], 1010, $verificationSteps[1010]);
+    $next1011 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($next1010, [$receiptFor($next1010, 'next1011-current-source-seal')], 1011, $verificationSteps[1011]);
 
     return [$next996, $next997, $next998, $next999, $next1000, $next1001, $next1002, $next1003, $next1004, $next1005, $next1006, $next1007, $next1008, $next1009, $next1010, $next1011];
 };
@@ -109,9 +128,11 @@ $tests['wal hot journal savepoint checkpoint current source next996-1011 chains 
 };
 
 $tests['wal hot journal savepoint checkpoint current source next996 rejects missing next995 handoff'] = static function (TestRunner $t) use ($base995, $receiptFor): void {
-    $t->throws(Throwable::class, static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next996AfterCurrentCheckpoint(
+    $t->throws(Throwable::class, static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification(
         array_replace($base995, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next994']),
-        [$receiptFor($base995, 'next996-wrong-base')]
+        [$receiptFor($base995, 'next996-wrong-base')],
+        996,
+        'verify_after_ready_checkpoint_restart_salt_database_header'
     ));
 };
 
@@ -119,7 +140,12 @@ $tests['wal hot journal savepoint checkpoint current source next1001 blocks visi
     [, , , , $next1000] = $chain();
     $receipt = $receiptFor($next1000, 'next1001-hot-journal-visible');
     $receipt['hot_journal_visible'] = true;
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1001AfterCurrentCheckpoint($next1000, [$receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification(
+        $next1000,
+        [$receipt],
+        1001,
+        'verify_after_ready_checkpoint_hot_journal_delete_page_cache'
+    );
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next1001', $record['status']);
     $t->same(['checkpoint_hot_journal_visible'], $record['blocked_reasons']);
@@ -129,7 +155,12 @@ $tests['wal hot journal savepoint checkpoint current source next1006 blocks sour
     [, , , , , , , , , $next1005] = $chain();
     $receipt = $receiptFor($next1005, 'next1006-source-token-mismatch');
     $receipt['source_token'] = 'wp-next1006-stale-current-source';
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1006AfterCurrentCheckpoint($next1005, [$receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification(
+        $next1005,
+        [$receipt],
+        1006,
+        'verify_after_ready_checkpoint_page_cache_source_token'
+    );
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next1006', $record['status']);
     $t->same(['checkpoint_source_token_mismatch'], $record['blocked_reasons']);
@@ -138,7 +169,12 @@ $tests['wal hot journal savepoint checkpoint current source next1006 blocks sour
 $tests['wal hot journal savepoint checkpoint current source next1011 blocks duplicate receipt names'] = static function (TestRunner $t) use ($chain, $receiptFor): void {
     [, , , , , , , , , , , , , , $next1010] = $chain();
     $receipt = $receiptFor($next1010, 'next1011-duplicate-seal');
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1011AfterCurrentCheckpoint($next1010, [$receipt, $receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification(
+        $next1010,
+        [$receipt, $receipt],
+        1011,
+        'seal_after_ready_checkpoint_current_source_next1004_1011'
+    );
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next1011', $record['status']);
     $t->same(['checkpoint_receipt_name_duplicate:next1011-duplicate-seal'], $record['blocked_reasons']);

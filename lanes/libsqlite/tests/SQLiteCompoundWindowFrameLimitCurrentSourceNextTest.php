@@ -51,12 +51,12 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundWindowFrameLimitCurrentSourceNextPlan::compareNext131($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundWindowFrameLimitCurrentSourceNextPlan::compareWindowFrameLimit($sql, $currentTables, $nextTables);
 $tests = [];
 
-$tests['compound window frame limit current-source next131 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window frame limit current-source status and dependencies'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
-    $t->same('compound-window-frame-limit-current-source-next131-ready', $plan['status']);
+    $t->same('compound-window-frame-limit-current-source-ready', $plan['status']);
     $t->same([
         'sqlite-select-sql-compound-tail-limit',
         'sqlite-select-sql-window-current-row-frame',
@@ -64,7 +64,7 @@ $tests['compound window frame limit current-source next131 status and dependenci
     ], $plan['dependencies']);
 };
 
-$tests['compound window frame limit current-source next131 compound shape'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window frame limit current-source compound shape'] = static function (TestRunner $t) use ($summary): void {
     $compound = $summary()['compound'];
     $t->same(['UNION ALL'], $compound['operators']);
     $t->same(2, $compound['currentArms']);
@@ -74,21 +74,21 @@ $tests['compound window frame limit current-source next131 compound shape'] = st
     $t->same(1, $compound['offset']);
 };
 
-$tests['compound window frame limit current-source next131 current limited rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window frame limit current-source current limited rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentRows'];
     $t->same([2, 4, 5, 3, 6], array_column($rows, 'id'));
     $t->same(['blogname', 'active_plugins', 'rewrite_rules', 'blogname', 'theme_mods'], array_column($rows, 'frame_tail'));
     $t->same([15, 11, 9, 7, 4], array_column($rows, 'frame_weight'));
 };
 
-$tests['compound window frame limit current-source next131 next limited rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window frame limit current-source next limited rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same([1, 2, 6, 4, 7], array_column($rows, 'id'));
     $t->same(['home', 'blogname', 'theme_mods', 'active_plugins', 'plugin_alpha'], array_column($rows, 'frame_tail'));
     $t->same([24, 15, 14, 11, 10], array_column($rows, 'frame_weight'));
 };
 
-$tests['compound window frame limit current-source next131 window metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window frame limit current-source window metadata'] = static function (TestRunner $t) use ($summary): void {
     $windows = $summary()['windows']['current'];
     $t->same(['last_value', 'sum', 'first_value', 'sum'], array_column($windows, 'function'));
     $t->same(['ROWS', 'ROWS', 'ROWS', 'ROWS'], array_column($windows, 'frameUnit'));
@@ -97,7 +97,7 @@ $tests['compound window frame limit current-source next131 window metadata'] = s
     $t->same(['NO OTHERS', 'NO OTHERS', 'NO OTHERS', 'NO OTHERS'], array_column($windows, 'exclude'));
 };
 
-$tests['compound window frame limit current-source next131 limit boundary changes with next source'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window frame limit current-source limit boundary changes with next source'] = static function (TestRunner $t) use ($summary): void {
     $boundary = $summary()['limitBoundary'];
     $t->same(5, $boundary['currentCount']);
     $t->same(5, $boundary['nextCount']);
@@ -105,14 +105,14 @@ $tests['compound window frame limit current-source next131 limit boundary change
     $t->same(7, $boundary['nextLast']['id']);
 };
 
-$tests['compound window frame limit current-source next131 changed signatures name plugin rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window frame limit current-source changed signatures name plugin rows'] = static function (TestRunner $t) use ($summary): void {
     $changed = implode("\n", $summary()['changedSignatures']);
     $t->true(str_contains($changed, 'plugin_alpha'));
     $t->true(str_contains($changed, '"id":7'));
     $t->true(str_contains($changed, '"frame_weight":24'));
 };
 
-$tests['compound window frame limit current-source next131 replan reasons'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window frame limit current-source replan reasons'] = static function (TestRunner $t) use ($summary): void {
     $reasons = $summary()['replanReasons'];
     $t->true(in_array('limited-compound-rowset-changed', $reasons, true));
     $t->true(in_array('compound-window-frame-source', $reasons, true));
@@ -120,7 +120,7 @@ $tests['compound window frame limit current-source next131 replan reasons'] = st
 };
 
 foreach (range(1, 42) as $offset) {
-    $tests['compound window frame limit current-source next131 generated offset ' . $offset] = static function (TestRunner $t) use ($offset, $currentTables): void {
+    $tests['compound window frame limit current-source generated offset ' . $offset] = static function (TestRunner $t) use ($offset, $currentTables): void {
         $limit = 3 + ($offset % 4);
         $start = $offset % 3;
         $sql = "SELECT option_id AS id, option_name AS label, last_value(option_name) OVER (ORDER BY weight DESC, option_id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS frame_tail, sum(weight) OVER (ORDER BY weight DESC, option_id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS frame_weight FROM wp_options WHERE autoload = 'yes' UNION ALL SELECT option_id AS id, option_name AS label, first_value(option_name) OVER (ORDER BY option_id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS frame_tail, sum(weight) OVER (ORDER BY option_id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS frame_weight FROM wp_options WHERE autoload = 'no' ORDER BY frame_weight DESC, id LIMIT {$limit} OFFSET {$start}";
@@ -132,8 +132,8 @@ foreach (range(1, 42) as $offset) {
     };
 }
 
-$tests['compound window frame limit current-source next131 rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowFrameLimitCurrentSourceNextPlan::compareNext131(
+$tests['compound window frame limit current-source rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowFrameLimitCurrentSourceNextPlan::compareWindowFrameLimit(
         'SELECT option_id AS id FROM wp_options LIMIT 1',
         $currentTables,
         $currentTables,

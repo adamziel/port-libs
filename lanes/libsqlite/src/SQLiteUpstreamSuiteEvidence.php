@@ -6017,162 +6017,14 @@ final class SQLiteUpstreamSuiteEvidence
 
         return $record;
     }
-    public function upstreamVeryquickShardCurrentSourceNext165180(
-        array $rows,
-        int $currentMapped,
-        int $currentPhpPass,
-        string $launcherBaseHead,
-        string $integrationSourceHead,
-        string $focusedPath,
-        string $focusedTestOutput,
-        string $nonOverlapNote,
-        ?int $expectedPassDelta = null,
-        string $processSnapshot = ''
-    ): array {
-        if ($rows === []) {
-            throw new \InvalidArgumentException('SQLite current-source next165-180 suite evidence requires at least one row');
-        }
-
-        $expectedSlices = range(165, 180);
-        $presentSlices = [];
-        $scripts = [];
-        $blockers = [];
-        $zeroErrorRows = 0;
-        $laneLocalRows = 0;
-
-        foreach ($rows as $index => $row) {
-            if (!is_array($row)) {
-                $blockers[] = ['id' => 'row-not-object', 'evidence' => 'row ' . $index . ' is not an object'];
-                continue;
-            }
-
-            $unit = is_string($row['unit'] ?? null) ? $row['unit'] : '';
-            if (preg_match('/next(16[5-9]|17[0-9]|180)\b/', $unit, $matches) === 1) {
-                $presentSlices[(int) $matches[1]] = true;
-            } else {
-                $blockers[] = ['id' => 'slice-outside-next165-180', 'evidence' => $unit === '' ? 'missing unit' : $unit];
-            }
-
-            $artifactPath = is_string($row['artifact_path'] ?? null) ? $row['artifact_path'] : '';
-            if (str_starts_with($artifactPath, 'lanes/libsqlite/notes/')) {
-                $laneLocalRows++;
-            } else {
-                $blockers[] = ['id' => 'artifact-path-not-lane-local-note', 'evidence' => $artifactPath];
-            }
-
-            $command = is_string($row['runner_command'] ?? null) ? $row['runner_command'] : '';
-            if (!str_contains($command, 'testrunner.tcl') || !str_contains($command, '--stop-on-error') || !str_contains($command, ' veryquick')) {
-                $blockers[] = ['id' => 'guarded-veryquick-command-missing', 'evidence' => $unit];
-            }
-
-            $rowScripts = is_array($row['scripts'] ?? null) ? $row['scripts'] : [];
-            $hasConcreteScript = false;
-            foreach ($rowScripts as $script) {
-                if (!is_string($script)) {
-                    continue;
-                }
-                $scripts[$script] = true;
-                if (str_ends_with($script, '.test') && !str_contains($script, '*')) {
-                    $hasConcreteScript = true;
-                }
-            }
-            if (!$hasConcreteScript) {
-                $blockers[] = ['id' => 'concrete-test-scripts-missing', 'evidence' => $unit];
-            }
-
-            if (($row['launcher_base_head'] ?? null) !== $launcherBaseHead) {
-                $blockers[] = ['id' => 'launcher-base-head-mismatch', 'evidence' => $unit];
-            }
-            foreach (['dashboard_source_head', 'status_source_head', 'implementation_source_head'] as $key) {
-                if (($row[$key] ?? null) !== $integrationSourceHead) {
-                    $blockers[] = ['id' => $key . '-mismatch', 'evidence' => $unit];
-                }
-            }
-
-            if ((int) ($row['exit'] ?? 1) === 0 && (int) ($row['errors'] ?? 1) === 0) {
-                $zeroErrorRows++;
-            } else {
-                $blockers[] = ['id' => 'runner-artifact-not-zero-error', 'evidence' => $unit];
-            }
-        }
-
-        $missingSlices = array_values(array_diff($expectedSlices, array_keys($presentSlices)));
-        foreach ($missingSlices as $slice) {
-            $blockers[] = ['id' => 'missing-next-slice', 'evidence' => 'next' . $slice];
-        }
-
-        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
-        if (($active['status'] ?? null) !== 'clear') {
-            $blockers[] = [
-                'id' => 'duplicate-broad-runner-active',
-                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
-            ];
-        }
-
-        $phpAdmission = $this->focusedPhpPassAdmission(
-            $currentPhpPass,
-            $focusedPath,
-            $focusedTestOutput,
-            $nonOverlapNote
-        );
-        if (($phpAdmission['status'] ?? null) !== 'admitted') {
-            $blockers[] = [
-                'id' => 'focused-php-pass-admission-blocked',
-                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
-            ];
-        }
-        if ($expectedPassDelta !== null && (int) ($phpAdmission['assertion_delta'] ?? 0) !== $expectedPassDelta) {
-            $blockers[] = [
-                'id' => 'focused-php-pass-delta-mismatch',
-                'evidence' => 'expected ' . $expectedPassDelta . ' focused assertions, got ' . (int) ($phpAdmission['assertion_delta'] ?? 0),
-            ];
-        }
-
-        $scripts = array_keys($scripts);
-        sort($scripts);
-        $coveredSlices = array_keys($presentSlices);
-        sort($coveredSlices);
-
-        return [
-            'status' => $blockers === [] ? 'current-source-next165-180-suite-evidence-prepared' : 'blocked',
-            'current_mapped' => $currentMapped,
-            'next_mapped' => $currentMapped,
-            'mapped_delta' => 0,
-            'current_php_pass' => $currentPhpPass,
-            'next_php_pass' => (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
-            'php_pass_delta' => (int) ($phpAdmission['assertion_delta'] ?? 0),
-            'row_count' => count($rows),
-            'zero_error_row_count' => $zeroErrorRows,
-            'lane_local_note_row_count' => $laneLocalRows,
-            'slice_count' => count($coveredSlices),
-            'covered_slices' => array_map(static fn (int $slice): string => 'next' . $slice, $coveredSlices),
-            'missing_slices' => array_map(static fn (int $slice): string => 'next' . $slice, $missingSlices),
-            'target_script_count' => count($scripts),
-            'target_scripts' => $scripts,
-            'launcher_base_head' => $launcherBaseHead,
-            'integration_source_head' => $integrationSourceHead,
-            'active_runner_status' => $active['status'] ?? 'unknown',
-            'active_runner_count' => (int) ($active['active_count'] ?? 0),
-            'blocker_count' => count($blockers),
-            'blockers' => $blockers,
-            'counts_upstream_veryquick_shard_current_source_next165_180' => false,
-            'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
-            'counts_upstream_exact_shard_runner_current_source_next148' => false,
-            'non_overlap_note' => trim($nonOverlapNote),
-            'next_gate' => $blockers === []
-                ? 'publish next165-180 as prepared upstream-suite evidence only; do not increase mapped upstream count until individual zero-error shard rows are accepted by the integrator'
-                : 'repair missing next165-180 rows, provenance, guarded veryquick commands, duplicate-runner state, or focused PHP admission before publishing this prepared evidence',
-            'dependency_closure' => 'no new support component needed; current-source next165-180 evidence prep composes lane-local notes, guarded veryquick runner metadata, provenance checks, duplicate-runner gates, and focused TestRunner PASS-line output only',
-        ];
-    }
-
     /**
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext181196(
+    public function upstreamVeryquickShardPreparedRange(
         array $rows,
+        int $firstSlice,
+        int $lastSlice,
         int $currentMapped,
         int $currentPhpPass,
         string $launcherBaseHead,
@@ -6184,15 +6036,19 @@ final class SQLiteUpstreamSuiteEvidence
         string $processSnapshot = ''
     ): array {
         if ($rows === []) {
-            throw new \InvalidArgumentException('SQLite current-source next181-196 suite evidence requires at least one row');
+            throw new \InvalidArgumentException('SQLite upstream veryquick shard evidence requires at least one row');
+        }
+        if ($firstSlice < 1 || $lastSlice < $firstSlice) {
+            throw new \InvalidArgumentException('SQLite upstream veryquick shard evidence requires a valid slice range');
         }
 
-        $expectedSlices = range(181, 196);
+        $expectedSlices = range($firstSlice, $lastSlice);
         $presentSlices = [];
         $scripts = [];
         $blockers = [];
         $zeroErrorRows = 0;
         $laneLocalRows = 0;
+        $rangeLabel = $firstSlice . '-' . $lastSlice;
 
         foreach ($rows as $index => $row) {
             if (!is_array($row)) {
@@ -6201,10 +6057,15 @@ final class SQLiteUpstreamSuiteEvidence
             }
 
             $unit = is_string($row['unit'] ?? null) ? $row['unit'] : '';
-            if (preg_match('/next(18[1-9]|19[0-6])\b/', $unit, $matches) === 1) {
-                $presentSlices[(int) $matches[1]] = true;
+            if (preg_match('/next([0-9]+)\b/', $unit, $matches) === 1) {
+                $slice = (int) $matches[1];
+                if ($slice >= $firstSlice && $slice <= $lastSlice) {
+                    $presentSlices[$slice] = true;
+                } else {
+                    $blockers[] = ['id' => 'slice-outside-prepared-range', 'evidence' => $unit];
+                }
             } else {
-                $blockers[] = ['id' => 'slice-outside-next181-196', 'evidence' => $unit === '' ? 'missing unit' : $unit];
+                $blockers[] = ['id' => 'slice-outside-prepared-range', 'evidence' => $unit === '' ? 'missing unit' : $unit];
             }
 
             $artifactPath = is_string($row['artifact_path'] ?? null) ? $row['artifact_path'] : '';
@@ -6288,7 +6149,7 @@ final class SQLiteUpstreamSuiteEvidence
         sort($coveredSlices);
 
         return [
-            'status' => $blockers === [] ? 'current-source-next181-196-suite-evidence-prepared' : 'blocked',
+            'status' => $blockers === [] ? 'upstream-veryquick-shard-prepared-range-evidence-prepared' : 'blocked',
             'current_mapped' => $currentMapped,
             'next_mapped' => $currentMapped,
             'mapped_delta' => 0,
@@ -6305,27 +6166,25 @@ final class SQLiteUpstreamSuiteEvidence
             'target_scripts' => $scripts,
             'launcher_base_head' => $launcherBaseHead,
             'integration_source_head' => $integrationSourceHead,
+            'prepared_range' => $rangeLabel,
             'active_runner_status' => $active['status'] ?? 'unknown',
             'active_runner_count' => (int) ($active['active_count'] ?? 0),
             'blocker_count' => count($blockers),
             'blockers' => $blockers,
+            'counts_upstream_veryquick_shard_prepared_range' => false,
+            'counts_upstream_veryquick_shard_current_source_next165_180' => false,
             'counts_upstream_veryquick_shard_current_source_next181_196' => false,
-            'counts_upstream_veryquick_shard_current_source_next165_180' => false,
             'counts_release_parity' => false,
             'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
-                ? 'publish next181-196 as prepared upstream-suite evidence only; do not increase mapped upstream count until individual zero-error shard rows are accepted by the integrator'
-                : 'repair missing next181-196 rows, provenance, guarded veryquick commands, duplicate-runner state, or focused PHP admission before publishing this prepared evidence',
-            'dependency_closure' => 'no new support component needed; current-source next181-196 evidence prep composes lane-local notes, guarded veryquick runner metadata, provenance checks, duplicate-runner gates, and focused TestRunner PASS-line output only',
+                ? 'publish prepared upstream-suite evidence only; do not increase mapped upstream count until individual zero-error shard rows are accepted by the integrator'
+                : 'repair missing prepared-range rows, provenance, guarded veryquick commands, duplicate-runner state, or focused PHP admission before publishing this prepared evidence',
+            'dependency_closure' => 'no new support component needed; prepared upstream veryquick evidence composes lane-local notes, guarded veryquick runner metadata, provenance checks, duplicate-runner gates, and focused TestRunner PASS-line output only',
         ];
     }
 
-    /**
-     * @param list<array<string, mixed>> $rows
-     * @return array<string, mixed>
-     */
     public function upstreamVeryquickShardCurrentSourceNext197212(
         array $rows,
         int $currentMapped,
@@ -28703,7 +28562,16 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $expectedPhases = ['next149', 'next150', 'next151', 'next152', 'next153', 'next154', 'next155', 'next156'];
+        $expectedPhases = [
+            'prepared-manifest',
+            'prepared-runner',
+            'prepared-artifacts',
+            'prepared-provenance',
+            'prepared-pass-lines',
+            'prepared-current-source',
+            'prepared-blockers',
+            'prepared-handoff',
+        ];
         $phaseRows = [];
         $preparedPhases = [];
         $preservedPhases = [];
@@ -28735,7 +28603,7 @@ final class SQLiteUpstreamSuiteEvidence
             $rowBlockers = is_array($row['blocker_ids'] ?? null) ? $row['blocker_ids'] : [];
 
             if ($phase !== '' && !in_array($phase, $expectedPhases, true)) {
-                $rowBlockers[] = 'suite-phase-outside-next149-156';
+                $rowBlockers[] = 'suite-phase-outside-prepared-octet';
             }
             if ($phase !== '' && isset($seenPhaseIds[$phase])) {
                 $duplicatePhaseIds[$phase] = true;
@@ -28769,7 +28637,7 @@ final class SQLiteUpstreamSuiteEvidence
             if ($rowBlockers !== []) {
                 $blockedPhases[] = $phaseId;
                 $phaseBlockers[] = [
-                    'id' => 'current-source-next149-156-suite-phase-row-blocked',
+                    'id' => 'current-source-prepared-octet-suite-phase-row-blocked',
                     'unit' => $unit,
                     'suite_phase_id' => $phaseId,
                     'evidence' => implode('; ', $rowBlockers),
@@ -28798,8 +28666,8 @@ final class SQLiteUpstreamSuiteEvidence
 
         if ($missingPhases !== []) {
             $phaseBlockers[] = [
-                'id' => 'current-source-next149-156-suite-phases-incomplete',
-                'unit' => 'upstream-runner-suite-evidence-current-source-next149-156',
+                'id' => 'current-source-prepared-octet-suite-phases-incomplete',
+                'unit' => 'upstream-runner-suite-evidence-current-source-prepared-octet',
                 'suite_phase_id' => implode(',', $missingPhases),
                 'evidence' => 'missing prepared suite phases: ' . implode(', ', $missingPhases),
             ];
@@ -28847,13 +28715,13 @@ final class SQLiteUpstreamSuiteEvidence
 
         $status = 'blocked';
         if (!$blocked && $mappedDelta > 0) {
-            $status = 'current-source-next149-156-upstream-suite-evidence-prepared';
+            $status = 'current-source-prepared-octet-upstream-suite-evidence-prepared';
         } elseif (!$blocked) {
-            $status = 'current-source-next149-156-upstream-suite-evidence-preserved';
+            $status = 'current-source-prepared-octet-upstream-suite-evidence-preserved';
         }
 
         $record['status'] = $status;
-        $record['countable'] = $status === 'current-source-next149-156-upstream-suite-evidence-prepared';
+        $record['countable'] = $status === 'current-source-prepared-octet-upstream-suite-evidence-prepared';
         $record['blockers'] = $blockers;
         $record['blocker_count'] = count($blockers);
         $record['mapped_delta'] = $mappedDelta;
@@ -28877,12 +28745,12 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_runner_release_admission_current_source_next114'] = false;
         $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
         $record['counts_upstream_runner_countability_current_source_next118'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next149_156'] = $status === 'current-source-next149-156-upstream-suite-evidence-prepared';
+        $record['counts_upstream_suite_evidence_prepared_octet'] = $status === 'current-source-prepared-octet-upstream-suite-evidence-prepared';
         $record['counts_release_parity'] = false;
-        $record['next_gate'] = $status === 'current-source-next149-156-upstream-suite-evidence-prepared'
-            ? 'publish only the isolated current-source next149-156 upstream-suite evidence octet and exact focused PASS-line movement; release/all parity remains blocked'
-            : 'keep current-source next149-156 suite evidence uncounted until all eight prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
-        $record['dependency_closure'] = 'no new support component needed; current-source next149-156 suite evidence composes the merged next141-148 evidence with eight prepared current-source-only suite phases and focused TestRunner PASS-line output only';
+        $record['next_gate'] = $status === 'current-source-prepared-octet-upstream-suite-evidence-prepared'
+            ? 'publish only the isolated current-source prepared upstream-suite evidence octet and exact focused PASS-line movement; release/all parity remains blocked'
+            : 'keep current-source prepared suite evidence uncounted until all eight prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source prepared suite evidence composes the merged prior evidence with eight prepared current-source-only suite phases and focused TestRunner PASS-line output only';
 
         return $record;
     }
@@ -29030,15 +28898,15 @@ final class SQLiteUpstreamSuiteEvidence
                 continue;
             }
             $evidence = is_string($blocker['evidence'] ?? null) ? $blocker['evidence'] : '';
-            if ($evidence === 'suite-phase-outside-next149-156'
-                || str_contains($evidence, 'missing prepared suite phases: next149')
-                || str_contains($evidence, 'missing prepared suite phases: next150')
-                || str_contains($evidence, 'missing prepared suite phases: next151')
-                || str_contains($evidence, 'missing prepared suite phases: next152')
-                || str_contains($evidence, 'missing prepared suite phases: next153')
-                || str_contains($evidence, 'missing prepared suite phases: next154')
-                || str_contains($evidence, 'missing prepared suite phases: next155')
-                || str_contains($evidence, 'missing prepared suite phases: next156')) {
+            if ($evidence === 'suite-phase-outside-prepared-octet'
+                || str_contains($evidence, 'missing prepared suite phases: prepared-manifest')
+                || str_contains($evidence, 'missing prepared suite phases: prepared-runner')
+                || str_contains($evidence, 'missing prepared suite phases: prepared-artifacts')
+                || str_contains($evidence, 'missing prepared suite phases: prepared-provenance')
+                || str_contains($evidence, 'missing prepared suite phases: prepared-pass-lines')
+                || str_contains($evidence, 'missing prepared suite phases: prepared-current-source')
+                || str_contains($evidence, 'missing prepared suite phases: prepared-blockers')
+                || str_contains($evidence, 'missing prepared suite phases: prepared-handoff')) {
                 continue;
             }
             $baseBlockers[] = $blocker;
@@ -29093,7 +28961,7 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_suite_evidence_current_source_next125_132'] = false;
         $record['counts_upstream_suite_evidence_current_source_next133_140'] = false;
         $record['counts_upstream_suite_evidence_current_source_next141_148'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next149_156'] = false;
+        $record['counts_upstream_suite_evidence_prepared_octet'] = false;
         foreach ([164, 162, 161, 160, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
@@ -29106,7 +28974,7 @@ final class SQLiteUpstreamSuiteEvidence
         $record['next_gate'] = $status === 'current-source-next157-164-upstream-suite-evidence-prepared'
             ? 'publish only the isolated current-source next157-164 upstream-suite evidence octet and exact focused PASS-line movement; release/all parity remains blocked'
             : 'keep current-source next157-164 suite evidence uncounted until all eight prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
-        $record['dependency_closure'] = 'no new support component needed; current-source next157-164 suite evidence composes the merged next149-156 evidence with eight prepared current-source-only suite phases and focused TestRunner PASS-line output only';
+        $record['dependency_closure'] = 'no new support component needed; current-source next157-164 suite evidence composes the merged prepared-octet evidence with eight prepared current-source-only suite phases and focused TestRunner PASS-line output only';
 
         return $record;
     }

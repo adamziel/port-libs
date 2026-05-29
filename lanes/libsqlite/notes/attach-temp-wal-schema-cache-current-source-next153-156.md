@@ -1,6 +1,7 @@
 # SQLite attach TEMP WAL schema cache current-source next153-156
 
-Prepares the next attach/TEMP/WAL schema-cache handoff after next149-152:
+Prepares the next attach/TEMP/WAL schema-cache handoff after the consolidated
+source-handoff coverage:
 
 - next153 covers a committed `main` table drop expiring an unqualified WordPress termmeta reader;
 - next154 covers an attached archive `DROP INDEX` invalidating a prepared `INDEXED BY` reader while the active current-source snapshot can finish before reset;
@@ -10,13 +11,13 @@ Prepares the next attach/TEMP/WAL schema-cache handoff after next149-152:
 Focused checks:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
-php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext149152Test.php
+php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCachePlan.php
+php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheSourceHandoffTest.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext153156Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next149-152.php
+php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-source-handoff.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next153-156.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext149152Test.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext153156Test.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next149-152.php --self-test
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheSourceHandoffTest.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext153156Test.php
+php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-source-handoff.php --self-test
 php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next153-156.php --self-test
 git diff --check
 ```

@@ -37,7 +37,7 @@ $statements = [
 $events = [
     ['op' => 'schema_write', 'schema' => 'temp', 'table' => 'wp_options'],
     ['op' => 'drop_table', 'schema' => 'main', 'table' => 'wp_posts'],
-    ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_import_queue_key', 'to' => 'wp_import_queue_key_next151'],
+    ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_import_queue_key', 'to' => 'wp_import_queue_key_rebuilt'],
     ['op' => 'detach', 'schema' => 'archive'],
 ];
 
@@ -53,7 +53,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['temp-indexed-reader']['index_transitions'][0]['next_found'] === false);
     assert($plan['write_statements_blocked_before_retry'] === ['archive-writer']);
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next149-152 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-source-handoff self-test passed\n";
     return;
 }
 

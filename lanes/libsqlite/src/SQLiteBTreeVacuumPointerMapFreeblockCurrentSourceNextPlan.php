@@ -29781,7 +29781,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceLeafFreeblockReuseV
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next153',
+            'action' => 'btree-vacuum-pointermap-freeblock-released-overflow-reuse',
             'leaf_page' => $this->basePlan->coalescePlan->pageNumber,
             'released_overflow_pages' => $this->basePlan->releasedOverflowPages(),
             'allocated_overflow_pages' => $this->basePlan->allocatedOverflowPages(),
@@ -30300,7 +30300,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReleasedOverflowReu
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next153',
+            'action' => 'btree-vacuum-pointermap-freeblock-released-overflow-reuse',
             'leaf_page' => $this->basePlan->coalescePlan->pageNumber,
             'released_overflow_pages' => $this->basePlan->releasedOverflowPages(),
             'allocated_overflow_pages' => $this->basePlan->allocatedOverflowPages(),

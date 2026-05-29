@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 14:05 UTC):
+  Twenty-ninth consolidation follow-up is reduced and validated in the rolling
+  libsqlite integration worktree. The batch accepted eight AO-wave handoffs:
+  suffix/upstream evidence, WAL/VFS checkpoint `996-1011`, upstream-suite
+  veryquick ranges, attach temp WAL schema cache source handoff, row-value
+  savepoint/window `245-247` direct wrappers, compound window-frame
+  current-source, B-tree vacuum released-overflow reuse, and compound
+  recursive-limit except/lead/offset. Verification passed: php-lint for `26`
+  changed PHP files, focused changed tests
+  `12 test files / 1198 assertions / 0 failures`, `8` changed WordPress
+  examples/self-tests, compound window-frame family
+  `1 test file / 156 assertions / 0 failures`, upstream suite evidence
+  `13 test files / 7465 assertions / 0 failures`, upstream veryquick shard
+  broad suite `309 test files / 382180 assertions / 0 failures`, git
+  diff --check, exact user-named 150 suffix scan clean, numbered production
+  filename/class scans at `0`, and remaining numbered production method-line
+  audit down to `4083`. Public libsqlite PASS and mapped totals remain
+  `154019 / 0 fail` and `830 / 1589` because this is consolidation, not new
+  upstream behavior coverage. The broad WAL checkpoint sweep still has
+  accepted-head failures in `next175` and `916-931`; those failures reproduced
+  with the WAL AO patch reversed, so they are pre-existing family-gate debt
+  rather than regressions from this reduced batch.
+
 - 2026-05-29 supervisor continuation (shell samples 13:55 UTC):
   Twenty-eighth consolidation follow-up is reduced and validated in the
   rolling libsqlite integration worktree. The batch accepted six AL-wave

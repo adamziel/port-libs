@@ -145,7 +145,7 @@ $tests['current source next157-164 prepares suite evidence octet'] = static func
     $t->same(['next157', 'next158', 'next159', 'next160', 'next161', 'next162', 'next163', 'next164'], $record['prepared_suite_phases']);
     $t->same([], $record['missing_suite_phases']);
     $t->same(true, $record['counts_upstream_suite_evidence_current_source_next157_164']);
-    $t->same(false, $record['counts_upstream_suite_evidence_current_source_next149_156']);
+    $t->same(false, $record['counts_upstream_suite_evidence_prepared_octet']);
     $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next164']);
     $t->same(false, $record['counts_release_parity']);
     $t->contains('upstream-suite-evidence-current-source-next164-01.test', implode(',', $record['target_scripts']));

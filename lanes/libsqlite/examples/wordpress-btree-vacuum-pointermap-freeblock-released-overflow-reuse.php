@@ -72,30 +72,30 @@ foreach ([
     $putPointerMapEntry($pages, $pageNumber, $type, $parent);
 }
 
-$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableAndIndexFromCurrentSourceDeleteResultsNext153(
+$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableAndIndexReleasedOverflowReuseFromCurrentSourceDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [
         [
-            'source' => 'wp_options-autoload-current-source-next153',
+            'source' => 'wp_options-autoload-released-overflow-reuse',
             'first_page' => 5,
             'overflow_payload_bytes' => 1016,
         ],
         [
-            'source' => 'wp_options-option-name-index-current-source-next153',
+            'source' => 'wp_options-option-name-index-released-overflow-reuse',
             'first_page' => 8,
             'overflow_payload_bytes' => 1016,
         ],
     ],
     [
         [
-            'source' => 'wp_options-autoload-current-source-next153',
+            'source' => 'wp_options-autoload-released-overflow-reuse',
             'rowid' => 15301,
             'obsolete_overflow_page_numbers' => [5, 6],
         ],
         [
-            'source' => 'wp_options-option-name-index-current-source-next153',
-            'record_values' => [['_transient_next153', 15301]],
+            'source' => 'wp_options-option-name-index-released-overflow-reuse',
+            'record_values' => [['_transient_reuse', 15301]],
             'obsolete_overflow_page_numbers' => [8, 9],
         ],
     ],
@@ -105,7 +105,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableAndIndex
 );
 
 $summary = [
-    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-next153',
+    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-released-overflow-reuse',
     'wordpress_use' => 'Delete copied wp_options table and index overflow chains, materialize the leaf freeblock repair, then reuse released overflow pages with fresh auto-vacuum pointer-map parents before a later incremental vacuum.',
     'released_overflow_pages' => $plan->toArray()['released_overflow_pages'],
     'allocated_overflow_pages' => $plan->toArray()['allocated_overflow_pages'],
@@ -124,11 +124,11 @@ if (($argv[1] ?? null) === '--self-test') {
         || $summary['next_pointer_map_parents'] !== [11, 9, 8, 6]
         || $summary['final_freelist_page_numbers'] !== [10, 13, 12]
     ) {
-        fwrite(STDERR, "wordpress-btree-vacuum-pointermap-freeblock-current-source-next153 self-test failed\n");
+        fwrite(STDERR, "wordpress-btree-vacuum-pointermap-freeblock-released-overflow-reuse self-test failed\n");
         exit(1);
     }
 
-    fwrite(STDOUT, "wordpress-btree-vacuum-pointermap-freeblock-current-source-next153 self-test passed\n");
+    fwrite(STDOUT, "wordpress-btree-vacuum-pointermap-freeblock-released-overflow-reuse self-test passed\n");
     exit(0);
 }
 
