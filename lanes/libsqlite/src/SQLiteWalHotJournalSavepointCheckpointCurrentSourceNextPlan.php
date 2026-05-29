@@ -12804,6 +12804,212 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($next217Plan, $sidecarReceipts);
     }
 
+    public static function next220ReaderReopenPlan(array $next219Plan, array $readerReceipts): array
+    {
+        $impl = new class {
+                /**
+                 * @param array<string,mixed> $next219Plan
+                 * @param list<array<string,mixed>> $readerReceipts
+                 * @return array<string,mixed>
+                 */
+                public static function plan(array $next219Plan, array $readerReceipts): array
+                {
+                    if (($next219Plan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next219') {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next220 requires an admitted next219 plan');
+                    }
+                    if (($next219Plan['checkpoint_next_source_published'] ?? null) !== true) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next220 requires published checkpoint source');
+                    }
+                    if ($readerReceipts === []) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next220 requires reader reopen receipts');
+                    }
+
+                    $token = self::token($next219Plan['current_source_token'] ?? null);
+                    $checkpointFrame = self::positiveInt($next219Plan, 'checkpoint_frame');
+                    $checkpointCookie = self::positiveInt($next219Plan, 'checkpoint_cookie');
+                    $schemaCookie = self::positiveInt($next219Plan, 'schema_cookie');
+                    $nextEpoch = self::positiveInt($next219Plan, 'next_source_epoch');
+
+                    $admittedReaders = self::stringList($next219Plan['admitted_reader_names'] ?? null, 'admitted readers');
+                    $reopenReaders = self::stringList($next219Plan['reopen_reader_names'] ?? [], 'reopen readers', true);
+                    $allowedReaders = array_values(array_unique(array_merge($admittedReaders, $reopenReaders)));
+
+                    $rows = [];
+                    foreach ($readerReceipts as $receipt) {
+                        $rows[] = self::readerRow($receipt, $token, $checkpointFrame, $checkpointCookie, $schemaCookie, $nextEpoch, $allowedReaders);
+                    }
+
+                    $admitted = array_values(array_filter($rows, static fn (array $row): bool => $row['admitted']));
+                    $blocked = array_values(array_filter($rows, static fn (array $row): bool => !$row['admitted']));
+                    $requiredReaders = array_values(array_unique($reopenReaders));
+                    $admittedNames = array_values(array_column($admitted, 'name'));
+                    $missingReopenReaders = array_values(array_diff($requiredReaders, $admittedNames));
+                    $canReopen = $blocked === [] && $missingReopenReaders === [];
+
+                    $guardRows = [
+                        ['name' => 'next219_checkpoint_source_published', 'matched' => true],
+                        ['name' => 'all_reader_reopen_receipts_current', 'matched' => $blocked === []],
+                        ['name' => 'required_reopen_readers_observed', 'matched' => $missingReopenReaders === []],
+                    ];
+
+                    return [
+                        'status' => $canReopen
+                            ? 'wal-hot-journal-savepoint-checkpoint-current-source-next220'
+                            : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next220',
+                        'reason' => $canReopen
+                            ? 'reader_reopen_receipts_observe_checkpoint_next_source'
+                            : 'reader_reopen_receipts_wait_for_checkpoint_next_source',
+                        'base_status' => $next219Plan['status'],
+                        'database_path' => $next219Plan['database_path'] ?? null,
+                        'wal_path' => $next219Plan['wal_path'] ?? null,
+                        'journal_path' => $next219Plan['journal_path'] ?? null,
+                        'current_source_token' => $token,
+                        'checkpoint_frame' => $checkpointFrame,
+                        'checkpoint_cookie' => $checkpointCookie,
+                        'schema_cookie' => $schemaCookie,
+                        'next_source_epoch' => $nextEpoch,
+                        'reader_rows' => $rows,
+                        'admitted_reader_names' => $admittedNames,
+                        'blocked_reader_names' => array_values(array_column($blocked, 'name')),
+                        'required_reopen_reader_names' => $requiredReaders,
+                        'missing_reopen_reader_names' => $missingReopenReaders,
+                        'reader_reopen_allowed' => $canReopen,
+                        'reader_cache_action' => $canReopen ? 'install_reopened_checkpoint_reader_cache_next220' : 'preserve_previous_reader_cache_until_reopen_receipts',
+                        'guard_rows' => $guardRows,
+                        'guard_names' => array_column($guardRows, 'name'),
+                        'guard_matches' => array_column($guardRows, 'matched'),
+                        'blocked_guard_names' => array_values(array_column(array_filter($guardRows, static fn (array $row): bool => !$row['matched']), 'name')),
+                        'operation_names' => array_values(array_unique(array_merge(
+                            is_array($next219Plan['operation_names'] ?? null) ? $next219Plan['operation_names'] : [],
+                            [
+                                'verify_reader_reopen_checkpoint_source_next220',
+                                $canReopen ? 'publish_reopened_reader_cache_next220' : 'hold_reader_reopen_fence_next220',
+                            ]
+                        ))),
+                        'reader_reopen_digest' => hash('sha256', json_encode([$token, $checkpointFrame, $checkpointCookie, $schemaCookie, $rows], JSON_THROW_ON_ERROR)),
+                        'dependencies' => array_values(array_unique(array_merge(
+                            is_array($next219Plan['dependencies'] ?? null) ? $next219Plan['dependencies'] : [],
+                            [
+                                'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next220',
+                                'sqlite-checkpoint-next-source-reader-reopen',
+                                'wordpress-import-hot-journal-reader-cache-reopen',
+                            ]
+                        ))),
+                        'dependency_closure' => 'no new support component needed; reuses next219 source publication, checkpoint/schema cookies, and reader reopen receipts',
+                        'non_overlap' => 'next220 verifies reader reopen receipts after next219 savepoint-scope publication; it does not repeat next219 scope finalization, next217 durable reader admission, WAL byte truncation, rollback-journal apply, or checkpoint transaction planning',
+                    ];
+                }
+
+                private static function token(mixed $token): array
+                {
+                    if (!is_array($token) || !is_string($token['id'] ?? null) || $token['id'] === '' || !is_int($token['epoch'] ?? null) || $token['epoch'] <= 0) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next220 token is invalid');
+                    }
+
+                    return ['id' => $token['id'], 'epoch' => $token['epoch']];
+                }
+
+                /**
+                 * @param array<string,mixed> $values
+                 */
+                private static function positiveInt(array $values, string $key): int
+                {
+                    $value = $values[$key] ?? null;
+                    if (!is_int($value) || $value <= 0) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next220 requires positive {$key}");
+                    }
+
+                    return $value;
+                }
+
+                /**
+                 * @return list<string>
+                 */
+                private static function stringList(mixed $values, string $name, bool $allowEmpty = false): array
+                {
+                    if (!is_array($values) || (!$allowEmpty && $values === [])) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next220 requires {$name}");
+                    }
+                    foreach ($values as $value) {
+                        if (!is_string($value) || $value === '') {
+                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next220 {$name} must be strings");
+                        }
+                    }
+
+                    return array_values($values);
+                }
+
+                /**
+                 * @param array<string,mixed> $receipt
+                 * @param array{id:string,epoch:int} $token
+                 * @param list<string> $allowedReaders
+                 * @return array<string,mixed>
+                 */
+                private static function readerRow(array $receipt, array $token, int $checkpointFrame, int $checkpointCookie, int $schemaCookie, int $nextEpoch, array $allowedReaders): array
+                {
+                    $name = $receipt['name'] ?? null;
+                    if (!is_string($name) || $name === '') {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next220 reader name is required');
+                    }
+                    $sourceId = $receipt['source_id'] ?? null;
+                    $observedEpoch = $receipt['observed_epoch'] ?? null;
+                    $frame = $receipt['checkpoint_frame'] ?? null;
+                    $cookie = $receipt['checkpoint_cookie'] ?? null;
+                    $schema = $receipt['schema_cookie'] ?? null;
+                    if (!is_string($sourceId) || $sourceId === '' || !is_int($observedEpoch) || !is_int($frame) || !is_int($cookie) || !is_int($schema)) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next220 {$name} receipt is malformed");
+                    }
+
+                    $reasons = [];
+                    if (!in_array($name, $allowedReaders, true)) {
+                        $reasons[] = 'reader_not_admitted_for_checkpoint_source';
+                    }
+                    if (!hash_equals($token['id'], $sourceId)) {
+                        $reasons[] = 'reader_source_token_mismatch';
+                    }
+                    if ($observedEpoch !== $nextEpoch) {
+                        $reasons[] = 'reader_next_source_epoch_mismatch';
+                    }
+                    if ($frame !== $checkpointFrame) {
+                        $reasons[] = 'reader_checkpoint_frame_mismatch';
+                    }
+                    if ($cookie !== $checkpointCookie) {
+                        $reasons[] = 'reader_checkpoint_cookie_mismatch';
+                    }
+                    if ($schema !== $schemaCookie) {
+                        $reasons[] = 'reader_schema_cookie_mismatch';
+                    }
+                    if (($receipt['hot_journal_visible'] ?? false) === true) {
+                        $reasons[] = 'reader_hot_journal_still_visible';
+                    }
+                    if (($receipt['cache_reopened'] ?? false) !== true) {
+                        $reasons[] = 'reader_cache_not_reopened';
+                    }
+                    if (($receipt['savepoint_depth'] ?? 0) !== 0) {
+                        $reasons[] = 'reader_savepoint_scope_not_closed';
+                    }
+
+                    return [
+                        'name' => $name,
+                        'source_id' => $sourceId,
+                        'observed_epoch' => $observedEpoch,
+                        'checkpoint_frame' => $frame,
+                        'checkpoint_cookie' => $cookie,
+                        'schema_cookie' => $schema,
+                        'hot_journal_visible' => ($receipt['hot_journal_visible'] ?? false) === true,
+                        'cache_reopened' => ($receipt['cache_reopened'] ?? false) === true,
+                        'savepoint_depth' => (int) ($receipt['savepoint_depth'] ?? 0),
+                        'admitted' => $reasons === [],
+                        'reason' => $reasons[0] ?? 'reader_reopen_receipt_matches_checkpoint_source',
+                        'blocked_reasons' => $reasons,
+                        'transition' => $name . '>' . ($reasons === [] ? 'reopen-reader-cache' : 'hold-reader-cache') . ':next220',
+                    ];
+                }
+        };
+
+        return $impl::plan($next219Plan, $readerReceipts);
+    }
+
     public static function next223PublishCurrentSource(array $resetPlan, array $receipts, int $nextSourceEpoch): array
     {
         $impl = new class {
@@ -13042,6 +13248,194 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         };
 
         return $impl::publishCurrentSource($resetPlan, $receipts, $nextSourceEpoch);
+    }
+
+    public static function next222SourceTicketPlan(array $next221Plan, array $tickets): array
+    {
+        $impl = new class {
+                /**
+                 * @param array<string,mixed> $next221Plan
+                 * @param list<array<string,mixed>> $tickets
+                 * @return array<string,mixed>
+                 */
+                public static function plan(array $next221Plan, array $tickets): array
+                {
+                    if (($next221Plan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next221') {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next222 requires an admitted next221 plan');
+                    }
+                    if ($tickets === []) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next222 requires source tickets');
+                    }
+
+                    $token = self::token($next221Plan['next_source_token'] ?? null);
+                    $frame = self::positiveInt($next221Plan, 'checkpoint_frame');
+                    $cookie = self::positiveInt($next221Plan, 'checkpoint_cookie');
+                    $requiredKinds = ['database', 'wal', 'journal', 'shm'];
+
+                    $rows = [];
+                    foreach ($tickets as $ticket) {
+                        $rows[] = self::ticketRow($ticket, $token, $frame, $cookie);
+                    }
+                    $admitted = array_values(array_filter($rows, static fn (array $row): bool => $row['admitted']));
+                    $blocked = array_values(array_filter($rows, static fn (array $row): bool => !$row['admitted']));
+                    $admittedKinds = array_values(array_unique(array_column($admitted, 'kind')));
+                    $missingKinds = array_values(array_diff($requiredKinds, $admittedKinds));
+                    $canSeal = $blocked === [] && $missingKinds === [];
+
+                    $guardRows = [
+                        ['name' => 'next221_sidecars_retired', 'matched' => ($next221Plan['checkpoint_admitted'] ?? false) === true],
+                        ['name' => 'all_source_tickets_current', 'matched' => $blocked === []],
+                        ['name' => 'required_source_ticket_kinds_present', 'matched' => $missingKinds === []],
+                    ];
+
+                    return [
+                        'status' => $canSeal
+                            ? 'wal-hot-journal-savepoint-checkpoint-current-source-next222'
+                            : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next222',
+                        'reason' => $canSeal
+                            ? 'source_tickets_seal_sidecar_retired_checkpoint_source'
+                            : 'source_tickets_wait_for_sidecar_retired_checkpoint_source',
+                        'base_status' => $next221Plan['status'],
+                        'database_path' => $next221Plan['database_path'] ?? null,
+                        'wal_path' => $next221Plan['wal_path'] ?? null,
+                        'journal_path' => $next221Plan['journal_path'] ?? null,
+                        'shm_path' => $next221Plan['shm_path'] ?? null,
+                        'next_source_token' => $token,
+                        'checkpoint_frame' => $frame,
+                        'checkpoint_cookie' => $cookie,
+                        'ticket_rows' => $rows,
+                        'admitted_ticket_names' => array_values(array_column($admitted, 'name')),
+                        'blocked_ticket_names' => array_values(array_column($blocked, 'name')),
+                        'required_ticket_kinds' => $requiredKinds,
+                        'admitted_ticket_kinds' => $admittedKinds,
+                        'missing_ticket_kinds' => $missingKinds,
+                        'source_ticket_sealed' => $canSeal,
+                        'current_source_ticket_action' => $canSeal ? 'seal_current_source_ticket_next222' : 'preserve_unsealed_current_source_ticket',
+                        'guard_rows' => $guardRows,
+                        'guard_names' => array_column($guardRows, 'name'),
+                        'guard_matches' => array_column($guardRows, 'matched'),
+                        'blocked_guard_names' => array_values(array_column(array_filter($guardRows, static fn (array $row): bool => !$row['matched']), 'name')),
+                        'operation_names' => array_values(array_unique(array_merge(
+                            is_array($next221Plan['operation_names'] ?? null) ? $next221Plan['operation_names'] : [],
+                            [
+                                'verify_current_source_ticket_receipts_next222',
+                                $canSeal ? 'seal_checkpoint_current_source_ticket_next222' : 'hold_checkpoint_current_source_ticket_next222',
+                            ]
+                        ))),
+                        'ticket_digest' => hash('sha256', json_encode([$token, $frame, $cookie, $rows], JSON_THROW_ON_ERROR)),
+                        'dependencies' => array_values(array_unique(array_merge(
+                            is_array($next221Plan['dependencies'] ?? null) ? $next221Plan['dependencies'] : [],
+                            [
+                                'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next222',
+                                'sqlite-checkpoint-current-source-ticket-seal',
+                                'wordpress-import-hot-journal-source-ticket',
+                            ]
+                        ))),
+                        'dependency_closure' => 'no new support component needed; reuses next221 sidecar-retirement token, checkpoint cookie, and ticket receipt metadata',
+                        'non_overlap' => 'next222 seals current-source tickets after next221 sidecar retirement; it does not repeat sidecar deletion, WAL restart, SHM readmark reset, reader admission, or checkpoint planning',
+                    ];
+                }
+
+                private static function token(mixed $token): array
+                {
+                    if (!is_array($token)
+                        || !is_string($token['id'] ?? null)
+                        || $token['id'] === ''
+                        || !is_int($token['epoch'] ?? null)
+                        || $token['epoch'] <= 0
+                        || !is_int($token['checkpoint_frame'] ?? null)
+                        || !is_int($token['checkpoint_cookie'] ?? null)
+                    ) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next222 token is invalid');
+                    }
+
+                    return [
+                        'id' => $token['id'],
+                        'epoch' => $token['epoch'],
+                        'checkpoint_frame' => $token['checkpoint_frame'],
+                        'checkpoint_cookie' => $token['checkpoint_cookie'],
+                    ];
+                }
+
+                /**
+                 * @param array<string,mixed> $values
+                 */
+                private static function positiveInt(array $values, string $key): int
+                {
+                    $value = $values[$key] ?? null;
+                    if (!is_int($value) || $value <= 0) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next222 requires positive {$key}");
+                    }
+
+                    return $value;
+                }
+
+                /**
+                 * @param array<string,mixed> $ticket
+                 * @param array{id:string,epoch:int,checkpoint_frame:int,checkpoint_cookie:int} $token
+                 * @return array<string,mixed>
+                 */
+                private static function ticketRow(array $ticket, array $token, int $frame, int $cookie): array
+                {
+                    $name = $ticket['name'] ?? null;
+                    $kind = $ticket['kind'] ?? null;
+                    if (!is_string($name) || $name === '' || !is_string($kind) || !in_array($kind, ['database', 'wal', 'journal', 'shm'], true)) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next222 ticket name/kind is invalid');
+                    }
+                    foreach (['source_id', 'ticket_sha256'] as $key) {
+                        if (!is_string($ticket[$key] ?? null) || $ticket[$key] === '') {
+                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next222 {$name} {$key} is required");
+                        }
+                    }
+                    if (!preg_match('/^[a-f0-9]{64}$/', (string) $ticket['ticket_sha256'])) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next222 {$name} ticket digest is invalid");
+                    }
+                    $epoch = $ticket['epoch'] ?? null;
+                    $ticketFrame = $ticket['checkpoint_frame'] ?? null;
+                    $ticketCookie = $ticket['checkpoint_cookie'] ?? null;
+                    if (!is_int($epoch) || !is_int($ticketFrame) || !is_int($ticketCookie)) {
+                        throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next222 {$name} numeric fields are invalid");
+                    }
+
+                    $reasons = [];
+                    if (!hash_equals($token['id'], (string) $ticket['source_id'])) {
+                        $reasons[] = 'ticket_source_id_mismatch';
+                    }
+                    if ($epoch !== $token['epoch']) {
+                        $reasons[] = 'ticket_epoch_mismatch';
+                    }
+                    if ($ticketFrame !== $frame || $ticketFrame !== $token['checkpoint_frame']) {
+                        $reasons[] = 'ticket_checkpoint_frame_mismatch';
+                    }
+                    if ($ticketCookie !== $cookie || $ticketCookie !== $token['checkpoint_cookie']) {
+                        $reasons[] = 'ticket_checkpoint_cookie_mismatch';
+                    }
+                    if (($ticket['sidecar_retired'] ?? false) !== true) {
+                        $reasons[] = 'ticket_sidecar_not_retired';
+                    }
+                    if (($ticket['sync_receipt'] ?? false) !== true) {
+                        $reasons[] = 'ticket_sync_receipt_missing';
+                    }
+
+                    return [
+                        'name' => $name,
+                        'kind' => $kind,
+                        'source_id' => (string) $ticket['source_id'],
+                        'epoch' => $epoch,
+                        'checkpoint_frame' => $ticketFrame,
+                        'checkpoint_cookie' => $ticketCookie,
+                        'ticket_sha256' => (string) $ticket['ticket_sha256'],
+                        'sidecar_retired' => ($ticket['sidecar_retired'] ?? false) === true,
+                        'sync_receipt' => ($ticket['sync_receipt'] ?? false) === true,
+                        'admitted' => $reasons === [],
+                        'reason' => $reasons[0] ?? 'source_ticket_matches_sidecar_retired_checkpoint',
+                        'blocked_reasons' => $reasons,
+                        'transition' => $name . '>' . ($reasons === [] ? 'seal-source-ticket' : 'hold-source-ticket') . ':next222',
+                    ];
+                }
+        };
+
+        return $impl::plan($next221Plan, $tickets);
     }
 
     public static function next224PublishReset(array $resetPlan, array $sidecars, array $readers, string $sourceToken): array
