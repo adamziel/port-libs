@@ -3075,3 +3075,12 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Validation passed for 33 changed examples: PHP lint, `git diff --check`, the
   33 matching rowvalue tests with 547 assertions / 0 failures, and all 33
   example self-tests.
+
+## Supervisor Rolling Integration 2026-05-29T21:25Z Root Gate Repair
+
+- The next root dashboard gate reached compound recursive-affinity cursor tests
+  and found one stale dependency expectation: production now reports
+  `sqlite-compound-recursive-affinity-window-current-source-source-boundary`
+  instead of the old `next142` dependency id.
+- Updated only that expectation. Focused validation now passes with 1 file /
+  202 assertions / 0 failures.
