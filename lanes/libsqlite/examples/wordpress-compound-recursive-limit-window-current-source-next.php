@@ -79,10 +79,10 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compareNext135($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compare($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? null) === '--self-test') {
-    if ($plan['status'] !== 'compound-recursive-limit-window-current-source-next135-ready') {
+    if ($plan['status'] !== 'compound-recursive-limit-window-current-source-next-ready') {
         fwrite(STDERR, "Unexpected compound recursive limit window status\n");
         exit(1);
     }
@@ -94,7 +94,7 @@ if (($argv[1] ?? null) === '--self-test') {
         fwrite(STDERR, "Unexpected recursive queue limit boundary\n");
         exit(1);
     }
-    echo "wordpress-compound-recursive-limit-window-current-source-next135 self-test passed\n";
+    echo "wordpress-compound-recursive-limit-window-current-source-next self-test passed\n";
     exit(0);
 }
 

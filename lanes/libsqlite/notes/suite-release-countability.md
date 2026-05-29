@@ -1,10 +1,10 @@
-# SQLite Suite Release Countability Current Source Next121
+# SQLite Suite Release Countability Current Source Release Countability
 
 ## Scope
 
-This slice adds `SQLiteUpstreamSuiteEvidence::upstreamRunnerReleaseCountabilityCurrentSourceNext121()` for current-source next121 release/all countability admission.
+This slice adds `SQLiteUpstreamSuiteEvidence::upstreamRunnerReleaseCountability()` for current-source release-countability release/all countability admission.
 
-The gate is intentionally narrower than accepted next117 release-gap burnup and next116 full-suite countability:
+The gate is intentionally narrower than accepted release-gap release-gap burnup and full-suite-countability full-suite countability:
 
 - only `release` and `all` tier rows can count;
 - artifact paths must stay under `lanes/libsqlite/`;
@@ -22,8 +22,8 @@ Focused verification:
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
-PASS admits current-source next121 release countability rows with focused phpPass evidence
-PASS blocks current-source next121 release countability for stale provenance and duplicate runners
+PASS admits current-source release-countability release countability rows with focused phpPass evidence
+PASS blocks current-source release-countability release countability for stale provenance and duplicate runners
 
 1 test files, 1115 assertions, 0 failures
 ```
@@ -32,7 +32,7 @@ New focused PASS-line delta: `+2`.
 
 ## Non-Overlap
 
-This does not repeat accepted next117 release-gap burnup, next116 full-suite countability, current-source next114 focused release admission, or ordinary behavior slices. It is a lane-local admission/countability blocker removal for next121 release/all rows only.
+This does not repeat accepted release-gap release-gap burnup, full-suite-countability full-suite countability, current-source next114 focused release admission, or ordinary behavior slices. It is a lane-local admission/countability blocker removal for release-countability release/all rows only.
 
 ## Dependency Closure
 

@@ -77,12 +77,12 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 1
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compareNext135($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compare($sql, $currentTables, $nextTables);
 $tests = [];
 
-$tests['compound recursive limit window current-source next135 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound recursive limit window current-source next status and dependencies'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
-    $t->same('compound-recursive-limit-window-current-source-next135-ready', $plan['status']);
+    $t->same('compound-recursive-limit-window-current-source-next-ready', $plan['status']);
     $t->same([
         'sqlite-recursive-cte-queue-limit',
         'sqlite-select-sql-compound-tail-limit',
@@ -91,7 +91,7 @@ $tests['compound recursive limit window current-source next135 status and depend
     ], $plan['dependencies']);
 };
 
-$tests['compound recursive limit window current-source next135 compound shape'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound recursive limit window current-source next compound shape'] = static function (TestRunner $t) use ($summary): void {
     $compound = $summary()['compound'];
     $t->same(['UNION ALL'], $compound['operators']);
     $t->same(2, $compound['currentArms']);
@@ -101,21 +101,21 @@ $tests['compound recursive limit window current-source next135 compound shape'] 
     $t->same(1, $compound['offset']);
 };
 
-$tests['compound recursive limit window current-source next135 current rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound recursive limit window current-source next current rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentRows'];
     $t->same([2, 3, 4, 4, 5, 5], array_column($rows, 'id'));
     $t->same(['blogname', 'active_plugins', 'rewrite_rules', 'active_plugins', 'rewrite_rules', 'rewrite_rules'], array_column($rows, 'frame_tail'));
     $t->same([48, 42, 26, 26, 12, 12], array_column($rows, 'frame_weight'));
 };
 
-$tests['compound recursive limit window current-source next135 next rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound recursive limit window current-source next next rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same([6, 2, 3, 7, 4, 7], array_column($rows, 'id'));
     $t->same(['home', 'blogname', 'plugin_queue', 'plugin_queue', 'active_plugins', 'plugin_queue'], array_column($rows, 'frame_tail'));
     $t->same([53, 49, 31, 29, 26, 15], array_column($rows, 'frame_weight'));
 };
 
-$tests['compound recursive limit window current-source next135 recursive limit trace'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound recursive limit window current-source next recursive limit trace'] = static function (TestRunner $t) use ($summary): void {
     $recursive = $summary()['recursive'];
     $t->same('wanted', $recursive['name']);
     $t->same(['id', 'label', 'depth', 'weight'], $recursive['columns']);
@@ -125,7 +125,7 @@ $tests['compound recursive limit window current-source next135 recursive limit t
     $t->same(0, $recursive['nextLimitRemaining']);
 };
 
-$tests['compound recursive limit window current-source next135 window metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound recursive limit window current-source next window metadata'] = static function (TestRunner $t) use ($summary): void {
     $windows = $summary()['windows']['current'];
     $t->same(['last_value', 'sum', 'first_value', 'sum'], array_column($windows, 'function'));
     $t->same(['ROWS', 'ROWS', 'ROWS', 'ROWS'], array_column($windows, 'frameUnit'));
@@ -133,7 +133,7 @@ $tests['compound recursive limit window current-source next135 window metadata']
     $t->same([1, 2, 0, 1], array_column($windows, 'following'));
 };
 
-$tests['compound recursive limit window current-source next135 limit boundary'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound recursive limit window current-source next limit boundary'] = static function (TestRunner $t) use ($summary): void {
     $boundary = $summary()['limitBoundary'];
     $t->same(6, $boundary['currentCount']);
     $t->same(6, $boundary['nextCount']);
@@ -143,14 +143,14 @@ $tests['compound recursive limit window current-source next135 limit boundary'] 
     $t->same(7, $boundary['nextLast']['id']);
 };
 
-$tests['compound recursive limit window current-source next135 changed signatures'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound recursive limit window current-source next changed signatures'] = static function (TestRunner $t) use ($summary): void {
     $changed = implode("\n", $summary()['changedSignatures']);
     $t->true(str_contains($changed, 'theme_mods'));
     $t->true(str_contains($changed, 'plugin_queue'));
     $t->true(str_contains($changed, '"frame_weight":53'));
 };
 
-$tests['compound recursive limit window current-source next135 replan reasons'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound recursive limit window current-source next replan reasons'] = static function (TestRunner $t) use ($summary): void {
     $reasons = $summary()['replanReasons'];
     $t->true(in_array('recursive-limited-compound-rowset-changed', $reasons, true));
     $t->true(in_array('compound-window-current-following-source', $reasons, true));
@@ -158,7 +158,7 @@ $tests['compound recursive limit window current-source next135 replan reasons'] 
 };
 
 foreach (range(1, 42) as $case) {
-    $tests['compound recursive limit window current-source next135 generated limit case ' . $case] = static function (TestRunner $t) use ($case, $nextTables): void {
+    $tests['compound recursive limit window current-source next generated limit case ' . $case] = static function (TestRunner $t) use ($case, $nextTables): void {
         $recursiveLimit = 3 + ($case % 4);
         $tailLimit = 2 + ($case % 5);
         $offset = $case % 2;
@@ -171,16 +171,16 @@ foreach (range(1, 42) as $case) {
     };
 }
 
-$tests['compound recursive limit window current-source next135 rejects non recursive select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compareNext135(
+$tests['compound recursive limit window current-source next rejects non recursive select'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compare(
         'SELECT option_id AS id FROM wp_options UNION ALL SELECT option_id AS id FROM wp_options LIMIT 1',
         $currentTables,
         $currentTables,
     ));
 };
 
-$tests['compound recursive limit window current-source next135 rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compareNext135(
+$tests['compound recursive limit window current-source next rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveLimitWindowCurrentSourceNextPlan::compare(
         "WITH RECURSIVE wanted(id, label, depth, weight) AS (VALUES (1, 'siteurl', 0, 20)) SELECT id, label, depth FROM wanted",
         $currentTables,
         $currentTables,

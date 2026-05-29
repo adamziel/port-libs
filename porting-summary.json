@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 14:25:23 UTC",
-    "sourceCommit": "c0fe66b2ea7de00670ea8418dbc43441ac8920eb",
-    "sourceCommitShort": "c0fe66b2ea7d",
+    "generated": "2026-05-29 14:27:46 UTC",
+    "sourceCommit": "0fcdf6b01e9944e78ded0be8709d22f0d78c0872",
+    "sourceCommitShort": "0fcdf6b01e99",
     "sourceBranch": "unknown",
-    "dashboardCommit": "c0fe66b2ea7de00670ea8418dbc43441ac8920eb",
-    "dashboardCommitShort": "c0fe66b2ea7d",
+    "dashboardCommit": "0fcdf6b01e9944e78ded0be8709d22f0d78c0872",
+    "dashboardCommitShort": "0fcdf6b01e99",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,8 +86,8 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted nine AR-wave consolidation hando...",
-            "currentWork": "Consolidated nine safe AR-wave numbered method/helper cleanup handoffs across compound, J...",
+            "audit": "Accepted five AS/AT-wave consolidation ha...",
+            "currentWork": "Consolidated five safe AS/AT-wave numbered method/helper cleanup handoffs across upstream...",
             "nextTarget": "Continue consolidating remaining numbered production method/helper wrappers, prioritizing...",
             "blocker": "No blocker for this reduced consolidation slice.",
             "commit": "thirty-"

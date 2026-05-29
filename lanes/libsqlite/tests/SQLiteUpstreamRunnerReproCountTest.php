@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 return [
     'admits current-source repro artifacts without claiming next-source or release parity' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $root = sys_get_temp_dir() . '/libsqlite-current-source-next107-repro-' . bin2hex(random_bytes(4));
+        $root = sys_get_temp_dir() . '/libsqlite-current-source-repro-repro-' . bin2hex(random_bytes(4));
         mkdir($root, 0777, true);
 
         $currentHead = '432eeef3a780a882f63963e1ddad168744b946dd';
@@ -45,17 +45,17 @@ PASS admits current-source repro artifacts without claiming next-source or relea
 OUT;
 
         try {
-            $record = $evidence->currentSourceRunnerReproCountCurrentSourceNext107(
+            $record = $evidence->currentSourceRunnerReproCount(
                 $root,
                 $currentHead,
                 $nextHead,
                 41873,
-                'lanes/libsqlite/tests/SQLiteUpstreamRunnerReproCountCurrentSourceNext107Test.php',
+                'lanes/libsqlite/tests/SQLiteUpstreamRunnerReproCountTest.php',
                 $focusedOutput,
                 'Avoids accepted batch104/105 upstream-runner gap burnup and release/all parity; this records only current-source repro countability.'
             );
 
-            $t->same('current-source-next107-repro-countable', $record['status']);
+            $t->same('current-source-repro-countable', $record['status']);
             $t->same($root, $record['artifact_directory']);
             $t->same($currentHead, $record['current_source_head']);
             $t->same($nextHead, $record['next_source_head']);
@@ -74,8 +74,8 @@ OUT;
             $t->same('admitted', $record['php_pass_admission']['status']);
             $t->same(64, $record['php_pass_delta']);
             $t->same(41937, $record['next_php_pass']);
-            $t->contains('current-source next107 repro-count artifact', $record['next_gate']);
-            $t->contains('current-source next107 repro count composes lane-local guarded runner audit/log artifacts', $record['dependency_closure']);
+            $t->contains('current-source repro-count artifact', $record['next_gate']);
+            $t->contains('current-source repro count composes lane-local guarded runner audit/log artifacts', $record['dependency_closure']);
         } finally {
             foreach (glob($root . '/*') ?: [] as $file) {
                 unlink($file);
@@ -85,7 +85,7 @@ OUT;
     },
     'blocks next-source artifacts from current-source repro countability' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $root = sys_get_temp_dir() . '/libsqlite-current-source-next107-next-blocked-' . bin2hex(random_bytes(4));
+        $root = sys_get_temp_dir() . '/libsqlite-current-source-repro-next-blocked-' . bin2hex(random_bytes(4));
         mkdir($root, 0777, true);
 
         $currentHead = '432eeef3a780a882f63963e1ddad168744b946dd';
@@ -94,10 +94,10 @@ OUT;
         $uuid = '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353';
 
         file_put_contents($root . '/next.md', <<<MD
-# SQLite Tcl Bounded Runner Evidence - libsqlite-next107-release
+# SQLite Tcl Bounded Runner Evidence - libsqlite-current-source-repro-release
 
 - Repository HEAD: `{$nextHead}`
-- Scratch: `/tmp/libsqlite-next107-release`
+- Scratch: `/tmp/libsqlite-current-source-repro-release`
 - Log: `next.log`
 - SQLite git commit: `{$sqliteCommit}`
 - SQLite VERSION: `3.54.0`
@@ -121,17 +121,17 @@ PASS blocks next-source artifacts from current-source repro countability
 OUT;
 
         try {
-            $record = $evidence->currentSourceRunnerReproCountCurrentSourceNext107(
+            $record = $evidence->currentSourceRunnerReproCount(
                 $root,
                 $currentHead,
                 $nextHead,
                 41873,
-                'lanes/libsqlite/tests/SQLiteUpstreamRunnerReproCountCurrentSourceNext107Test.php',
+                'lanes/libsqlite/tests/SQLiteUpstreamRunnerReproCountTest.php',
                 $focusedOutput,
                 'Avoids accepted batch104/105 upstream-runner gap burnup and release/all parity; this records only current-source repro countability.'
             );
 
-            $t->same('blocked-current-source-next107-repro-count', $record['status']);
+            $t->same('blocked-current-source-repro-count', $record['status']);
             $t->same(0, $record['current_source_count']);
             $t->same(1, $record['next_source_count']);
             $t->same(false, $record['counts_current_source_repro']);
@@ -141,7 +141,7 @@ OUT;
             $t->same(41873, $record['next_php_pass']);
             $t->same(2, $record['blocked_count']);
             $t->same(['current-source-repro-artifact-not-countable', 'next-source-artifact-present'], array_column($record['blockers'], 'id'));
-            $t->contains('keep current-source next107 repro count uncounted', $record['next_gate']);
+            $t->contains('keep current-source repro count uncounted', $record['next_gate']);
         } finally {
             foreach (glob($root . '/*') ?: [] as $file) {
                 unlink($file);
@@ -151,7 +151,7 @@ OUT;
     },
     'keeps stale current-source repro artifacts blocked with explicit blocker ids' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $root = sys_get_temp_dir() . '/libsqlite-current-source-next107-stale-' . bin2hex(random_bytes(4));
+        $root = sys_get_temp_dir() . '/libsqlite-current-source-repro-stale-' . bin2hex(random_bytes(4));
         mkdir($root, 0777, true);
 
         $currentHead = '432eeef3a780a882f63963e1ddad168744b946dd';
@@ -187,17 +187,17 @@ PASS keeps stale current-source repro artifacts blocked with explicit blocker id
 OUT;
 
         try {
-            $record = $evidence->currentSourceRunnerReproCountCurrentSourceNext107(
+            $record = $evidence->currentSourceRunnerReproCount(
                 $root,
                 $currentHead,
                 $nextHead,
                 41873,
-                'lanes/libsqlite/tests/SQLiteUpstreamRunnerReproCountCurrentSourceNext107Test.php',
+                'lanes/libsqlite/tests/SQLiteUpstreamRunnerReproCountTest.php',
                 $focusedOutput,
                 'Avoids accepted batch104/105 upstream-runner gap burnup and release/all parity; this records only current-source repro countability.'
             );
 
-            $t->same('blocked-current-source-next107-repro-count', $record['status']);
+            $t->same('blocked-current-source-repro-count', $record['status']);
             $t->same(1, $record['artifact_count']);
             $t->same(0, $record['current_source_count']);
             $t->same(0, $record['next_source_count']);

@@ -51,8 +51,8 @@ $plan = SQLiteStat4RangeOrderCurrentSourceNextPlan::materializeRangeOrderCursorT
     ['option_name', 'autoload', 'option_value'],
 );
 
-echo json_encode([
-    'scenario' => 'wordpress planner range order stat4 current-source next102',
+$output = [
+    'scenario' => 'wordpress planner range order stat4 current-source cursor tape',
     'selectedSource' => $plan['selectedSource'],
     'reprepareRequired' => $plan['reprepareRequired'],
     'indexName' => $plan['cursorTape']['indexName'],
@@ -63,4 +63,24 @@ echo json_encode([
     'stat4UpperCurrent' => $plan['cursorTape']['stat4UpperCurrent'],
     'programOpcodes' => array_column($plan['cursorTape']['program'], 'opcode'),
     'dependencyClosure' => $plan['dependency_closure'],
-], JSON_PRETTY_PRINT) . PHP_EOL;
+];
+
+if (($argv[1] ?? '') === '--self-test') {
+    if (($output['selectedSource'] ?? null) !== 'current' || ($output['reprepareRequired'] ?? null) !== true) {
+        fwrite(STDERR, "expected current-source STAT4 cursor tape reprepare\n");
+        exit(1);
+    }
+    if (($output['rootPage'] ?? null) !== 302 || ($output['seekOpcode'] ?? null) !== 'SeekGE' || ($output['stopOpcode'] ?? null) !== 'IdxGE') {
+        fwrite(STDERR, "expected current STAT4 range seek and stop opcodes\n");
+        exit(1);
+    }
+    if (($output['stat4LowerCurrent'] ?? null) !== 'home' || ($output['stat4UpperCurrent'] ?? null) !== 'transient_feed') {
+        fwrite(STDERR, "expected current STAT4 lower and upper boundaries\n");
+        exit(1);
+    }
+
+    echo "wordpress-planner-range-order-stat4-cursor-tape self-test passed\n";
+    exit(0);
+}
+
+echo json_encode($output, JSON_PRETTY_PRINT) . PHP_EOL;

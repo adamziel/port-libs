@@ -4838,7 +4838,7 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
-    public function releaseGapBurnupCurrentSourceNext117Record(
+    public function releaseGapBurnupRecord(
         string $artifactDirectory,
         string $currentSourceHead,
         string $nextSourceHead,
@@ -4950,7 +4950,7 @@ final class SQLiteUpstreamSuiteEvidence
         $burnedDown = $blocked ? 0 : min($currentReleaseGap, count($releaseLabels));
 
         return [
-            'status' => $blocked ? 'blocked-release-gap-burnup-current-source-next117' : 'release-gap-burnup-current-source-next117-countable',
+            'status' => $blocked ? 'blocked-release-gap-burnup' : 'release-gap-burnup-countable',
             'artifact_directory' => $artifactDirectory,
             'current_source_head' => $currentSourceHead,
             'next_source_head' => $nextSourceHead,
@@ -4984,7 +4984,7 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
-    public function currentSourceRunnerReproCountCurrentSourceNext107(
+    public function currentSourceRunnerReproCount(
         string $artifactDirectory,
         string $currentSourceHead,
         string $nextSourceHead,
@@ -5102,7 +5102,7 @@ final class SQLiteUpstreamSuiteEvidence
         $phpDelta = $blocked ? 0 : (int) ($phpAdmission['assertion_delta'] ?? 0);
 
         return [
-            'status' => $blocked ? 'blocked-current-source-next107-repro-count' : 'current-source-next107-repro-countable',
+            'status' => $blocked ? 'blocked-current-source-repro-count' : 'current-source-repro-countable',
             'artifact_directory' => $artifactDirectory,
             'current_source_head' => $currentSourceHead,
             'next_source_head' => $nextSourceHead,
@@ -5124,9 +5124,9 @@ final class SQLiteUpstreamSuiteEvidence
             'next_php_pass' => $blocked ? $currentPhpPass : $currentPhpPass + $phpDelta,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blocked
-                ? 'keep current-source next107 repro count uncounted until only zero-error current-source artifacts remain and focused PASS-line admission is clean'
-                : 'publish only the current-source next107 repro-count artifact and exact focused PASS-line movement; release/all parity and next-source movement remain unclaimed',
-            'dependency_closure' => 'no new support component needed; current-source next107 repro count composes lane-local guarded runner audit/log artifacts, current accepted source provenance, manifest UUID gates, and focused TestRunner PASS-line output only',
+                ? 'keep current-source repro count uncounted until only zero-error current-source artifacts remain and focused PASS-line admission is clean'
+                : 'publish only the current-source repro-count artifact and exact focused PASS-line movement; release/all parity and next-source movement remain unclaimed',
+            'dependency_closure' => 'no new support component needed; current-source repro count composes lane-local guarded runner audit/log artifacts, current accepted source provenance, manifest UUID gates, and focused TestRunner PASS-line output only',
         ];
     }
 
@@ -5134,7 +5134,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+    public function upstreamRunnerFullSuiteCountability(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -5150,7 +5150,7 @@ final class SQLiteUpstreamSuiteEvidence
         string $processSnapshot = ''
     ): array {
         if ($rows === []) {
-            throw new \InvalidArgumentException('SQLite current-source next116 full-suite countability requires at least one row');
+            throw new \InvalidArgumentException('SQLite current-source full-suite-countability full-suite countability requires at least one row');
         }
         foreach ([
             'launcher base' => $launcherBaseHead,
@@ -5160,7 +5160,7 @@ final class SQLiteUpstreamSuiteEvidence
             'next source' => $nextSourceHead,
         ] as $label => $head) {
             if (trim($head) === '') {
-                throw new \InvalidArgumentException("SQLite current-source next116 full-suite countability requires {$label} HEAD");
+                throw new \InvalidArgumentException("SQLite current-source full-suite-countability full-suite countability requires {$label} HEAD");
             }
         }
 
@@ -5183,7 +5183,7 @@ final class SQLiteUpstreamSuiteEvidence
         foreach ($rows as $index => $row) {
             if (!is_array($row)) {
                 $blocked[] = [
-                    'id' => 'full-suite-countability-row-invalid',
+                    'id' => 'current-source-full-suite-countability-row-invalid',
                     'row' => $index,
                     'evidence' => 'row is not an array',
                 ];
@@ -5289,7 +5289,7 @@ final class SQLiteUpstreamSuiteEvidence
         if ($expectedPassDelta !== null && (int) ($phpAdmission['assertion_delta'] ?? 0) !== $expectedPassDelta) {
             $blocked[] = [
                 'id' => 'focused-php-pass-delta-mismatch',
-                'evidence' => 'focused PHP assertion delta did not match current-source next116 expected PASS movement',
+                'evidence' => 'focused PHP assertion delta did not match current-source full-suite-countability expected PASS movement',
                 'expected' => $expectedPassDelta,
                 'actual' => (int) ($phpAdmission['assertion_delta'] ?? 0),
             ];
@@ -5303,17 +5303,17 @@ final class SQLiteUpstreamSuiteEvidence
 
         $status = 'blocked';
         if ($blocked === [] && $admitted !== []) {
-            $status = 'current-source-next116-full-suite-countability-advanced';
+            $status = 'current-source-full-suite-countability-advanced';
         } elseif ($blocked === [] && $preserved !== []) {
-            $status = 'current-source-next116-full-suite-countability-preserved';
+            $status = 'current-source-full-suite-countability-preserved';
         }
 
         return [
             'status' => $status,
             'countable' => $status !== 'blocked',
             'current_mapped' => $currentMapped,
-            'next_mapped' => $status === 'current-source-next116-full-suite-countability-advanced' ? $currentMapped + count($admitted) : $currentMapped,
-            'mapped_delta' => $status === 'current-source-next116-full-suite-countability-advanced' ? count($admitted) : 0,
+            'next_mapped' => $status === 'current-source-full-suite-countability-advanced' ? $currentMapped + count($admitted) : $currentMapped,
+            'mapped_delta' => $status === 'current-source-full-suite-countability-advanced' ? count($admitted) : 0,
             'current_php_pass' => $currentPhpPass,
             'php_pass_admission' => $phpAdmission,
             'php_pass_delta' => $status === 'blocked' ? 0 : (int) ($phpAdmission['assertion_delta'] ?? 0),
@@ -5337,16 +5337,16 @@ final class SQLiteUpstreamSuiteEvidence
             'tests_total_delta' => $status === 'blocked' ? 0 : $testsDelta,
             'active_runner_status' => $active['status'] ?? 'unknown',
             'active_runner_count' => (int) ($active['active_count'] ?? 0),
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => $status !== 'blocked' && $admitted !== [],
+            'counts_upstream_runner_full_suite_countability' => $status !== 'blocked' && $admitted !== [],
             'counts_release_parity' => false,
             'counts_upstream_runner_suite_evidence_rebase_current_source_next108' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => match ($status) {
-                'current-source-next116-full-suite-countability-advanced' => 'publish only the current-source next116 full-suite countability row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
-                'current-source-next116-full-suite-countability-preserved' => 'preserve already-counted current-source full-suite rows without mapped inflation',
-                default => 'repair current-source next116 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the full-suite row',
+                'current-source-full-suite-countability-advanced' => 'publish only the current-source full-suite-countability full-suite countability row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
+                'current-source-full-suite-countability-preserved' => 'preserve already-counted current-source full-suite rows without mapped inflation',
+                default => 'repair current-source full-suite-countability provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the full-suite row',
             },
-            'dependency_closure' => 'no new support component needed; current-source next116 full-suite countability composes lane-local artifact rows, accepted source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only',
+            'dependency_closure' => 'no new support component needed; current-source full-suite-countability full-suite countability composes lane-local artifact rows, accepted source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only',
         ];
     }
 
@@ -5354,7 +5354,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerReleaseCountabilityCurrentSourceNext121(
+    public function upstreamRunnerReleaseCountability(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -5370,7 +5370,7 @@ final class SQLiteUpstreamSuiteEvidence
         string $processSnapshot = ''
     ): array {
         if ($rows === []) {
-            throw new \InvalidArgumentException('SQLite current-source next121 release countability requires at least one row');
+            throw new \InvalidArgumentException('SQLite current-source release-countability release countability requires at least one row');
         }
         foreach ([
             'launcher base' => $launcherBaseHead,
@@ -5380,7 +5380,7 @@ final class SQLiteUpstreamSuiteEvidence
             'next source' => $nextSourceHead,
         ] as $label => $head) {
             if (trim($head) === '') {
-                throw new \InvalidArgumentException("SQLite current-source next121 release countability requires {$label} HEAD");
+                throw new \InvalidArgumentException("SQLite current-source release-countability release countability requires {$label} HEAD");
             }
         }
 
@@ -5515,7 +5515,7 @@ final class SQLiteUpstreamSuiteEvidence
         if ($expectedPassDelta !== null && (int) ($phpAdmission['assertion_delta'] ?? 0) !== $expectedPassDelta) {
             $blocked[] = [
                 'id' => 'focused-php-pass-delta-mismatch',
-                'evidence' => 'focused PHP assertion delta did not match current-source next121 expected PASS movement',
+                'evidence' => 'focused PHP assertion delta did not match current-source release-countability expected PASS movement',
                 'expected' => $expectedPassDelta,
                 'actual' => (int) ($phpAdmission['assertion_delta'] ?? 0),
             ];
@@ -5529,17 +5529,17 @@ final class SQLiteUpstreamSuiteEvidence
         $blockedNow = $blocked !== [];
         $status = 'blocked';
         if (!$blockedNow && $admitted !== []) {
-            $status = 'current-source-next121-release-countability-advanced';
+            $status = 'current-source-release-countability-advanced';
         } elseif (!$blockedNow && $preserved !== []) {
-            $status = 'current-source-next121-release-countability-preserved';
+            $status = 'current-source-release-countability-preserved';
         }
 
         return [
             'status' => $status,
-            'countable' => $status === 'current-source-next121-release-countability-advanced',
+            'countable' => $status === 'current-source-release-countability-advanced',
             'current_mapped' => $currentMapped,
-            'next_mapped' => $status === 'current-source-next121-release-countability-advanced' ? $currentMapped + count($admitted) : $currentMapped,
-            'mapped_delta' => $status === 'current-source-next121-release-countability-advanced' ? count($admitted) : 0,
+            'next_mapped' => $status === 'current-source-release-countability-advanced' ? $currentMapped + count($admitted) : $currentMapped,
+            'mapped_delta' => $status === 'current-source-release-countability-advanced' ? count($admitted) : 0,
             'current_php_pass' => $currentPhpPass,
             'php_pass_admission' => $phpAdmission,
             'php_pass_delta' => $blockedNow ? 0 : (int) ($phpAdmission['assertion_delta'] ?? 0),
@@ -5563,15 +5563,15 @@ final class SQLiteUpstreamSuiteEvidence
             'release_tests_total_delta' => $blockedNow ? 0 : $releaseTestsDelta,
             'active_runner_status' => $active['status'] ?? 'unknown',
             'active_runner_count' => (int) ($active['active_count'] ?? 0),
-            'counts_upstream_runner_release_countability_current_source_next121' => $status === 'current-source-next121-release-countability-advanced',
+            'counts_upstream_runner_release_countability' => $status === 'current-source-release-countability-advanced',
             'counts_release_parity' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => match ($status) {
-                'current-source-next121-release-countability-advanced' => 'publish only the current-source next121 release/all countability row and exact focused PASS-line movement; release parity remains unclaimed until a complete zero-error broad artifact is accepted',
-                'current-source-next121-release-countability-preserved' => 'preserve already-counted current-source next121 release/all rows without mapped inflation',
-                default => 'repair current-source next121 provenance, guarded-runner, release-tier, duplicate-runner, or focused PHP admission blockers before counting the release/all row',
+                'current-source-release-countability-advanced' => 'publish only the current-source release-countability release/all countability row and exact focused PASS-line movement; release parity remains unclaimed until a complete zero-error broad artifact is accepted',
+                'current-source-release-countability-preserved' => 'preserve already-counted current-source release-countability release/all rows without mapped inflation',
+                default => 'repair current-source release-countability provenance, guarded-runner, release-tier, duplicate-runner, or focused PHP admission blockers before counting the release/all row',
             },
-            'dependency_closure' => 'no new support component needed; current-source next121 release countability composes lane-local release/all artifact rows, authoritative source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only',
+            'dependency_closure' => 'no new support component needed; current-source release-countability release countability composes lane-local release/all artifact rows, authoritative source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only',
         ];
     }
 
@@ -5805,7 +5805,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamRunnerRebaseGapCurrentSourceNext122(
+    public function upstreamRunnerRebaseGap(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -5820,7 +5820,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -5836,17 +5836,17 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next122-rebase-gap', (string) $record['status']);
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = $record['status'] !== 'blocked'
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-rebase-gap', (string) $record['status']);
+        $record['counts_upstream_runner_rebase_gap'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
         $record['counts_upstream_runner_suite_evidence_rebase_current_source_next108'] = false;
         $record['next_gate'] = match ($record['status']) {
-            'current-source-next122-rebase-gap-advanced' => 'publish only the current-source next122 rebase-gap blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
-            'current-source-next122-rebase-gap-preserved' => 'preserve already-counted current-source rebase-gap rows without mapped inflation',
-            default => 'repair current-source next122 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the rebase-gap row',
+            'current-source-rebase-gap-advanced' => 'publish only the current-source rebase-gap rebase-gap blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
+            'current-source-rebase-gap-preserved' => 'preserve already-counted current-source rebase-gap rows without mapped inflation',
+            default => 'repair current-source rebase-gap provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the rebase-gap row',
         };
-        $record['dependency_closure'] = 'no new support component needed; current-source next122 rebase-gap admission composes lane-local artifact rows, accepted source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
+        $record['dependency_closure'] = 'no new support component needed; current-source rebase-gap rebase-gap admission composes lane-local artifact rows, accepted source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
 
         return $record;
     }
@@ -5870,7 +5870,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -5886,11 +5886,11 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next148-exact-shard-runner', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next148-exact-shard-runner', (string) $record['status']);
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next148-exact-shard-runner-advanced' => 'publish only the current-source next148 exact-shard runner blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -5922,7 +5922,7 @@ final class SQLiteUpstreamSuiteEvidence
         string $processSnapshot = '',
         string $shardLabel = 'veryquick-shard'
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -5938,7 +5938,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', $shardLabel, (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-' . $shardLabel, (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         if (preg_match('/^next(\d+)-veryquick-shard$/', $shardLabel, $matches) === 1) {
@@ -5950,8 +5950,8 @@ final class SQLiteUpstreamSuiteEvidence
                 $record['counts_upstream_veryquick_shard_current_source'];
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $humanShardLabel = str_replace('-', ' ', $shardLabel);
         $record['next_gate'] = match ($record['status']) {
@@ -5985,7 +5985,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -6001,12 +6001,12 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next158-veryquick-shard-runner', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next158-veryquick-shard-runner', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_runner_current_source_next158'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next158-veryquick-shard-runner-advanced' => 'publish only the current-source next158 veryquick shard runner blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -6175,7 +6175,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next165_180' => false,
             'counts_upstream_veryquick_shard_current_source_next181_196' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -6185,7 +6185,7 @@ final class SQLiteUpstreamSuiteEvidence
         ];
     }
 
-    public function upstreamVeryquickShardCurrentSourceNext197212(
+    public function upstreamVeryquickShardPreparedWindowEarly(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -6327,7 +6327,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next181_196' => false,
             'counts_upstream_veryquick_shard_current_source_next165_180' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -6341,7 +6341,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext213228(
+    public function upstreamVeryquickShardPreparedWindowMiddle(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -6484,7 +6484,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next181_196' => false,
             'counts_upstream_veryquick_shard_current_source_next165_180' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -6641,7 +6641,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next197_212' => false,
             'counts_upstream_veryquick_shard_current_source_next181_196' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -6799,7 +6799,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next197_212' => false,
             'counts_upstream_veryquick_shard_current_source_next181_196' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -6957,7 +6957,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next213_228' => false,
             'counts_upstream_veryquick_shard_current_source_next197_212' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -7113,7 +7113,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next261_276' => false,
             'counts_upstream_veryquick_shard_current_source_next245_260' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -7269,7 +7269,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next277_292' => false,
             'counts_upstream_veryquick_shard_current_source_next261_276' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -7425,7 +7425,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next293_308' => false,
             'counts_upstream_veryquick_shard_current_source_next277_292' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -7581,7 +7581,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next309_324' => false,
             'counts_upstream_veryquick_shard_current_source_next293_308' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -7737,7 +7737,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next325_340' => false,
             'counts_upstream_veryquick_shard_current_source_next309_324' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -7893,7 +7893,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next341_356' => false,
             'counts_upstream_veryquick_shard_current_source_next325_340' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -8049,7 +8049,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next357_372' => false,
             'counts_upstream_veryquick_shard_current_source_next341_356' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -8205,7 +8205,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next373_388' => false,
             'counts_upstream_veryquick_shard_current_source_next357_372' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -8361,7 +8361,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next389_404' => false,
             'counts_upstream_veryquick_shard_current_source_next373_388' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -8517,7 +8517,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next405_420' => false,
             'counts_upstream_veryquick_shard_current_source_next389_404' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -8674,7 +8674,7 @@ final class SQLiteUpstreamSuiteEvidence
             'counts_upstream_veryquick_shard_current_source_next405_420' => false,
             'counts_upstream_veryquick_shard_current_source_next389_404' => false,
             'counts_release_parity' => false,
-            'counts_upstream_runner_full_suite_countability_current_source_next116' => false,
+            'counts_upstream_runner_full_suite_countability' => false,
             'counts_upstream_exact_shard_runner_current_source_next148' => false,
             'non_overlap_note' => trim($nonOverlapNote),
             'next_gate' => $blockers === []
@@ -8703,7 +8703,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -8719,7 +8719,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next181-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next181-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next181'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next178'] = false;
@@ -8739,8 +8739,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next181-veryquick-shard-advanced' => 'publish only the current-source next181 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -8771,7 +8771,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -8787,7 +8787,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next184-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next184-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next184'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next181'] = false;
@@ -8808,8 +8808,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next184-veryquick-shard-advanced' => 'publish only the current-source next184 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -8840,7 +8840,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -8856,7 +8856,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next187-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next187-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next187'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next184'] = false;
@@ -8878,8 +8878,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next187-veryquick-shard-advanced' => 'publish only the current-source next187 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -8910,7 +8910,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -8926,7 +8926,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next190-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next190-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next190'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next187'] = false;
@@ -8949,8 +8949,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next190-veryquick-shard-advanced' => 'publish only the current-source next190 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -8981,7 +8981,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -8997,7 +8997,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next194-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next194-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next194'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next190'] = false;
@@ -9021,8 +9021,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next194-veryquick-shard-advanced' => 'publish only the current-source next194 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9053,7 +9053,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9069,7 +9069,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next200-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next200-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next200'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next194'] = false;
@@ -9094,8 +9094,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next200-veryquick-shard-advanced' => 'publish only the current-source next200 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9125,7 +9125,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9141,7 +9141,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next202-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next202-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next202'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next200'] = false;
@@ -9167,8 +9167,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next202-veryquick-shard-advanced' => 'publish only the current-source next202 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9198,7 +9198,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9214,7 +9214,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next209-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next209-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next209'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next202'] = false;
@@ -9241,8 +9241,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next209-veryquick-shard-advanced' => 'publish only the current-source next209 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9272,7 +9272,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9288,7 +9288,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next212-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next212-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next212'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next209'] = false;
@@ -9316,8 +9316,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next212-veryquick-shard-advanced' => 'publish only the current-source next212 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9347,7 +9347,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9363,7 +9363,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next222-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next222-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next222'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next213'] = false;
@@ -9393,8 +9393,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next222-veryquick-shard-advanced' => 'publish only the current-source next222 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9470,7 +9470,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9488,7 +9488,7 @@ final class SQLiteUpstreamSuiteEvidence
 
         $label = 'next' . (string) $next;
         $statusLabel = $label . '-veryquick-shard';
-        $record['status'] = str_replace('next116-full-suite-countability', $statusLabel, (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-' . $statusLabel, (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_' . $label] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $rangeStart = $next - (($next - 149) % 16);
@@ -9499,8 +9499,8 @@ final class SQLiteUpstreamSuiteEvidence
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             "current-source-{$statusLabel}-advanced" => "publish only the current-source {$label} veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted",
@@ -9530,7 +9530,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9546,7 +9546,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next235-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next235-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next235'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next230'] = false;
@@ -9586,8 +9586,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next235-veryquick-shard-advanced' => 'publish only the current-source next235 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9623,7 +9623,7 @@ final class SQLiteUpstreamSuiteEvidence
             throw new \InvalidArgumentException('Unsupported upstream veryquick shard admission.');
         }
 
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9639,15 +9639,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next' . $shard . '-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next' . $shard . '-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next' . $shard] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach (self::priorVeryquickShardAdmissions($shard) as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next' . $shard . '-veryquick-shard-advanced' => 'publish only the current-source next' . $shard . ' veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9747,7 +9747,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9763,15 +9763,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next392-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next392-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next392'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([361, 358, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next392-veryquick-shard-advanced' => 'publish only the current-source next392 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9802,7 +9802,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9818,15 +9818,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next393-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next393-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next393'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([361, 358, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next393-veryquick-shard-advanced' => 'publish only the current-source next393 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9857,7 +9857,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9873,15 +9873,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next394-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next394-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next394'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([361, 358, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 330, 327, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next394-veryquick-shard-advanced' => 'publish only the current-source next394 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9912,7 +9912,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9928,15 +9928,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next395-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next395-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next395'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([361, 358, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next395-veryquick-shard-advanced' => 'publish only the current-source next395 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -9967,7 +9967,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -9983,15 +9983,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next396-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next396-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next396'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([361, 358, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next396-veryquick-shard-advanced' => 'publish only the current-source next396 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10022,7 +10022,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10038,15 +10038,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next397-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next397-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next397'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([361, 358, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next397-veryquick-shard-advanced' => 'publish only the current-source next397 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10077,7 +10077,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10093,15 +10093,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next398-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next398-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next398'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([361, 358, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next398-veryquick-shard-advanced' => 'publish only the current-source next398 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10132,7 +10132,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10148,15 +10148,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next400-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next400-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next400'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([381, 380, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 361, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next400-veryquick-shard-advanced' => 'publish only the current-source next400 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10187,7 +10187,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10203,15 +10203,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next401-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next401-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next401'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([381, 380, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next401-veryquick-shard-advanced' => 'publish only the current-source next401 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10242,7 +10242,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10258,15 +10258,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next402-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next402-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next402'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([381, 380, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 343, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next402-veryquick-shard-advanced' => 'publish only the current-source next402 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10297,7 +10297,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10313,15 +10313,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next403-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next403-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next403'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([381, 380, 378, 377, 376, 375, 374, 373, 372, 371, 370, 367, 365, 362, 361, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next403-veryquick-shard-advanced' => 'publish only the current-source next403 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10352,7 +10352,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10368,15 +10368,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next407-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next407-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next407'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([381, 380, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 361, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next407-veryquick-shard-advanced' => 'publish only the current-source next407 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10407,7 +10407,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10423,15 +10423,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next408-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next408-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next408'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([381, 380, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 361, 360, 359, 358, 357, 339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next408-veryquick-shard-advanced' => 'publish only the current-source next408 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10462,7 +10462,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10478,15 +10478,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next409-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next409-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next409'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([381, 380, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 361, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next409-veryquick-shard-advanced' => 'publish only the current-source next409 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10530,7 +10530,7 @@ final class SQLiteUpstreamSuiteEvidence
             throw new \InvalidArgumentException('SQLite veryquick shard evidence slice must be one of the consolidated upstream-suite slice ids');
         }
 
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10547,7 +10547,7 @@ final class SQLiteUpstreamSuiteEvidence
         );
 
         $label = 'next' . $slice;
-        $record['status'] = str_replace('next116-full-suite-countability', $label . '-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-' . $label . '-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_' . $label] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach (self::priorVeryquickShardSlicesForConsolidatedEvidence() as $priorShard) {
@@ -10557,8 +10557,8 @@ final class SQLiteUpstreamSuiteEvidence
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-' . $label . '-veryquick-shard-advanced' => 'publish only the current-source ' . $label . ' veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10608,7 +10608,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10624,7 +10624,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next241-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next241-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next241'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next240'] = false;
@@ -10669,8 +10669,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next167'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next166'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next241-veryquick-shard-advanced' => 'publish only the current-source next241 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10701,7 +10701,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10717,15 +10717,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next335-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next335-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next335'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next335-veryquick-shard-advanced' => 'publish only the current-source next335 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10756,7 +10756,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10772,15 +10772,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next348-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next348-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next348'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next348-veryquick-shard-advanced' => 'publish only the current-source next348 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10811,7 +10811,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10827,15 +10827,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next343-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next343-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next343'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next343-veryquick-shard-advanced' => 'publish only the current-source next343 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10866,7 +10866,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10882,15 +10882,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next382-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next382-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next382'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next382-veryquick-shard-advanced' => 'publish only the current-source next382 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10921,7 +10921,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10937,15 +10937,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next383-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next383-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next383'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next383-veryquick-shard-advanced' => 'publish only the current-source next383 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -10976,7 +10976,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -10992,15 +10992,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next379-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next379-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next379'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next379-veryquick-shard-advanced' => 'publish only the current-source next379 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11031,7 +11031,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11047,15 +11047,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next350-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next350-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next350'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next350-veryquick-shard-advanced' => 'publish only the current-source next350 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11086,7 +11086,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11102,15 +11102,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next377-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next377-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next377'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next377-veryquick-shard-advanced' => 'publish only the current-source next377 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11141,7 +11141,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11157,15 +11157,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next380-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next380-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next380'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next380-veryquick-shard-advanced' => 'publish only the current-source next380 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11196,7 +11196,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11212,15 +11212,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next378-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next378-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next378'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next378-veryquick-shard-advanced' => 'publish only the current-source next378 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11251,7 +11251,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11267,15 +11267,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next351-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next351-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next351'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next351-veryquick-shard-advanced' => 'publish only the current-source next351 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11306,7 +11306,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11322,15 +11322,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next374-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next374-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next374'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next374-veryquick-shard-advanced' => 'publish only the current-source next374 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11361,7 +11361,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11377,15 +11377,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next375-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next375-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next375'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next375-veryquick-shard-advanced' => 'publish only the current-source next375 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11416,7 +11416,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11432,15 +11432,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next366-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next366-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next366'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next366-veryquick-shard-advanced' => 'publish only the current-source next366 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11471,7 +11471,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11487,15 +11487,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next373-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next373-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next373'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next373-veryquick-shard-advanced' => 'publish only the current-source next373 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11526,7 +11526,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11542,15 +11542,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next372-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next372-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next372'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach (range(339, 155) as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next372-veryquick-shard-advanced' => 'publish only the current-source next372 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11581,7 +11581,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11597,15 +11597,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next369-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next369-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next369'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next369-veryquick-shard-advanced' => 'publish only the current-source next369 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11636,7 +11636,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11652,15 +11652,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next368-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next368-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next368'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next368-veryquick-shard-advanced' => 'publish only the current-source next368 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11691,7 +11691,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11707,15 +11707,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next352-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next352-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next352'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next352-veryquick-shard-advanced' => 'publish only the current-source next352 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11746,7 +11746,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11762,15 +11762,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next365-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next365-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next365'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next365-veryquick-shard-advanced' => 'publish only the current-source next365 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11801,7 +11801,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11817,15 +11817,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next353-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next353-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next353'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next353-veryquick-shard-advanced' => 'publish only the current-source next353 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11856,7 +11856,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11872,15 +11872,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next354-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next354-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next354'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next354-veryquick-shard-advanced' => 'publish only the current-source next354 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11911,7 +11911,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11927,15 +11927,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next390-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next390-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next390'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([361, 358, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next390-veryquick-shard-advanced' => 'publish only the current-source next390 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -11966,7 +11966,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -11982,15 +11982,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next355-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next355-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next355'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next355-veryquick-shard-advanced' => 'publish only the current-source next355 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12021,7 +12021,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12037,15 +12037,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next356-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next356-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next356'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next356-veryquick-shard-advanced' => 'publish only the current-source next356 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12076,7 +12076,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12092,15 +12092,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next358-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next358-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next358'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next358-veryquick-shard-advanced' => 'publish only the current-source next358 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12131,7 +12131,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12147,15 +12147,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next361-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next361-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next361'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next361-veryquick-shard-advanced' => 'publish only the current-source next361 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12186,7 +12186,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12202,15 +12202,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next359-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next359-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next359'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next359-veryquick-shard-advanced' => 'publish only the current-source next359 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12241,7 +12241,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12257,15 +12257,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next360-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next360-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next360'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next360-veryquick-shard-advanced' => 'publish only the current-source next360 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12296,7 +12296,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12312,15 +12312,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next362-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next362-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next362'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next362-veryquick-shard-advanced' => 'publish only the current-source next362 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12351,7 +12351,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12367,15 +12367,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next381-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next381-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next381'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next381-veryquick-shard-advanced' => 'publish only the current-source next381 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12406,7 +12406,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12422,15 +12422,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next399-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next399-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next399'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([381, 380, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 361, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next399-veryquick-shard-advanced' => 'publish only the current-source next399 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12460,7 +12460,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12476,15 +12476,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next245-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next245-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next245'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next245-veryquick-shard-advanced' => 'publish only the current-source next245 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12515,7 +12515,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12531,15 +12531,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next320-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next320-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next320'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next320-veryquick-shard-advanced' => 'publish only the current-source next320 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12570,7 +12570,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12586,15 +12586,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next321-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next321-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next321'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next321-veryquick-shard-advanced' => 'publish only the current-source next321 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12625,7 +12625,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12641,15 +12641,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next322-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next322-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next322'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next322-veryquick-shard-advanced' => 'publish only the current-source next322 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12680,7 +12680,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12696,15 +12696,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next327-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next327-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next327'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next327-veryquick-shard-advanced' => 'publish only the current-source next327 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12735,7 +12735,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12751,15 +12751,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next349-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next349-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next349'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next349-veryquick-shard-advanced' => 'publish only the current-source next349 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12790,7 +12790,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12806,15 +12806,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next388-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next388-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next388'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([361, 358, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next388-veryquick-shard-advanced' => 'publish only the current-source next388 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12845,7 +12845,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12861,15 +12861,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next347-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next347-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next347'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next347-veryquick-shard-advanced' => 'publish only the current-source next347 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12900,7 +12900,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12916,15 +12916,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next346-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next346-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next346'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next346-veryquick-shard-advanced' => 'publish only the current-source next346 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -12955,7 +12955,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -12971,15 +12971,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next344-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next344-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next344'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next344-veryquick-shard-advanced' => 'publish only the current-source next344 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13010,7 +13010,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13026,15 +13026,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next342-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next342-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next342'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next342-veryquick-shard-advanced' => 'publish only the current-source next342 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13065,7 +13065,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13081,15 +13081,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next345-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next345-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next345'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next345-veryquick-shard-advanced' => 'publish only the current-source next345 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13120,7 +13120,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13136,15 +13136,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next330-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next330-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next330'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next330-veryquick-shard-advanced' => 'publish only the current-source next330 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13175,7 +13175,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13191,15 +13191,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next323-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next323-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next323'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next323-veryquick-shard-advanced' => 'publish only the current-source next323 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13230,7 +13230,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13246,15 +13246,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next340-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next340-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next340'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next340-veryquick-shard-advanced' => 'publish only the current-source next340 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13285,7 +13285,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13301,15 +13301,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next339-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next339-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next339'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next339-veryquick-shard-advanced' => 'publish only the current-source next339 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13340,7 +13340,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13356,15 +13356,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next338-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next338-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next338'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next338-veryquick-shard-advanced' => 'publish only the current-source next338 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13395,7 +13395,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13411,15 +13411,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next337-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next337-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next337'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next337-veryquick-shard-advanced' => 'publish only the current-source next337 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13450,7 +13450,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13466,15 +13466,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next336-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next336-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next336'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next336-veryquick-shard-advanced' => 'publish only the current-source next336 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13505,7 +13505,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13521,15 +13521,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next328-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next328-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next328'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next328-veryquick-shard-advanced' => 'publish only the current-source next328 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13560,7 +13560,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13576,15 +13576,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next333-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next333-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next333'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next333-veryquick-shard-advanced' => 'publish only the current-source next333 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13615,7 +13615,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13631,15 +13631,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next331-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next331-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next331'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next331-veryquick-shard-advanced' => 'publish only the current-source next331 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13670,7 +13670,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13686,15 +13686,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next329-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next329-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next329'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next329-veryquick-shard-advanced' => 'publish only the current-source next329 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13725,7 +13725,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13741,15 +13741,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next332-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next332-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next332'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next332-veryquick-shard-advanced' => 'publish only the current-source next332 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13780,7 +13780,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13796,15 +13796,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next325-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next325-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next325'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next325-veryquick-shard-advanced' => 'publish only the current-source next325 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13835,7 +13835,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13851,15 +13851,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next326-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next326-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next326'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next326-veryquick-shard-advanced' => 'publish only the current-source next326 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13890,7 +13890,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13906,15 +13906,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next324-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next324-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next324'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next324-veryquick-shard-advanced' => 'publish only the current-source next324 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13945,7 +13945,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -13961,15 +13961,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next334-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next334-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next334'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next334-veryquick-shard-advanced' => 'publish only the current-source next334 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -13999,7 +13999,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14015,15 +14015,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next384-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next384-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next384'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next384-veryquick-shard-advanced' => 'publish only the current-source next384 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14054,7 +14054,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14070,15 +14070,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next248-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next248-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next248'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next248-veryquick-shard-advanced' => 'publish only the current-source next248 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14109,7 +14109,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14125,15 +14125,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next308-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next308-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next308'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next308-veryquick-shard-advanced' => 'publish only the current-source next308 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14164,7 +14164,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14180,15 +14180,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next309-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next309-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next309'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next309-veryquick-shard-advanced' => 'publish only the current-source next309 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14219,7 +14219,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14235,15 +14235,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next341-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next341-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next341'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([305, 304, 303, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next341-veryquick-shard-advanced' => 'publish only the current-source next341 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14274,7 +14274,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14290,15 +14290,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next311-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next311-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next311'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next311-veryquick-shard-advanced' => 'publish only the current-source next311 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14329,7 +14329,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14345,15 +14345,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next312-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next312-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next312'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next312-veryquick-shard-advanced' => 'publish only the current-source next312 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14384,7 +14384,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14400,15 +14400,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next313-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next313-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next313'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next313-veryquick-shard-advanced' => 'publish only the current-source next313 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14439,7 +14439,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14455,15 +14455,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next314-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next314-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next314'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next314-veryquick-shard-advanced' => 'publish only the current-source next314 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14494,7 +14494,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14510,15 +14510,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next315-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next315-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next315'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next315-veryquick-shard-advanced' => 'publish only the current-source next315 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14549,7 +14549,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14565,15 +14565,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next316-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next316-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next316'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next316-veryquick-shard-advanced' => 'publish only the current-source next316 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14604,7 +14604,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14620,15 +14620,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next317-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next317-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next317'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next317-veryquick-shard-advanced' => 'publish only the current-source next317 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14659,7 +14659,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14675,15 +14675,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next318-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next318-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next318'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next318-veryquick-shard-advanced' => 'publish only the current-source next318 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14714,7 +14714,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14730,15 +14730,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next319-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next319-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next319'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([291, 290, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next319-veryquick-shard-advanced' => 'publish only the current-source next319 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14768,7 +14768,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14784,15 +14784,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next253-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next253-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next253'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next253-veryquick-shard-advanced' => 'publish only the current-source next253 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14823,7 +14823,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14839,15 +14839,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next301-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next301-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next301'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next301-veryquick-shard-advanced' => 'publish only the current-source next301 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14878,7 +14878,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14894,15 +14894,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next303-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next303-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next303'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next303-veryquick-shard-advanced' => 'publish only the current-source next303 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14933,7 +14933,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -14949,15 +14949,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next305-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next305-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next305'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next305-veryquick-shard-advanced' => 'publish only the current-source next305 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -14988,7 +14988,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15004,15 +15004,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next304-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next304-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next304'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next304-veryquick-shard-advanced' => 'publish only the current-source next304 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15043,7 +15043,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15059,15 +15059,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next302-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next302-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next302'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next302-veryquick-shard-advanced' => 'publish only the current-source next302 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15098,7 +15098,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15114,15 +15114,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next306-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next306-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next306'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next306-veryquick-shard-advanced' => 'publish only the current-source next306 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15153,7 +15153,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15169,15 +15169,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next307-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next307-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next307'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next307-veryquick-shard-advanced' => 'publish only the current-source next307 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15207,7 +15207,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15223,15 +15223,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next260-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next260-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next260'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next260-veryquick-shard-advanced' => 'publish only the current-source next260 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15262,7 +15262,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15278,15 +15278,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next293-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next293-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next293'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next293-veryquick-shard-advanced' => 'publish only the current-source next293 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15317,7 +15317,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15333,15 +15333,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next294-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next294-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next294'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next294-veryquick-shard-advanced' => 'publish only the current-source next294 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15372,7 +15372,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15388,15 +15388,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next298-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next298-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next298'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next298-veryquick-shard-advanced' => 'publish only the current-source next298 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15427,7 +15427,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15443,15 +15443,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next299-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next299-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next299'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next299-veryquick-shard-advanced' => 'publish only the current-source next299 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15482,7 +15482,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15498,15 +15498,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next300-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next300-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next300'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next300-veryquick-shard-advanced' => 'publish only the current-source next300 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15536,7 +15536,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15552,15 +15552,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next297-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next297-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next297'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next297-veryquick-shard-advanced' => 'publish only the current-source next297 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15590,7 +15590,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15606,15 +15606,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next295-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next295-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next295'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next295-veryquick-shard-advanced' => 'publish only the current-source next295 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15645,7 +15645,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15661,15 +15661,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next296-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next296-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next296'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next296-veryquick-shard-advanced' => 'publish only the current-source next296 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15699,7 +15699,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15715,15 +15715,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next280-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next280-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next280'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next280-veryquick-shard-advanced' => 'publish only the current-source next280 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15754,7 +15754,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15770,15 +15770,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next290-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next290-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next290'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next290-veryquick-shard-advanced' => 'publish only the current-source next290 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15809,7 +15809,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15825,15 +15825,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next291-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next291-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next291'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next291-veryquick-shard-advanced' => 'publish only the current-source next291 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15864,7 +15864,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15880,15 +15880,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next289-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next289-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next289'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next289-veryquick-shard-advanced' => 'publish only the current-source next289 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15919,7 +15919,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15935,15 +15935,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next292-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next292-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next292'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next292-veryquick-shard-advanced' => 'publish only the current-source next292 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -15973,7 +15973,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -15989,15 +15989,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next281-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next281-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next281'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next281-veryquick-shard-advanced' => 'publish only the current-source next281 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16028,7 +16028,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16044,15 +16044,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next284-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next284-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next284'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next284-veryquick-shard-advanced' => 'publish only the current-source next284 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16083,7 +16083,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16099,15 +16099,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next287-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next287-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next287'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next287-veryquick-shard-advanced' => 'publish only the current-source next287 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16138,7 +16138,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16154,15 +16154,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next285-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next285-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next285'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next285-veryquick-shard-advanced' => 'publish only the current-source next285 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16193,7 +16193,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16209,15 +16209,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next286-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next286-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next286'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next286-veryquick-shard-advanced' => 'publish only the current-source next286 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16248,7 +16248,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16264,15 +16264,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next288-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next288-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next288'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next288-veryquick-shard-advanced' => 'publish only the current-source next288 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16302,7 +16302,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16318,15 +16318,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next277-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next277-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next277'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next277-veryquick-shard-advanced' => 'publish only the current-source next277 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16357,7 +16357,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16373,15 +16373,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next279-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next279-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next279'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next279-veryquick-shard-advanced' => 'publish only the current-source next279 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16412,7 +16412,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16428,15 +16428,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next282-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next282-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next282'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next282-veryquick-shard-advanced' => 'publish only the current-source next282 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16467,7 +16467,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16483,15 +16483,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next283-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next283-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next283'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next283-veryquick-shard-advanced' => 'publish only the current-source next283 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16521,7 +16521,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16537,15 +16537,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next278-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next278-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next278'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next278-veryquick-shard-advanced' => 'publish only the current-source next278 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16575,7 +16575,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16591,15 +16591,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next271-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next271-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next271'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next271-veryquick-shard-advanced' => 'publish only the current-source next271 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16629,7 +16629,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16645,15 +16645,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next272-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next272-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next272'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next272-veryquick-shard-advanced' => 'publish only the current-source next272 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16683,7 +16683,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16699,15 +16699,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next270-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next270-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next270'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next270-veryquick-shard-advanced' => 'publish only the current-source next270 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16738,7 +16738,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16754,15 +16754,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next276-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next276-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next276'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next276-veryquick-shard-advanced' => 'publish only the current-source next276 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16792,7 +16792,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16808,15 +16808,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next269-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next269-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next269'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next269-veryquick-shard-advanced' => 'publish only the current-source next269 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16847,7 +16847,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16863,15 +16863,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next273-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next273-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next273'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next273-veryquick-shard-advanced' => 'publish only the current-source next273 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16902,7 +16902,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16918,15 +16918,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next275-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next275-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next275'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next275-veryquick-shard-advanced' => 'publish only the current-source next275 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -16956,7 +16956,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -16972,15 +16972,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next274-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next274-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next274'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next274-veryquick-shard-advanced' => 'publish only the current-source next274 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17010,7 +17010,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17026,15 +17026,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next267-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next267-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next267'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next267-veryquick-shard-advanced' => 'publish only the current-source next267 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17064,7 +17064,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17080,15 +17080,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next266-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next266-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next266'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next266-veryquick-shard-advanced' => 'publish only the current-source next266 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17118,7 +17118,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17134,15 +17134,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next259-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next259-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next259'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next259-veryquick-shard-advanced' => 'publish only the current-source next259 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17173,7 +17173,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17189,15 +17189,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next263-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next263-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next263'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next263-veryquick-shard-advanced' => 'publish only the current-source next263 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17228,7 +17228,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17244,15 +17244,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next264-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next264-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next264'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next264-veryquick-shard-advanced' => 'publish only the current-source next264 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17283,7 +17283,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17299,15 +17299,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next265-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next265-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next265'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next265-veryquick-shard-advanced' => 'publish only the current-source next265 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17337,7 +17337,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17353,15 +17353,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next258-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next258-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next258'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next258-veryquick-shard-advanced' => 'publish only the current-source next258 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17392,7 +17392,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17408,15 +17408,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next261-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next261-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next261'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next261-veryquick-shard-advanced' => 'publish only the current-source next261 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17447,7 +17447,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17463,15 +17463,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next262-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next262-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next262'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next262-veryquick-shard-advanced' => 'publish only the current-source next262 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17501,7 +17501,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17517,15 +17517,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next252-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next252-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next252'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next252-veryquick-shard-advanced' => 'publish only the current-source next252 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17555,7 +17555,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17571,15 +17571,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next247-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next247-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next247'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next247-veryquick-shard-advanced' => 'publish only the current-source next247 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17610,7 +17610,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17626,15 +17626,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next255-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next255-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next255'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next255-veryquick-shard-advanced' => 'publish only the current-source next255 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17665,7 +17665,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17681,15 +17681,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next256-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next256-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next256'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next256-veryquick-shard-advanced' => 'publish only the current-source next256 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17720,7 +17720,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17736,15 +17736,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next257-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next257-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next257'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next257-veryquick-shard-advanced' => 'publish only the current-source next257 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17774,7 +17774,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17790,7 +17790,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next244-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next244-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next244'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next241'] = false;
@@ -17841,8 +17841,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next244-veryquick-shard-advanced' => 'publish only the current-source next244 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17873,7 +17873,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17889,15 +17889,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next254-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next254-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next254'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next254-veryquick-shard-advanced' => 'publish only the current-source next254 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17928,7 +17928,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17944,15 +17944,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next250-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next250-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next250'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next250-veryquick-shard-advanced' => 'publish only the current-source next250 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -17983,7 +17983,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -17999,15 +17999,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next251-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next251-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next251'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next251-veryquick-shard-advanced' => 'publish only the current-source next251 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18037,7 +18037,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18053,15 +18053,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next249-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next249-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next249'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next249-veryquick-shard-advanced' => 'publish only the current-source next249 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18091,7 +18091,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18107,15 +18107,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next242-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next242-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next242'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next242-veryquick-shard-advanced' => 'publish only the current-source next242 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18146,7 +18146,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18162,15 +18162,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next246-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next246-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next246'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next246-veryquick-shard-advanced' => 'publish only the current-source next246 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18200,7 +18200,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18216,7 +18216,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next238-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next238-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next238'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next235'] = false;
@@ -18261,8 +18261,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next238-veryquick-shard-advanced' => 'publish only the current-source next238 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18292,7 +18292,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18308,7 +18308,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next243-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next243-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next243'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next240'] = false;
@@ -18335,8 +18335,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next212'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next209'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next243-veryquick-shard-advanced' => 'publish only the current-source next243 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18415,7 +18415,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18431,7 +18431,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next240-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next240-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next240'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next237'] = false;
@@ -18455,8 +18455,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next212'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next209'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next240-veryquick-shard-advanced' => 'publish only the current-source next240 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18486,7 +18486,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18502,7 +18502,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next236-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next236-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next236'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next233'] = false;
@@ -18542,8 +18542,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next236-veryquick-shard-advanced' => 'publish only the current-source next236 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18573,7 +18573,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18589,7 +18589,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next237-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next237-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next237'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next234'] = false;
@@ -18611,8 +18611,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next209'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next202'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next237-veryquick-shard-advanced' => 'publish only the current-source next237 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18642,7 +18642,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18658,7 +18658,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next233-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next233-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next233'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next230'] = false;
@@ -18695,8 +18695,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next233-veryquick-shard-advanced' => 'publish only the current-source next233 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18726,7 +18726,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18742,7 +18742,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next234-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next234-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next234'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next230'] = false;
@@ -18760,8 +18760,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next209'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next202'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next234-veryquick-shard-advanced' => 'publish only the current-source next234 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18791,7 +18791,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18807,7 +18807,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next230-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next230-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next230'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next224'] = false;
@@ -18841,8 +18841,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next230-veryquick-shard-advanced' => 'publish only the current-source next230 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18872,7 +18872,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18888,15 +18888,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next231-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next231-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next231'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next231-veryquick-shard-advanced' => 'publish only the current-source next231 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -18977,7 +18977,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -18993,7 +18993,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next224-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next224-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next224'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next213'] = false;
@@ -19023,8 +19023,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next224-veryquick-shard-advanced' => 'publish only the current-source next224 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -19056,7 +19056,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -19072,7 +19072,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next229-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next229-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next229'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next224'] = false;
@@ -19106,8 +19106,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next229-veryquick-shard-advanced' => 'publish only the current-source next229 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -19137,7 +19137,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -19153,7 +19153,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next228-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next228-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next228'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next224'] = false;
@@ -19187,8 +19187,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next228-veryquick-shard-advanced' => 'publish only the current-source next228 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -19218,7 +19218,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -19234,7 +19234,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next227-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next227-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next227'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next219'] = false;
@@ -19265,8 +19265,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next227-veryquick-shard-advanced' => 'publish only the current-source next227 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -19296,7 +19296,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -19312,7 +19312,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next226-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next226-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next226'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next219'] = false;
@@ -19343,8 +19343,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next226-veryquick-shard-advanced' => 'publish only the current-source next226 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -19374,7 +19374,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -19390,7 +19390,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next225-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next225-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next225'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next219'] = false;
@@ -19421,8 +19421,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next225-veryquick-shard-advanced' => 'publish only the current-source next225 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -19452,7 +19452,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -19468,7 +19468,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next213-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next213-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next213'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next212'] = false;
@@ -19497,8 +19497,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next213-veryquick-shard-advanced' => 'publish only the current-source next213 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -19529,7 +19529,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -19545,7 +19545,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next220-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next220-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next220'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next213'] = false;
@@ -19575,8 +19575,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next220-veryquick-shard-advanced' => 'publish only the current-source next220 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -19606,7 +19606,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -19622,7 +19622,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next192-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next192-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next192'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_veryquick_shard_current_source_next187'] = false;
@@ -19645,8 +19645,8 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
         $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next192-veryquick-shard-advanced' => 'publish only the current-source next192 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -21526,7 +21526,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -21542,15 +21542,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next371-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next371-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next371'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next371-veryquick-shard-advanced' => 'publish only the current-source next371 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -21581,7 +21581,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -21597,15 +21597,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next404-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next404-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next404'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([381, 380, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 361, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next404-veryquick-shard-advanced' => 'publish only the current-source next404 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -26635,7 +26635,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $expectedPhases = ['next116', 'next117', 'next118'];
+        $expectedPhases = ['full-suite-countability', 'release-gap', 'next118'];
         $phaseRows = [];
         $preparedPhases = [];
         $preservedPhases = [];
@@ -26677,7 +26677,7 @@ final class SQLiteUpstreamSuiteEvidence
             $rowBlockers = is_array($row['blocker_ids'] ?? null) ? $row['blocker_ids'] : [];
 
             if ($phase !== '' && !in_array($phase, $expectedPhases, true)) {
-                $rowBlockers[] = 'suite-phase-outside-next116-118';
+                $rowBlockers[] = 'suite-phase-outside-full-suite-countability-118';
             }
             if ($phase !== '' && isset($seenPhaseIds[$phase])) {
                 $duplicatePhaseIds[$phase] = true;
@@ -26711,7 +26711,7 @@ final class SQLiteUpstreamSuiteEvidence
             if ($rowBlockers !== []) {
                 $blockedPhases[] = $phaseId;
                 $phaseBlockers[] = [
-                    'id' => 'current-source-next116-118-suite-phase-row-blocked',
+                    'id' => 'current-source-full-suite-countability-118-suite-phase-row-blocked',
                     'unit' => $unit,
                     'suite_phase_id' => $phaseId,
                     'evidence' => implode('; ', $rowBlockers),
@@ -26740,8 +26740,8 @@ final class SQLiteUpstreamSuiteEvidence
 
         if ($missingPhases !== []) {
             $phaseBlockers[] = [
-                'id' => 'current-source-next116-118-suite-phases-incomplete',
-                'unit' => 'upstream-runner-suite-evidence-current-source-next116-118',
+                'id' => 'current-source-full-suite-countability-118-suite-phases-incomplete',
+                'unit' => 'upstream-runner-suite-evidence-full-suite-countability-118',
                 'suite_phase_id' => implode(',', $missingPhases),
                 'evidence' => 'missing prepared suite phases: ' . implode(', ', $missingPhases),
             ];
@@ -26784,13 +26784,13 @@ final class SQLiteUpstreamSuiteEvidence
         }
         $status = 'blocked';
         if (!$blocked && $mappedDelta > 0) {
-            $status = 'current-source-next116-118-upstream-suite-evidence-prepared';
+            $status = 'full-suite-countability-118-upstream-suite-evidence-prepared';
         } elseif (!$blocked) {
-            $status = 'current-source-next116-118-upstream-suite-evidence-preserved';
+            $status = 'full-suite-countability-118-upstream-suite-evidence-preserved';
         }
 
         $record['status'] = $status;
-        $record['countable'] = $status === 'current-source-next116-118-upstream-suite-evidence-prepared';
+        $record['countable'] = $status === 'current-source-full-suite-countability-118-upstream-suite-evidence-prepared';
         $record['blockers'] = $blockers;
         $record['blocker_count'] = count($blockers);
         $record['mapped_delta'] = $mappedDelta;
@@ -26807,14 +26807,14 @@ final class SQLiteUpstreamSuiteEvidence
         $record['counts_upstream_runner_final_current_source_next109'] = false;
         $record['counts_upstream_suite_evidence_current_source_next113_115'] = false;
         $record['counts_upstream_runner_release_admission_current_source_next114'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
         $record['counts_upstream_runner_countability_current_source_next118'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next116_118'] = $status === 'current-source-next116-118-upstream-suite-evidence-prepared';
+        $record['counts_upstream_suite_evidence_current_source_full-suite-countability_118'] = $status === 'current-source-full-suite-countability-118-upstream-suite-evidence-prepared';
         $record['counts_release_parity'] = false;
-        $record['next_gate'] = $status === 'current-source-next116-118-upstream-suite-evidence-prepared'
-            ? 'publish only the isolated current-source next116-118 upstream-suite evidence triplet and exact focused PASS-line movement; release/all parity remains blocked'
-            : 'keep current-source next116-118 suite evidence uncounted until all three prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
-        $record['dependency_closure'] = 'no new support component needed; current-source next116-118 suite evidence composes the next113-115 handoff with three prepared current-source-only suite phases and focused TestRunner PASS-line output only';
+        $record['next_gate'] = $status === 'current-source-full-suite-countability-118-upstream-suite-evidence-prepared'
+            ? 'publish only the isolated current-source full-suite-countability-118 upstream-suite evidence triplet and exact focused PASS-line movement; release/all parity remains blocked'
+            : 'keep current-source full-suite-countability-118 suite evidence uncounted until all three prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source full-suite-countability-118 suite evidence composes the next113-115 handoff with three prepared current-source-only suite phases and focused TestRunner PASS-line output only';
 
         return $record;
     }
@@ -26854,7 +26854,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $expectedPhases = ['next119', 'next120', 'next121'];
+        $expectedPhases = ['next119', 'next120', 'release-countability'];
         $phaseRows = [];
         $preparedPhases = [];
         $preservedPhases = [];
@@ -26972,9 +26972,9 @@ final class SQLiteUpstreamSuiteEvidence
                 continue;
             }
             $evidence = is_string($blocker['evidence'] ?? null) ? $blocker['evidence'] : '';
-            if ($evidence === 'suite-phase-outside-next116-118'
-                || str_contains($evidence, 'missing prepared suite phases: next116')
-                || str_contains($evidence, 'missing prepared suite phases: next117')
+            if ($evidence === 'suite-phase-outside-full-suite-countability-118'
+                || str_contains($evidence, 'missing prepared suite phases: full-suite-countability')
+                || str_contains($evidence, 'missing prepared suite phases: release-gap')
                 || str_contains($evidence, 'missing prepared suite phases: next118')) {
                 continue;
             }
@@ -27024,16 +27024,16 @@ final class SQLiteUpstreamSuiteEvidence
         $record['missing_suite_phases'] = $missingPhases;
         $record['duplicate_suite_phases'] = $duplicatePhases;
         $record['counts_upstream_runner_final_current_source_next109'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next116_118'] = false;
+        $record['counts_upstream_suite_evidence_current_source_full-suite-countability_118'] = false;
         $record['counts_upstream_runner_release_admission_current_source_next114'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
         $record['counts_upstream_runner_countability_current_source_next118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next119_121'] = $status === 'current-source-next119-121-upstream-suite-evidence-prepared';
         $record['counts_release_parity'] = false;
         $record['next_gate'] = $status === 'current-source-next119-121-upstream-suite-evidence-prepared'
             ? 'publish only the isolated current-source next119-121 upstream-suite evidence triplet and exact focused PASS-line movement; release/all parity remains blocked'
             : 'keep current-source next119-121 suite evidence uncounted until all three prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
-        $record['dependency_closure'] = 'no new support component needed; current-source next119-121 suite evidence composes the next116-118 handoff with three prepared current-source-only suite phases and focused TestRunner PASS-line output only';
+        $record['dependency_closure'] = 'no new support component needed; current-source next119-121 suite evidence composes the full-suite-countability-118 handoff with three prepared current-source-only suite phases and focused TestRunner PASS-line output only';
 
         return $record;
     }
@@ -27073,7 +27073,7 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $expectedPhases = ['next122', 'next123', 'next124'];
+        $expectedPhases = ['rebase-gap', 'next123', 'next124'];
         $phaseRows = [];
         $preparedPhases = [];
         $preservedPhases = [];
@@ -27115,7 +27115,7 @@ final class SQLiteUpstreamSuiteEvidence
             $rowBlockers = is_array($row['blocker_ids'] ?? null) ? $row['blocker_ids'] : [];
 
             if ($phase !== '' && !in_array($phase, $expectedPhases, true)) {
-                $rowBlockers[] = 'suite-phase-outside-next122-124';
+                $rowBlockers[] = 'suite-phase-outside-rebase-gap-124';
             }
             if ($phase !== '' && isset($seenPhaseIds[$phase])) {
                 $duplicatePhaseIds[$phase] = true;
@@ -27149,7 +27149,7 @@ final class SQLiteUpstreamSuiteEvidence
             if ($rowBlockers !== []) {
                 $blockedPhases[] = $phaseId;
                 $phaseBlockers[] = [
-                    'id' => 'current-source-next122-124-suite-phase-row-blocked',
+                    'id' => 'rebase-gap-124-suite-phase-row-blocked',
                     'unit' => $unit,
                     'suite_phase_id' => $phaseId,
                     'evidence' => implode('; ', $rowBlockers),
@@ -27178,8 +27178,8 @@ final class SQLiteUpstreamSuiteEvidence
 
         if ($missingPhases !== []) {
             $phaseBlockers[] = [
-                'id' => 'current-source-next122-124-suite-phases-incomplete',
-                'unit' => 'upstream-runner-suite-evidence-current-source-next122-124',
+                'id' => 'rebase-gap-124-suite-phases-incomplete',
+                'unit' => 'upstream-runner-suite-evidence-rebase-gap-124',
                 'suite_phase_id' => implode(',', $missingPhases),
                 'evidence' => 'missing prepared suite phases: ' . implode(', ', $missingPhases),
             ];
@@ -27194,7 +27194,7 @@ final class SQLiteUpstreamSuiteEvidence
             if ($evidence === 'suite-phase-outside-next119-121'
                 || str_contains($evidence, 'missing prepared suite phases: next119')
                 || str_contains($evidence, 'missing prepared suite phases: next120')
-                || str_contains($evidence, 'missing prepared suite phases: next121')) {
+                || str_contains($evidence, 'missing prepared suite phases: release-countability')) {
                 continue;
             }
             $baseBlockers[] = $blocker;
@@ -27222,13 +27222,13 @@ final class SQLiteUpstreamSuiteEvidence
         }
         $status = 'blocked';
         if (!$blocked && $mappedDelta > 0) {
-            $status = 'current-source-next122-124-upstream-suite-evidence-prepared';
+            $status = 'rebase-gap-124-upstream-suite-evidence-prepared';
         } elseif (!$blocked) {
-            $status = 'current-source-next122-124-upstream-suite-evidence-preserved';
+            $status = 'rebase-gap-124-upstream-suite-evidence-preserved';
         }
 
         $record['status'] = $status;
-        $record['countable'] = $status === 'current-source-next122-124-upstream-suite-evidence-prepared';
+        $record['countable'] = $status === 'rebase-gap-124-upstream-suite-evidence-prepared';
         $record['blockers'] = $blockers;
         $record['blocker_count'] = count($blockers);
         $record['mapped_delta'] = $mappedDelta;
@@ -27243,17 +27243,17 @@ final class SQLiteUpstreamSuiteEvidence
         $record['missing_suite_phases'] = $missingPhases;
         $record['duplicate_suite_phases'] = $duplicatePhases;
         $record['counts_upstream_runner_final_current_source_next109'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next116_118'] = false;
+        $record['counts_upstream_suite_evidence_current_source_full-suite-countability_118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next119_121'] = false;
         $record['counts_upstream_runner_release_admission_current_source_next114'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
         $record['counts_upstream_runner_countability_current_source_next118'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next122_124'] = $status === 'current-source-next122-124-upstream-suite-evidence-prepared';
+        $record['counts_upstream_suite_evidence_current_source_rebase-gap_124'] = $status === 'rebase-gap-124-upstream-suite-evidence-prepared';
         $record['counts_release_parity'] = false;
-        $record['next_gate'] = $status === 'current-source-next122-124-upstream-suite-evidence-prepared'
-            ? 'publish only the isolated current-source next122-124 upstream-suite evidence triplet and exact focused PASS-line movement; release/all parity remains blocked'
-            : 'keep current-source next122-124 suite evidence uncounted until all three prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
-        $record['dependency_closure'] = 'no new support component needed; current-source next122-124 suite evidence composes the next119-121 handoff with three prepared current-source-only suite phases and focused TestRunner PASS-line output only';
+        $record['next_gate'] = $status === 'rebase-gap-124-upstream-suite-evidence-prepared'
+            ? 'publish only the isolated current-source rebase-gap-124 upstream-suite evidence triplet and exact focused PASS-line movement; release/all parity remains blocked'
+            : 'keep current-source rebase-gap-124 suite evidence uncounted until all three prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source rebase-gap-124 suite evidence composes the next119-121 handoff with three prepared current-source-only suite phases and focused TestRunner PASS-line output only';
 
         return $record;
     }
@@ -27401,8 +27401,8 @@ final class SQLiteUpstreamSuiteEvidence
                 continue;
             }
             $evidence = is_string($blocker['evidence'] ?? null) ? $blocker['evidence'] : '';
-            if ($evidence === 'suite-phase-outside-next122-124'
-                || str_contains($evidence, 'missing prepared suite phases: next122')
+            if ($evidence === 'suite-phase-outside-rebase-gap-124'
+                || str_contains($evidence, 'missing prepared suite phases: rebase-gap')
                 || str_contains($evidence, 'missing prepared suite phases: next123')
                 || str_contains($evidence, 'missing prepared suite phases: next124')) {
                 continue;
@@ -27452,18 +27452,18 @@ final class SQLiteUpstreamSuiteEvidence
         $record['missing_suite_phases'] = $missingPhases;
         $record['duplicate_suite_phases'] = $duplicatePhases;
         $record['counts_upstream_runner_final_current_source_next109'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next116_118'] = false;
+        $record['counts_upstream_suite_evidence_current_source_full-suite-countability_118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next119_121'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next122_124'] = false;
+        $record['counts_upstream_suite_evidence_current_source_rebase-gap_124'] = false;
         $record['counts_upstream_runner_release_admission_current_source_next114'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
         $record['counts_upstream_runner_countability_current_source_next118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next125_132'] = $status === 'current-source-next125-132-upstream-suite-evidence-prepared';
         $record['counts_release_parity'] = false;
         $record['next_gate'] = $status === 'current-source-next125-132-upstream-suite-evidence-prepared'
             ? 'publish only the isolated current-source next125-132 upstream-suite evidence octet and exact focused PASS-line movement; release/all parity remains blocked'
             : 'keep current-source next125-132 suite evidence uncounted until all eight prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
-        $record['dependency_closure'] = 'no new support component needed; current-source next125-132 suite evidence composes the next122-124 handoff with eight prepared current-source-only suite phases and focused TestRunner PASS-line output only';
+        $record['dependency_closure'] = 'no new support component needed; current-source next125-132 suite evidence composes the rebase-gap-124 handoff with eight prepared current-source-only suite phases and focused TestRunner PASS-line output only';
 
         return $record;
     }
@@ -27667,12 +27667,12 @@ final class SQLiteUpstreamSuiteEvidence
         $record['missing_suite_phases'] = $missingPhases;
         $record['duplicate_suite_phases'] = $duplicatePhases;
         $record['counts_upstream_runner_final_current_source_next109'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next116_118'] = false;
+        $record['counts_upstream_suite_evidence_current_source_full-suite-countability_118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next119_121'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next122_124'] = false;
+        $record['counts_upstream_suite_evidence_current_source_rebase-gap_124'] = false;
         $record['counts_upstream_suite_evidence_current_source_next125_132'] = false;
         $record['counts_upstream_runner_release_admission_current_source_next114'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
         $record['counts_upstream_runner_countability_current_source_next118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next133_140'] = $status === 'current-source-next133-140-upstream-suite-evidence-prepared';
         $record['counts_release_parity'] = false;
@@ -27883,13 +27883,13 @@ final class SQLiteUpstreamSuiteEvidence
         $record['missing_suite_phases'] = $missingPhases;
         $record['duplicate_suite_phases'] = $duplicatePhases;
         $record['counts_upstream_runner_final_current_source_next109'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next116_118'] = false;
+        $record['counts_upstream_suite_evidence_current_source_full-suite-countability_118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next119_121'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next122_124'] = false;
+        $record['counts_upstream_suite_evidence_current_source_rebase-gap_124'] = false;
         $record['counts_upstream_suite_evidence_current_source_next125_132'] = false;
         $record['counts_upstream_suite_evidence_current_source_next133_140'] = false;
         $record['counts_upstream_runner_release_admission_current_source_next114'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
         $record['counts_upstream_runner_countability_current_source_next118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next141_148'] = $status === 'current-source-next141-148-upstream-suite-evidence-prepared';
         $record['counts_release_parity'] = false;
@@ -28110,14 +28110,14 @@ final class SQLiteUpstreamSuiteEvidence
         $record['missing_suite_phases'] = $missingPhases;
         $record['duplicate_suite_phases'] = $duplicatePhases;
         $record['counts_upstream_runner_final_current_source_next109'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next116_118'] = false;
+        $record['counts_upstream_suite_evidence_current_source_full-suite-countability_118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next119_121'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next122_124'] = false;
+        $record['counts_upstream_suite_evidence_current_source_rebase-gap_124'] = false;
         $record['counts_upstream_suite_evidence_current_source_next125_132'] = false;
         $record['counts_upstream_suite_evidence_current_source_next133_140'] = false;
         $record['counts_upstream_suite_evidence_current_source_next141_148'] = false;
         $record['counts_upstream_runner_release_admission_current_source_next114'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
         $record['counts_upstream_runner_countability_current_source_next118'] = false;
         $record['counts_upstream_suite_evidence_prepared_octet'] = $status === 'current-source-prepared-octet-upstream-suite-evidence-prepared';
         $record['counts_release_parity'] = false;
@@ -28329,9 +28329,9 @@ final class SQLiteUpstreamSuiteEvidence
         $record['missing_suite_phases'] = $missingPhases;
         $record['duplicate_suite_phases'] = $duplicatePhases;
         $record['counts_upstream_runner_final_current_source_next109'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next116_118'] = false;
+        $record['counts_upstream_suite_evidence_current_source_full-suite-countability_118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next119_121'] = false;
-        $record['counts_upstream_suite_evidence_current_source_next122_124'] = false;
+        $record['counts_upstream_suite_evidence_current_source_rebase-gap_124'] = false;
         $record['counts_upstream_suite_evidence_current_source_next125_132'] = false;
         $record['counts_upstream_suite_evidence_current_source_next133_140'] = false;
         $record['counts_upstream_suite_evidence_current_source_next141_148'] = false;
@@ -28341,7 +28341,7 @@ final class SQLiteUpstreamSuiteEvidence
         }
         $record['counts_upstream_veryquick_shard_runner_current_source_next158'] = false;
         $record['counts_upstream_runner_release_admission_current_source_next114'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
         $record['counts_upstream_runner_countability_current_source_next118'] = false;
         $record['counts_upstream_suite_evidence_current_source_next157_164'] = $status === 'current-source-next157-164-upstream-suite-evidence-prepared';
         $record['counts_release_parity'] = false;
@@ -29847,7 +29847,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -29863,15 +29863,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next367-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next367-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next367'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next367-veryquick-shard-advanced' => 'publish only the current-source next367 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -29902,7 +29902,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -29918,15 +29918,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next268-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next268-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next268'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next268-veryquick-shard-advanced' => 'publish only the current-source next268 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -29957,7 +29957,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -29973,15 +29973,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next357-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next357-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next357'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next357-veryquick-shard-advanced' => 'publish only the current-source next357 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
@@ -30012,7 +30012,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+        $record = $this->upstreamRunnerFullSuiteCountability(
             $rows,
             $currentMapped,
             $currentPhpPass,
@@ -30028,15 +30028,15 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next370-veryquick-shard', (string) $record['status']);
+        $record['status'] = str_replace('current-source-full-suite-countability', 'current-source-next370-veryquick-shard', (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_next370'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         foreach ([339, 338, 337, 336, 335, 334, 333, 332, 331, 329, 328, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
             $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
         }
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_upstream_runner_full_suite_countability'] = false;
+        $record['counts_upstream_runner_rebase_gap'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
             'current-source-next370-veryquick-shard-advanced' => 'publish only the current-source next370 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',

@@ -48,6 +48,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 14:27 UTC):
+  Thirty-second consolidation follow-up is reduced and validated in the
+  rolling libsqlite integration worktree. The batch accepts five AS/AT-wave
+  handoffs: upstream-suite countability/rebase-gap/repro method cleanup, JSON
+  table generated-path rowid helper cleanup, upstream veryquick
+  prepared-window cleanup, compound recursive-limit window cleanup, and
+  planner/STAT4 cursor-tape cleanup. Verification passed: php-lint for `14`
+  changed PHP files, focused changed tests
+  `8 test files / 6085 assertions / 0 failures`, `2` changed WordPress
+  examples/self-tests, git diff --check, exact user-named 150 suffix scan
+  clean, numbered production filename/class scans at `0`, and remaining
+  numbered production method-line audit down to `358`. Public libsqlite PASS
+  and mapped totals remain `154019 / 0 fail` and `830 / 1589` because this is
+  consolidation, not new upstream behavior coverage. Remaining numbered
+  production method-line debt is concentrated in `SQLiteUpstreamSuiteEvidence.php`
+  and `SQLiteJsonTablePlan.php`.
+
 - 2026-05-29 supervisor continuation (shell samples 14:25 UTC):
   Thirty-first consolidation follow-up is reduced and validated in the rolling
   libsqlite integration worktree. The batch accepts nine AR-wave handoffs:

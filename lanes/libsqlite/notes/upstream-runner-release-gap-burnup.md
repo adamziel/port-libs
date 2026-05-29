@@ -1,10 +1,10 @@
-# Upstream Runner Release Gap Burnup Current Source Next117
+# Upstream Runner Release Gap Burnup Release Gap
 
 ## Slice
 
 This lane removes a release/all countability blocker for current-source to
 next-source runner evidence. `SQLiteUpstreamSuiteEvidence` now has
-`releaseGapBurnupCurrentSourceNext117Record()`, which burns down the release
+`releaseGapBurnupRecord()`, which burns down the release
 gap only for paired zero-error next-source artifacts whose `Testset` is
 `all` or `release`.
 
@@ -21,8 +21,8 @@ artifacts keep the burnup blocked instead of inflating release/all progress.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
   - `1 test files, 1068 assertions, 0 failures`
   - New PASS lines:
-    - `admits only next-source release artifacts for current-source next117 release gap burnup`
-    - `blocks current-source next117 release gap burnup when artifacts are focused stale or missing logs`
+    - `admits only next-source release artifacts for current-source release-gap release gap burnup`
+    - `blocks current-source release-gap release gap burnup when artifacts are focused stale or missing logs`
 
 ## Status Delta
 
@@ -36,7 +36,7 @@ artifacts keep the burnup blocked instead of inflating release/all progress.
 
 This does not repeat accepted upstream-runner release admission, focused-runner
 artifact admission, accepted-head provenance, or current/next source directory
-countability. It adds the narrower next117 release-gap burnup rule that
+countability. It adds the narrower release-gap release-gap burnup rule that
 classifies `all`/`release` artifacts separately from focused next-source
 artifacts before reducing the release/all gap.
 

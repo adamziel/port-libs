@@ -4,7 +4,7 @@ Date: 2026-05-29
 
 This isolated upstream-suite preparation slice does not launch a broad SQLite
 `testfixture`, `make test`, `mptest`, `all`, or `release` run. It adds
-`SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSourceNext213228()`,
+`SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardPreparedWindowMiddle()`,
 which prepares current-source next213 through next228 suite evidence only when
 every numeric slice has lane-local note provenance, guarded veryquick runner
 metadata, concrete `.test` selections, current launcher/source heads, zero-error
@@ -19,8 +19,8 @@ Focused verification:
 
 ```sh
 php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
-php -l lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext213228Test.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext213228Test.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardPreparedWindowMiddleTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardPreparedWindowMiddleTest.php
 git diff --check
 ```
 

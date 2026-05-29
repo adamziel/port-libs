@@ -439,7 +439,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
                 ],
                 'currentSourceFence' => $currentFence,
                 'detail' => ($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 RANGE ORDER CURRENT SOURCE ' . (string) ($selected['detail'] ?? 'NO PLAN'),
-                'dependency_closure' => 'no new support component needed; next102 composes existing STAT4 multicolumn range planning into current-source cursor tape diagnostics',
+                'dependency_closure' => 'no new support component needed; cursor-tape composes existing STAT4 multicolumn range planning into current-source cursor tape diagnostics',
                 'non_overlap' => 'avoids accepted expression-index range-cost and expression ORDER BY work by asserting STAT4 range boundary seek/stop opcodes, current-source fences, and covering/deferred cursor behavior for plain indexed option-name ranges',
             ];
         }
@@ -522,11 +522,11 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
             foreach ($orderBy as $term) {
                 $column = $term['column'] ?? null;
                 if (!is_string($column) || $column === '') {
-                    throw new \InvalidArgumentException('SQLite STAT4 range-order current-source next102 needs ORDER BY columns');
+                    throw new \InvalidArgumentException('SQLite STAT4 range-order current-source cursor tape needs ORDER BY columns');
                 }
                 $direction = strtoupper((string) ($term['direction'] ?? 'ASC'));
                 if ($direction !== 'ASC' && $direction !== 'DESC') {
-                    throw new \InvalidArgumentException('SQLite STAT4 range-order current-source next102 ORDER BY direction must be ASC or DESC');
+                    throw new \InvalidArgumentException('SQLite STAT4 range-order current-source cursor tape ORDER BY direction must be ASC or DESC');
                 }
                 $parts[] = strtolower($column) . ' ' . $direction;
             }
@@ -667,7 +667,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
             }
             foreach ($neededColumns as $column) {
                 if (!is_string($column) || $column === '') {
-                    throw new \InvalidArgumentException('SQLite STAT4 range-order current-source next102 needs output column names');
+                    throw new \InvalidArgumentException('SQLite STAT4 range-order current-source cursor tape needs output column names');
                 }
                 $program[] = ['opcode' => 'Column', 'source' => $covering ? 'index' : 'table', 'column' => $column];
             }
@@ -683,7 +683,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         {
             $value = $data[$key] ?? $default;
             if (!is_string($value) || $value === '') {
-                throw new \InvalidArgumentException("SQLite STAT4 range-order current-source next102 needs {$key}");
+                throw new \InvalidArgumentException("SQLite STAT4 range-order current-source cursor tape needs {$key}");
             }
 
             return $value;
@@ -696,7 +696,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         {
             $value = $data[$key] ?? null;
             if (!is_int($value) || $value < 0) {
-                throw new \InvalidArgumentException("SQLite STAT4 range-order current-source next102 needs non-negative integer {$key}");
+                throw new \InvalidArgumentException("SQLite STAT4 range-order current-source cursor tape needs non-negative integer {$key}");
             }
 
             return $value;
@@ -710,7 +710,7 @@ final class SQLiteStat4RangeOrderCurrentSourceNextPlan
         {
             $value = $data[$key] ?? null;
             if (!is_array($value) || !array_is_list($value)) {
-                throw new \InvalidArgumentException("SQLite STAT4 range-order current-source next102 needs list {$key}");
+                throw new \InvalidArgumentException("SQLite STAT4 range-order current-source cursor tape needs list {$key}");
             }
 
             return $value;

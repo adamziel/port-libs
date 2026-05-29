@@ -1,11 +1,11 @@
-# Upstream Runner Rebase Gap Current Source Next122
+# Upstream Runner Rebase Gap Current Source Rebase Gap
 
 ## Slice
 
 This lane removes one current-source upstream-runner rebase/countability
 blocker without launching a broad SQLite `all` or `release` run.
 
-`SQLiteUpstreamSuiteEvidence::upstreamRunnerRebaseGapCurrentSourceNext122()`
+`SQLiteUpstreamSuiteEvidence::upstreamRunnerRebaseGap()`
 admits only lane-local zero-error guarded runner rows that match the launcher
 Base accepted HEAD `9ddbf259af4deb3f98874a6764627ab68dbff7d9` and current
 integration source `8a447f445e5d2fd32fc9fd463117f585d1416551`. It preserves
@@ -17,9 +17,9 @@ runner snapshots, and keeps release/all parity unclaimed.
 
 - `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`
-- `php -l lanes/libsqlite/tests/SQLiteUpstreamRunnerRebaseGapCurrentSourceNext122Test.php`
-  - `No syntax errors detected in lanes/libsqlite/tests/SQLiteUpstreamRunnerRebaseGapCurrentSourceNext122Test.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamRunnerRebaseGapCurrentSourceNext122Test.php`
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamRunnerRebaseGapTest.php`
+  - `No syntax errors detected in lanes/libsqlite/tests/SQLiteUpstreamRunnerRebaseGapTest.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamRunnerRebaseGapTest.php`
   - `1 test files, 1030 assertions, 0 failures`
   - `86` PASS lines
 
@@ -34,9 +34,9 @@ runner snapshots, and keeps release/all parity unclaimed.
 ## Non-Overlap
 
 This does not repeat accepted batch107/108 or batch109-113 behavior surfaces,
-runner106 suite-evidence rebase, jsonvt104 JSON-table rebase, next115/next116
+runner106 suite-evidence rebase, jsonvt104 JSON-table rebase, next115/full-suite-countability
 live surfaces, or ordinary SQL/JSON/WAL/VFS/B-tree/encoding/trigger/PRAGMA
-clusters. It only adds the narrower current-source next122 rebase-gap
+clusters. It only adds the narrower current-source rebase-gap rebase-gap
 admission row and focused PHP evidence.
 
 ## Dependency Closure

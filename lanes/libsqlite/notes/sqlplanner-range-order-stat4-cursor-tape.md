@@ -1,4 +1,4 @@
-# sqlplanner-range-order-stat4-current-source-next102
+# sqlplanner-range-order-stat4-cursor-tape
 
 Implements a bounded STAT4 range ORDER BY current-source cursor tape for copied
 WordPress `wp_options` option-name scans.
@@ -17,7 +17,7 @@ Behavior covered:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerRangeOrderStat4CurrentSourceNext102Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerRangeOrderStat4CursorTapeCurrentSourceTest.php`
   - `1 test files, 60 assertions, 0 failures`
   - 60 focused PASS lines.
 

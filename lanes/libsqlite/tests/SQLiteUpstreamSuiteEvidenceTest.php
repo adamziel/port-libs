@@ -3453,9 +3453,9 @@ MD);
             @rmdir($root);
         }
     },
-    'admits only next-source release artifacts for current-source next117 release gap burnup' => static function (TestRunner $t): void {
+    'admits only next-source release artifacts for current-source release-gap release gap burnup' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $root = sys_get_temp_dir() . '/libsqlite-release-gap-next117-' . bin2hex(random_bytes(4));
+        $root = sys_get_temp_dir() . '/libsqlite-release-gap-release-gap-' . bin2hex(random_bytes(4));
         mkdir($root, 0777, true);
 
         $currentHead = '6b824ac24854056466145761d32a9f27720d286a';
@@ -3464,10 +3464,10 @@ MD);
         $uuid = '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353';
 
         file_put_contents($root . '/next-release.md', <<<MD
-# SQLite Tcl Bounded Runner Evidence - libsqlite-next117-release
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-gap-release
 
 - Repository HEAD: `{$nextHead}`
-- Scratch: `/tmp/libsqlite-next117-release`
+- Scratch: `/tmp/libsqlite-release-gap-release`
 - Log: `next-release.log`
 - SQLite git commit: `{$sqliteCommit}`
 - SQLite VERSION: `3.54.0`
@@ -3484,10 +3484,10 @@ MD);
         file_put_contents($root . '/next-release.log', "31:40 tcl(26014/26014) r0\n");
 
         file_put_contents($root . '/next-all.md', <<<MD
-# SQLite Tcl Bounded Runner Evidence - libsqlite-next117-all
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-gap-all
 
 - Repository HEAD: `{$nextHead}`
-- Scratch: `/tmp/libsqlite-next117-all`
+- Scratch: `/tmp/libsqlite-release-gap-all`
 - Log: `next-all.log`
 - SQLite git commit: `{$sqliteCommit}`
 - SQLite VERSION: `3.54.0`
@@ -3504,10 +3504,10 @@ MD);
         file_put_contents($root . '/next-all.log', "00:22 tcl(312/312) r0\n");
 
         file_put_contents($root . '/next-focused.md', <<<MD
-# SQLite Tcl Bounded Runner Evidence - libsqlite-next117-focused-json
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-gap-focused-json
 
 - Repository HEAD: `{$nextHead}`
-- Scratch: `/tmp/libsqlite-next117-focused-json`
+- Scratch: `/tmp/libsqlite-release-gap-focused-json`
 - Log: `next-focused.log`
 - SQLite git commit: `{$sqliteCommit}`
 - SQLite VERSION: `3.54.0`
@@ -3544,9 +3544,9 @@ MD);
         file_put_contents($root . '/current-release.log', "28:00 tcl(24000/24000) r0\n");
 
         try {
-            $record = $evidence->releaseGapBurnupCurrentSourceNext117Record($root, $currentHead, $nextHead, 5);
+            $record = $evidence->releaseGapBurnupRecord($root, $currentHead, $nextHead, 5);
 
-            $t->same('release-gap-burnup-current-source-next117-countable', $record['status']);
+            $t->same('release-gap-burnup-countable', $record['status']);
             $t->same(4, $record['artifact_count']);
             $t->same(3, $record['next_source_count']);
             $t->same(2, $record['next_source_release_count']);
@@ -3554,8 +3554,8 @@ MD);
             $t->same(1, $record['current_source_release_count']);
             $t->same(0, $record['blocked_count']);
             $t->same([], $record['blockers']);
-            $t->same(['libsqlite-next117-all', 'libsqlite-next117-release'], $record['next_source_release_labels']);
-            $t->same(['libsqlite-next117-focused-json'], $record['next_source_focused_labels']);
+            $t->same(['libsqlite-release-gap-all', 'libsqlite-release-gap-release'], $record['next_source_release_labels']);
+            $t->same(['libsqlite-release-gap-focused-json'], $record['next_source_focused_labels']);
             $t->same(['libsqlite-current117-release'], $record['current_source_release_labels']);
             $t->same(26326, $record['release_tests_total']);
             $t->same(0, $record['release_errors_total']);
@@ -3574,9 +3574,9 @@ MD);
             @rmdir($root);
         }
     },
-    'blocks current-source next117 release gap burnup when artifacts are focused stale or missing logs' => static function (TestRunner $t): void {
+    'blocks current-source release-gap release gap burnup when artifacts are focused stale or missing logs' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $root = sys_get_temp_dir() . '/libsqlite-release-gap-next117-blocked-' . bin2hex(random_bytes(4));
+        $root = sys_get_temp_dir() . '/libsqlite-release-gap-release-gap-blocked-' . bin2hex(random_bytes(4));
         mkdir($root, 0777, true);
 
         $currentHead = '6b824ac24854056466145761d32a9f27720d286a';
@@ -3585,10 +3585,10 @@ MD);
         $uuid = '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353';
 
         file_put_contents($root . '/next-focused.md', <<<MD
-# SQLite Tcl Bounded Runner Evidence - libsqlite-next117-focused-only
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-gap-focused-only
 
 - Repository HEAD: `{$nextHead}`
-- Scratch: `/tmp/libsqlite-next117-focused-only`
+- Scratch: `/tmp/libsqlite-release-gap-focused-only`
 - Log: `next-focused.log`
 - SQLite git commit: `{$sqliteCommit}`
 - SQLite VERSION: `3.54.0`
@@ -3625,10 +3625,10 @@ MD);
         file_put_contents($root . '/stale-release.log', "29:00 tcl(25000/25000) r0\n");
 
         file_put_contents($root . '/missing-log-release.md', <<<MD
-# SQLite Tcl Bounded Runner Evidence - libsqlite-next117-missing-log-release
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-gap-missing-log-release
 
 - Repository HEAD: `{$nextHead}`
-- Scratch: `/tmp/libsqlite-next117-missing-log-release`
+- Scratch: `/tmp/libsqlite-release-gap-missing-log-release`
 - Log: `missing-release.log`
 - SQLite git commit: `{$sqliteCommit}`
 - SQLite VERSION: `3.54.0`
@@ -3644,16 +3644,16 @@ MD);
 MD);
 
         try {
-            $record = $evidence->releaseGapBurnupCurrentSourceNext117Record($root, $currentHead, $nextHead, 4);
+            $record = $evidence->releaseGapBurnupRecord($root, $currentHead, $nextHead, 4);
 
-            $t->same('blocked-release-gap-burnup-current-source-next117', $record['status']);
+            $t->same('blocked-release-gap-burnup', $record['status']);
             $t->same(3, $record['artifact_count']);
             $t->same(1, $record['next_source_count']);
             $t->same(0, $record['next_source_release_count']);
             $t->same(1, $record['next_source_focused_count']);
-            $t->same(['libsqlite-next117-focused-only'], $record['next_source_focused_labels']);
-            $t->same(['libsqlite-next117-missing-log-release', 'libsqlite-stale117-release'], $record['blocked_labels']);
-            $t->same(['libsqlite-next117-missing-log-release'], $record['missing_log_labels']);
+            $t->same(['libsqlite-release-gap-focused-only'], $record['next_source_focused_labels']);
+            $t->same(['libsqlite-release-gap-missing-log-release', 'libsqlite-stale117-release'], $record['blocked_labels']);
+            $t->same(['libsqlite-release-gap-missing-log-release'], $record['missing_log_labels']);
             $t->same(3, $record['blocked_count']);
             $t->same([
                 'next-source-release-artifact-missing',
@@ -3673,7 +3673,7 @@ MD);
             @rmdir($root);
         }
     },
-    'admits current-source next121 release countability rows with focused phpPass evidence' => static function (TestRunner $t): void {
+    'admits current-source release-countability release countability rows with focused phpPass evidence' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $launcherBase = '6571c1279f77c2c00531492a7a2855a6f9e295a1';
         $dashboardSource = '8a447f445e5d2fd32fc9fd463117f585d1416551';
@@ -3682,15 +3682,15 @@ MD);
         $nextSource = 'b121b121b121b121b121b121b121b121b121b121';
         $focusedOutput = implode("\n", [
             'Focused test run: 1 selected test files (root lock skipped)',
-            'PASS next121 release-countability admits one release artifact',
-            'PASS next121 release-countability admits all tier artifact',
-            'PASS next121 release-countability preserves existing release row',
+            'PASS release-countability release-countability admits one release artifact',
+            'PASS release-countability release-countability admits all tier artifact',
+            'PASS release-countability release-countability preserves existing release row',
             '1 test files, 64 assertions, 0 failures',
         ]);
 
         $rows = [
             [
-                'unit' => 'next121-release-runner',
+                'unit' => 'release-countability-release-runner',
                 'tier' => 'release',
                 'current_countable' => false,
                 'next_countable' => true,
@@ -3699,7 +3699,7 @@ MD);
                 'status_source_head' => $statusSource,
                 'implementation_source_head' => $implementationSource,
                 'source_head' => $nextSource,
-                'artifact_path' => 'lanes/libsqlite/notes/upstream-release-next121.md',
+                'artifact_path' => 'lanes/libsqlite/notes/upstream-release-release-countability.md',
                 'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error release',
                 'scripts' => ['select1.test', 'wal.test', 'json101.test'],
                 'exit' => 0,
@@ -3711,7 +3711,7 @@ MD);
                 'counts_release_parity' => false,
             ],
             [
-                'unit' => 'next121-all-runner',
+                'unit' => 'release-countability-all-runner',
                 'tier' => 'all',
                 'current_countable' => false,
                 'next_countable' => true,
@@ -3720,7 +3720,7 @@ MD);
                 'status_source_head' => $statusSource,
                 'implementation_source_head' => $implementationSource,
                 'source_head' => $nextSource,
-                'artifact_path' => 'lanes/libsqlite/notes/upstream-all-next121.md',
+                'artifact_path' => 'lanes/libsqlite/notes/upstream-all-release-countability.md',
                 'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error all',
                 'scripts' => ['btree01.test'],
                 'exit' => 0,
@@ -3754,7 +3754,7 @@ MD);
             ],
         ];
 
-        $record = $evidence->upstreamRunnerReleaseCountabilityCurrentSourceNext121(
+        $record = $evidence->upstreamRunnerReleaseCountability(
             $rows,
             604,
             46412,
@@ -3765,12 +3765,12 @@ MD);
             $nextSource,
             'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
             $focusedOutput,
-            'next121 suite countability avoids accepted next117 release gap burnup and next116 full-suite countability surfaces',
+            'release-countability suite countability avoids accepted release-gap release gap burnup and full-suite-countability full-suite countability surfaces',
             64,
             ''
         );
 
-        $t->same('current-source-next121-release-countability-advanced', $record['status']);
+        $t->same('current-source-release-countability-advanced', $record['status']);
         $t->same(true, $record['countable']);
         $t->same(604, $record['current_mapped']);
         $t->same(606, $record['next_mapped']);
@@ -3784,7 +3784,7 @@ MD);
         $t->same(2, $record['admitted_count']);
         $t->same(1, $record['preserved_count']);
         $t->same(0, $record['blocked_count']);
-        $t->same(['next121-all-runner', 'next121-release-runner'], $record['admitted_units']);
+        $t->same(['release-countability-all-runner', 'release-countability-release-runner'], $record['admitted_units']);
         $t->same(['current121-release-baseline'], $record['preserved_units']);
         $t->same([], $record['blockers']);
         $t->same(5, $record['release_script_count']);
@@ -3792,7 +3792,7 @@ MD);
         $t->same(1326, $record['release_tests_total_delta']);
         $t->same('clear', $record['active_runner_status']);
         $t->same(0, $record['active_runner_count']);
-        $t->same(true, $record['counts_upstream_runner_release_countability_current_source_next121']);
+        $t->same(true, $record['counts_upstream_runner_release_countability']);
         $t->same(false, $record['counts_release_parity']);
         $t->contains('release/all countability row', $record['next_gate']);
         $t->contains('focused TestRunner PASS-line output', $record['dependency_closure']);
@@ -3800,7 +3800,7 @@ MD);
         $t->same('next-source-admitted', $record['entries'][1]['movement']);
         $t->same('current-source-preserved', $record['entries'][2]['movement']);
     },
-    'blocks current-source next121 release countability for stale provenance and duplicate runners' => static function (TestRunner $t): void {
+    'blocks current-source release-countability release countability for stale provenance and duplicate runners' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $launcherBase = '6571c1279f77c2c00531492a7a2855a6f9e295a1';
         $dashboardSource = '8a447f445e5d2fd32fc9fd463117f585d1416551';
@@ -3809,15 +3809,15 @@ MD);
         $nextSource = 'b121b121b121b121b121b121b121b121b121b121';
         $focusedOutput = implode("\n", [
             'Focused test run: 1 selected test files (root lock skipped)',
-            'PASS next121 release-countability blocked stale row',
+            'PASS release-countability release-countability blocked stale row',
             '1 test files, 12 assertions, 0 failures',
         ]);
         $processSnapshot = '123 1 S 00:10 0.0 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error release';
 
-        $record = $evidence->upstreamRunnerReleaseCountabilityCurrentSourceNext121(
+        $record = $evidence->upstreamRunnerReleaseCountability(
             [
                 [
-                    'unit' => 'stale-next121-release-runner',
+                    'unit' => 'stale-release-countability-release-runner',
                     'tier' => 'veryquick',
                     'current_countable' => false,
                     'next_countable' => true,
@@ -3826,7 +3826,7 @@ MD);
                     'status_source_head' => $statusSource,
                     'implementation_source_head' => $implementationSource,
                     'source_head' => 'stale-source',
-                    'artifact_path' => '/tmp/upstream-release-next121.md',
+                    'artifact_path' => '/tmp/upstream-release-release-countability.md',
                     'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl veryquick',
                     'scripts' => [],
                     'exit' => 0,
@@ -3845,7 +3845,7 @@ MD);
             $nextSource,
             'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
             $focusedOutput,
-            'next121 blocked case keeps stale focused or duplicate broad-runner evidence out of release countability',
+            'release-countability blocked case keeps stale focused or duplicate broad-runner evidence out of release countability',
             12,
             $processSnapshot
         );
@@ -3872,11 +3872,11 @@ MD);
             'release-scope-not-release-all',
             'release-parity-claim-not-allowed',
         ], $record['entries'][0]['blocker_ids']);
-        $t->same(['stale-next121-release-runner', 'duplicate-broad-runner-active'], array_column($record['blockers'], 'id'));
+        $t->same(['stale-release-countability-release-runner', 'duplicate-broad-runner-active'], array_column($record['blockers'], 'id'));
         $t->same('blocked-active-runner', $record['active_runner_status']);
         $t->same(1, $record['active_runner_count']);
-        $t->same(false, $record['counts_upstream_runner_release_countability_current_source_next121']);
-        $t->contains('repair current-source next121 provenance', $record['next_gate']);
+        $t->same(false, $record['counts_upstream_runner_release_countability']);
+        $t->contains('repair current-source release-countability provenance', $record['next_gate']);
     },
     'admits current-source next296 veryquick shard countability without release parity' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
@@ -3946,7 +3946,7 @@ MD);
         $t->same(96, $record['tests_total_delta']);
         $t->same(true, $record['counts_upstream_veryquick_shard_current_source_next296']);
         $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next279']);
-        $t->same(false, $record['counts_upstream_runner_full_suite_countability_current_source_next116']);
+        $t->same(false, $record['counts_upstream_runner_full_suite_countability']);
         $t->same(false, $record['counts_release_parity']);
         $t->contains('focused PASS-line movement', $record['next_gate']);
         $t->contains('no new support component needed', $record['dependency_closure']);
@@ -4085,7 +4085,7 @@ MD);
                 }
                 $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next' . $otherSlice]);
             }
-            $t->same(false, $record['counts_upstream_runner_full_suite_countability_current_source_next116']);
+            $t->same(false, $record['counts_upstream_runner_full_suite_countability']);
             $t->same(false, $record['counts_release_parity']);
             $t->contains('focused PASS-line movement', $record['next_gate']);
         }
@@ -4157,7 +4157,7 @@ MD);
                 }
                 $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next' . $otherSlice]);
             }
-            $t->same(false, $record['counts_upstream_runner_full_suite_countability_current_source_next116']);
+            $t->same(false, $record['counts_upstream_runner_full_suite_countability']);
             $t->same(false, $record['counts_release_parity']);
             $t->contains('focused PASS-line movement', $record['next_gate']);
         }
@@ -4229,7 +4229,7 @@ MD);
                 }
                 $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next' . $otherSlice]);
             }
-            $t->same(false, $record['counts_upstream_runner_full_suite_countability_current_source_next116']);
+            $t->same(false, $record['counts_upstream_runner_full_suite_countability']);
             $t->same(false, $record['counts_release_parity']);
             $t->contains('focused PASS-line movement', $record['next_gate']);
         }
@@ -4301,7 +4301,7 @@ MD);
                 }
                 $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next' . $otherSlice]);
             }
-            $t->same(false, $record['counts_upstream_runner_full_suite_countability_current_source_next116']);
+            $t->same(false, $record['counts_upstream_runner_full_suite_countability']);
             $t->same(false, $record['counts_release_parity']);
             $t->contains('focused PASS-line movement', $record['next_gate']);
         }
@@ -4375,7 +4375,7 @@ MD);
                 }
                 $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next' . $otherSlice]);
             }
-            $t->same(false, $record['counts_upstream_runner_full_suite_countability_current_source_next116']);
+            $t->same(false, $record['counts_upstream_runner_full_suite_countability']);
             $t->same(false, $record['counts_release_parity']);
             $t->contains('focused PASS-line movement', $record['next_gate']);
         }
@@ -4449,7 +4449,7 @@ MD);
                 }
                 $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next' . $otherSlice]);
             }
-            $t->same(false, $record['counts_upstream_runner_full_suite_countability_current_source_next116']);
+            $t->same(false, $record['counts_upstream_runner_full_suite_countability']);
             $t->same(false, $record['counts_release_parity']);
             $t->contains('focused PASS-line movement', $record['next_gate']);
         }
