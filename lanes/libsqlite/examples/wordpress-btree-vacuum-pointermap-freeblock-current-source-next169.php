@@ -94,7 +94,7 @@ $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, sec
 $staleCurrentPages = [
     107 => substr_replace($database->page(107), 'S', 20, 1),
 ];
-$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext169(
+$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafCurrentSourceWriteGateFromDeleteResult(
     $database,
     3,
     [

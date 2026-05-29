@@ -95,7 +95,7 @@ $newLeaf = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(41, SQLiteRecord::encode([null, '_transient_feed_next155', 'cached'])),
 ]);
 
-$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext155(
+$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafBtreePageAllocationFromDeleteResult(
     $database,
     3,
     [
