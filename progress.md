@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 13:40 UTC):
+  Twenty-seventh consolidation follow-up is reduced and validated in the
+  rolling libsqlite integration worktree. The batch accepted safe AG-wave
+  upstream-suite, attach, row-value savepoint, and trigger cleanup handoffs,
+  while rejecting rowvalue-window, JSON table, and pager-master handoffs after
+  broader validation found regressions. Final accepted-slice verification
+  passed: php-lint for `36` changed PHP files, focused changed tests
+  `24 test files / 17978 assertions / 0 failures`, `6` changed WordPress
+  examples/self-tests, upstream veryquick shard broad suite
+  `309 test files / 382180 assertions / 0 failures`, git diff --check, exact
+  user-named 150 plan suffix scan clean, numbered production filename/class
+  scans at `0`, and remaining numbered production method-line audit down to
+  `4160`. Public libsqlite PASS and mapped totals remain `154019 / 0 fail`
+  and `830 / 1589` because this is consolidation, not new upstream behavior
+  coverage. Broader row-value, attach, and trigger family sweeps exposed
+  pre-existing accepted-head failures unrelated to the reduced diff; targeted
+  follow-up workers are now responsible for those family-gate blockers.
+
 - 2026-05-29 supervisor continuation (shell samples 13:21 UTC):
   Twenty-sixth consolidation follow-up is validated in the rolling libsqlite
   integration worktree. The batch accepted 7 AE/AF-wave consolidation handoffs

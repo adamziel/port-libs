@@ -96,8 +96,7 @@ function libsqlite_suite_next169_record(
     ?int $expected = 74,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next169_evidence()->upstreamVeryquickShardCurrentSourceNext169(
-        $rows,
+    return libsqlite_suite_next169_evidence()->upstreamVeryquickShardCurrentSource($rows,
         611,
         76154,
         $launcherBase,
@@ -109,7 +108,8 @@ function libsqlite_suite_next169_record(
         $output ?? libsqlite_suite_next169_output(),
         'current-source next169 veryquick-shard admission avoids accepted batch157/batch153 veryquick evidence, suite155/157/159/161/164, exact-shard next148, queued runner106/jsonvt104 rebase work, and accepted B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE behavior surfaces',
         $expected,
-        $snapshot
+        $snapshot,
+        'next169-veryquick-shard'
     );
 }
 

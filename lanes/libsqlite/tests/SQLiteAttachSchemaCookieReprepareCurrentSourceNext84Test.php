@@ -70,7 +70,7 @@ $value84 = static function (array $data, string $path): mixed {
 
 $pathCases84 = [
     'status expired' => ['status', 'schema_cache_expired'],
-    'operation marker' => ['operation', 'attach-schema-cookie-reprepare-current-source-next84'],
+    'operation marker' => ['operation', 'attach-schema-cookie-reprepare-current-source'],
     'source main' => ['source', 'main'],
     'event count' => ['event_count', 4],
     'statement count' => ['statement_count', 6],
@@ -118,7 +118,7 @@ $pathCases84 = [
     'new blog next cookie' => ['statements.5.transitions.0.next_schema_cookie', 1],
     'database before count' => ['database_list_before.3.name', 'network'],
     'database after attached file' => ['database_list_after.3.file', '/srv/wp/blog42.sqlite'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-schema-cookie-reprepare-current-source-next84'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-schema-cookie-reprepare-current-source'],
     'dependency current source expiry' => ['dependencies.1', 'sqlite-schema-cookie-current-source-expiry'],
     'dependency attach detach search order' => ['dependencies.2', 'sqlite-attach-detach-search-order-reprepare'],
 ];

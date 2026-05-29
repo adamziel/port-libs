@@ -864,7 +864,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         }
 
         $base['status'] = $base['reprepare_triggers'] === [] ? 'trigger_view_dependency_stable' : 'trigger_view_dependency_expired';
-        $base['operation'] = 'attach-temp-trigger-view-invalidation-current-source-next108';
+        $base['operation'] = 'attach-temp-trigger-view-invalidation-current-source';
         $base['requires_reprepare'] = $base['reprepare_triggers'] !== [];
         $base['stable_triggers'] = array_values(array_filter(
             $base['stable_triggers'],
@@ -882,7 +882,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         $base['view_dependency_expired_triggers'] = $dependencyExpired;
         $base['view_dependency_stable_triggers'] = $dependencyStable;
         $base['view_dependency_schemas'] = $viewDependencySchemas;
-        array_unshift($base['dependencies'], 'sqlite-attach-temp-trigger-view-invalidation-current-source-next108');
+        array_unshift($base['dependencies'], 'sqlite-attach-temp-trigger-view-invalidation-current-source');
         $base['dependencies'] = array_values(array_unique($base['dependencies']));
 
         return $base;

@@ -11110,7 +11110,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext208(
+    public static function executeCurrentCursorCloseFence(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -11129,27 +11129,27 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentRows = self::rowsNext208($base['current_source_rows_next206'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext208($base['attempted_next_source_rows_next206'] ?? [], 'attempted next source rows');
-        $currentCursor = self::tokenNext208((string) ($base['yield_current_cursor_next206'] ?? ''), 'base current cursor');
-        $closeCursor = self::tokenNext208((string) ($options['close_current_cursor_next208'] ?? $currentCursor), 'close current cursor');
-        $expectedCloseCursor = self::tokenNext208((string) ($options['expected_close_current_cursor_next208'] ?? $currentCursor), 'expected close cursor');
-        $closeStatement = self::tokenNext208((string) ($options['close_statement_token_next208'] ?? 'wp.recursive.view.returning.close.208'), 'close statement token');
-        $closedWatermark = self::closeWatermarkNext208($currentRows, $currentCursor, $closeCursor, $closeStatement, (string) ($base['yield_watermark_next206'] ?? ''));
-        $expectedWatermark = self::tokenNext208((string) ($options['expected_closed_yield_watermark_next208'] ?? $closedWatermark), 'expected closed watermark');
+        $currentRows = self::cursorCloseRows($base['current_source_rows_next206'] ?? [], 'current source rows');
+        $nextRows = self::cursorCloseRows($base['attempted_next_source_rows_next206'] ?? [], 'attempted next source rows');
+        $currentCursor = self::cursorCloseToken((string) ($base['yield_current_cursor_next206'] ?? ''), 'base current cursor');
+        $closeCursor = self::cursorCloseToken((string) ($options['close_current_cursor_next208'] ?? $currentCursor), 'close current cursor');
+        $expectedCloseCursor = self::cursorCloseToken((string) ($options['expected_close_current_cursor_next208'] ?? $currentCursor), 'expected close cursor');
+        $closeStatement = self::cursorCloseToken((string) ($options['close_statement_token_next208'] ?? 'wp.recursive.view.returning.close.208'), 'close statement token');
+        $closedWatermark = self::cursorCloseWatermark($currentRows, $currentCursor, $closeCursor, $closeStatement, (string) ($base['yield_watermark_next206'] ?? ''));
+        $expectedWatermark = self::cursorCloseToken((string) ($options['expected_closed_yield_watermark_next208'] ?? $closedWatermark), 'expected closed watermark');
         $cursorMatches = hash_equals($currentCursor, $closeCursor) && hash_equals($currentCursor, $expectedCloseCursor);
         $watermarkMatches = hash_equals($closedWatermark, $expectedWatermark);
         $baseVisible = (bool) ($base['next_source_visible_after_yield_watermark_next206'] ?? false);
         $nextVisible = $baseVisible && $cursorMatches && $watermarkMatches;
-        $blockedReasons = self::blockedReasonsNext208(
+        $blockedReasons = self::cursorCloseBlockedReasons(
             $base['blocked_reasons_next206'] ?? [],
             $baseVisible,
             $cursorMatches,
             $watermarkMatches,
         );
 
-        $taggedCurrent = self::tagRowsNext208($currentRows, 'current', true, [], $closeCursor, $closeStatement, $closedWatermark);
-        $taggedNext = self::tagRowsNext208($nextRows, 'next', $nextVisible, $blockedReasons, $closeCursor, $closeStatement, $closedWatermark);
+        $taggedCurrent = self::tagCursorCloseRows($currentRows, 'current', true, [], $closeCursor, $closeStatement, $closedWatermark);
+        $taggedNext = self::tagCursorCloseRows($nextRows, 'next', $nextVisible, $blockedReasons, $closeCursor, $closeStatement, $closedWatermark);
         $visibleRows = array_values(array_filter(
             array_merge($taggedCurrent, $taggedNext),
             static fn (array $row): bool => (bool) $row['visible_after_current_cursor_close_next208'],
@@ -11160,7 +11160,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ));
 
         return [
-            'status_next208' => self::statusNext208($nextVisible, $baseVisible, $cursorMatches, $watermarkMatches),
+            'status_next208' => self::cursorCloseStatus($nextVisible, $baseVisible, $cursorMatches, $watermarkMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next208' => $baseVisible,
@@ -11209,7 +11209,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext208(mixed $rows, string $label): array
+    private static function cursorCloseRows(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next208 {$label} must be a list");
@@ -11226,7 +11226,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function closeWatermarkNext208(array $rows, string $currentCursor, string $closeCursor, string $closeStatement, string $yieldWatermark): string
+    private static function cursorCloseWatermark(array $rows, string $currentCursor, string $closeCursor, string $closeStatement, string $yieldWatermark): string
     {
         if ($rows === []) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next208 current source rows are empty');
@@ -11245,7 +11245,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext208(array $rows, string $phase, bool $visible, array $reasons, string $closeCursor, string $closeStatement, string $closedWatermark): array
+    private static function tagCursorCloseRows(array $rows, string $phase, bool $visible, array $reasons, string $closeCursor, string $closeStatement, string $closedWatermark): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -11266,7 +11266,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $baseReasons
      * @return list<string>
      */
-    private static function blockedReasonsNext208(mixed $baseReasons, bool $baseVisible, bool $cursorMatches, bool $watermarkMatches): array
+    private static function cursorCloseBlockedReasons(mixed $baseReasons, bool $baseVisible, bool $cursorMatches, bool $watermarkMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next208 base blocked reasons are malformed');
@@ -11285,7 +11285,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext208(bool $nextVisible, bool $baseVisible, bool $cursorMatches, bool $watermarkMatches): string
+    private static function cursorCloseStatus(bool $nextVisible, bool $baseVisible, bool $cursorMatches, bool $watermarkMatches): string
     {
         if ($nextVisible) {
             return 'trigger-recursive-view-returning-current-source-next208-cursor-closed';
@@ -11303,7 +11303,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-next208-held';
     }
 
-    private static function tokenNext208(string $token, string $label): string
+    private static function cursorCloseToken(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next208 {$label} is malformed");

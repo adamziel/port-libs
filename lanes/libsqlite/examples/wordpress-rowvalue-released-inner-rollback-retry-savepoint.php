@@ -36,7 +36,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
 );
 
 echo json_encode([
-    'scenario' => 'wordpress-rowvalue-update-delete-returning-savepoint-current-source-next206',
+    'scenario' => 'wordpress-rowvalue-update-delete-returning-savepoint-current-source-released_inner_retry',
     'wordpressUse' => 'Models a copied wp_options import where a released inner savepoint produced UPDATE/DELETE RETURNING rows, then an outer ROLLBACK TO discards those rows and retries from the outer savepoint image.',
     'status' => $plan['status'],
     'outerSavepoint' => $plan['outer_savepoint'],

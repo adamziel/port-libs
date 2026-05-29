@@ -95,8 +95,8 @@ $value108 = static function (array $data, string $path): mixed {
 };
 
 $cases108 = [
-    'operation marker' => ['operation', 'attach-temp-trigger-view-invalidation-current-source-next108'],
-    'dependency marker first' => ['dependencies.0', 'sqlite-attach-temp-trigger-view-invalidation-current-source-next108'],
+    'operation marker' => ['operation', 'attach-temp-trigger-view-invalidation-current-source'],
+    'dependency marker first' => ['dependencies.0', 'sqlite-attach-temp-trigger-view-invalidation-current-source'],
     'retains view cache dependency' => ['dependencies.1', 'sqlite-attach-temp-wal-trigger-view-cache-reprepare'],
     'status expired' => ['status', 'trigger_view_dependency_expired'],
     'trigger count' => ['trigger_count', 4],

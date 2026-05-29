@@ -67,9 +67,9 @@ $cases206 = [
     'retry delete selected ids' => [static fn (): mixed => $retryDeleteResult206()['plan']->selectedIds, [4, 10]],
     'retry delete network flag' => [static fn (): mixed => array_column($retryDeleteResult206()['returning'], 'dropped_network_siteurl'), [0, 1]],
 
-    'plan status' => [static fn (): mixed => $plan206()['status'], 'rowvalue-update-delete-returning-released-inner-outer-rollback-current-source-next206'],
-    'plan outer savepoint' => [static fn (): mixed => $plan206()['outer_savepoint'], 'wp_options_outer_rowvalue_next206'],
-    'plan inner savepoint' => [static fn (): mixed => $plan206()['inner_savepoint'], 'wp_options_inner_released_rowvalue_next206'],
+    'plan status' => [static fn (): mixed => $plan206()['status'], 'rowvalue-update-delete-returning-released-inner-outer-rollback-current-source-released_inner_retry'],
+    'plan outer savepoint' => [static fn (): mixed => $plan206()['outer_savepoint'], 'wp_options_outer_rowvalue_released_inner_retry'],
+    'plan inner savepoint' => [static fn (): mixed => $plan206()['inner_savepoint'], 'wp_options_inner_released_rowvalue_released_inner_retry'],
     'plan inner released' => [static fn (): mixed => $plan206()['inner_released_before_outer_rollback'], true],
     'plan rolled back outer' => [static fn (): mixed => $plan206()['rolled_back_to_outer_savepoint'], true],
     'plan outer preserved' => [static fn (): mixed => $plan206()['outer_savepoint_preserved_after_rollback_to'], true],
@@ -91,23 +91,23 @@ $cases206 = [
     'plan current row nine restored' => [static fn (): mixed => in_array(9, array_column($plan206()['current_source_tables']['wp_options'], 'option_id'), true), true],
     'plan current row ten deleted by retry' => [static fn (): mixed => in_array(10, array_column($plan206()['current_source_tables']['wp_options'], 'option_id'), true), false],
     'plan next source equals current' => [static fn (): mixed => $plan206()['next_source_tables'], $plan206()['current_source_tables']],
-    'plan outer statement phase' => [static fn (): mixed => $plan206()['outer_statements'][0]['phase'], 'outer-before-inner-release-next206'],
-    'plan inner update phase' => [static fn (): mixed => $plan206()['inner_released_statements'][0]['phase'], 'inner-released-before-outer-rollback-next206'],
+    'plan outer statement phase' => [static fn (): mixed => $plan206()['outer_statements'][0]['phase'], 'outer-before-inner-release-released_inner_retry'],
+    'plan inner update phase' => [static fn (): mixed => $plan206()['inner_released_statements'][0]['phase'], 'inner-released-before-outer-rollback-released_inner_retry'],
     'plan inner delete source ids' => [static fn (): mixed => array_column($plan206()['inner_released_statements'][1]['source_rows'], 'option_id'), [3, 9]],
-    'plan retry phase' => [static fn (): mixed => $plan206()['retry_statements'][0]['phase'], 'retry-after-outer-rollback-next206'],
+    'plan retry phase' => [static fn (): mixed => $plan206()['retry_statements'][0]['phase'], 'retry-after-outer-rollback-released_inner_retry'],
     'plan outer yielded count' => [static fn (): mixed => $plan206()['outer_yielded_count'], 2],
     'plan inner released yielded count' => [static fn (): mixed => $plan206()['inner_released_yielded_count'], 4],
     'plan discarded returning count' => [static fn (): mixed => $plan206()['discarded_by_outer_rollback_count'], 6],
     'plan retry yielded count' => [static fn (): mixed => $plan206()['yielded_after_retry_count'], 4],
-    'plan discarded phases' => [static fn (): mixed => array_column($plan206()['discarded_by_outer_rollback_returning'], 'phase'), ['outer-before-inner-release-next206', 'inner-released-before-outer-rollback-next206', 'inner-released-before-outer-rollback-next206']],
+    'plan discarded phases' => [static fn (): mixed => array_column($plan206()['discarded_by_outer_rollback_returning'], 'phase'), ['outer-before-inner-release-released_inner_retry', 'inner-released-before-outer-rollback-released_inner_retry', 'inner-released-before-outer-rollback-released_inner_retry']],
     'plan retry returning ids flattened' => [static fn (): mixed => array_merge(...array_map(static fn (array $stream): array => array_column($stream['rows'], 'option_id'), $plan206()['yielded_after_retry_returning'])), [7, 8, 4, 10]],
     'plan discarded changes' => [static fn (): mixed => $plan206()['changes_discarded_by_outer_rollback'], 6],
     'plan retry changes' => [static fn (): mixed => $plan206()['changes_after_retry'], 4],
     'plan changed tables' => [static fn (): mixed => $plan206()['changed_tables_after_retry'], ['wp_options']],
     'plan row count' => [static fn (): mixed => $plan206()['row_counts']['wp_options'], 8],
-    'plan dependency release' => [static fn (): mixed => in_array('sqlite-release-inner-savepoint-merges-rowvalue-returning-next206', $plan206()['dependencies'], true), true],
-    'plan dependency outer rollback' => [static fn (): mixed => in_array('sqlite-rollback-to-outer-savepoint-discards-released-inner-returning-next206', $plan206()['dependencies'], true), true],
-    'plan dependency retry' => [static fn (): mixed => in_array('sqlite-rowvalue-retry-after-outer-rollback-reads-outer-image-next206', $plan206()['dependencies'], true), true],
+    'plan dependency release' => [static fn (): mixed => in_array('sqlite-release-inner-savepoint-merges-rowvalue-returning-released_inner_retry', $plan206()['dependencies'], true), true],
+    'plan dependency outer rollback' => [static fn (): mixed => in_array('sqlite-rollback-to-outer-savepoint-discards-released-inner-returning-released_inner_retry', $plan206()['dependencies'], true), true],
+    'plan dependency retry' => [static fn (): mixed => in_array('sqlite-rowvalue-retry-after-outer-rollback-reads-outer-image-released_inner_retry', $plan206()['dependencies'], true), true],
     'custom outer savepoint' => [static fn (): mixed => $customPlan206()['outer_savepoint'], 'wp_outer_custom206'],
     'custom inner savepoint' => [static fn (): mixed => $customPlan206()['inner_savepoint'], 'wp_inner_custom206'],
     'custom retry count' => [static fn (): mixed => $customPlan206()['yielded_after_retry_count'], 2],
@@ -123,7 +123,7 @@ $cases206 = [
 
 $tests = [];
 foreach ($cases206 as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next206 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue update delete returning savepoint current source released_inner_retry ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

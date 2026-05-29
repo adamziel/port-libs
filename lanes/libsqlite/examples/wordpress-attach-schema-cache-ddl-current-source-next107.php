@@ -76,7 +76,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($summary['new_table_schema'] === 'site');
     assert($summary['new_table_rootpage'] === 10);
     assert($summary['new_index_schema'] === 'site');
-    assert(in_array('sqlite-attach-schema-cache-ddl-current-source-next107', $summary['dependencies'], true));
+    assert(in_array('sqlite-attach-schema-cache-ddl-current-source', $summary['dependencies'], true));
 }
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

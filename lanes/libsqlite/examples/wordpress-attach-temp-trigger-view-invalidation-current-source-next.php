@@ -57,11 +57,11 @@ if (($argv[1] ?? '') === '--self-test') {
         || $output['nextViewDependency']['resolved_schema'] !== 'temp'
         || $output['nextStepAction'] !== 'finish_current_view_dependency_source_then_sqlite_schema_on_reset'
     ) {
-        fwrite(STDERR, "wordpress-attach-temp-trigger-view-invalidation-current-source-next108 self-test failed\n");
+        fwrite(STDERR, "wordpress-attach-temp-trigger-view-invalidation-current-source self-test failed\n");
         exit(1);
     }
 
-    echo "wordpress-attach-temp-trigger-view-invalidation-current-source-next108 self-test passed\n";
+    echo "wordpress-attach-temp-trigger-view-invalidation-current-source self-test passed\n";
     exit(0);
 }
 

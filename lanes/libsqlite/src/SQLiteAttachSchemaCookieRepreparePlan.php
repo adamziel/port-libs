@@ -208,7 +208,7 @@ final class SQLiteAttachSchemaCookieRepreparePlan
 
         return [
             'status' => $expired === [] ? 'schema_cache_stable' : 'schema_cache_expired',
-            'operation' => 'attach-schema-cookie-reprepare-current-source-next84',
+            'operation' => 'attach-schema-cookie-reprepare-current-source',
             'source' => $source,
             'event_count' => count($events),
             'statement_count' => count($statementPlans),
@@ -231,7 +231,7 @@ final class SQLiteAttachSchemaCookieRepreparePlan
             'database_list_before' => self::databaseList($current, $prepareOrder),
             'database_list_after' => self::databaseList($next, $nextOrder),
             'dependencies' => [
-                'sqlite-attach-schema-cookie-reprepare-current-source-next84',
+                'sqlite-attach-schema-cookie-reprepare-current-source',
                 'sqlite-schema-cookie-current-source-expiry',
                 'sqlite-attach-detach-search-order-reprepare',
                 'sqlite-wal-page-one-schema-cookie',

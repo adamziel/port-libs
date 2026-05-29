@@ -395,7 +395,7 @@ final class SQLiteAttachedSchemaCatalog
 
         return [
             'status' => $changed ? 'schema_cache_expired' : 'schema_cache_stable',
-            'operation' => 'attach-schema-cache-ddl-current-source-next107',
+            'operation' => 'attach-schema-cache-ddl-current-source',
             'schema' => $name,
             'before_generation' => $beforeGeneration,
             'after_generation' => $this->schemaGeneration,
@@ -404,7 +404,7 @@ final class SQLiteAttachedSchemaCatalog
             'invalidation' => $resolutionSnapshot === null ? null : $this->schemaCacheResolutionInvalidation($resolutionSnapshot),
             'database_list' => $this->databaseList(),
             'dependencies' => [
-                'sqlite-attach-schema-cache-ddl-current-source-next107',
+                'sqlite-attach-schema-cache-ddl-current-source',
                 'schema-sql-reparse',
                 'sqlite-schema-cookie',
                 'sqlite-attached-current-source-cache-expiry',

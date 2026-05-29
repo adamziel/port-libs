@@ -68,8 +68,8 @@ $cases203 = [
     'delete after replace distinct flags' => [static fn (): mixed => array_column($deleteResult203()['returning'], 'distinct_from_site'), [1, 1]],
     'delete after replace final ids' => [static fn (): mixed => array_column($deleteResult203()['tables']['wp_options'], 'option_id'), [1, 3, 4, 5, 6]],
 
-    'plan status' => [static fn (): mixed => $plan203()['status'], 'rowvalue-update-delete-returning-ignore-replace-savepoint-current-source-next203'],
-    'plan savepoint name' => [static fn (): mixed => $plan203()['savepoint'], 'wp_options_rowvalue_ignore_replace_next203'],
+    'plan status' => [static fn (): mixed => $plan203()['status'], 'rowvalue-update-delete-returning-ignore-replace-savepoint-current-source-ignore_replace_delete'],
+    'plan savepoint name' => [static fn (): mixed => $plan203()['savepoint'], 'wp_options_rowvalue_ignore_replace_ignore_replace_delete'],
     'plan savepoint image original' => [static fn (): mixed => $plan203()['savepoint_image_tables'], $tables203],
     'plan savepoint active after ignore' => [static fn (): mixed => $plan203()['savepoint_active_after_ignore'], true],
     'plan savepoint active after replace' => [static fn (): mixed => $plan203()['savepoint_active_after_replace'], true],
@@ -79,9 +79,9 @@ $cases203 = [
     'plan replace current source excludes row eight' => [static fn (): mixed => in_array(8, array_column($plan203()['replace_current_source_tables']['wp_options'], 'option_id'), true), false],
     'plan current source final ids' => [static fn (): mixed => array_column($plan203()['current_source_tables']['wp_options'], 'option_id'), [1, 3, 4, 5, 6]],
     'plan next source equals current' => [static fn (): mixed => $plan203()['next_source_tables'], $plan203()['current_source_tables']],
-    'plan ignore statement phase' => [static fn (): mixed => $plan203()['ignore_statements'][0]['phase'], 'ignore-conflict-current-source-next203'],
-    'plan replace statement phase' => [static fn (): mixed => $plan203()['replace_statements'][0]['phase'], 'replace-conflict-current-source-next203'],
-    'plan delete statement phase' => [static fn (): mixed => $plan203()['delete_statements'][0]['phase'], 'delete-after-replace-current-source-next203'],
+    'plan ignore statement phase' => [static fn (): mixed => $plan203()['ignore_statements'][0]['phase'], 'ignore-conflict-current-source-ignore_replace_delete'],
+    'plan replace statement phase' => [static fn (): mixed => $plan203()['replace_statements'][0]['phase'], 'replace-conflict-current-source-ignore_replace_delete'],
+    'plan delete statement phase' => [static fn (): mixed => $plan203()['delete_statements'][0]['phase'], 'delete-after-replace-current-source-ignore_replace_delete'],
     'plan ignore source ids' => [static fn (): mixed => array_column($plan203()['ignore_statements'][0]['source_rows'], 'option_id'), [5, 6]],
     'plan replace source ids' => [static fn (): mixed => array_column($plan203()['replace_statements'][0]['source_rows'], 'option_id'), [7]],
     'plan delete source ids' => [static fn (): mixed => array_column($plan203()['delete_statements'][0]['source_rows'], 'option_id'), [2, 7]],
@@ -94,9 +94,9 @@ $cases203 = [
     'plan replace conflict count' => [static fn (): mixed => $plan203()['replace_conflict_count'], 1],
     'plan changed tables' => [static fn (): mixed => $plan203()['changed_tables'], ['wp_options']],
     'plan row count' => [static fn (): mixed => $plan203()['row_counts']['wp_options'], 5],
-    'plan dependency ignore' => [static fn (): mixed => in_array('sqlite-rowvalue-update-or-ignore-returning-current-source-next203', $plan203()['dependencies'], true), true],
-    'plan dependency replace' => [static fn (): mixed => in_array('sqlite-rowvalue-update-or-replace-returning-conflict-delete-next203', $plan203()['dependencies'], true), true],
-    'plan dependency delete' => [static fn (): mixed => in_array('sqlite-rowvalue-delete-returning-after-replace-current-source-next203', $plan203()['dependencies'], true), true],
+    'plan dependency ignore' => [static fn (): mixed => in_array('sqlite-rowvalue-update-or-ignore-returning-current-source-ignore_replace_delete', $plan203()['dependencies'], true), true],
+    'plan dependency replace' => [static fn (): mixed => in_array('sqlite-rowvalue-update-or-replace-returning-conflict-delete-ignore_replace_delete', $plan203()['dependencies'], true), true],
+    'plan dependency delete' => [static fn (): mixed => in_array('sqlite-rowvalue-delete-returning-after-replace-current-source-ignore_replace_delete', $plan203()['dependencies'], true), true],
     'custom plan savepoint' => [static fn (): mixed => $customPlan203()['savepoint'], 'wp_custom_ignore_replace203'],
 
     'malformed empty ignore rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeIgnoreReplaceDeleteSavepoint($tables203, [], [$replaceUpdate203], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
@@ -111,7 +111,7 @@ $cases203 = [
 
 $tests = [];
 foreach ($cases203 as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next203 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue update delete returning savepoint current source ignore_replace_delete ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

@@ -57,7 +57,7 @@ $tests = [
         );
 
         $t->same('schema_cache_expired', $plan['status']);
-        $t->same('attach-schema-cache-ddl-current-source-next107', $plan['operation']);
+        $t->same('attach-schema-cache-ddl-current-source', $plan['operation']);
         $t->same('site', $plan['schema']);
         $t->same(2, $plan['before_generation']);
         $t->same(3, $plan['after_generation']);
@@ -96,7 +96,7 @@ $tests = [
         $t->same('index', $invalid['index_changes']['site_new_name']['after']['type']);
         $t->same(4, count($plan['database_list']));
         $t->same('site', $plan['database_list'][2]['name']);
-        $t->same(true, in_array('sqlite-attach-schema-cache-ddl-current-source-next107', $plan['dependencies'], true));
+        $t->same(true, in_array('sqlite-attach-schema-cache-ddl-current-source', $plan['dependencies'], true));
 
         $t->same('site', $catalog->resolveTable('site.wp_new_options')['schema']);
         $t->same('site_new_name', $catalog->resolveIndex('site_new_name')['record']->name);

@@ -32,7 +32,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
 );
 
 echo json_encode([
-    'scenario' => 'wordpress-rowvalue-update-delete-returning-savepoint-current-source-next203',
+    'scenario' => 'wordpress-rowvalue-update-delete-returning-savepoint-current-source-ignore_replace_delete',
     'wordpressUse' => 'Model copied wp_options cleanup where OR IGNORE suppresses conflicting RETURNING rows, OR REPLACE deletes the conflicting current row, and a follow-up DELETE RETURNING reads that current source inside the same savepoint.',
     'status' => $plan['status'],
     'savepoint' => $plan['savepoint'],

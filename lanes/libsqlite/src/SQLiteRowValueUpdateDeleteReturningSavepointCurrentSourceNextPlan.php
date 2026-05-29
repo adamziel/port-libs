@@ -8223,23 +8223,23 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $replaceStatements,
         array $deleteStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_ignore_replace_next203',
+        string $savepoint = 'wp_options_rowvalue_ignore_replace_ignore_replace_delete',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($ignoreStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value ignore/replace next203 needs ignore statements');
+            throw new \InvalidArgumentException('SQLite row-value ignore/replace ignore_replace_delete needs ignore statements');
         }
         if ($replaceStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value ignore/replace next203 needs replace statements');
+            throw new \InvalidArgumentException('SQLite row-value ignore/replace ignore_replace_delete needs replace statements');
         }
         if ($deleteStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value ignore/replace next203 needs delete statements');
+            throw new \InvalidArgumentException('SQLite row-value ignore/replace ignore_replace_delete needs delete statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value ignore/replace next203 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value ignore/replace ignore_replace_delete needs unique constraints');
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
-            throw new \InvalidArgumentException('SQLite row-value ignore/replace next203 savepoint must be an identifier');
+            throw new \InvalidArgumentException('SQLite row-value ignore/replace ignore_replace_delete savepoint must be an identifier');
         }
 
         $savepointImage = self::normalizeTablesIgnoreReplaceDeleteSavepoint($tables);
@@ -8248,7 +8248,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $ignoreStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'ignore-conflict-current-source-next203',
+            'ignore-conflict-current-source-ignore_replace_delete',
         );
         self::assertConflictActionIgnoreReplaceDeleteSavepoint($ignoreExecuted, 'ignore');
 
@@ -8257,7 +8257,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $replaceStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'replace-conflict-current-source-next203',
+            'replace-conflict-current-source-ignore_replace_delete',
         );
         self::assertConflictActionIgnoreReplaceDeleteSavepoint($replaceExecuted, 'replace');
 
@@ -8266,11 +8266,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $deleteStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'delete-after-replace-current-source-next203',
+            'delete-after-replace-current-source-ignore_replace_delete',
         );
 
         return [
-            'status' => 'rowvalue-update-delete-returning-ignore-replace-savepoint-current-source-next203',
+            'status' => 'rowvalue-update-delete-returning-ignore-replace-savepoint-current-source-ignore_replace_delete',
             'savepoint' => $savepoint,
             'savepoint_image_tables' => $savepointImage,
             'ignore_current_source_tables' => $afterIgnore,
@@ -8296,9 +8296,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables' => self::changedTablesIgnoreReplaceDeleteSavepoint($savepointImage, $afterDelete),
             'row_counts' => self::rowCountsIgnoreReplaceDeleteSavepoint($afterDelete),
             'dependencies' => [
-                'sqlite-rowvalue-update-or-ignore-returning-current-source-next203',
-                'sqlite-rowvalue-update-or-replace-returning-conflict-delete-next203',
-                'sqlite-rowvalue-delete-returning-after-replace-current-source-next203',
+                'sqlite-rowvalue-update-or-ignore-returning-current-source-ignore_replace_delete',
+                'sqlite-rowvalue-update-or-replace-returning-conflict-delete-ignore_replace_delete',
+                'sqlite-rowvalue-delete-returning-after-replace-current-source-ignore_replace_delete',
             ],
         ];
     }
@@ -8339,7 +8339,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($executed as $statement) {
             if (($statement['action'] ?? null) !== 'update' || ($statement['conflict_action'] ?? null) !== $expected) {
-                throw new \InvalidArgumentException("SQLite row-value next203 expected UPDATE OR " . strtoupper($expected));
+                throw new \InvalidArgumentException("SQLite row-value ignore_replace_delete expected UPDATE OR " . strtoupper($expected));
             }
         }
     }
@@ -8376,11 +8376,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value ignore/replace next203 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value ignore/replace ignore_replace_delete tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value ignore/replace next203 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value ignore/replace ignore_replace_delete rows must be arrays');
                 }
             }
         }
@@ -8403,11 +8403,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value ignore/replace next203 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value ignore/replace ignore_replace_delete rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value ignore/replace next203 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value ignore/replace ignore_replace_delete rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -8521,26 +8521,26 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $savepointStatements,
         array $nextStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_release_next205',
+        string $savepoint = 'wp_options_rowvalue_release_release_followup_read',
         string $rowIdColumn = 'option_id',
         array $options = [],
     ): array {
         if ($savepointStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value release next205 needs savepoint statements');
+            throw new \InvalidArgumentException('SQLite row-value release release_followup_read needs savepoint statements');
         }
         if ($nextStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value release next205 needs next statements');
+            throw new \InvalidArgumentException('SQLite row-value release release_followup_read needs next statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value release next205 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value release release_followup_read needs unique constraints');
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
-            throw new \InvalidArgumentException('SQLite row-value release next205 savepoint must be an identifier');
+            throw new \InvalidArgumentException('SQLite row-value release release_followup_read savepoint must be an identifier');
         }
 
-        $releaseToken = self::tokenReleaseNextReadSavepoint((string) ($options['release_token'] ?? 'wp.rowvalue.release.205'), 'release token');
+        $releaseToken = self::tokenReleaseNextReadSavepoint((string) ($options['release_token'] ?? 'wp.rowvalue.release.followup.read'), 'release token');
         $expectedReleaseToken = self::tokenReleaseNextReadSavepoint((string) ($options['expected_release_token'] ?? $releaseToken), 'expected release token');
-        $nextCursor = self::tokenReleaseNextReadSavepoint((string) ($options['next_cursor'] ?? 'wp.rowvalue.next.cursor.205'), 'next cursor');
+        $nextCursor = self::tokenReleaseNextReadSavepoint((string) ($options['next_cursor'] ?? 'wp.rowvalue.followup.cursor'), 'next cursor');
         $expectedNextCursor = self::tokenReleaseNextReadSavepoint((string) ($options['expected_next_cursor'] ?? $nextCursor), 'expected next cursor');
 
         $savepointImage = self::normalizeTablesReleaseNextReadSavepoint($tables);
@@ -8549,7 +8549,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $savepointStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'savepoint-before-release-next205',
+            'savepoint-before-release-release_followup_read',
         );
 
         $releaseAdmitted = $releaseToken === $expectedReleaseToken;
@@ -8560,29 +8560,29 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $nextStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'next-after-release-current-source-next205',
+            'next-after-release-current-source-release_followup_read',
         );
 
         $nextReadReleasedRows = $releaseAdmitted && $nextCursorMatches && self::firstStatementSourceMatchesReleaseNextReadSavepoint($nextExecuted, $releasedCurrent, $rowIdColumn);
         $status = $releaseAdmitted && $nextCursorMatches
-            ? 'rowvalue-update-delete-returning-release-current-source-next205'
-            : 'rowvalue-update-delete-returning-release-current-source-blocked-next205';
+            ? 'rowvalue-update-delete-returning-release-current-source-release_followup_read'
+            : 'rowvalue-update-delete-returning-release-current-source-blocked-release_followup_read';
 
         return [
             'status' => $status,
             'savepoint' => $savepoint,
-            'release_token_next205' => $releaseToken,
-            'expected_release_token_next205' => $expectedReleaseToken,
-            'release_admitted_next205' => $releaseAdmitted,
-            'next_cursor_next205' => $nextCursor,
-            'expected_next_cursor_next205' => $expectedNextCursor,
-            'next_cursor_matches_next205' => $nextCursorMatches,
+            'release_token_release_followup_read' => $releaseToken,
+            'expected_release_token_release_followup_read' => $expectedReleaseToken,
+            'release_admitted_release_followup_read' => $releaseAdmitted,
+            'next_cursor_release_followup_read' => $nextCursor,
+            'expected_next_cursor_release_followup_read' => $expectedNextCursor,
+            'next_cursor_matches_release_followup_read' => $nextCursorMatches,
             'savepoint_image_tables' => $savepointImage,
             'released_current_source_tables' => $releasedCurrent,
             'next_source_tables' => $nextSource,
             'current_source_tables' => $nextCurrent,
-            'savepoint_released_before_next_source_next205' => $releaseAdmitted,
-            'next_read_released_current_source_next205' => $nextReadReleasedRows,
+            'savepoint_released_before_next_source_release_followup_read' => $releaseAdmitted,
+            'next_read_released_current_source_release_followup_read' => $nextReadReleasedRows,
             'savepoint_statements' => $savepointExecuted,
             'next_statements' => $nextExecuted,
             'savepoint_returning' => $savepointReturning,
@@ -8593,20 +8593,20 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_release' => self::changedTablesReleaseNextReadSavepoint($savepointImage, $releasedCurrent),
             'changed_tables_after_next' => self::changedTablesReleaseNextReadSavepoint($savepointImage, $nextCurrent),
             'row_counts' => self::rowCountsReleaseNextReadSavepoint($nextCurrent),
-            'release_receipt_next205' => [
+            'release_receipt_release_followup_read' => [
                 'savepoint' => $savepoint,
                 'token' => $releaseToken,
                 'admitted' => $releaseAdmitted,
                 'next_cursor' => $nextCursor,
                 'next_cursor_matches' => $nextCursorMatches,
             ],
-            'dependency_closure_next205' => 'no new support component needed; next205 reuses native row-value UPDATE/DELETE RETURNING execution, conflict handling, and savepoint current-source images',
+            'dependency_closure_release_followup_read' => 'no new support component needed; release_followup_read reuses native row-value UPDATE/DELETE RETURNING execution, conflict handling, and savepoint current-source images',
             'dependencies' => [
-                'sqlite-rowvalue-savepoint-release-current-source-next205',
-                'sqlite-rowvalue-returning-release-feeds-next-statement-next205',
-                'wordpress-rowvalue-update-delete-returning-savepoint-release-next205',
+                'sqlite-rowvalue-savepoint-release-current-source-release_followup_read',
+                'sqlite-rowvalue-returning-release-feeds-next-statement-release_followup_read',
+                'wordpress-rowvalue-update-delete-returning-savepoint-release-release_followup_read',
             ],
-            'non_overlap_next205' => 'adds RELEASE-to-parent current-source admission after row-value UPDATE/DELETE RETURNING; avoids next203 IGNORE/REPLACE-only savepoint flow, next178 OR ROLLBACK transaction rollback, next172 ROLLBACK TO yielded stream suppression, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_release_followup_read' => 'adds RELEASE-to-parent current-source admission after row-value UPDATE/DELETE RETURNING; avoids ignore_replace_delete IGNORE/REPLACE-only savepoint flow, next178 OR ROLLBACK transaction rollback, next172 ROLLBACK TO yielded stream suppression, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -8672,11 +8672,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value release next205 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value release release_followup_read tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value release next205 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value release release_followup_read rows must be arrays');
                 }
             }
         }
@@ -8699,11 +8699,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value release next205 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value release release_followup_read rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value release next205 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value release release_followup_read rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -8793,7 +8793,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         $token = trim($token);
         if ($token === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $token) !== 1) {
-            throw new \InvalidArgumentException("SQLite row-value release next205 {$label} is invalid");
+            throw new \InvalidArgumentException("SQLite row-value release release_followup_read {$label} is invalid");
         }
 
         return $token;
@@ -8815,26 +8815,26 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $releasedInnerStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_next206',
-        string $innerSavepoint = 'wp_options_inner_released_rowvalue_next206',
+        string $outerSavepoint = 'wp_options_outer_rowvalue_released_inner_retry',
+        string $innerSavepoint = 'wp_options_inner_released_rowvalue_released_inner_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value outer rollback next206 needs outer statements');
+            throw new \InvalidArgumentException('SQLite row-value outer rollback released_inner_retry needs outer statements');
         }
         if ($releasedInnerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value outer rollback next206 needs released inner statements');
+            throw new \InvalidArgumentException('SQLite row-value outer rollback released_inner_retry needs released inner statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value outer rollback next206 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value outer rollback released_inner_retry needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value outer rollback next206 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value outer rollback released_inner_retry needs unique constraints');
         }
         self::assertReleasedInnerRollbackRetryIdentifier($outerSavepoint, 'outer savepoint');
         self::assertReleasedInnerRollbackRetryIdentifier($innerSavepoint, 'inner savepoint');
         if ($outerSavepoint === $innerSavepoint) {
-            throw new \InvalidArgumentException('SQLite row-value outer rollback next206 savepoint names must differ');
+            throw new \InvalidArgumentException('SQLite row-value outer rollback released_inner_retry savepoint names must differ');
         }
 
         $outerImage = self::normalizeReleasedInnerRollbackRetryTables($tables);
@@ -8843,7 +8843,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $outerStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'outer-before-inner-release-next206',
+            'outer-before-inner-release-released_inner_retry',
         );
 
         $innerImage = $afterOuter;
@@ -8852,7 +8852,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $releasedInnerStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'inner-released-before-outer-rollback-next206',
+            'inner-released-before-outer-rollback-released_inner_retry',
         );
 
         $afterOuterRollback = $outerImage;
@@ -8861,13 +8861,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'retry-after-outer-rollback-next206',
+            'retry-after-outer-rollback-released_inner_retry',
         );
 
         $discardedReturning = array_merge($outerReturning, $innerReturning);
 
         return [
-            'status' => 'rowvalue-update-delete-returning-released-inner-outer-rollback-current-source-next206',
+            'status' => 'rowvalue-update-delete-returning-released-inner-outer-rollback-current-source-released_inner_retry',
             'outer_savepoint' => $outerSavepoint,
             'inner_savepoint' => $innerSavepoint,
             'inner_released_before_outer_rollback' => true,
@@ -8900,9 +8900,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_retry' => self::releasedInnerRollbackRetryChangedTables($outerImage, $afterRetry),
             'row_counts' => self::releasedInnerRollbackRetryRowCounts($afterRetry),
             'dependencies' => [
-                'sqlite-release-inner-savepoint-merges-rowvalue-returning-next206',
-                'sqlite-rollback-to-outer-savepoint-discards-released-inner-returning-next206',
-                'sqlite-rowvalue-retry-after-outer-rollback-reads-outer-image-next206',
+                'sqlite-release-inner-savepoint-merges-rowvalue-returning-released_inner_retry',
+                'sqlite-rollback-to-outer-savepoint-discards-released-inner-returning-released_inner_retry',
+                'sqlite-rowvalue-retry-after-outer-rollback-reads-outer-image-released_inner_retry',
             ],
         ];
     }
@@ -8969,11 +8969,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value outer rollback next206 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value outer rollback released_inner_retry tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value outer rollback next206 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value outer rollback released_inner_retry rows must be arrays');
                 }
             }
         }
@@ -8996,11 +8996,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value outer rollback next206 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value outer rollback released_inner_retry rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value outer rollback next206 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value outer rollback released_inner_retry rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -9071,7 +9071,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function assertReleasedInnerRollbackRetryIdentifier(string $value, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
-            throw new \InvalidArgumentException("SQLite row-value outer rollback next206 {$label} must be an identifier");
+            throw new \InvalidArgumentException("SQLite row-value outer rollback released_inner_retry {$label} must be an identifier");
         }
     }
 
@@ -9174,7 +9174,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'sqlite-rowvalue-savepoint-rollback-discards-or-fail-prefix-next207',
                 'wordpress-rowvalue-fail-retry-current-source-next207',
             ],
-            'non_overlap_next207' => 'adds OR FAIL prefix-preservation plus ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted OR ABORT next200, release next205, parenthesized next202, OR ROLLBACK next178, OR REPLACE/IGNORE conflict, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_next207' => 'adds OR FAIL prefix-preservation plus ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted OR ABORT next200, release release_followup_read, parenthesized next202, OR ROLLBACK next178, OR REPLACE/IGNORE conflict, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -10034,7 +10034,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'sqlite-rollback-to-savepoint-discards-ignore-returning-stream-next210',
                 'sqlite-rowvalue-retry-after-ignore-rollback-reads-savepoint-image-next210',
             ],
-            'non_overlap_next210' => 'adds OR IGNORE row-value RETURNING rollback-to-savepoint suppression; avoids next209/next208 OR FAIL, next203 IGNORE/REPLACE release flow, next205 RELEASE admission, next206 released-inner rollback, next178 OR ROLLBACK, trigger RETURNING, WAL/VFS, JSON, planner, and B-tree clusters',
+            'non_overlap_next210' => 'adds OR IGNORE row-value RETURNING rollback-to-savepoint suppression; avoids next209/next208 OR FAIL, ignore_replace_delete IGNORE/REPLACE release flow, release_followup_read RELEASE admission, released_inner_retry released-inner rollback, next178 OR ROLLBACK, trigger RETURNING, WAL/VFS, JSON, planner, and B-tree clusters',
         ];
     }
 
@@ -10326,7 +10326,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_release' => self::orIgnoreSavepointReleaseChangedTables($savepointImage, $afterCurrent),
             'row_counts' => self::orIgnoreSavepointReleaseRowCounts($afterCurrent),
             'dependency_closure' => 'no-new-support-component-reuses-native-update-delete-returning-rowvalue-conflict-and-savepoint-current-source',
-            'non_overlap' => 'next211 covers UPDATE OR IGNORE row-value RETURNING suppression and savepoint release current-source chaining; avoids accepted next209 OR FAIL, next205 release, next202 parenthesized rollback, trigger RETURNING, WAL/VFS, JSON, B-tree, planner, and encoding clusters',
+            'non_overlap' => 'next211 covers UPDATE OR IGNORE row-value RETURNING suppression and savepoint release current-source chaining; avoids accepted next209 OR FAIL, release_followup_read release, next202 parenthesized rollback, trigger RETURNING, WAL/VFS, JSON, B-tree, planner, and encoding clusters',
             'dependencies' => [
                 'sqlite-rowvalue-update-or-ignore-suppresses-conflict-returning-next211',
                 'sqlite-rowvalue-ignore-preserves-preceding-savepoint-current-source-next211',
@@ -11239,7 +11239,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'sqlite-rowvalue-returning-suppressed-after-rollback-to-next218',
                 'wordpress-rowvalue-update-delete-returning-savepoint-rollback-next218',
             ],
-            'non_overlap_next218' => 'models explicit ROLLBACK TO savepoint image restoration after successful row-value UPDATE/DELETE RETURNING attempts; avoids accepted next200 statement ABORT preservation, next205 RELEASE current-source admission, next211 OR IGNORE/savepoint behavior, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_next218' => 'models explicit ROLLBACK TO savepoint image restoration after successful row-value UPDATE/DELETE RETURNING attempts; avoids accepted next200 statement ABORT preservation, release_followup_read RELEASE current-source admission, next211 OR IGNORE/savepoint behavior, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 

@@ -25,19 +25,19 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
         "DELETE FROM wp_options WHERE (blog_id, autoload) IN ((1, 'manual'), (5, 'no')) RETURNING option_id, blog_id, option_name, autoload, status, (blog_id, autoload) IS DISTINCT FROM (1, 'yes') AS distinct_from_site ORDER BY option_id",
     ],
     [
-        "UPDATE wp_options SET (status, option_value, bytes) = ('next205', option_value || ':next205', bytes + 1) WHERE (blog_id, autoload) IN ((4, 'yes'), (1, 'no')) RETURNING option_id, blog_id, option_name, autoload, status, option_value, bytes ORDER BY option_id",
+        "UPDATE wp_options SET (status, option_value, bytes) = ('release_followup_read', option_value || ':release_followup_read', bytes + 1) WHERE (blog_id, autoload) IN ((4, 'yes'), (1, 'no')) RETURNING option_id, blog_id, option_name, autoload, status, option_value, bytes ORDER BY option_id",
         "DELETE FROM wp_options WHERE (blog_id, autoload) IN ((4, 'yes'), (2, 'yes')) RETURNING option_id, blog_id, option_name, autoload, status, bytes ORDER BY option_id",
     ],
     [['blog_id', 'autoload']],
 );
 
 echo json_encode([
-    'scenario' => 'wordpress-rowvalue-update-delete-returning-savepoint-current-source-next205',
+    'scenario' => 'wordpress-rowvalue-update-delete-returning-savepoint-current-source-release_followup_read',
     'wordpressUse' => 'Model copied wp_options import cleanup where RELEASE of a row-value UPDATE/DELETE RETURNING savepoint promotes the current source for the next statement, so a follow-up UPDATE and DELETE see the released replacement row.',
     'status' => $plan['status'],
     'savepoint' => $plan['savepoint'],
-    'releaseAdmitted' => $plan['release_admitted_next205'],
-    'nextReadReleasedCurrentSource' => $plan['next_read_released_current_source_next205'],
+    'releaseAdmitted' => $plan['release_admitted_release_followup_read'],
+    'nextReadReleasedCurrentSource' => $plan['next_read_released_current_source_release_followup_read'],
     'savepointReturned' => $plan['released_returning_count'],
     'nextReturned' => $plan['next_returning_count'],
     'releasedIds' => array_column($plan['released_current_source_tables']['wp_options'], 'option_id'),
