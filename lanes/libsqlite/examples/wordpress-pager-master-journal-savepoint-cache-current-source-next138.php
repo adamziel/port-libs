@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalHotCacheCurrentSourceNext136Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalHotCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteRollbackJournalHeader.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalPage.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournal.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalHotRollbackCurrentSourceNext89Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalHotRollbackCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLitePagerSavepointMasterJournalCurrentSourceNextPlan;

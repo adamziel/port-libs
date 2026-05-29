@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLitePagerRollbackCacheSpillMasterCurrentSourceNextPlan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalCacheSpillSavepointCurrentSourceNext114Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalSavepointCurrentSourceNext108Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalCacheSpillSavepointCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalSavepointCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLitePagerSavepointMasterJournalCurrentSourceNextPlan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalHotRollbackCurrentSourceNext89Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalHotRollbackCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLitePagerDirtyPageCacheSpillPlan.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournal.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalHeader.php';

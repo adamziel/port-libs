@@ -33,7 +33,7 @@ final class SQLitePagerSavepointMasterJournalCurrentSourceNextPlan
         }
 
         $retryPageWrites = self::normalizePages($retryPageWrites, $pageSize, 'retry');
-        $masterRecovery = SQLitePagerMasterJournalHotRollbackCurrentSourceNext89Plan::currentSourceNext(
+        $masterRecovery = SQLitePagerMasterJournalHotRollbackCurrentSourceNextPlan::currentSourceNext(
             $masterJournalPath,
             $masterJournalBytes,
             $databases,

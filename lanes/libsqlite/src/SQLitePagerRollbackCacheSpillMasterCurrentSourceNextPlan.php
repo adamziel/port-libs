@@ -40,7 +40,7 @@ final class SQLitePagerRollbackCacheSpillMasterCurrentSourceNextPlan
         }
 
         $cacheInput = self::normalizeCachePages($cachePages, $pageSize);
-        $spillRecovery = SQLitePagerMasterJournalCacheSpillSavepointCurrentSourceNext114Plan::currentSourceNext(
+        $spillRecovery = SQLitePagerMasterJournalCacheSpillSavepointCurrentSourceNextPlan::currentSourceNext(
             $masterJournalPath,
             $masterJournalBytes,
             $databases,

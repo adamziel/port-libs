@@ -46,7 +46,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         self::assertCachePages125($cachePages, $pageSize);
         self::assertPageList125($releaseReadPages);
 
-        $recovery = SQLitePagerMasterJournalCacheRecoveryCurrentSourceNext122Plan::currentSourceNext(
+        $recovery = SQLitePagerMasterJournalCacheRecoveryCurrentSourceNextPlan::currentSourceNext(
             $masterJournalPath,
             $cachedMasterJournalBytes,
             $currentMasterJournalBytes,
@@ -372,7 +372,7 @@ final class SQLitePagerMasterJournalSavepointCacheCurrentSourceNextPlan
         $retryStatementWrites = self::normalizeImages138($retryStatementWrites, $pageSize, 'retry statement write');
         self::assertPageList138($readPages);
 
-        $hot = SQLitePagerMasterJournalHotCacheCurrentSourceNext136Plan::plan(
+        $hot = SQLitePagerMasterJournalHotCacheCurrentSourceNextPlan::plan(
             $databasePath,
             $masterJournalPath,
             $cachedMasterJournalBytes,

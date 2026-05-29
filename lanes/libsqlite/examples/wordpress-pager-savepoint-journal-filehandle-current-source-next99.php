@@ -16,7 +16,7 @@ require_once dirname(__DIR__) . '/src/SQLiteRollbackJournalPage.php';
 require_once dirname(__DIR__) . '/src/SQLiteRollbackJournal.php';
 require_once dirname(__DIR__) . '/src/SQLitePagerHotJournalWalRecoveryPlan.php';
 require_once dirname(__DIR__) . '/src/SQLitePagerHotJournalSuperCurrentNextPlan.php';
-require_once dirname(__DIR__) . '/src/SQLitePagerMasterJournalHotRollbackCurrentSourceNext89Plan.php';
+require_once dirname(__DIR__) . '/src/SQLitePagerMasterJournalHotRollbackCurrentSourceNextPlan.php';
 require_once dirname(__DIR__) . '/src/SQLitePagerMasterJournalStatementRecoveryPlan.php';
 require_once dirname(__DIR__) . '/src/SQLitePagerStatementRecoveryPlan.php';
 require_once dirname(__DIR__) . '/src/SQLitePagerCheckpointTransactionPlan.php';
