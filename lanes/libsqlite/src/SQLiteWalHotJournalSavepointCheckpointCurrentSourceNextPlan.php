@@ -4282,6 +4282,136 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($prepared, $applied, $databaseBytes, $journalBytes, $walBytes);
     }
 
+    public static function next179Plan(array $receipt, array $reopenReads, string $databaseBytes, ?string $journalBytes, string $walBytes): array
+    {
+        $impl = new class {
+                /**
+                 * @param array<string,mixed> $receipt
+                 * @param array<int,array<string,mixed>> $reopenReads
+                 * @return array<string,mixed>
+                 */
+                public static function plan(array $receipt, array $reopenReads, string $databaseBytes, ?string $journalBytes, string $walBytes): array
+                {
+                    self::assertReceipt($receipt);
+                    if ($reopenReads === []) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next179 requires reopen reads');
+                    }
+
+                    $databaseSha = hash('sha256', $databaseBytes);
+                    $walSha = hash('sha256', $walBytes);
+                    $journalRemoved = $journalBytes === null;
+                    $receiptDigest = (string) $receipt['receipt_digest'];
+                    $databaseMatches = hash_equals((string) $receipt['database_sha256'], $databaseSha);
+                    $walMatches = hash_equals((string) $receipt['wal_sha256'], $walSha);
+                    $receiptPublishable = ($receipt['status'] ?? '') === 'wal-hot-journal-savepoint-checkpoint-current-source-next178'
+                        && ($receipt['can_publish_receipt'] ?? false) === true
+                        && ($receipt['blocked_reasons'] ?? []) === [];
+
+                    $readRows = [];
+                    $blockedReasons = [];
+                    if (!$receiptPublishable) {
+                        $blockedReasons[] = 'next178_receipt_not_publishable';
+                    }
+                    if (!$databaseMatches) {
+                        $blockedReasons[] = 'reopen_database_digest_mismatch';
+                    }
+                    if (!$journalRemoved) {
+                        $blockedReasons[] = 'reopen_hot_journal_still_present';
+                    }
+                    if (!$walMatches) {
+                        $blockedReasons[] = 'reopen_wal_digest_mismatch';
+                    }
+
+                    foreach ($reopenReads as $index => $read) {
+                        $page = $read['page'] ?? null;
+                        $source = (string) ($read['source'] ?? '');
+                        $sourceDigest = (string) ($read['receipt_digest'] ?? '');
+                        $expectedImage = $read['expected_image'] ?? null;
+                        $actualImage = $read['actual_image'] ?? null;
+                        if (!is_int($page) || $page < 1) {
+                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next179 reopen read page must be a positive integer');
+                        }
+                        if (!in_array($source, ['database', 'wal'], true)) {
+                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next179 reopen read source must be database or wal');
+                        }
+                        if (!is_string($expectedImage) || !is_string($actualImage)) {
+                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next179 reopen read images must be strings');
+                        }
+
+                        $digestMatches = hash_equals($receiptDigest, $sourceDigest);
+                        $imageMatches = hash_equals(hash('sha256', $expectedImage), hash('sha256', $actualImage));
+                        if (!$digestMatches) {
+                            $blockedReasons[] = 'reopen_read_' . $page . '_receipt_digest_mismatch';
+                        }
+                        if (!$imageMatches) {
+                            $blockedReasons[] = 'reopen_read_' . $page . '_image_mismatch';
+                        }
+
+                        $readRows[] = [
+                            'page' => $page,
+                            'source' => $source,
+                            'receipt_digest' => $sourceDigest,
+                            'receipt_digest_matches' => $digestMatches,
+                            'expected_sha256' => hash('sha256', $expectedImage),
+                            'actual_sha256' => hash('sha256', $actualImage),
+                            'matches' => $digestMatches && $imageMatches,
+                            'sequence' => $index + 1,
+                        ];
+                    }
+
+                    $canReopen = $blockedReasons === [];
+
+                    return [
+                        'status' => $canReopen
+                            ? 'wal-hot-journal-savepoint-checkpoint-current-source-next179'
+                            : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next179',
+                        'reason' => $canReopen
+                            ? 'receipt_digest_pins_reopen_reads_after_checkpoint'
+                            : 'receipt_digest_does_not_pin_reopen_reads_after_checkpoint',
+                        'database_path' => (string) $receipt['database_path'],
+                        'journal_path' => (string) $receipt['journal_path'],
+                        'wal_path' => (string) $receipt['wal_path'],
+                        'receipt_digest' => $receiptDigest,
+                        'database_sha256' => $databaseSha,
+                        'wal_sha256' => $walSha,
+                        'journal_removed' => $journalRemoved,
+                        'receipt_publishable' => $receiptPublishable,
+                        'can_reopen_after_checkpoint' => $canReopen,
+                        'read_rows' => $readRows,
+                        'read_sources' => array_values(array_unique(array_column($readRows, 'source'))),
+                        'blocked_reasons' => array_values(array_unique($blockedReasons)),
+                        'dependencies' => array_values(array_unique(array_merge(
+                            is_array($receipt['dependencies'] ?? null) ? $receipt['dependencies'] : [],
+                            [
+                                'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next179',
+                                'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next178',
+                                'wordpress-import-hot-journal-checkpoint-reopen-current-source',
+                            ]
+                        ))),
+                        'dependency_closure' => 'no new support component needed; reuses next178 post-apply receipt digests and reopened database/WAL page images',
+                        'non_overlap' => 'adds reopen-read source pinning after next178 receipt validation; does not repeat next176 source-token admission, next177 apply planning, or next178 file receipt matching',
+                    ];
+                }
+
+                /**
+                 * @param array<string,mixed> $receipt
+                 */
+                private static function assertReceipt(array $receipt): void
+                {
+                    foreach (['status', 'database_path', 'journal_path', 'wal_path', 'can_publish_receipt', 'blocked_reasons', 'database_sha256', 'wal_sha256', 'receipt_digest'] as $key) {
+                        if (!array_key_exists($key, $receipt)) {
+                            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next179 missing receipt {$key}");
+                        }
+                    }
+                    if (!is_array($receipt['blocked_reasons'])) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next179 receipt blocked reasons must be an array');
+                    }
+                }
+        };
+
+        return $impl::plan($receipt, $reopenReads, $databaseBytes, $journalBytes, $walBytes);
+    }
+
     public static function next180Apply(array $applyPlan, array $files, array $payloadBytes, ?int $failAfterOperation = null): array
     {
         $impl = new class {
