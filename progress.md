@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 20:08 UTC):
+  Seventy-seventh safe consolidation follow-up is integrated and pushed as
+  `c8233eb99`. The batch accepts 4 more handoffs while excluding stale worker
+  status edits: STAT4 prepared-handoff bridge suffix cleanup from `c30f7186`,
+  trigger recursive-view RETURNING consolidation guard from `c30f7186`, WAL
+  hot-journal savepoint checkpoint after-current verification helper
+  consolidation from `407606d`, and JSON-table generated-path rowid snapshot
+  helper cleanup from `407606d`. Validation passed PHP lint for 52 changed PHP
+  files, `git diff --check`, direct combined tests `30 files / 467 assertions
+  / 0 failures`, STAT4 expression-partial family `133 files / 7537 assertions
+  / 0 failures`, JSON table family `305 files / 20187 assertions / 0
+  failures`, WAL hot-journal checkpoint current-source-next selection `2 files
+  / 11236 assertions / 0 failures`, trigger RETURNING family `61 files / 4569
+  assertions / 0 failures`, 24 changed WAL examples, exact user-named 150
+  suffix scan clean in `src`/`tests`/`examples`, production numbered file/class
+  audits at `0`, numbered production helper-method audit down to `1723`, and
+  unique numbered production symbol audit down to `1955`. Public pass/mapped
+  counters remain `154019 pass / 0 fail` and `830 / 1589` because this is
+  consolidation-only. Upstream-suite, pager-master, B-tree, and one conflicting
+  rowvalue-window handoff remain deferred pending baseline comparison or rebase.
+
 - 2026-05-29 supervisor continuation (shell samples 20:00 UTC):
   Seventy-sixth safe consolidation follow-up is integrated and pushed as
   `fc5b9771a`. The batch accepts 4 handoffs while excluding stale worker
