@@ -65,7 +65,7 @@ $database129 = static function () use ($makeFirstPage129, $putPointerMapEntry129
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$plan129 = static fn (bool $secureDelete = false): SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next129FromOverflowChains(
+$plan129 = static fn (bool $secureDelete = false): SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::pointerMapFreelistFromOverflowChains(
     $database129(),
     [[
         'source' => 'wp-option-delete-stale-cache-overflow-chain',
@@ -121,9 +121,9 @@ $cases129 = [
     'summary allocation entries' => static fn (): mixed => array_column($plan129()->toArray()['allocation']['allocated_pointer_map_entries'], 'type_name'),
     'summary allocation parents' => static fn (): mixed => array_column($plan129()->toArray()['allocation']['allocated_pointer_map_entries'], 'parent_page_number'),
     'secure delete clears released pages' => static fn (): mixed => $plan129(true)->releasePlan->freePlan->clearedPageNumbers,
-    'bad payload count rejected' => static fn (): mixed => $throwMessage129(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next129FromOverflowChains($database129(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 0, 3, '')),
-    'bad parent rejected' => static fn (): mixed => $throwMessage129(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next129FromOverflowChains($database129(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 4, 1, 'abcd')),
-    'short payload rejected' => static fn (): mixed => $throwMessage129(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next129FromOverflowChains($database129(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 4, 3, 'abc')),
+    'bad payload count rejected' => static fn (): mixed => $throwMessage129(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::pointerMapFreelistFromOverflowChains($database129(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 0, 3, '')),
+    'bad parent rejected' => static fn (): mixed => $throwMessage129(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::pointerMapFreelistFromOverflowChains($database129(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 4, 1, 'abcd')),
+    'short payload rejected' => static fn (): mixed => $throwMessage129(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::pointerMapFreelistFromOverflowChains($database129(), [['first_page' => 6, 'overflow_payload_bytes' => 700]], 4, 3, 'abc')),
 ];
 
 $expected129 = [

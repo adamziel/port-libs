@@ -89,7 +89,7 @@ $plan138 = static function (
     bool $clearCoalescedFragments = true,
     string $pageType = "\x0d",
 ) use ($database138, $currentChains138, $deleteResults138, $payload138): SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan {
-    return SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::next138FromCurrentSourceDeleteResults(
+    return SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::currentSourceOverflowFreeblockFromDeleteResults(
         $database138($pageType),
         3,
         $currentChains138(),
@@ -180,13 +180,13 @@ $cases138 = [
     'index leaf page type accepted' => static fn (): mixed => $plan138(true, true, "\x0a")->coalescePlan->pageType,
     'without secure delete keeps current terminal payload until allocation overwrites first byte' => static fn (): mixed => substr($plan138(false)->databaseAfterRelease->page(6), 4, 1),
     'without clear leaves coalesced fragment bytes' => static fn (): mixed => strpos($plan138(true, false)->databaseAfterAllocation->page(3), str_repeat("\xdd", 4)) !== false,
-    'empty payload rejected' => static fn () => $throwsMessage138(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::next138FromCurrentSourceDeleteResults($database138(), 3, $currentChains138(), $deleteResults138(), 3, '')),
-    'bad parent rejected' => static fn () => $throwsMessage138(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::next138FromCurrentSourceDeleteResults($database138(), 3, $currentChains138(), $deleteResults138(), 1, 'abc')),
+    'empty payload rejected' => static fn () => $throwsMessage138(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::currentSourceOverflowFreeblockFromDeleteResults($database138(), 3, $currentChains138(), $deleteResults138(), 3, '')),
+    'bad parent rejected' => static fn () => $throwsMessage138(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::currentSourceOverflowFreeblockFromDeleteResults($database138(), 3, $currentChains138(), $deleteResults138(), 1, 'abc')),
     'trailing current chain rejected' => static function () use ($database138, $currentChains138, $deleteResults138, $payload138, $throwsMessage138): mixed {
         $chains = $currentChains138();
         $chains[0]['overflow_payload_bytes'] = 508;
 
-        return $throwsMessage138(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::next138FromCurrentSourceDeleteResults($database138(), 3, $chains, $deleteResults138(), 3, $payload138));
+        return $throwsMessage138(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::currentSourceOverflowFreeblockFromDeleteResults($database138(), 3, $chains, $deleteResults138(), 3, $payload138));
     },
 ];
 

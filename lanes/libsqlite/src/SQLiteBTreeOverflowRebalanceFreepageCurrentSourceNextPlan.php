@@ -22,25 +22,25 @@ final class SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan
         throw new \BadMethodCallException(sprintf('Unknown %s factory method %s', self::class, $name));
     }
 
-    public static function next94TableLeaf(mixed ...$args): self
+    public static function baseTableLeaf(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextBaseVariantPlan::tableLeaf(...$args));
     }
 
-    public static function next94IndexLeaf(mixed ...$args): self
+    public static function baseIndexLeaf(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextBaseVariantPlan::indexLeaf(...$args));
     }
 
-    public static function next99TableLeaf(mixed ...$args): self
+    public static function extendedTableLeaf(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextExtendedVariantPlan::tableLeaf(...$args));
     }
 
-    public static function next99IndexLeaf(mixed ...$args): self
+    public static function extendedIndexLeaf(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextExtendedVariantPlan::indexLeaf(...$args));

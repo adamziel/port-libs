@@ -2,14 +2,14 @@
 
 ## Scope
 
-This slice adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext180()`, a bounded current-source materialization step after the accepted generated-path/rowid xFilter program. It turns a pinned `json_tree` generated-path plus rowid xFilter program into seek tape and materialized row output, while changed next-source rows are held behind a reset/reprepare policy.
+This slice adds `SQLiteJsonTablePlan::generatedPathRowidMaterializationPlan()`, a bounded current-source materialization step after the accepted generated-path/rowid xFilter program. It turns a pinned `json_tree` generated-path plus rowid xFilter program into seek tape and materialized row output, while changed next-source rows are held behind a reset/reprepare policy.
 
 ## Evidence
 
-- Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext180Test.php`
+- Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidMaterializationPlanTest.php`
 - Result: `1 test files, 66 assertions, 0 failures`
-- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next180.php --self-test`
-- Result: `wordpress-json-table-generated-path-rowid-cost-current-source-next180 self-test passed`
+- WordPress smoke: `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-materialization.php --self-test`
+- Result: `wordpress-json-table-generated-path-rowid-materialization self-test passed`
 
 ## Non-Overlap
 

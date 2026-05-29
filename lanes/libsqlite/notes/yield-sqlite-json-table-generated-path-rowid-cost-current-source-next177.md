@@ -4,7 +4,7 @@ Slice: `json-table-generated-path-rowid-cost-current-source-next177`
 
 Behavior:
 
-- Adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext177()`.
+- Adds `SQLiteJsonTablePlan::generatedPathRowidXFilterProgramPlan()`.
 - Extends the accepted next174 generated-path rowid alias plan with an xFilter program/reset layer.
 - Records generated-path and canonical rowid argv bindings, xFilter opcodes, source-pin keys, residual/omitted constraint columns, yield rowids/paths, cost class, and current/next replan reasons.
 - Prevents a stale current-source cursor from silently reusing contradictory rowid aliases or a changed generated-path rowset.
@@ -12,16 +12,16 @@ Behavior:
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`
-- `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext177Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next177.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext177Test.php`
+- `php -l lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidXFilterProgramPlanTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-xfilter-program.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidXFilterProgramPlanTest.php`
   - `1 test files, 57 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-cost-current-source-next177.php --self-test`
-  - `wordpress-json-table-generated-path-rowid-cost-current-source-next177 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-json-table-generated-path-rowid-xfilter-program.php --self-test`
+  - `wordpress-json-table-generated-path-rowid-xfilter-program self-test passed`
 
 WordPress path:
 
-- `examples/wordpress-json-table-generated-path-rowid-cost-current-source-next177.php` models copied `wp_options.active_plugins` diagnostics where a generated JSON path and rowid aliases can stay on the pinned current `json_tree()` source, while changed next-source JSON forces an empty/reset xFilter program instead of stale row reuse.
+- `examples/wordpress-json-table-generated-path-rowid-xfilter-program.php` models copied `wp_options.active_plugins` diagnostics where a generated JSON path and rowid aliases can stay on the pinned current `json_tree()` source, while changed next-source JSON forces an empty/reset xFilter program instead of stale row reuse.
 
 Non-overlap:
 

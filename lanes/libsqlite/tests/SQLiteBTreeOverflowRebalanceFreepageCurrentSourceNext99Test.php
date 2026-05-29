@@ -89,11 +89,11 @@ $throwsMessage99 = static function (callable $callback): string {
 
 $fixture99 = static function () use ($databaseFixture99): array {
     $database = $databaseFixture99();
-    $table = SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next99TableLeaf($database, 3, [
+    $table = SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::extendedTableLeaf($database, 3, [
         ['rowid' => 41, 'obsolete_overflow_page_numbers' => [6, 7]],
         ['rowid' => 42, 'obsolete_overflow_page_numbers' => [8, 9]],
     ], true);
-    $index = SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next99IndexLeaf($database, 4, [
+    $index = SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::extendedIndexLeaf($database, 4, [
         ['record_values' => ['_transient_timeout_plugins', 41, str_repeat('i', 34)], 'obsolete_overflow_page_numbers' => [10, 11]],
         ['record_values' => ['_transient_update_plugins', 42, str_repeat('j', 36)], 'obsolete_overflow_page_numbers' => [12, 13, 14]],
     ], true);
@@ -158,12 +158,12 @@ $cases99 = [
     'index secure delete second chain' => static fn (array $fx): mixed => $fx[2]->databaseAfter()->page(12) === str_repeat("\0", 512),
     'index toArray transition rows count' => static fn (array $fx): mixed => count($fx[2]->toArray()['current_source_transition_rows']),
     'index toArray final count' => static fn (array $fx): mixed => $fx[2]->toArray()['final_freelist_page_count'],
-    'rejects empty table deletes' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next99TableLeaf($fx[0], 3, [])),
-    'rejects bad table rowid' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next99TableLeaf($fx[0], 3, [['rowid' => '41', 'obsolete_overflow_page_numbers' => []]])),
-    'rejects missing overflow list' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next99TableLeaf($fx[0], 3, [['rowid' => 41]])),
-    'rejects bad overflow page' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next99TableLeaf($fx[0], 3, [['rowid' => 41, 'obsolete_overflow_page_numbers' => ['6']]])),
-    'rejects empty index deletes' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next99IndexLeaf($fx[0], 4, [])),
-    'rejects missing index record' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next99IndexLeaf($fx[0], 4, [['obsolete_overflow_page_numbers' => []]])),
+    'rejects empty table deletes' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::extendedTableLeaf($fx[0], 3, [])),
+    'rejects bad table rowid' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::extendedTableLeaf($fx[0], 3, [['rowid' => '41', 'obsolete_overflow_page_numbers' => []]])),
+    'rejects missing overflow list' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::extendedTableLeaf($fx[0], 3, [['rowid' => 41]])),
+    'rejects bad overflow page' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::extendedTableLeaf($fx[0], 3, [['rowid' => 41, 'obsolete_overflow_page_numbers' => ['6']]])),
+    'rejects empty index deletes' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::extendedIndexLeaf($fx[0], 4, [])),
+    'rejects missing index record' => static fn (array $fx): mixed => $throwsMessage99(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::extendedIndexLeaf($fx[0], 4, [['obsolete_overflow_page_numbers' => []]])),
 ];
 
 $expected99 = [

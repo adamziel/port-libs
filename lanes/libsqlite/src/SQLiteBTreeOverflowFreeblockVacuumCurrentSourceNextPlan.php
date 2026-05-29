@@ -22,19 +22,19 @@ final class SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan
         throw new \BadMethodCallException(sprintf('Unknown %s factory method %s', self::class, $name));
     }
 
-    public static function next122FromDeleteResults(mixed ...$args): self
+    public static function coalescedOverflowFreeblockFromDeleteResults(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextBaseVariantPlan::fromDeleteResults(...$args));
     }
 
-    public static function next140TableLeafFromCurrentSourceDeleteResult(mixed ...$args): self
+    public static function tableLeafFromCurrentSourceDeleteResult(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextExtendedVariantPlan::tableLeafFromCurrentSourceDeleteResult(...$args));
     }
 
-    public static function next140FromBasePlan(mixed ...$args): self
+    public static function fromCurrentSourceBasePlan(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextExtendedVariantPlan::fromBasePlan(...$args));

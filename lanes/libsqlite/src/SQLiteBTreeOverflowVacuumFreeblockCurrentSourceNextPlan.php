@@ -41,7 +41,7 @@ final class SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite overflow vacuum freeblock next137 requires replacement overflow payload bytes');
         }
 
-        $vacuumPlan = SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next122FromDeleteResults(
+        $vacuumPlan = SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::coalescedOverflowFreeblockFromDeleteResults(
             $database,
             $leafPageNumber,
             $deleteResults,

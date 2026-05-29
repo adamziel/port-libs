@@ -126,7 +126,7 @@ $plan250 = static fn (string $variant = 'ready', int $limit = 5, int $offset = 1
 
 $tests = [
     'planner stat4 expression partial current source next250 status ready' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-current-source-next250-ready', $plan250()['status']),
-    'planner stat4 expression partial current source next250 inherits next247' => static fn (TestRunner $t) => $t->same(true, $plan250()['selectedPlan']['next247Ready']),
+    'planner stat4 expression partial current source next250 inherits stat4BoundaryPeer' => static fn (TestRunner $t) => $t->same(true, $plan250()['selectedPlan']['stat4BoundaryPeerReady']),
     'planner stat4 expression partial current source next250 selected index' => static fn (TestRunner $t) => $t->same('idx_wp_options_stat4_partial_predicate_next250', $plan250()['selectedPlan']['name']),
     'planner stat4 expression partial current source next250 root page' => static fn (TestRunner $t) => $t->same(25088, $plan250()['selectedPlan']['rootPage']),
     'planner stat4 expression partial current source next250 matched rowids' => static fn (TestRunner $t) => $t->same([30, 50, 20, 21, 22], $plan250()['matchedRowids']),

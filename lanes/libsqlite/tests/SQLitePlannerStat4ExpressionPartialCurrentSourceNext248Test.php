@@ -124,7 +124,7 @@ $wrongRunOrder248 = static fn (): array => $plan248([
 
 $tests = [
     'planner stat4 expression partial current source next248 status ready' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-current-source-next248-ready', $plan248()['status']),
-    'planner stat4 expression partial current source next248 inherits next245' => static fn (TestRunner $t) => $t->same(true, $plan248()['selectedPlan']['next245Ready']),
+    'planner stat4 expression partial current source next248 inherits stat4SampleAnchor' => static fn (TestRunner $t) => $t->same(true, $plan248()['selectedPlan']['stat4SampleAnchorReady']),
     'planner stat4 expression partial current source next248 ready flag' => static fn (TestRunner $t) => $t->same(true, $plan248()['selectedPlan']['next248Ready']),
     'planner stat4 expression partial current source next248 selected current' => static fn (TestRunner $t) => $t->same('current', $plan248()['selectedSource']),
     'planner stat4 expression partial current source next248 selected index' => static fn (TestRunner $t) => $t->same('idx_wp_options_lower_duplicate_run_next248', $plan248()['selectedPlan']['name']),

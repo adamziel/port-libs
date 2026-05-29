@@ -77,7 +77,7 @@ $plan140 = static function (int $maxTruncatedPages = 4) use ($database140): SQLi
     $database = $database140();
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-    return SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next140TableLeafFromCurrentSourceDeleteResult(
+    return SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult(
         $database,
         3,
         [[
@@ -160,7 +160,7 @@ $cases140 = [
     'single page vacuum truncates only tail' => static fn (): mixed => $plan140(1)->truncatedCurrentSourcePages(),
     'bad truncation limit rejected' => static fn (): mixed => $throwsMessage140(static fn () => $plan140(0)),
     'bad current chain rejected' => static function () use ($database140, $throwsMessage140): mixed {
-        return $throwsMessage140(static fn () => SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next140TableLeafFromCurrentSourceDeleteResult(
+        return $throwsMessage140(static fn () => SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult(
             $database140(),
             3,
             [['source' => 'bad', 'first_page' => 106, 'overflow_payload_bytes' => 508]],

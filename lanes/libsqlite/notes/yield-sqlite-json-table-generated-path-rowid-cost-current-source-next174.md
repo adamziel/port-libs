@@ -4,7 +4,7 @@ Slice: `json-table-generated-path-rowid-cost-current-source-next174`
 
 Behavior implemented:
 
-- Adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext174()` on top of accepted next170 generated-path/current-source cost planning.
+- Adds `SQLiteJsonTablePlan::generatedPathRowidAliasPlan()` on top of accepted next170 generated-path/current-source cost planning.
 - Normalizes SQLite JSON virtual-table rowid aliases (`rowid`, `_rowid_`, `oid`) before calling the next170 planner so identical point aliases bind one canonical rowid seek.
 - Preserves original alias constraint provenance for xBestIndex-style diagnostics.
 - Short-circuits contradictory point aliases to an empty, zero-cost current-source cursor instead of reusing stale pinned rows.
@@ -12,7 +12,7 @@ Behavior implemented:
 Focused evidence:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext174Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonTableGeneratedPathRowidAliasPlanTest.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 58 assertions, 0 failures
 ```

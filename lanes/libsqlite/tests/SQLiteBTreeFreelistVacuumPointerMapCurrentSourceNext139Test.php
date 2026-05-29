@@ -69,7 +69,7 @@ $fixture139 = static function (int $maxTruncatedPages = 3, ?string $payload = nu
         $pages[$pageNumber] = pack('N', $next) . str_repeat(chr(65 + $index), $pageSize - 4);
     }
 
-    return SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan::next139FromDeleteResults(
+    return SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan::overflowFreelistPointerMapFromDeleteResults(
         SQLiteDatabase::fromBytes(implode('', $pages)),
         [
             [

@@ -66,7 +66,7 @@ foreach ([
     $putPointerMapEntry($pages, $pageNumber, $type, $parentPageNumber);
 }
 
-$plan = SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::next131FromDeleteResults(
+$plan = SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::pointerMapOverflowFreeblockFromDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [[

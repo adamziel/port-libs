@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 15:15 UTC):
+  Thirty-ninth reduced consolidation follow-up is staged and validated in the
+  rolling libsqlite integration worktree. The batch accepts 7 clean
+  ready-marked AZ handoffs on top of `e928fe03` while excluding stale worker
+  status edits and incidental shared note hunks: attach temp WAL schema-cache
+  final-locale cleanup, B-tree vacuum wrapper cleanup, compound-select
+  source-token fence cleanup, JSON table generated path/rowid alias cleanup,
+  planner/STAT4 sample/boundary cleanup, rowvalue returning-window
+  after-current cleanup, and production suffix cleanup. Upstream-suite AZ is
+  deferred because it conflicts after the thirty-eighth suite evidence changes.
+  Validation passed `66` PHP lints, changed tests
+  `30 test files / 3542 assertions / 0 failures`, `25` changed WordPress
+  examples/self-tests, git diff --check, exact user-named 150 suffix scan clean,
+  production `CurrentSourceNextNNN` file/class audits at `0`, and broad
+  numbered production helper-method audit `3247`. Public pass/mapped counters
+  remain `154019 pass / 0 fail` and `830 / 1589` because this is another
+  suffix/helper consolidation slice.
+
 - 2026-05-29 supervisor continuation (shell samples 15:08 UTC):
   Thirty-eighth reduced consolidation follow-up is staged and validated in the
   rolling libsqlite integration worktree. The batch accepts 8 clean

@@ -51,7 +51,7 @@ $putPointerMapEntry($pages, 5, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
 $putPointerMapEntry($pages, 6, SQLitePointerMapEntry::OVERFLOW_PAGE, 5);
 $putPointerMapEntry($pages, 7, SQLitePointerMapEntry::OVERFLOW_PAGE, 6);
 
-$plan = SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next94TableLeaf(
+$plan = SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::baseTableLeaf(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [

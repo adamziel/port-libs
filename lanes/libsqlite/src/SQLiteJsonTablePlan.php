@@ -2351,7 +2351,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext174(
+    public static function generatedPathRowidAliasPlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -2411,7 +2411,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext177(
+    public static function generatedPathRowidXFilterProgramPlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -2421,7 +2421,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext174(
+        $plan = self::generatedPathRowidAliasPlan(
             $function,
             $currentSource,
             $nextSource,
@@ -2472,7 +2472,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext180(
+    public static function generatedPathRowidMaterializationPlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -2482,7 +2482,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext177(
+        $plan = self::generatedPathRowidXFilterProgramPlan(
             $function,
             $currentSource,
             $nextSource,
@@ -2547,7 +2547,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table generated path rowid batch size must be positive');
         }
 
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext180(
+        $plan = self::generatedPathRowidMaterializationPlan(
             $function,
             $currentSource,
             $nextSource,
@@ -3023,7 +3023,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext205(
+    public static function currentSourceGeneratedPathRowidAliasReverseOrder(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -3038,7 +3038,7 @@ final class SQLiteJsonTablePlan
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
         self::jsonTableGeneratedPathRowidAliasOrderTerms205($orderBy);
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext203(
+        $plan = self::currentSourceGeneratedPathRowidAliasProjection(
             $function,
             $currentSource,
             $nextSource,
@@ -3094,7 +3094,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext207(
+    public static function currentSourceGeneratedPathRowidAliasLimit(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -3113,7 +3113,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table generated path rowid next207 offset must be non-negative');
         }
 
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext206(
+        $plan = self::currentSourceGeneratedPathRowidAliasOrderConsumption(
             $function,
             $currentSource,
             $nextSource,
@@ -3967,7 +3967,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldBatchSize = null,
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext206(
+        $plan = self::currentSourceGeneratedPathRowidAliasOrderConsumption(
             $function,
             $currentSource,
             $nextSource,
@@ -4691,7 +4691,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext205Limit(
+    public static function currentSourceGeneratedPathRowidCurrentSourceLimitAdmission(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -4775,7 +4775,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldBatchSize = null,
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext206(
+        $plan = self::currentSourceGeneratedPathRowidAliasOrderConsumption(
             $function,
             $currentSource,
             $nextSource,
@@ -4829,7 +4829,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext206(
+    public static function currentSourceGeneratedPathRowidAliasOrderConsumption(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -4843,7 +4843,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldBatchSize = null,
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext203(
+        $plan = self::currentSourceGeneratedPathRowidAliasProjection(
             $function,
             $currentSource,
             $nextSource,
@@ -4897,7 +4897,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext203(
+    public static function currentSourceGeneratedPathRowidAliasProjection(
         string $function,
         array $currentSource,
         array $nextSource,

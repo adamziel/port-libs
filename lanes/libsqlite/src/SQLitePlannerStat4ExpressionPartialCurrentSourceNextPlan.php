@@ -22904,7 +22904,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext245(
+        public static function materializeStat4SampleAnchorFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -22921,42 +22921,42 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $offset,
             );
             $selectedName = (string) ($base['selectedPlan']['name'] ?? '');
-            $index = self::indexByNameNext245($currentSource, $selectedName);
-            $fence = self::sampleAnchorFenceNext245(self::rowsNext245($currentSource), $whereTerms, $index);
+            $index = self::indexByNameStat4SampleAnchor($currentSource, $selectedName);
+            $fence = self::sampleAnchorFenceStat4SampleAnchor(self::rowsStat4SampleAnchor($currentSource), $whereTerms, $index);
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next242-ready'
                 && $fence['ready'] === true;
 
             return array_replace($base, [
-                'status' => $ready ? 'stat4-expression-partial-current-source-next245-ready' : 'requires-current-source-stat4-sample-anchor-reprepare',
+                'status' => $ready ? 'stat4-expression-partial-current-source-stat4SampleAnchor-ready' : 'requires-current-source-stat4-sample-anchor-reprepare',
                 'stat4SampleAnchorFence' => $fence,
                 'selectedPlan' => array_replace(is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [], [
-                    'next245Ready' => $ready,
-                    'next245AnchoredSampleRowids' => $fence['anchoredSampleRowids'],
-                    'next245RejectedSampleRowids' => $fence['rejectedSampleRowids'],
-                    'next245ProofSignature' => $fence['proofSignature'],
+                    'stat4SampleAnchorReady' => $ready,
+                    'stat4SampleAnchorAnchoredSampleRowids' => $fence['anchoredSampleRowids'],
+                    'stat4SampleAnchorRejectedSampleRowids' => $fence['rejectedSampleRowids'],
+                    'stat4SampleAnchorProofSignature' => $fence['proofSignature'],
                 ]),
                 'stat4Fence' => array_replace(is_array($base['stat4Fence'] ?? null) ? $base['stat4Fence'] : [], [
-                    'next245SampleAnchorReady' => $ready,
-                    'next245SampleAnchorSignature' => $fence['proofSignature'],
-                    'next245RejectedSampleRowids' => $fence['rejectedSampleRowids'],
+                    'stat4SampleAnchorSampleAnchorReady' => $ready,
+                    'stat4SampleAnchorSampleAnchorSignature' => $fence['proofSignature'],
+                    'stat4SampleAnchorRejectedSampleRowids' => $fence['rejectedSampleRowids'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext245(
+                'cursorProgram' => self::cursorProgramStat4SampleAnchor(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $fence,
                 ),
                 'detail' => (($base['reprepareRequired'] ?? false) ? 'REPREPARE' : 'REUSE')
-                    . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT245 SAMPLE ANCHOR FENCE '
+                    . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE STAT4 SAMPLE ANCHOR SAMPLE ANCHOR FENCE '
                     . $selectedName
                     . ($ready ? ' CURRENT STAT4 SAMPLE ROWIDS VERIFIED' : ' REQUIRES CURRENT STAT4 SAMPLE ANCHOR REPREPARE'),
                 'dependencies' => array_values(array_unique(array_merge(
                     is_array($base['dependencies'] ?? null) ? $base['dependencies'] : [],
                     [
                         'SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan',
-                        'sqlite-sqlplanner-stat4-expression-partial-current-source-next245',
+                        'sqlite-sqlplanner-stat4-expression-partial-current-source-stat4SampleAnchor',
                     ],
                 ))),
-                'dependency_closure' => 'no new support component needed; next245 reuses current-source STAT4 expression partial histogram counters and adds sample rowid anchor validation',
+                'dependency_closure' => 'no new support component needed; stat4SampleAnchor reuses current-source STAT4 expression partial histogram counters and adds sample rowid anchor validation',
                 'non_overlap' => 'adds STAT4 sample-rowid anchor validation after accepted next242 histogram counter validation; avoids histogram cardinality, expression ORDER BY, range-cost, JSON, WAL, VFS, B-tree, trigger, UTF, and suite-runner clusters',
             ]);
         }
@@ -22967,26 +22967,26 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $index
          * @return array<string,mixed>
          */
-        private static function sampleAnchorFenceNext245(array $rows, array $whereTerms, array $index): array
+        private static function sampleAnchorFenceStat4SampleAnchor(array $rows, array $whereTerms, array $index): array
         {
             $partialRows = [];
             foreach ($rows as $row) {
-                if (!self::rowSatisfiesTermsNext245($row, $whereTerms)) {
+                if (!self::rowSatisfiesTermsStat4SampleAnchor($row, $whereTerms)) {
                     continue;
                 }
-                $rowid = self::rowidNext245($row);
+                $rowid = self::rowidStat4SampleAnchor($row);
                 $partialRows[$rowid] = [
                     'rowid' => $rowid,
-                    'expressionKey' => self::rowExpressionKeyNext245($row),
+                    'expressionKey' => self::rowExpressionKeyStat4SampleAnchor($row),
                     'blogId' => (int) ($row['blog_id'] ?? 0),
-                    'payloadSignature' => self::signatureNext245($row),
+                    'payloadSignature' => self::signatureStat4SampleAnchor($row),
                 ];
             }
 
             $proofs = [];
             $anchored = [];
             $rejected = [];
-            foreach (self::stat4SamplesNext245($index) as $sample) {
+            foreach (self::stat4SamplesStat4SampleAnchor($index) as $sample) {
                 $row = $partialRows[$sample['rowid']] ?? null;
                 $matches = $row !== null
                     && $row['expressionKey'] === $sample['key']
@@ -23018,46 +23018,46 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'anchoredSampleRowids' => $anchored,
                 'rejectedSampleRowids' => $rejected,
                 'sampleAnchorProofs' => $proofs,
-                'anchorSignature' => self::signatureNext245([$partialRows, $proofs]),
+                'anchorSignature' => self::signatureStat4SampleAnchor([$partialRows, $proofs]),
                 'indexName' => (string) ($index['name'] ?? ''),
             ];
 
             return $proof + [
                 'ready' => $ready,
                 'rejectedReason' => $ready ? null : 'stale-stat4-sample-rowid-anchor',
-                'proofSignature' => self::signatureNext245($proof),
+                'proofSignature' => self::signatureStat4SampleAnchor($proof),
             ];
         }
 
         /** @param array<string,mixed> $source @return array<string,mixed> */
-        private static function indexByNameNext245(array $source, string $name): array
+        private static function indexByNameStat4SampleAnchor(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
-                throw new \InvalidArgumentException('SQLite next245 needs source indexes');
+                throw new \InvalidArgumentException('SQLite stat4SampleAnchor needs source indexes');
             }
             foreach ($indexes as $index) {
                 if (!is_array($index)) {
-                    throw new \InvalidArgumentException('SQLite next245 source indexes must be arrays');
+                    throw new \InvalidArgumentException('SQLite stat4SampleAnchor source indexes must be arrays');
                 }
                 if ((string) ($index['name'] ?? '') === $name) {
                     return $index;
                 }
             }
 
-            throw new \InvalidArgumentException('SQLite next245 selected current index missing');
+            throw new \InvalidArgumentException('SQLite stat4SampleAnchor selected current index missing');
         }
 
         /** @param array<string,mixed> $source @return list<array<string,mixed>> */
-        private static function rowsNext245(array $source): array
+        private static function rowsStat4SampleAnchor(array $source): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite next245 needs current source rows');
+                throw new \InvalidArgumentException('SQLite stat4SampleAnchor needs current source rows');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite next245 current source rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite stat4SampleAnchor current source rows must be arrays');
                 }
             }
 
@@ -23065,20 +23065,20 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $index @return list<array{key:string,rowid:int,blogId:int}> */
-        private static function stat4SamplesNext245(array $index): array
+        private static function stat4SamplesStat4SampleAnchor(array $index): array
         {
             $samples = $index['stat4Samples'] ?? null;
             if (!is_array($samples) || !array_is_list($samples) || $samples === []) {
-                throw new \InvalidArgumentException('SQLite next245 needs stat4Samples');
+                throw new \InvalidArgumentException('SQLite stat4SampleAnchor needs stat4Samples');
             }
             $out = [];
             foreach ($samples as $sample) {
                 if (!is_array($sample) || !is_array($sample['sample'] ?? null) || count($sample['sample']) < 3) {
-                    throw new \InvalidArgumentException('SQLite next245 stat4 samples need key, rowid, and blog id');
+                    throw new \InvalidArgumentException('SQLite stat4SampleAnchor stat4 samples need key, rowid, and blog id');
                 }
                 $out[] = [
                     'key' => strtolower((string) $sample['sample'][0]),
-                    'rowid' => self::rowidNext245(['rowid' => $sample['sample'][1]]),
+                    'rowid' => self::rowidStat4SampleAnchor(['rowid' => $sample['sample'][1]]),
                     'blogId' => (int) $sample['sample'][2],
                 ];
             }
@@ -23090,7 +23090,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param list<array<string,mixed>> $terms
          */
-        private static function rowSatisfiesTermsNext245(array $row, array $terms): bool
+        private static function rowSatisfiesTermsStat4SampleAnchor(array $row, array $terms): bool
         {
             foreach ($terms as $term) {
                 $left = $term['left'] ?? null;
@@ -23099,7 +23099,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
                 $value = array_key_exists('expression', $left)
-                    ? self::rowExpressionKeyNext245($row)
+                    ? self::rowExpressionKeyStat4SampleAnchor($row)
                     : ($row[(string) ($left['column'] ?? '')] ?? null);
                 if ($operator === '=' && $value != ($term['right'] ?? null)) {
                     return false;
@@ -23107,13 +23107,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if ($operator === 'IS NOT NULL' && $value === null) {
                     return false;
                 }
-                if ($operator === 'LIKE' && !self::likePrefixNext245((string) $value, (string) ($term['right'] ?? ''))) {
+                if ($operator === 'LIKE' && !self::likePrefixStat4SampleAnchor((string) $value, (string) ($term['right'] ?? ''))) {
                     return false;
                 }
                 if ($operator === 'BETWEEN') {
                     $stringValue = strtolower((string) $value);
-                    $lower = self::stringOrNullNext245($term['lower'] ?? null);
-                    $upper = self::stringOrNullNext245($term['upper'] ?? null);
+                    $lower = self::stringOrNullStat4SampleAnchor($term['lower'] ?? null);
+                    $upper = self::stringOrNullStat4SampleAnchor($term['upper'] ?? null);
                     if (($lower !== null && $stringValue < $lower) || ($upper !== null && $stringValue > $upper)) {
                         return false;
                     }
@@ -23133,7 +23133,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function likePrefixNext245(string $value, string $pattern): bool
+        private static function likePrefixStat4SampleAnchor(string $value, string $pattern): bool
         {
             if ($pattern === 'plugin_%') {
                 return str_starts_with(strtolower($value), 'plugin_');
@@ -23146,20 +23146,20 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowExpressionKeyNext245(array $row): string
+        private static function rowExpressionKeyStat4SampleAnchor(array $row): string
         {
             if (!array_key_exists('option_name', $row)) {
-                throw new \InvalidArgumentException('SQLite next245 current row needs option_name');
+                throw new \InvalidArgumentException('SQLite stat4SampleAnchor current row needs option_name');
             }
 
             return strtolower((string) $row['option_name']);
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowidNext245(array $row): int
+        private static function rowidStat4SampleAnchor(array $row): int
         {
             if (!array_key_exists('rowid', $row) || (!is_int($row['rowid']) && !ctype_digit((string) $row['rowid']))) {
-                throw new \InvalidArgumentException('SQLite next245 rowid must be an integer');
+                throw new \InvalidArgumentException('SQLite stat4SampleAnchor rowid must be an integer');
             }
 
             return (int) $row['rowid'];
@@ -23170,14 +23170,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $fence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext245(array $program, bool $ready, array $fence): array
+        private static function cursorProgramStat4SampleAnchor(array $program, bool $ready, array $fence): array
         {
             if (!$ready) {
                 return $program;
             }
             $program[] = [
                 'opcode' => 'ValidateCurrentSourceStat4SampleAnchors',
-                'mode' => 'next245-current-source-stat4-expression-partial-sample-anchors',
+                'mode' => 'stat4SampleAnchor-current-source-stat4-expression-partial-sample-anchors',
                 'sampleCount' => $fence['sampleCount'],
                 'anchoredSampleCount' => $fence['anchoredSampleCount'],
                 'anchoredSampleRowids' => $fence['anchoredSampleRowids'],
@@ -23187,12 +23187,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function stringOrNullNext245(mixed $value): ?string
+        private static function stringOrNullStat4SampleAnchor(mixed $value): ?string
         {
             return $value === null ? null : strtolower((string) $value);
         }
 
-        private static function signatureNext245(mixed $value): string
+        private static function signatureStat4SampleAnchor(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -23477,7 +23477,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext247(
+        public static function materializeStat4BoundaryPeerFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -23493,12 +23493,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $limit,
                 $offset,
             );
-            $index = self::indexByNameNext247($currentSource, (string) ($base['selectedPlan']['name'] ?? ''));
-            $fence = self::boundaryPeerFenceNext247(
-                self::rowsNext247($currentSource),
+            $index = self::indexByNameStat4BoundaryPeer($currentSource, (string) ($base['selectedPlan']['name'] ?? ''));
+            $fence = self::boundaryPeerFenceStat4BoundaryPeer(
+                self::rowsStat4BoundaryPeer($currentSource),
                 $whereTerms,
                 $index,
-                self::rowidsNext247($base['matchedRowids'] ?? null),
+                self::rowidsStat4BoundaryPeer($base['matchedRowids'] ?? null),
                 $limit,
                 $offset,
             );
@@ -23509,71 +23509,71 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 && $fence['extraPeerRowids'] === [];
 
             return array_replace($base, [
-                'status' => $ready ? 'stat4-expression-partial-current-source-next247-ready' : 'requires-current-source-stat4-boundary-peer-reprepare',
+                'status' => $ready ? 'stat4-expression-partial-current-source-stat4BoundaryPeer-ready' : 'requires-current-source-stat4-boundary-peer-reprepare',
                 'stat4BoundaryPeerFence' => $fence,
                 'selectedPlan' => array_replace(is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [], [
-                    'next247Ready' => $ready,
-                    'next247BoundaryKeys' => $fence['boundaryExpressionKeys'],
-                    'next247CurrentPeerRowids' => $fence['currentBoundaryPeerRowids'],
-                    'next247YieldedPeerRowids' => $fence['yieldedBoundaryPeerRowids'],
-                    'next247PeerMismatchRowids' => $fence['peerMismatchRowids'],
-                    'next247ProofSignature' => $fence['proofSignature'],
+                    'stat4BoundaryPeerReady' => $ready,
+                    'stat4BoundaryPeerBoundaryKeys' => $fence['boundaryExpressionKeys'],
+                    'stat4BoundaryPeerCurrentPeerRowids' => $fence['currentBoundaryPeerRowids'],
+                    'stat4BoundaryPeerYieldedPeerRowids' => $fence['yieldedBoundaryPeerRowids'],
+                    'stat4BoundaryPeerPeerMismatchRowids' => $fence['peerMismatchRowids'],
+                    'stat4BoundaryPeerProofSignature' => $fence['proofSignature'],
                 ]),
                 'stat4Fence' => array_replace(is_array($base['stat4Fence'] ?? null) ? $base['stat4Fence'] : [], [
-                    'next247BoundaryPeerReady' => $ready,
-                    'next247BoundaryPeerSignature' => $fence['boundaryPeerSignature'],
-                    'next247ProofSignature' => $fence['proofSignature'],
+                    'stat4BoundaryPeerBoundaryPeerReady' => $ready,
+                    'stat4BoundaryPeerBoundaryPeerSignature' => $fence['boundaryPeerSignature'],
+                    'stat4BoundaryPeerProofSignature' => $fence['proofSignature'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext247(
+                'cursorProgram' => self::cursorProgramStat4BoundaryPeer(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $fence,
                 ),
                 'detail' => (($base['reprepareRequired'] ?? false) ? 'REPREPARE' : 'REUSE')
-                    . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT247 BOUNDARY PEER FENCE '
+                    . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE STAT4 BOUNDARY PEER BOUNDARY PEER FENCE '
                     . (string) ($base['selectedPlan']['name'] ?? 'NO INDEX')
                     . ($ready ? ' CURRENT BOUNDARY PEERS VERIFIED' : ' REQUIRES CURRENT BOUNDARY PEER REPREPARE'),
                 'dependencies' => array_values(array_unique(array_merge(
                     is_array($base['dependencies'] ?? null) ? $base['dependencies'] : [],
                     [
                         'SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan',
-                        'sqlite-sqlplanner-stat4-expression-partial-current-source-next247',
+                        'sqlite-sqlplanner-stat4-expression-partial-current-source-stat4BoundaryPeer',
                     ],
                 ))),
-                'dependency_closure' => 'no new support component needed; next247 reuses current-source STAT4 expression partial LIMIT/OFFSET fences and adds duplicate expression-key boundary peer validation',
+                'dependency_closure' => 'no new support component needed; stat4BoundaryPeer reuses current-source STAT4 expression partial LIMIT/OFFSET fences and adds duplicate expression-key boundary peer validation',
                 'non_overlap' => 'adds boundary peer validation for duplicate expression keys around current-source LIMIT/OFFSET windows; avoids accepted next244 window validation, next235 vector counters, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, and UTF clusters',
             ]);
         }
 
         /** @param array<string,mixed> $source @return array<string,mixed> */
-        private static function indexByNameNext247(array $source, string $name): array
+        private static function indexByNameStat4BoundaryPeer(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
-                throw new \InvalidArgumentException('SQLite next247 needs source indexes');
+                throw new \InvalidArgumentException('SQLite stat4BoundaryPeer needs source indexes');
             }
             foreach ($indexes as $index) {
                 if (!is_array($index)) {
-                    throw new \InvalidArgumentException('SQLite next247 source indexes must be arrays');
+                    throw new \InvalidArgumentException('SQLite stat4BoundaryPeer source indexes must be arrays');
                 }
                 if ((string) ($index['name'] ?? '') === $name) {
                     return $index;
                 }
             }
 
-            throw new \InvalidArgumentException('SQLite next247 selected current index missing');
+            throw new \InvalidArgumentException('SQLite stat4BoundaryPeer selected current index missing');
         }
 
         /** @param array<string,mixed> $source @return list<array<string,mixed>> */
-        private static function rowsNext247(array $source): array
+        private static function rowsStat4BoundaryPeer(array $source): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite next247 needs current source rows');
+                throw new \InvalidArgumentException('SQLite stat4BoundaryPeer needs current source rows');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite next247 current rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite stat4BoundaryPeer current rows must be arrays');
                 }
             }
 
@@ -23581,13 +23581,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param mixed $value @return list<int> */
-        private static function rowidsNext247(mixed $value): array
+        private static function rowidsStat4BoundaryPeer(mixed $value): array
         {
             if (!is_array($value) || !array_is_list($value)) {
-                throw new \InvalidArgumentException('SQLite next247 needs yielded rowids');
+                throw new \InvalidArgumentException('SQLite stat4BoundaryPeer needs yielded rowids');
             }
 
-            return array_values(array_map(static fn (mixed $rowid): int => self::intValueNext247($rowid, 'yielded rowid'), $value));
+            return array_values(array_map(static fn (mixed $rowid): int => self::intValueStat4BoundaryPeer($rowid, 'yielded rowid'), $value));
         }
 
         /**
@@ -23597,17 +23597,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<int> $yieldedRowids
          * @return array<string,mixed>
          */
-        private static function boundaryPeerFenceNext247(array $rows, array $whereTerms, array $index, array $yieldedRowids, int $limit, int $offset): array
+        private static function boundaryPeerFenceStat4BoundaryPeer(array $rows, array $whereTerms, array $index, array $yieldedRowids, int $limit, int $offset): array
         {
             if ($limit < 0 || $offset < 0) {
-                throw new \InvalidArgumentException('SQLite next247 needs non-negative LIMIT/OFFSET');
+                throw new \InvalidArgumentException('SQLite stat4BoundaryPeer needs non-negative LIMIT/OFFSET');
             }
             $ordered = [];
             foreach ($rows as $row) {
-                if (self::rowSatisfiesTermsNext247($row, $whereTerms)) {
+                if (self::rowSatisfiesTermsStat4BoundaryPeer($row, $whereTerms)) {
                     $ordered[] = [
-                        'rowid' => self::intValueNext247($row['rowid'] ?? null, 'current rowid'),
-                        'expressionKey' => self::expressionKeyNext247($row),
+                        'rowid' => self::intValueStat4BoundaryPeer($row['rowid'] ?? null, 'current rowid'),
+                        'expressionKey' => self::expressionKeyStat4BoundaryPeer($row),
                         'optionName' => (string) ($row['option_name'] ?? ''),
                         'blogId' => (int) ($row['blog_id'] ?? 0),
                     ];
@@ -23628,9 +23628,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             });
 
             $window = array_slice($ordered, $offset, $limit);
-            $boundaryKeys = self::boundaryKeysNext247($window);
-            $currentPeers = self::peerRowsForKeysNext247($ordered, $boundaryKeys);
-            $yieldedPeers = self::peerRowsForKeysNext247(
+            $boundaryKeys = self::boundaryKeysStat4BoundaryPeer($window);
+            $currentPeers = self::peerRowsForKeysStat4BoundaryPeer($ordered, $boundaryKeys);
+            $yieldedPeers = self::peerRowsForKeysStat4BoundaryPeer(
                 array_values(array_filter(
                     $ordered,
                     static fn (array $row): bool => in_array($row['rowid'], $yieldedRowids, true),
@@ -23671,13 +23671,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
             return $proof + [
                 'boundaryPeersMatchCurrentSource' => $currentPeerRowids === $yieldedPeerRowids,
-                'boundaryPeerSignature' => self::signatureNext247([$limit, $offset, $descending, $boundaryKeys, $currentPeerRowids]),
-                'proofSignature' => self::signatureNext247($proof),
+                'boundaryPeerSignature' => self::signatureStat4BoundaryPeer([$limit, $offset, $descending, $boundaryKeys, $currentPeerRowids]),
+                'proofSignature' => self::signatureStat4BoundaryPeer($proof),
             ];
         }
 
         /** @param list<array<string,mixed>> $window @return list<string> */
-        private static function boundaryKeysNext247(array $window): array
+        private static function boundaryKeysStat4BoundaryPeer(array $window): array
         {
             if ($window === []) {
                 return [];
@@ -23693,7 +23693,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $keys
          * @return list<array<string,mixed>>
          */
-        private static function peerRowsForKeysNext247(array $rows, array $keys): array
+        private static function peerRowsForKeysStat4BoundaryPeer(array $rows, array $keys): array
         {
             if ($keys === []) {
                 return [];
@@ -23709,14 +23709,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param list<array<string,mixed>> $terms
          */
-        private static function rowSatisfiesTermsNext247(array $row, array $terms): bool
+        private static function rowSatisfiesTermsStat4BoundaryPeer(array $row, array $terms): bool
         {
             foreach ($terms as $term) {
                 if (!is_array($term)) {
-                    throw new \InvalidArgumentException('SQLite next247 where terms must be arrays');
+                    throw new \InvalidArgumentException('SQLite stat4BoundaryPeer where terms must be arrays');
                 }
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
-                if (!self::termSatisfiedNext247($operator, self::leftValueNext247($term['left'] ?? null, $row), $term)) {
+                if (!self::termSatisfiedStat4BoundaryPeer($operator, self::leftValueStat4BoundaryPeer($term['left'] ?? null, $row), $term)) {
                     return false;
                 }
             }
@@ -23725,22 +23725,22 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $term */
-        private static function termSatisfiedNext247(string $operator, mixed $left, array $term): bool
+        private static function termSatisfiedStat4BoundaryPeer(string $operator, mixed $left, array $term): bool
         {
             return match ($operator) {
-                '=' => self::compareNext247($left, $term['right'] ?? null) === 0,
+                '=' => self::compareStat4BoundaryPeer($left, $term['right'] ?? null) === 0,
                 'IS NOT NULL' => $left !== null,
-                'LIKE' => self::likeNext247((string) $left, (string) ($term['right'] ?? '')),
-                'BETWEEN' => self::compareNext247($left, $term['lower'] ?? null) >= 0 && self::compareNext247($left, $term['upper'] ?? null) <= 0,
-                default => throw new \InvalidArgumentException('SQLite next247 unsupported operator ' . $operator),
+                'LIKE' => self::likeStat4BoundaryPeer((string) $left, (string) ($term['right'] ?? '')),
+                'BETWEEN' => self::compareStat4BoundaryPeer($left, $term['lower'] ?? null) >= 0 && self::compareStat4BoundaryPeer($left, $term['upper'] ?? null) <= 0,
+                default => throw new \InvalidArgumentException('SQLite stat4BoundaryPeer unsupported operator ' . $operator),
             };
         }
 
         /** @param mixed $left @param array<string,mixed> $row */
-        private static function leftValueNext247(mixed $left, array $row): mixed
+        private static function leftValueStat4BoundaryPeer(mixed $left, array $row): mixed
         {
             if (!is_array($left)) {
-                throw new \InvalidArgumentException('SQLite next247 term left operand must be an array');
+                throw new \InvalidArgumentException('SQLite stat4BoundaryPeer term left operand must be an array');
             }
             if (isset($left['column'])) {
                 return $row[(string) $left['column']] ?? null;
@@ -23752,16 +23752,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
             }
 
-            throw new \InvalidArgumentException('SQLite next247 unsupported left operand');
+            throw new \InvalidArgumentException('SQLite stat4BoundaryPeer unsupported left operand');
         }
 
         /** @param array<string,mixed> $row */
-        private static function expressionKeyNext247(array $row): string
+        private static function expressionKeyStat4BoundaryPeer(array $row): string
         {
             return strtolower((string) ($row['option_name'] ?? ''));
         }
 
-        private static function compareNext247(mixed $left, mixed $right): int
+        private static function compareStat4BoundaryPeer(mixed $left, mixed $right): int
         {
             if (is_int($left) || is_float($left) || is_int($right) || is_float($right)) {
                 return (float) $left <=> (float) $right;
@@ -23770,7 +23770,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return strcmp(strtolower((string) $left), strtolower((string) $right));
         }
 
-        private static function likeNext247(string $value, string $pattern): bool
+        private static function likeStat4BoundaryPeer(string $value, string $pattern): bool
         {
             $quoted = preg_quote($pattern, '/');
             $regex = '/^' . str_replace(['%', '_'], ['.*', '.'], $quoted) . '$/iu';
@@ -23778,7 +23778,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return preg_match($regex, $value) === 1;
         }
 
-        private static function intValueNext247(mixed $value, string $label): int
+        private static function intValueStat4BoundaryPeer(mixed $value, string $label): int
         {
             if (is_int($value)) {
                 return $value;
@@ -23787,7 +23787,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 return (int) $value;
             }
 
-            throw new \InvalidArgumentException('SQLite next247 ' . $label . ' must be an integer');
+            throw new \InvalidArgumentException('SQLite stat4BoundaryPeer ' . $label . ' must be an integer');
         }
 
         /**
@@ -23795,14 +23795,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $fence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext247(array $program, bool $ready, array $fence): array
+        private static function cursorProgramStat4BoundaryPeer(array $program, bool $ready, array $fence): array
         {
             if (!$ready) {
                 return $program;
             }
             $program[] = [
                 'opcode' => 'VerifyCurrentStat4BoundaryPeers',
-                'mode' => 'next247-current-source-stat4-expression-partial-boundary-peers',
+                'mode' => 'stat4BoundaryPeer-current-source-stat4-expression-partial-boundary-peers',
                 'boundaryExpressionKeys' => $fence['boundaryExpressionKeys'],
                 'currentBoundaryPeerRowids' => $fence['currentBoundaryPeerRowids'],
                 'signature' => $fence['proofSignature'],
@@ -23811,7 +23811,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function signatureNext247(mixed $value): string
+        private static function signatureStat4BoundaryPeer(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -23833,7 +23833,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext245(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4SampleAnchorFence(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -23853,7 +23853,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'stat4DuplicateRunFence' => $fence,
                 'selectedPlan' => array_replace(is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [], [
                     'next248Ready' => $ready,
-                    'next245Ready' => ($anchorFence['ready'] ?? false) === true,
+                    'stat4SampleAnchorReady' => ($anchorFence['ready'] ?? false) === true,
                     'next248DuplicateKeys' => $fence['duplicateKeys'],
                     'next248RejectedKeys' => $fence['rejectedKeys'],
                     'next248ProofSignature' => $fence['proofSignature'],
@@ -23880,7 +23880,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; next248 reuses current-source STAT4 expression partial sample anchors and adds duplicate expression-key run validation',
-                'non_overlap' => 'adds duplicate expression-key run validation after accepted next245 sample-rowid anchor validation; avoids next245 anchor checks, histogram cardinality, expression ORDER BY, range-cost, JSON, WAL, VFS, B-tree, trigger, UTF, and suite-runner clusters',
+                'non_overlap' => 'adds duplicate expression-key run validation after accepted stat4SampleAnchor sample-rowid anchor validation; avoids stat4SampleAnchor anchor checks, histogram cardinality, expression ORDER BY, range-cost, JSON, WAL, VFS, B-tree, trigger, UTF, and suite-runner clusters',
             ]);
         }
 
@@ -24149,7 +24149,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext245(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4SampleAnchorFence(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -24160,7 +24160,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $selectedName = (string) ($base['selectedPlan']['name'] ?? '');
             $index = self::indexByNameNext249($currentSource, $selectedName);
             $fence = self::duplicatePeerFenceNext249(self::rowsNext249($currentSource), $whereTerms, $index);
-            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next245-ready'
+            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4SampleAnchor-ready'
                 && $fence['ready'] === true;
 
             return array_replace($base, [
@@ -24194,7 +24194,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; next249 reuses current-source STAT4 expression partial rowsets and adds duplicate peer-count validation',
-                'non_overlap' => 'adds STAT4 duplicate peer-count validation after accepted next245 sample-rowid anchor validation; avoids anchor validation duplicates, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, UTF, and suite-runner clusters',
+                'non_overlap' => 'adds STAT4 duplicate peer-count validation after accepted stat4SampleAnchor sample-rowid anchor validation; avoids anchor validation duplicates, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, UTF, and suite-runner clusters',
             ]);
         }
 
@@ -24468,7 +24468,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext247(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4BoundaryPeerFence(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -24482,7 +24482,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $index,
                 self::rowidsNext250($base['matchedRowids'] ?? null),
             );
-            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next247-ready'
+            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4BoundaryPeer-ready'
                 && $fence['allYieldedRowsSatisfyCurrentPartialPredicate'] === true
                 && $fence['predicateMismatchRowids'] === []
                 && $fence['missingCurrentRowids'] === [];
@@ -24518,7 +24518,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; next250 reuses current-source STAT4 expression partial boundary-peer validation and adds current partial-index predicate proof for yielded rowids',
-                'non_overlap' => 'adds current partial-index predicate rowid fencing after accepted next247 boundary peers; avoids next246 duplicate cardinality, next247 boundary peers, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, PRAGMA, and UTF clusters',
+                'non_overlap' => 'adds current partial-index predicate rowid fencing after accepted stat4BoundaryPeer boundary peers; avoids next246 duplicate cardinality, stat4BoundaryPeer boundary peers, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, PRAGMA, and UTF clusters',
             ]);
         }
 
@@ -24771,7 +24771,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext247(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4BoundaryPeerFence(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -24786,7 +24786,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 self::rowidsNext251($base['matchedRowids'] ?? null),
                 $neededColumns,
             );
-            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next247-ready'
+            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4BoundaryPeer-ready'
                 && $fence['allCoveringPayloadsMatchCurrentSource'] === true
                 && $fence['missingPayloadRowids'] === []
                 && $fence['stalePayloadRowids'] === []
@@ -24825,7 +24825,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; next251 reuses current-source STAT4 expression partial boundary-peer validation and adds covering-payload freshness checks for yielded rows',
-                'non_overlap' => 'adds current-source covering payload freshness validation for yielded STAT4 partial expression-index rows; avoids accepted next247 boundary peers, next246/247 STAT4 current-source planning, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, and UTF clusters',
+                'non_overlap' => 'adds current-source covering payload freshness validation for yielded STAT4 partial expression-index rows; avoids accepted stat4BoundaryPeer boundary peers, duplicate-cardinality and boundary-peer STAT4 current-source planning, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, and UTF clusters',
             ]);
         }
 
@@ -25449,7 +25449,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; next253 reuses current-source STAT4 expression partial row streams and verifies STAT4 expression payloads against the current row image before cursor reuse',
-                'non_overlap' => 'adds current-source STAT4 expression payload row-image fencing after accepted next250 partial-predicate proof; avoids next250 predicate implication, next247 boundary peers, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters',
+                'non_overlap' => 'adds current-source STAT4 expression payload row-image fencing after accepted next250 partial-predicate proof; avoids next250 predicate implication, stat4BoundaryPeer boundary peers, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters',
             ]);
         }
 

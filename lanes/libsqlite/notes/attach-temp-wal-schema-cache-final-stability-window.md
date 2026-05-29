@@ -11,9 +11,9 @@ Validation:
 ```sh
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalStabilityWindowTest.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-stability-window.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext797812Test.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalStabilityWindowTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalLocalePublishTest.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalStabilityWindowTest.php
 php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-stability-window.php --self-test
-git diff --check
+git diff --check -- lanes/libsqlite
 ```
 
 Non-overlap: this stays inside attach/TEMP/WAL schema-cache current-source coverage and avoids PRAGMA, JSON, B-tree, VFS, planner, row-value, and unrelated WAL hot-journal surfaces.

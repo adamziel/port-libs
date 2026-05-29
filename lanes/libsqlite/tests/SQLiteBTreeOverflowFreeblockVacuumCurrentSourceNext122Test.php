@@ -79,7 +79,7 @@ $fixture122 = static function (int $maxTruncatedPages = 3, bool $secureDelete = 
         $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(65 + $pageNumber), 508);
     }
 
-    return SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next122FromDeleteResults(
+    return SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::coalescedOverflowFreeblockFromDeleteResults(
         SQLiteDatabase::fromBytes(implode('', $pages)),
         3,
         [

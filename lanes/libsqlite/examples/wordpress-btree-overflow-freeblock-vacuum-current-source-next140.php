@@ -87,7 +87,7 @@ foreach ([
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
 $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-$plan = SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next140TableLeafFromCurrentSourceDeleteResult(
+$plan = SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult(
     $database,
     3,
     [[

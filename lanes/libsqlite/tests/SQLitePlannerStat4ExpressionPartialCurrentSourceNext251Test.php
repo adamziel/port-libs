@@ -153,7 +153,7 @@ $missingColumn251 = static function () use ($current251, $plan251): array {
 
 $tests = [
     'planner stat4 expression partial current source next251 status ready' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-current-source-next251-ready', $plan251()['status']),
-    'planner stat4 expression partial current source next251 inherits next247' => static fn (TestRunner $t) => $t->same(true, $plan251()['selectedPlan']['next247Ready']),
+    'planner stat4 expression partial current source next251 inherits stat4BoundaryPeer' => static fn (TestRunner $t) => $t->same(true, $plan251()['selectedPlan']['stat4BoundaryPeerReady']),
     'planner stat4 expression partial current source next251 ready flag' => static fn (TestRunner $t) => $t->same(true, $plan251()['selectedPlan']['next251Ready']),
     'planner stat4 expression partial current source next251 selected index' => static fn (TestRunner $t) => $t->same('idx_wp_options_stat4_covering_payload_partial_next251', $plan251()['selectedPlan']['name']),
     'planner stat4 expression partial current source next251 root page' => static fn (TestRunner $t) => $t->same(25188, $plan251()['selectedPlan']['rootPage']),

@@ -66,7 +66,7 @@ $database = static function (bool $current) use ($makeFirstPage, $putPointerMapE
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$plan = SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next141FromPreparedAndCurrentOverflowChains(
+$plan = SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::currentSourceFreelistFromPreparedOverflowChains(
     $database(false),
     $database(true),
     [[

@@ -31,7 +31,7 @@ final class SQLiteBTreeFreelistVacuumOverflowCurrentSourceNextPlan
         bool $secureDelete = false,
     ): self {
         $currentSourceRows = self::buildCurrentSourceRows($database, $currentOverflowChains);
-        $basePlan = SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan::next139FromDeleteResults(
+        $basePlan = SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan::overflowFreelistPointerMapFromDeleteResults(
             $database,
             $deleteResults,
             $maxTruncatedPages,

@@ -22,19 +22,19 @@ final class SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan
         throw new \BadMethodCallException(sprintf('Unknown %s factory method %s', self::class, $name));
     }
 
-    public static function next139FromDeleteResults(mixed ...$args): self
+    public static function overflowFreelistPointerMapFromDeleteResults(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextBaseVariantPlan::fromDeleteResults(...$args));
     }
 
-    public static function next148FromDeleteResults(mixed ...$args): self
+    public static function currentSourcePointerMapFromDeleteResults(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextExtendedVariantPlan::fromDeleteResults(...$args));
     }
 
-    public static function next148FromBasePlan(mixed ...$args): self
+    public static function currentSourcePointerMapFromBasePlan(mixed ...$args): self
     {
         $args = self::unwrapArgs($args);
         return new self(SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextExtendedVariantPlan::fromBasePlan(...$args));

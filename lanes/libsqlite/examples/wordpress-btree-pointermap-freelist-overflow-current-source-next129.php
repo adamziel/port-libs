@@ -55,7 +55,7 @@ foreach ([
     $putPointerMapEntry($pages, $pageNumber, $type, $parent);
 }
 
-$plan = SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next129FromOverflowChains(
+$plan = SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::pointerMapFreelistFromOverflowChains(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [[
         'source' => 'wp-option-delete-stale-cache-overflow-chain',

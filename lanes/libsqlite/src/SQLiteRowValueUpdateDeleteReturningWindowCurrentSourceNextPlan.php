@@ -7878,7 +7878,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext269(
+    public static function executeCurrentSourceClosure(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -7917,7 +7917,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext270(
+    public static function executeDeleteReturningGuard(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -7926,7 +7926,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next270',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext269($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeCurrentSourceClosure($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $receipts = array_column($base['receipt_ledger_next265'], 'ledger_receipt_next265');
         sort($receipts);
         $guard = [
@@ -7958,7 +7958,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext271(
+    public static function executeUpdateReturningFence(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -7967,7 +7967,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next271',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext270($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeDeleteReturningGuard($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $updateRows = array_values(array_filter(
             $base['receipt_ledger_next265'],
             static fn (array $row): bool => str_starts_with((string) $row['ticket_next265'], 'attempt:')
@@ -8001,7 +8001,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext272(
+    public static function executeAfterCurrentSummary(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8010,7 +8010,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next272',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext271($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeUpdateReturningFence($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $summary = [
             'savepoint' => $savepoint,
             'closure_receipt_next269' => $base['current_source_closure_next269']['closure_receipt_next269'],
@@ -8042,7 +8042,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext273(
+    public static function executeCurrentSourceAdmission(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8051,7 +8051,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next273',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext272($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentSummary($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $admission = [
             'savepoint' => $savepoint,
             'after_current_receipt_next272' => $base['after_current_summary_next272']['after_current_receipt_next272'],
@@ -8081,7 +8081,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext274(
+    public static function executeReturningBalance(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8090,7 +8090,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next274',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext273($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeCurrentSourceAdmission($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $statements = array_merge($base['yield_statements'], $base['attempt_statements'], $base['retry_statements']);
         $updateCount = array_sum(array_map(
             static fn (array $statement): int => ($statement['action'] ?? null) === 'update' ? count($statement['returning_rows']) : 0,
@@ -8129,7 +8129,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext275(
+    public static function executeNextSourcePackage(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8138,7 +8138,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next275',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext274($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeReturningBalance($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $package = [
             'savepoint' => $savepoint,
             'returning_balance_receipt_next274' => $base['returning_balance_next274']['returning_balance_receipt_next274'],
@@ -8169,7 +8169,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext276(
+    public static function executeAfterCurrentHandoff(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8178,7 +8178,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next276',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext275($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeNextSourcePackage($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $handoff = [
             'savepoint' => $savepoint,
             'after_current_receipt_next272' => $base['after_current_summary_next272']['after_current_receipt_next272'],
@@ -8212,7 +8212,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext277(
+    public static function executeAfterCurrentAttestation(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8221,7 +8221,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next277',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext276($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentHandoff($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $attestation = [
             'savepoint' => $savepoint,
             'after_current_handoff_receipt_next276' => $base['after_current_handoff_next276']['after_current_handoff_receipt_next276'],
@@ -8252,7 +8252,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext278(
+    public static function executeAfterCurrentManifest(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8261,7 +8261,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next278',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext277($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentAttestation($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $manifest = [
             'savepoint' => $savepoint,
             'current_source_attestation_next277' => $base['current_source_attestation_next277']['current_source_attestation_next277'],
@@ -8294,7 +8294,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext279(
+    public static function executeAfterCurrentBridge(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8303,7 +8303,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next279',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext278($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentManifest($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $bridge = [
             'savepoint' => $savepoint,
             'returning_manifest_next278' => $base['returning_manifest_next278']['returning_manifest_next278'],
@@ -8334,7 +8334,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext280(
+    public static function executeAfterCurrentSeal(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8343,7 +8343,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next280',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext279($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentBridge($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $seal = [
             'savepoint' => $savepoint,
             'current_source_attestation_next277' => $base['current_source_attestation_next277']['current_source_attestation_next277'],
@@ -8377,7 +8377,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext281(
+    public static function executeCurrentSourceReceipt(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8386,7 +8386,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next281',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext280($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $receipt = [
             'savepoint' => $savepoint,
             'after_current_seal_next280' => $base['after_current_seal_next280']['after_current_seal_next280'],
@@ -8417,7 +8417,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext282(
+    public static function executeReturningWindowLedger(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8426,7 +8426,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next282',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext281($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeCurrentSourceReceipt($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $ledger = [
             'savepoint' => $savepoint,
             'current_source_receipt_next281' => $base['current_source_receipt_next281']['current_source_receipt_next281'],
@@ -8459,7 +8459,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext283(
+    public static function executeAfterCurrentWindowReceipt(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8468,7 +8468,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next283',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext282($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeReturningWindowLedger($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $window = [
             'savepoint' => $savepoint,
             'returning_window_ledger_next282' => $base['returning_window_ledger_next282']['returning_window_ledger_next282'],
@@ -8499,7 +8499,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext284(
+    public static function executeCurrentSourceReadySeal(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8508,7 +8508,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next284',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext283($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentWindowReceipt($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $seal = [
             'savepoint' => $savepoint,
             'current_source_receipt_next281' => $base['current_source_receipt_next281']['current_source_receipt_next281'],
@@ -8542,7 +8542,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext285(
+    public static function executeAfterCurrentReceipt(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8551,7 +8551,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next285',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext284($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeCurrentSourceReadySeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $receipt = [
             'savepoint' => $savepoint,
             'current_source_next284' => $base['current_source_next284']['current_source_next284'],
@@ -8582,7 +8582,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext286(
+    public static function executeAfterCurrentLedger(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8591,7 +8591,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next286',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext285($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentReceipt($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $ledger = [
             'savepoint' => $savepoint,
             'after_current_receipt_next285' => $base['after_current_receipt_next285']['after_current_receipt_next285'],
@@ -8624,7 +8624,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext287(
+    public static function executeAfterCurrentWindowCoverage(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8633,7 +8633,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next287',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext286($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentLedger($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $window = [
             'savepoint' => $savepoint,
             'after_current_ledger_next286' => $base['after_current_ledger_next286']['after_current_ledger_next286'],
@@ -8665,7 +8665,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext288(
+    public static function executeAfterCurrentFinalSeal(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8674,7 +8674,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next288',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext287($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentWindowCoverage($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $seal = [
             'savepoint' => $savepoint,
             'after_current_receipt_next285' => $base['after_current_receipt_next285']['after_current_receipt_next285'],
@@ -8717,7 +8717,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next294',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNext288($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executeAfterCurrentFinalSeal($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $handoff = [
             'savepoint' => $savepoint,
             'after_current_next288' => $base['after_current_next288']['after_current_next288'],

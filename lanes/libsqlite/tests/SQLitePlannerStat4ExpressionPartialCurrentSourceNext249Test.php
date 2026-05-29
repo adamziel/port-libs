@@ -117,7 +117,7 @@ $newPeer249 = static function () use ($plan249, $rows249): array {
 
 $tests = [
     'planner stat4 expression partial current source next249 status ready' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-current-source-next249-ready', $plan249()['status']),
-    'planner stat4 expression partial current source next249 inherits next245' => static fn (TestRunner $t) => $t->same(true, $plan249()['selectedPlan']['next245Ready']),
+    'planner stat4 expression partial current source next249 inherits stat4SampleAnchor' => static fn (TestRunner $t) => $t->same(true, $plan249()['selectedPlan']['stat4SampleAnchorReady']),
     'planner stat4 expression partial current source next249 ready flag' => static fn (TestRunner $t) => $t->same(true, $plan249()['selectedPlan']['next249Ready']),
     'planner stat4 expression partial current source next249 selected current' => static fn (TestRunner $t) => $t->same('current', $plan249()['selectedSource']),
     'planner stat4 expression partial current source next249 selected index' => static fn (TestRunner $t) => $t->same('idx_wp_options_lower_peers_next249', $plan249()['selectedPlan']['name']),

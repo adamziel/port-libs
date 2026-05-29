@@ -66,7 +66,7 @@ foreach ([309, 310, 312, 313] as $index => $pageNumber) {
         . str_repeat(chr(65 + $index), $pageSize - 4);
 }
 
-$plan = SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan::next148FromDeleteResults(
+$plan = SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan::currentSourcePointerMapFromDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         [
