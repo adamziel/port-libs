@@ -30,7 +30,7 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
             array $neededColumns,
             array $neededExpressions = []
         ): array {
-            $base = SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan::materializeNext122(
+            $base = SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan::materialize(
                 $preparedSource,
                 $currentSource,
                 $predicate,
@@ -86,7 +86,7 @@ final class SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan
                     'sqlite-sqlplanner-stat4-partial-expression-current-source-next133',
                 ],
                 'dependency_closure' => 'no new support component needed; next133 composes native expression-index STAT4 planning with current-source row generation fences',
-                'non_overlap' => 'avoids accepted range-cost, expression ORDER BY, subquery-covering, and next122 covering-row materialization by blocking stale prepared payload rows deleted from the current source while admitting inserted and updated current rows',
+                'non_overlap' => 'avoids accepted range-cost, expression ORDER BY, subquery-covering, and canonical covering-row materialization by blocking stale prepared payload rows deleted from the current source while admitting inserted and updated current rows',
             ]);
         }
 

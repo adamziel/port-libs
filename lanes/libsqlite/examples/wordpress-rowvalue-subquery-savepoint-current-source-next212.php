@@ -2,11 +2,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
-require_once __DIR__ . '/../src/SQLiteDatabase.php';
-require_once __DIR__ . '/../src/SQLiteSelectResult.php';
-require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
@@ -33,7 +29,7 @@ $retry = [
     "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'network_drop') RETURNING option_id, option_name, status ORDER BY option_id",
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext212(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
     $tables,
     $attempt,
     $retry,

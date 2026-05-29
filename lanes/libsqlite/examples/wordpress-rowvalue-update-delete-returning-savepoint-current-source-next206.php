@@ -19,7 +19,7 @@ $rows = [
     ['option_id' => 10, 'blog_id' => 4, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 30, 'option_value' => 'https://four.test'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry(
     ['wp_options' => $rows],
     [
         "UPDATE wp_options SET (status, option_value, bytes) = ('outer206', option_value || ':outer206', bytes + 1) WHERE (blog_id, option_name) IN ((1, 'siteurl'), (1, 'home')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id",

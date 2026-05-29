@@ -31,14 +31,14 @@ $innerUpdateResult206 = static fn (): array => SQLiteUpdateDeleteReturningSql::e
 $innerDeleteResult206 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($innerDelete206, $innerUpdateResult206()['tables'], 'option_id', $unique206);
 $retryUpdateResult206 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate206, $tables206, 'option_id', $unique206);
 $retryDeleteResult206 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete206, $retryUpdateResult206()['tables'], 'option_id', $unique206);
-$plan206 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206(
+$plan206 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry(
     $tables206,
     [$outerUpdate206],
     [$innerUpdate206, $innerDelete206],
     [$retryUpdate206, $retryDelete206],
     $unique206,
 );
-$customPlan206 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206(
+$customPlan206 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry(
     $tables206,
     [$outerUpdate206],
     [$innerUpdate206],
@@ -111,14 +111,14 @@ $cases206 = [
     'custom outer savepoint' => [static fn (): mixed => $customPlan206()['outer_savepoint'], 'wp_outer_custom206'],
     'custom inner savepoint' => [static fn (): mixed => $customPlan206()['inner_savepoint'], 'wp_inner_custom206'],
     'custom retry count' => [static fn (): mixed => $customPlan206()['yielded_after_retry_count'], 2],
-    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206($tables206, [], [$innerUpdate206], [$retryUpdate206], $unique206), InvalidArgumentException::class],
-    'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206($tables206, [$outerUpdate206], [], [$retryUpdate206], $unique206), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206($tables206, [$outerUpdate206], [$innerUpdate206], [], $unique206), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206($tables206, [$outerUpdate206], [$innerUpdate206], [$retryUpdate206], []), InvalidArgumentException::class],
-    'malformed outer savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206($tables206, [$outerUpdate206], [$innerUpdate206], [$retryUpdate206], $unique206, 'bad-name'), InvalidArgumentException::class],
-    'malformed inner savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206($tables206, [$outerUpdate206], [$innerUpdate206], [$retryUpdate206], $unique206, 'outer_ok', 'bad-name'), InvalidArgumentException::class],
-    'malformed same savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206($tables206, [$outerUpdate206], [$innerUpdate206], [$retryUpdate206], $unique206, 'same206', 'same206'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext206(['wp_options' => ['bad']], [$outerUpdate206], [$innerUpdate206], [$retryUpdate206], $unique206), InvalidArgumentException::class],
+    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry($tables206, [], [$innerUpdate206], [$retryUpdate206], $unique206), InvalidArgumentException::class],
+    'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry($tables206, [$outerUpdate206], [], [$retryUpdate206], $unique206), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry($tables206, [$outerUpdate206], [$innerUpdate206], [], $unique206), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry($tables206, [$outerUpdate206], [$innerUpdate206], [$retryUpdate206], []), InvalidArgumentException::class],
+    'malformed outer savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry($tables206, [$outerUpdate206], [$innerUpdate206], [$retryUpdate206], $unique206, 'bad-name'), InvalidArgumentException::class],
+    'malformed inner savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry($tables206, [$outerUpdate206], [$innerUpdate206], [$retryUpdate206], $unique206, 'outer_ok', 'bad-name'), InvalidArgumentException::class],
+    'malformed same savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry($tables206, [$outerUpdate206], [$innerUpdate206], [$retryUpdate206], $unique206, 'same206', 'same206'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleasedInnerRollbackRetry(['wp_options' => ['bad']], [$outerUpdate206], [$innerUpdate206], [$retryUpdate206], $unique206), InvalidArgumentException::class],
 ];
 
 $tests = [];

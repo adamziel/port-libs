@@ -21,7 +21,7 @@ $innerDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_tr
 $innerUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('inner197', option_value || ':inner197', bytes + 4) WHERE (blog_id, option_name) IN ((3, 'orphaned_cache')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id";
 $retry = "UPDATE wp_options SET (status, option_value, bytes) = ('retry197', option_value || ':retry197', bytes + 5) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'orphaned_cache')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext197(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeRollbackToInnerSavepointRetry(
     ['wp_options' => $rows],
     [$outer],
     [$innerDelete, $innerUpdate],

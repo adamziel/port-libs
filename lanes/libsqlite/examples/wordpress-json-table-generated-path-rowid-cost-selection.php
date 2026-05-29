@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentOption = [
-    'option_id' => 4242,
+    'option_id' => 857872,
     'option_name' => 'wp_plugin_generated_rule_lookup_selection',
     'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"version":1}}',
     'generated_path' => '$.rules',
@@ -41,7 +41,7 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionPlan(
 
 $payload = [
     'scenario' => 'wordpress-json-table-generated-path-rowid-cost-selection',
-    'wordpressUse' => 'Generated wp_options JSON path scans keep rowid point-cost admission stable across copied current-source rows while changed source rows force a next reader reprepare.',
+    'wordpressUse' => 'Generated wp_options JSON path scans keep rowid point-cost admission stable while changed copied source rows force the next reader through canonical reprepare behavior.',
     'dependency' => 'sqlite-json-table-generated-path-rowid-cost-current-source-selection',
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
@@ -49,12 +49,12 @@ $payload = [
     'currentEstimatedCost' => $plan['currentGeneratedPathRowidCurrentSourceCostSelection']['estimatedCost'],
     'nextCostClass' => $plan['nextGeneratedPathRowidCurrentSourceCostSelection']['costClass'],
     'replanReasons' => $plan['replanReasons'],
-    'dependencyClosure' => 'no new support component needed; reuses current-source generated-path rowid yield guard and canonical cost selection plan',
+    'dependencyClosure' => 'no new support component needed; reuses current-source generated-path rowid yield guard and canonical cost selection planning',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
     if (!in_array($payload['dependency'], $plan['dependencies'], true)) {
-        fwrite(STDERR, "missing stable dependency\n");
+        fwrite(STDERR, "missing canonical selection dependency\n");
         exit(1);
     }
     if ($payload['currentEstimatedCost'] !== 1) {
@@ -62,7 +62,7 @@ if (($argv[1] ?? null) === '--self-test') {
         exit(1);
     }
     if ($payload['nextReaderPolicy'] !== 'reprepare-cost-select-next-json-table-generated-path-rowid') {
-        fwrite(STDERR, "unexpected next reader policy\n");
+        fwrite(STDERR, "unexpected canonical reader policy\n");
         exit(1);
     }
 

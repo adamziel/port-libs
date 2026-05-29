@@ -2,13 +2,12 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/SQLiteDmlTriggerRecursionPlan.php';
-require __DIR__ . '/../src/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan.php';
-require __DIR__ . '/../src/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteDmlTriggerRecursionPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan;
 
-$plan = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::executeNext147(
+$plan = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::executeSourceComparison(
     [['option_id' => 1, 'option_name' => 'siteurl', 'depth' => 0, 'autoload' => 'yes']],
     [['option_id' => 10, 'option_name' => 'plugin_current', 'depth' => 1, 'autoload' => 'yes']],
     [['option_id' => 20, 'option_name' => 'plugin_next', 'depth' => 1, 'autoload' => 'no']],
@@ -34,23 +33,23 @@ $plan = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::executeNe
     ],
     [
         'savepoint' => 'wp_recursive_options_import',
-        'current_source' => 'wp@trigger147-current',
-        'next_source' => 'wp@trigger147-next',
+        'current_source' => 'wp@trigger-source-comparison-current',
+        'next_source' => 'wp@trigger-source-comparison-next',
     ],
 );
 
 if (($argv[1] ?? '') === '--self-test') {
     if (
-        $plan['status'] !== 'trigger-recursive-returning-savepoint-current-source-next147-current-rolled-back-next-admitted'
+        $plan['status'] !== 'trigger-recursive-returning-savepoint-current-source-current-rolled-back-next-admitted'
         || array_column($plan['returning_rows'], 'name') !== ['plugin_next', 'plugin_next:child', 'plugin_next:child:child']
         || array_column($plan['suppressed_returning_rows'], 'name') !== ['plugin_current', 'plugin_current:child', 'plugin_current:child:child']
         || array_column($plan['final_rows'], 'option_name') !== ['siteurl', 'plugin_next', 'plugin_next:child', 'plugin_next:child:child']
     ) {
-        fwrite(STDERR, "wordpress-trigger-recursive-returning-savepoint-current-source-next147 self-test failed\n");
+        fwrite(STDERR, "wordpress-trigger-recursive-returning-savepoint-source-comparison self-test failed\n");
         exit(1);
     }
 
-    echo "wordpress-trigger-recursive-returning-savepoint-current-source-next147 self-test passed\n";
+    echo "wordpress-trigger-recursive-returning-savepoint-source-comparison self-test passed\n";
     exit(0);
 }
 

@@ -22,7 +22,7 @@ $fail = "UPDATE OR FAIL wp_options SET (option_name, status, option_value, bytes
 $retry = "UPDATE wp_options SET (status, option_value, bytes) = ('retry207', option_value || ':retry207', bytes + 7) WHERE (blog_id, option_name) IN ((2, 'draft_feed'), (3, 'draft_later')) RETURNING option_id, blog_id, option_name, status, option_value, bytes, (option_name, status) IS NOT ('transient207', 'fail207') AS retried_from_image ORDER BY option_id";
 $delete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (VALUES (4, 'cleanup207'), (1, 'draft_conflict')) RETURNING option_id, blog_id, option_name, status, (blog_id, option_name) IS DISTINCT FROM (4, 'cleanup207') AS not_cleanup ORDER BY option_id DESC";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext207(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrFailSavepointRetry(
     ['wp_options' => $rows],
     [$outer],
     [$fail],

@@ -17,7 +17,7 @@ $rows = [
     ['option_id' => 4, 'blog_id' => 2, 'option_name' => 'pending_theme', 'autoload' => 'no', 'status' => null, 'bytes' => 7, 'option_value' => 'theme'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext186(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeEmptyRowValueInSavepointRetry(
     ['wp_options' => $rows],
     ["UPDATE wp_options SET (status, option_value, bytes) = ('outer186', option_value || ':outer186', bytes + 1) WHERE option_id = 4 RETURNING option_id, option_name, status"],
     ["UPDATE wp_options SET (status, option_value) = ('attempt186', option_value || ':attempt186') WHERE (blog_id, option_name) NOT IN () RETURNING option_id, option_name, status, (blog_id, option_name) NOT IN () AS empty_not_in ORDER BY option_id LIMIT 2"],

@@ -19,7 +19,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
      * @param array{savepoint?:string,rollback_to?:bool,recursive_triggers?:bool,max_depth?:int,current_source?:string,next_source?:string,conflict_action?:string} $options
      * @return array<string,mixed>
      */
-    public static function insertRowsWithinSavepointNext139(
+    public static function insertRowsWithinSavepoint(
         array $initialRows,
         array $inputRows,
         array $triggers,
@@ -27,7 +27,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
         array $returning = ['*'],
         array $options = [],
     ): array {
-        $savepoint = self::identifierNext139((string) ($options['savepoint'] ?? 'wp_recursive_import'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_recursive_import'), 'savepoint');
         $rollbackTo = (bool) ($options['rollback_to'] ?? true);
         $currentSource = (string) ($options['current_source'] ?? 'current-recursive-trigger-returning');
         $nextSource = (string) ($options['next_source'] ?? 'next-after-recursive-trigger-savepoint');
@@ -46,7 +46,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
             ],
         );
 
-        $returningRows = self::returningRowsNext139($statement['inserted'], $statement['effects'], $returning);
+        $returningRows = self::returningRows($statement['inserted'], $statement['effects'], $returning);
         $afterRows = $rollbackTo ? $beforeRows : $statement['rows'];
 
         return [
@@ -58,20 +58,20 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
             'after_statement' => $statement['rows'],
             'after_savepoint' => $afterRows,
             'returning_rows' => $returningRows,
-            'yielded' => self::yieldedRowsNext139($returningRows, $savepoint, $rollbackTo),
+            'yielded' => self::yieldedRows($returningRows, $savepoint, $rollbackTo),
             'inserted_before_rollback' => $statement['inserted'],
             'trigger_effects_before_rollback' => $statement['effects'],
             'ignored_before_rollback' => $statement['ignored'],
             'changes_before_rollback' => $statement['changes'],
             'discarded_returning_count' => $rollbackTo ? count($returningRows) : 0,
-            'restored_unique_keys' => self::uniqueKeysNext139($afterRows, $uniqueColumns),
-            'statement_unique_keys' => self::uniqueKeysNext139($statement['rows'], $uniqueColumns),
+            'restored_unique_keys' => self::uniqueKeys($afterRows, $uniqueColumns),
+            'statement_unique_keys' => self::uniqueKeys($statement['rows'], $uniqueColumns),
             'recursive_triggers' => $statement['recursive_triggers'],
             'max_depth' => $statement['max_depth'],
             'dependencies' => [
                 'sqlite-dml-trigger-recursion-corpus',
-                'sqlite-trigger-deferred-returning-savepoint-current-source-next119',
-                'sqlite-trigger-recursive-returning-savepoint-current-source-next139',
+                'sqlite-trigger-deferred-returning-savepoint-current-source',
+                'sqlite-trigger-recursive-returning-savepoint-current-source',
                 'sqlite-returning-yield-before-rollback-to-savepoint',
             ],
         ];
@@ -83,7 +83,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,int,int):mixed> $returning
      * @return list<array<string,mixed>>
      */
-    private static function returningRowsNext139(array $rows, array $effects, array $returning): array
+    private static function returningRows(array $rows, array $effects, array $returning): array
     {
         $depths = [];
         foreach ($effects as $effect) {
@@ -115,7 +115,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
                         $alias = $column;
                     }
                 }
-                $column = self::identifierNext139($column, 'returning column');
+                $column = self::identifier($column, 'returning column');
                 if (!array_key_exists($column, $row)) {
                     throw new \InvalidArgumentException("SQLite recursive trigger RETURNING column {$column} is missing");
                 }
@@ -131,7 +131,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
      * @param list<array<string,mixed>> $returningRows
      * @return list<array<string,mixed>>
      */
-    private static function yieldedRowsNext139(array $returningRows, string $savepoint, bool $rolledBack): array
+    private static function yieldedRows(array $returningRows, string $savepoint, bool $rolledBack): array
     {
         $yielded = [];
         foreach ($returningRows as $index => $row) {
@@ -151,7 +151,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
      * @param list<string> $columns
      * @return list<string>
      */
-    private static function uniqueKeysNext139(array $rows, array $columns): array
+    private static function uniqueKeys(array $rows, array $columns): array
     {
         if ($columns === []) {
             throw new \InvalidArgumentException('SQLite recursive trigger RETURNING unique columns cannot be empty');
@@ -161,7 +161,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
         foreach ($rows as $row) {
             $parts = [];
             foreach ($columns as $column) {
-                $column = self::identifierNext139($column, 'unique column');
+                $column = self::identifier($column, 'unique column');
                 if (!array_key_exists($column, $row)) {
                     throw new \InvalidArgumentException("SQLite recursive trigger RETURNING unique column {$column} is missing");
                 }
@@ -173,10 +173,10 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
         return $keys;
     }
 
-    private static function identifierNext139(string $identifier, string $label): string
+    private static function identifier(string $identifier, string $label): string
     {
         if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier)) {
-            throw new \InvalidArgumentException("SQLite recursive trigger RETURNING savepoint {$label} is malformed");
+            throw new InvalidArgumentException("SQLite recursive trigger RETURNING {$label} is malformed");
         }
 
         return $identifier;
@@ -194,7 +194,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
      * @param array{savepoint?:string,current_source?:string,next_source?:string,rollback_current?:bool,rollback_next?:bool,recursive_triggers?:bool,max_depth?:int,conflict_action?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext147(
+    public static function executeSourceComparison(
         array $savepointRows,
         array $currentRows,
         array $nextRows,
@@ -203,17 +203,17 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $savepoint = self::identifierNext147((string) ($options['savepoint'] ?? 'wp_recursive_returning_batch'), 'savepoint');
-        $currentSource = self::sourceNext147((string) ($options['current_source'] ?? 'current-recursive-returning'));
-        $nextSource = self::sourceNext147((string) ($options['next_source'] ?? 'next-recursive-returning'));
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_recursive_returning_batch'), 'savepoint');
+        $currentSource = self::sourceToken((string) ($options['current_source'] ?? 'current-recursive-returning'));
+        $nextSource = self::sourceToken((string) ($options['next_source'] ?? 'next-recursive-returning'));
         $rollbackCurrent = (bool) ($options['rollback_current'] ?? true);
         $rollbackNext = (bool) ($options['rollback_next'] ?? false);
 
         if ($savepointRows === [] || $currentRows === [] || $nextRows === []) {
-            throw new InvalidArgumentException('SQLite trigger recursive RETURNING next147 requires savepoint, current, and next rows');
+            throw new InvalidArgumentException('SQLite trigger recursive RETURNING source comparison requires savepoint, current, and next rows');
         }
         if ($returning === []) {
-            throw new InvalidArgumentException('SQLite trigger recursive RETURNING next147 projection cannot be empty');
+            throw new InvalidArgumentException('SQLite trigger recursive RETURNING source comparison projection cannot be empty');
         }
 
         $shared = [
@@ -226,7 +226,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
         ];
 
         $savepointImage = array_values($savepointRows);
-        $current = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139(
+        $current = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepoint(
             $savepointImage,
             array_values($currentRows),
             $triggers,
@@ -235,7 +235,7 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
             $shared + ['rollback_to' => $rollbackCurrent],
         );
         $nextBaseRows = $rollbackCurrent ? $savepointImage : $current['after_statement'];
-        $next = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139(
+        $next = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepoint(
             $nextBaseRows,
             array_values($nextRows),
             $triggers,
@@ -244,15 +244,15 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
             $shared + ['rollback_to' => $rollbackNext],
         );
 
-        $currentStream = self::streamNext147($current['yielded'], 'current', $currentSource, !$rollbackCurrent);
-        $nextStream = self::streamNext147($next['yielded'], 'next', $nextSource, !$rollbackNext);
+        $currentStream = self::returningStream($current['yielded'], 'current', $currentSource, !$rollbackCurrent);
+        $nextStream = self::returningStream($next['yielded'], 'next', $nextSource, !$rollbackNext);
         $attempted = array_merge($currentStream, $nextStream);
         $admitted = array_values(array_filter($attempted, static fn (array $row): bool => $row['admitted']));
         $suppressed = array_values(array_filter($attempted, static fn (array $row): bool => !$row['admitted']));
         $finalRows = $rollbackNext ? $nextBaseRows : $next['after_statement'];
 
         return [
-            'status' => self::statusNext147($rollbackCurrent, $rollbackNext),
+            'status' => self::sourceComparisonStatus($rollbackCurrent, $rollbackNext),
             'savepoint' => $savepoint,
             'current_source' => $currentSource,
             'next_source' => $nextSource,
@@ -268,8 +268,8 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
             'attempted_returning_stream' => $attempted,
             'admitted_returning_stream' => $admitted,
             'suppressed_returning_stream' => $suppressed,
-            'returning_rows' => self::rowsNext147($admitted),
-            'suppressed_returning_rows' => self::rowsNext147($suppressed),
+            'returning_rows' => self::streamRows($admitted),
+            'suppressed_returning_rows' => self::streamRows($suppressed),
             'source_transition' => [
                 'savepoint' => $savepoint,
                 'current' => $currentSource,
@@ -292,34 +292,34 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
                 (array) ($current['dependencies'] ?? []),
                 (array) ($next['dependencies'] ?? []),
                 [
-                    'sqlite-trigger-recursive-returning-savepoint-current-source-next139',
-                    'sqlite-trigger-recursive-returning-savepoint-current-source-next147',
+                    'sqlite-trigger-recursive-returning-savepoint-current-source',
+                    'sqlite-trigger-recursive-returning-savepoint-source-comparison',
                     'sqlite-returning-rows-yield-before-rollback-to-savepoint',
                 ],
             ))),
         ];
     }
 
-    private static function statusNext147(bool $rollbackCurrent, bool $rollbackNext): string
+    private static function sourceComparisonStatus(bool $rollbackCurrent, bool $rollbackNext): string
     {
         if ($rollbackCurrent && !$rollbackNext) {
-            return 'trigger-recursive-returning-savepoint-current-source-next147-current-rolled-back-next-admitted';
+            return 'trigger-recursive-returning-savepoint-current-source-current-rolled-back-next-admitted';
         }
         if (!$rollbackCurrent && $rollbackNext) {
-            return 'trigger-recursive-returning-savepoint-current-source-next147-current-admitted-next-rolled-back';
+            return 'trigger-recursive-returning-savepoint-current-source-current-admitted-next-rolled-back';
         }
         if ($rollbackCurrent && $rollbackNext) {
-            return 'trigger-recursive-returning-savepoint-current-source-next147-both-rolled-back';
+            return 'trigger-recursive-returning-savepoint-current-source-both-rolled-back';
         }
 
-        return 'trigger-recursive-returning-savepoint-current-source-next147-both-admitted';
+        return 'trigger-recursive-returning-savepoint-current-source-both-admitted';
     }
 
     /**
      * @param list<array<string,mixed>> $yielded
      * @return list<array<string,mixed>>
      */
-    private static function streamNext147(array $yielded, string $phase, string $source, bool $admitted): array
+    private static function returningStream(array $yielded, string $phase, string $source, bool $admitted): array
     {
         $stream = [];
         foreach ($yielded as $ordinal => $row) {
@@ -342,24 +342,15 @@ final class SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan
      * @param list<array<string,mixed>> $stream
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext147(array $stream): array
+    private static function streamRows(array $stream): array
     {
         return array_values(array_map(static fn (array $row): array => (array) $row['returning'], $stream));
     }
 
-    private static function identifierNext147(string $identifier, string $label): string
-    {
-        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier)) {
-            throw new InvalidArgumentException("SQLite trigger recursive RETURNING next147 {$label} is malformed");
-        }
-
-        return $identifier;
-    }
-
-    private static function sourceNext147(string $source): string
+    private static function sourceToken(string $source): string
     {
         if (!preg_match('/^[A-Za-z0-9_.:@-]+$/', $source)) {
-            throw new InvalidArgumentException('SQLite trigger recursive RETURNING next147 source token is malformed');
+            throw new InvalidArgumentException('SQLite trigger recursive RETURNING source token is malformed');
         }
 
         return $source;

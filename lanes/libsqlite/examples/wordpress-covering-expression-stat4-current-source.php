@@ -16,11 +16,11 @@ $predicate = [
     ],
 ];
 $prepared = [
-    'name' => 'prepared-wp-options-covering-expression-stat4-next122',
+    'name' => 'prepared-wp-options-covering-expression-stat4-canonical',
     'schemaCookie' => 1220,
     'stat4Generation' => 31,
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_covering_stat4_next122',
+        'name' => 'idx_wp_options_lower_covering_stat4_canonical',
         'rootPage' => 12201,
         'estimatedRows' => 360,
         'coveringColumns' => ['option_name', 'autoload', 'option_value', 'option_id', 'blog_id'],
@@ -30,11 +30,11 @@ $prepared = [
             ['neq' => '2 1', 'nlt' => '1 1', 'ndlt' => '1 1', 'sample' => ['plugin_forms', 102]],
             ['neq' => '4 1', 'nlt' => '3 2', 'ndlt' => '2 2', 'sample' => ['plugin_seo', 103]],
         ],
-        'sql' => "CREATE INDEX idx_wp_options_lower_covering_stat4_next122 ON wp_options(lower(option_name), option_id, option_value, blog_id) WHERE autoload = 'yes'",
+        'sql' => "CREATE INDEX idx_wp_options_lower_covering_stat4_canonical ON wp_options(lower(option_name), option_id, option_value, blog_id) WHERE autoload = 'yes'",
     ]],
 ];
 $current = $prepared;
-$current['name'] = 'current-wp-options-covering-expression-stat4-next122';
+$current['name'] = 'current-wp-options-covering-expression-stat4-canonical';
 $current['schemaCookie'] = 1224;
 $current['stat4Generation'] = 35;
 $current['indexes'][0]['rootPage'] = 12244;
@@ -53,7 +53,7 @@ $rows = [
     ['rowid' => 51, 'option_name' => 'plugin_seo', 'autoload' => 'yes', 'option_value' => 'seo-enabled', 'option_id' => 51, 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan::materializeNext122(
+$plan = SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan::materialize(
     $prepared,
     $current,
     $predicate,
@@ -68,12 +68,12 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['selectedSource'] === 'current');
     assert($plan['tableLookupElided'] === true);
     assert($plan['cursorTape']['matchedKeys'] === ['plugin_alpha', 'plugin_cache', 'plugin_forms', 'plugin_mail', 'plugin_seo']);
-    echo "wordpress-covering-expression-stat4-current-source-next122 self-test passed\n";
+    echo "wordpress-covering-expression-stat4-current-source-canonical self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-covering-expression-stat4-current-source-next122',
+    'scenario' => 'wordpress-covering-expression-stat4-current-source-canonical',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],
     'index' => $plan['selectedPlan']['name'] ?? null,

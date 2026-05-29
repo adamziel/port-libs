@@ -49,7 +49,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'max_depth' => (int) ($options['max_depth'] ?? 1000),
             'conflict_action' => (string) ($options['conflict_action'] ?? 'abort'),
         ];
-        $current = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139(
+        $current = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepoint(
             $initialRows,
             $currentRows,
             $triggers,
@@ -62,7 +62,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
         $nextBaseRows = $currentRollback ? $initialRows : $current['after_statement'];
-        $next = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139(
+        $next = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepoint(
             $nextBaseRows,
             $nextRows,
             $triggers,
@@ -119,7 +119,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 (array) ($next['dependencies'] ?? []),
                 [
                     'sqlite-trigger-returning-savepoint-view-current-source-next136',
-                    'sqlite-trigger-recursive-returning-savepoint-current-source-next139',
+                    'sqlite-trigger-recursive-returning-savepoint-current-source',
                     'sqlite-trigger-recursive-view-returning-current-source-next143',
                 ],
             ))),

@@ -2,11 +2,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
-require_once __DIR__ . '/../src/SQLiteDatabase.php';
-require_once __DIR__ . '/../src/SQLiteSelectResult.php';
-require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
@@ -19,7 +15,7 @@ $rows = [
     ['option_id' => 9, 'blog_id' => 3, 'option_name' => 'plugin_batch', 'autoload' => 'no', 'status' => 'queued', 'bytes' => 11, 'option_value' => 'plugin'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext208(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executePreFailRollbackRetry(
     ['wp_options' => $rows],
     ["UPDATE wp_options SET (status, option_value, bytes) = ('outer208', option_value || ':outer208', bytes + 1) WHERE (blog_id, option_name) IN ((1, 'siteurl'), (1, 'home')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id"],
     [

@@ -33,14 +33,14 @@ $ignoreProbe211 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute
 $ignoreResult211 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($ignoreUpdate211, $preDeleteResult211()['tables'], 'option_id', $unique211, true);
 $afterUpdateResult211 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($afterUpdate211, $ignoreResult211()['tables'], 'option_id', $unique211);
 $afterDeleteResult211 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($afterDelete211, $afterUpdateResult211()['tables'], 'option_id', $unique211);
-$plan211 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext211(
+$plan211 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrIgnoreSavepointRelease(
     $tables211,
     [$preUpdate211, $preDelete211],
     $ignoreUpdate211,
     [$afterUpdate211, $afterDelete211],
     $unique211,
 );
-$customPlan211 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext211(
+$customPlan211 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrIgnoreSavepointRelease(
     $tables211,
     [$preUpdate211],
     $ignoreUpdate211,
@@ -119,13 +119,13 @@ $cases211 = [
     'custom savepoint' => [static fn (): mixed => $customPlan211()['savepoint'], 'wp_custom_ignore211'],
     'custom pre count' => [static fn (): mixed => $customPlan211()['pre_ignore_yielded_count'], 2],
     'custom after count' => [static fn (): mixed => $customPlan211()['yielded_after_ignore_count'], 2],
-    'malformed empty pre rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext211($tables211, [], $ignoreUpdate211, [$afterUpdate211], $unique211), InvalidArgumentException::class],
-    'malformed empty ignore rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext211($tables211, [$preUpdate211], '', [$afterUpdate211], $unique211), InvalidArgumentException::class],
-    'malformed empty after rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext211($tables211, [$preUpdate211], $ignoreUpdate211, [], $unique211), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext211($tables211, [$preUpdate211], $ignoreUpdate211, [$afterUpdate211], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext211($tables211, [$preUpdate211], $ignoreUpdate211, [$afterUpdate211], $unique211, 'bad-name'), InvalidArgumentException::class],
-    'malformed ignore action rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext211($tables211, [$preUpdate211], str_replace('OR IGNORE', 'OR FAIL', $ignoreUpdate211), [$afterUpdate211], $unique211), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext211(['wp_options' => ['bad']], [$preUpdate211], $ignoreUpdate211, [$afterUpdate211], $unique211), InvalidArgumentException::class],
+    'malformed empty pre rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrIgnoreSavepointRelease($tables211, [], $ignoreUpdate211, [$afterUpdate211], $unique211), InvalidArgumentException::class],
+    'malformed empty ignore rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrIgnoreSavepointRelease($tables211, [$preUpdate211], '', [$afterUpdate211], $unique211), InvalidArgumentException::class],
+    'malformed empty after rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrIgnoreSavepointRelease($tables211, [$preUpdate211], $ignoreUpdate211, [], $unique211), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrIgnoreSavepointRelease($tables211, [$preUpdate211], $ignoreUpdate211, [$afterUpdate211], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrIgnoreSavepointRelease($tables211, [$preUpdate211], $ignoreUpdate211, [$afterUpdate211], $unique211, 'bad-name'), InvalidArgumentException::class],
+    'malformed ignore action rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrIgnoreSavepointRelease($tables211, [$preUpdate211], str_replace('OR IGNORE', 'OR FAIL', $ignoreUpdate211), [$afterUpdate211], $unique211), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrIgnoreSavepointRelease(['wp_options' => ['bad']], [$preUpdate211], $ignoreUpdate211, [$afterUpdate211], $unique211), InvalidArgumentException::class],
 ];
 
 $tests = [];

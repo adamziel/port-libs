@@ -330,7 +330,7 @@ $read = array_merge($base, [
     'member_journal_header_digest' => $mapDigest($headers),
     'reader_cache_stmt_vdbe_vnext_branch_condition_handoff_token' => 'stmt-vdbe-vnext-branch-condition-handoff-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext926(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeTransactionBranchConditionFence(
     $database,
     $master,
     $masterBytes,

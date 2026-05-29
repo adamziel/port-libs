@@ -27,7 +27,7 @@ $meta = [
     ['meta_id' => 109, 'meta_option_id' => 11, 'meta_key' => 'network_drop', 'meta_value' => 'home', 'priority' => 70],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext214(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrderedSubquerySavepointRetry(
     ['wp_options' => $rows, 'wp_optionmeta' => $meta],
     [
         "UPDATE wp_options SET (status, option_value, bytes) = ('attempt214', option_value || ':attempt214', bytes + 4) WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY priority DESC LIMIT 2) RETURNING option_id, option_name, status ORDER BY option_id",

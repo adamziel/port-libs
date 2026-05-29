@@ -19,7 +19,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>
          */
-        public static function materializeNext122(
+        public static function materialize(
             array $preparedSource,
             array $currentSource,
             array $predicate,
@@ -28,22 +28,22 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
             array $neededColumns,
             array $neededExpressions = []
         ): array {
-            self::validateNeededColumnsNext122($neededColumns);
+            self::validateNeededColumns($neededColumns);
 
-            $preparedPlan = self::sourcePlanNext122($preparedSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
-            $currentPlan = self::sourcePlanNext122($currentSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
-            $preparedCookie = self::nonNegativeIntNext122($preparedSource, 'schemaCookie');
-            $currentCookie = self::nonNegativeIntNext122($currentSource, 'schemaCookie');
-            $preparedStat4 = self::nonNegativeIntNext122($preparedSource, 'stat4Generation');
-            $currentStat4 = self::nonNegativeIntNext122($currentSource, 'stat4Generation');
-            $preparedSignature = self::signatureNext122($preparedSource);
-            $currentSignature = self::signatureNext122($currentSource);
+            $preparedPlan = self::sourcePlan($preparedSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
+            $currentPlan = self::sourcePlan($currentSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
+            $preparedCookie = self::nonNegativeInt($preparedSource, 'schemaCookie');
+            $currentCookie = self::nonNegativeInt($currentSource, 'schemaCookie');
+            $preparedStat4 = self::nonNegativeInt($preparedSource, 'stat4Generation');
+            $currentStat4 = self::nonNegativeInt($currentSource, 'stat4Generation');
+            $preparedSignature = self::signature($preparedSource);
+            $currentSignature = self::signature($currentSource);
             $stale = $preparedCookie !== $currentCookie
                 || $preparedStat4 !== $currentStat4
                 || $preparedSignature !== $currentSignature;
             $selected = $stale ? $currentPlan : $preparedPlan;
             $source = $stale ? $currentSource : $preparedSource;
-            $rows = self::coveringRowsNext122($selected, $predicate, $currentRows, $neededColumns, $neededExpressions);
+            $rows = self::coveringRows($selected, $predicate, $currentRows, $neededColumns, $neededExpressions);
             $ready = ($selected['usable'] ?? false) === true
                 && ($selected['covering'] ?? false) === true
                 && ($selected['stat4Used'] ?? false) === true
@@ -58,16 +58,16 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
                 'schemaCookieChanged' => $preparedCookie !== $currentCookie,
                 'stat4GenerationChanged' => $preparedStat4 !== $currentStat4,
                 'indexSignatureChanged' => $preparedSignature !== $currentSignature,
-                'preparedSource' => self::summaryNext122($preparedSource, $preparedPlan, $preparedSignature),
-                'currentSource' => self::summaryNext122($currentSource, $currentPlan, $currentSignature),
+                'preparedSource' => self::summary($preparedSource, $preparedPlan, $preparedSignature),
+                'currentSource' => self::summary($currentSource, $currentPlan, $currentSignature),
                 'selectedPlan' => $selected + ['coveredRowCount' => count($rows)],
                 'coveringPayloadColumns' => array_values($neededColumns),
                 'coveringExpressionCount' => count($neededExpressions),
                 'tableLookupElided' => $ready,
                 'deferredTableSeekOpcode' => $ready ? null : 'DeferredSeek',
                 'tempSorterElided' => $ready && ($selected['orderBySatisfied'] ?? false) === true,
-                'currentNextRows' => self::currentNextNext122($rows),
-                'cursorTape' => self::cursorTapeNext122($selected, $rows, $neededColumns, $ready, $stale ? 'current' : 'prepared'),
+                'currentNextRows' => self::currentNextRows($rows),
+                'cursorTape' => self::cursorTape($selected, $rows, $neededColumns, $ready, $stale ? 'current' : 'prepared'),
                 'currentSourceFence' => [
                     'schemaCookie' => $currentCookie,
                     'stat4Generation' => $currentStat4,
@@ -77,12 +77,12 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
                 ],
                 'detail' => ($stale ? 'REPREPARE' : 'REUSE')
                     . ' COVERING EXPRESSION STAT4 '
-                    . (string) ($selected['name'] ?? self::stringValueNext122($source, 'name')),
+                    . (string) ($selected['name'] ?? self::stringValue($source, 'name')),
                 'dependencies' => [
                     'SQLiteSelectExpressionIndexPlan bounded range STAT4 planner',
-                    'sqlite-planner-covering-expression-stat4-current-source-next122',
+                    'sqlite-planner-covering-expression-stat4-current-source',
                 ],
-                'dependency_closure' => 'no new support component needed; next122 reuses native expression-index parsing, STAT4 samples, and covering cursor diagnostics',
+                'dependency_closure' => 'no new support component needed; canonical covering expression STAT4 planner reuses native expression-index parsing, STAT4 samples, and covering cursor diagnostics',
                 'non_overlap' => 'avoids accepted next118 partial expression covering, next119 ordinary covering range order, expression ORDER BY, and range-cost ranking by materializing stale current-source rows for a bounded covering expression STAT4 range cursor',
             ];
         }
@@ -95,10 +95,10 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>
          */
-        private static function sourcePlanNext122(array $source, array $predicate, array $orderBy, array $neededColumns, array $neededExpressions): array
+        private static function sourcePlan(array $source, array $predicate, array $orderBy, array $neededColumns, array $neededExpressions): array
         {
             $plan = SQLiteSelectExpressionIndexPlan::chooseBoundedRangeCost(
-                self::indexesNext122($source),
+                self::indexes($source),
                 $predicate,
                 $orderBy,
                 $neededColumns,
@@ -120,7 +120,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<array<string,mixed>>
          */
-        private static function indexesNext122(array $source): array
+        private static function indexes(array $source): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes) || $indexes === []) {
@@ -138,7 +138,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
         /**
          * @param list<string> $neededColumns
          */
-        private static function validateNeededColumnsNext122(array $neededColumns): void
+        private static function validateNeededColumns(array $neededColumns): void
         {
             if ($neededColumns === []) {
                 throw new \InvalidArgumentException('SQLite covering expression STAT4 plan needs at least one output column');
@@ -153,7 +153,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function nonNegativeIntNext122(array $source, string $key): int
+        private static function nonNegativeInt(array $source, string $key): int
         {
             $value = $source[$key] ?? null;
             if (!is_int($value) || $value < 0) {
@@ -166,10 +166,10 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function signatureNext122(array $source): string
+        private static function signature(array $source): string
         {
             $parts = [];
-            foreach (self::indexesNext122($source) as $index) {
+            foreach (self::indexes($source) as $index) {
                 $parts[] = implode('|', [
                     (string) ($index['name'] ?? ''),
                     (string) ($index['rootPage'] ?? ''),
@@ -187,12 +187,12 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function summaryNext122(array $source, array $plan, string $signature): array
+        private static function summary(array $source, array $plan, string $signature): array
         {
             return [
-                'name' => self::stringValueNext122($source, 'name'),
-                'schemaCookie' => self::nonNegativeIntNext122($source, 'schemaCookie'),
-                'stat4Generation' => self::nonNegativeIntNext122($source, 'stat4Generation'),
+                'name' => self::stringValue($source, 'name'),
+                'schemaCookie' => self::nonNegativeInt($source, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeInt($source, 'stat4Generation'),
                 'indexSignature' => $signature,
                 'usable' => (bool) ($plan['usable'] ?? false),
                 'indexName' => $plan['name'] ?? null,
@@ -211,7 +211,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return list<array<string,mixed>>
          */
-        private static function coveringRowsNext122(array $plan, array $predicate, array $currentRows, array $neededColumns, array $neededExpressions): array
+        private static function coveringRows(array $plan, array $predicate, array $currentRows, array $neededColumns, array $neededExpressions): array
         {
             if (($plan['usable'] ?? false) !== true || ($plan['covering'] ?? false) !== true) {
                 return [];
@@ -222,22 +222,22 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite covering expression STAT4 current rows must be arrays');
                 }
-                if (!self::rowSatisfiesPredicateNext122($row, $predicate)) {
+                if (!self::rowSatisfiesPredicate($row, $predicate)) {
                     continue;
                 }
 
-                $key = self::expressionValueNext122($plan, $row);
+                $key = self::expressionValue($plan, $row);
                 $rows[] = [
                     'sourceOffset' => $offset,
                     'rowid' => $row['rowid'] ?? $row['_rowid_'] ?? null,
                     'key' => $key,
-                    'covering' => self::payloadNext122($row, $neededColumns),
-                    'coveringExpressions' => self::expressionPayloadNext122($plan, $row, $neededExpressions),
+                    'covering' => self::payload($row, $neededColumns),
+                    'coveringExpressions' => self::expressionPayload($plan, $row, $neededExpressions),
                 ];
             }
 
             usort($rows, static function (array $left, array $right): int {
-                $comparison = self::compareKeysNext122($left['key'], $right['key']);
+                $comparison = self::compareKeys($left['key'], $right['key']);
                 if ($comparison !== 0) {
                     return $comparison;
                 }
@@ -252,7 +252,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<array{current:array<string,mixed>,next:?array<string,mixed>}>
          */
-        private static function currentNextNext122(array $rows): array
+        private static function currentNextRows(array $rows): array
         {
             $pairs = [];
             foreach ($rows as $offset => $row) {
@@ -268,7 +268,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function cursorTapeNext122(array $plan, array $rows, array $neededColumns, bool $ready, string $source): array
+        private static function cursorTape(array $plan, array $rows, array $neededColumns, bool $ready, string $source): array
         {
             $values = is_array($plan['values'] ?? null) ? $plan['values'] : [];
             $lower = $values['lower'] ?? null;
@@ -296,7 +296,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
                 'seekOpcode' => $lowerInclusive ? 'SeekGE' : 'SeekGT',
                 'stopOpcode' => $upperInclusive ? 'IdxGT' : 'IdxGE',
                 'matchedKeys' => array_map(static fn (array $row): mixed => $row['key'], $rows),
-                'currentNextRows' => self::currentNextNext122($rows),
+                'currentNextRows' => self::currentNextRows($rows),
                 'outputColumns' => array_map(static fn (string $column): array => ['opcode' => 'Column', 'source' => $ready ? 'index' : 'table', 'column' => $column], $neededColumns),
                 'deferredSeekOpcode' => $ready ? null : 'DeferredSeek',
                 'sorterOpen' => !$ready || ($plan['orderBySatisfied'] ?? false) !== true,
@@ -308,7 +308,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param array<string,mixed> $predicate
          */
-        private static function rowSatisfiesPredicateNext122(array $row, array $predicate): bool
+        private static function rowSatisfiesPredicate(array $row, array $predicate): bool
         {
             $operator = strtoupper((string) ($predicate['operator'] ?? ''));
             if ($operator === 'AND') {
@@ -317,7 +317,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
                     return false;
                 }
                 foreach ($terms as $term) {
-                    if (!is_array($term) || !self::rowSatisfiesPredicateNext122($row, $term)) {
+                    if (!is_array($term) || !self::rowSatisfiesPredicate($row, $term)) {
                         return false;
                     }
                 }
@@ -325,15 +325,15 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
                 return true;
             }
 
-            $left = self::operandValueNext122($predicate['left'] ?? null, $row);
+            $left = self::operandValue($predicate['left'] ?? null, $row);
             return match ($operator) {
                 '=', '==' => $left == ($predicate['right'] ?? null),
-                '>' => self::compareKeysNext122($left, $predicate['right'] ?? null) > 0,
-                '>=' => self::compareKeysNext122($left, $predicate['right'] ?? null) >= 0,
-                '<' => self::compareKeysNext122($left, $predicate['right'] ?? null) < 0,
-                '<=' => self::compareKeysNext122($left, $predicate['right'] ?? null) <= 0,
-                'BETWEEN' => self::compareKeysNext122($left, $predicate['lower'] ?? null) >= 0
-                    && self::compareKeysNext122($left, $predicate['upper'] ?? null) <= 0,
+                '>' => self::compareKeys($left, $predicate['right'] ?? null) > 0,
+                '>=' => self::compareKeys($left, $predicate['right'] ?? null) >= 0,
+                '<' => self::compareKeys($left, $predicate['right'] ?? null) < 0,
+                '<=' => self::compareKeys($left, $predicate['right'] ?? null) <= 0,
+                'BETWEEN' => self::compareKeys($left, $predicate['lower'] ?? null) >= 0
+                    && self::compareKeys($left, $predicate['upper'] ?? null) <= 0,
                 default => true,
             };
         }
@@ -342,7 +342,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @param array<string,mixed> $row
          */
-        private static function expressionValueNext122(array $plan, array $row): mixed
+        private static function expressionValue(array $plan, array $row): mixed
         {
             $column = (string) ($plan['column'] ?? '');
             $value = $row[$column] ?? null;
@@ -360,7 +360,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param array<string,mixed>|mixed $operand
          * @param array<string,mixed> $row
          */
-        private static function operandValueNext122(mixed $operand, array $row): mixed
+        private static function operandValue(mixed $operand, array $row): mixed
         {
             if (!is_array($operand)) {
                 return $operand;
@@ -373,7 +373,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
                 $plan['type'] = 'integer-cast';
             }
 
-            return self::expressionValueNext122($plan, $row);
+            return self::expressionValue($plan, $row);
         }
 
         /**
@@ -381,7 +381,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param list<string> $columns
          * @return array<string,mixed>
          */
-        private static function payloadNext122(array $row, array $columns): array
+        private static function payload(array $row, array $columns): array
         {
             $payload = [];
             foreach ($columns as $column) {
@@ -397,7 +397,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
          * @param list<array<string,string>> $expressions
          * @return array<string,mixed>
          */
-        private static function expressionPayloadNext122(array $plan, array $row, array $expressions): array
+        private static function expressionPayload(array $plan, array $row, array $expressions): array
         {
             $payload = [];
             foreach ($expressions as $expression) {
@@ -406,16 +406,16 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
                 if ($function === '' || $column === '') {
                     continue;
                 }
-                $payload[$function . '(' . $column . ')'] = self::operandValueNext122(['function' => $function, 'column' => $column], $row);
+                $payload[$function . '(' . $column . ')'] = self::operandValue(['function' => $function, 'column' => $column], $row);
             }
             if ($payload === [] && isset($plan['type'], $plan['column'])) {
-                $payload[(string) $plan['type'] . '(' . (string) $plan['column'] . ')'] = self::expressionValueNext122($plan, $row);
+                $payload[(string) $plan['type'] . '(' . (string) $plan['column'] . ')'] = self::expressionValue($plan, $row);
             }
 
             return $payload;
         }
 
-        private static function compareKeysNext122(mixed $left, mixed $right): int
+        private static function compareKeys(mixed $left, mixed $right): int
         {
             if (is_numeric($left) && is_numeric($right)) {
                 return ((float) $left) <=> ((float) $right);
@@ -427,7 +427,7 @@ final class SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function stringValueNext122(array $source, string $key): string
+        private static function stringValue(array $source, string $key): string
         {
             $value = $source[$key] ?? '';
 

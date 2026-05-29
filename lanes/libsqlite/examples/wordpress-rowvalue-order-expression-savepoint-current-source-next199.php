@@ -16,7 +16,7 @@ $rows = [
     ['option_id' => 9, 'blog_id' => 3, 'option_name' => 'plugin_batch', 'autoload' => 'no', 'status' => 'queued', 'bytes' => 11, 'option_value' => 'plugin'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext199(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeOrderExpressionSavepointRetry(
     ['wp_options' => $rows],
     [
         "UPDATE wp_options SET (status, option_value, bytes) = ('attempt199', option_value || ':attempt199', bytes + 1) WHERE autoload = 'no' RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY (blog_id, option_name) IS (3, 'rewrite_rules') DESC, bytes DESC LIMIT 2",

@@ -30,7 +30,7 @@ final class SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan
             array $neededColumns,
             array $neededExpressions = []
         ): array {
-            $preparedView = SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan::materializeNext122(
+            $preparedView = SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan::materialize(
                 $preparedSource,
                 $preparedSource,
                 $preparedPredicate,
@@ -39,7 +39,7 @@ final class SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan
                 $neededColumns,
                 $neededExpressions,
             );
-            $currentView = SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan::materializeNext122(
+            $currentView = SQLitePlannerCoveringExpressionStat4CurrentSourceNextPlan::materialize(
                 $preparedSource,
                 $currentSource,
                 $currentPredicate,
@@ -79,7 +79,7 @@ final class SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan
                     'sqlite-planner-stat4-expression-covering-range-current-source-next128',
                 ],
                 'dependency_closure' => 'no new support component needed; next128 reuses native expression-index STAT4 range planning and covering cursor diagnostics',
-                'non_overlap' => 'avoids accepted next122 static bounded range and next126 IN probes by proving stale prepared range rows are rejected and current-source covering range rows are admitted after a range-bound/source change',
+                'non_overlap' => 'avoids accepted canonical static bounded range and next126 IN probes by proving stale prepared range rows are rejected and current-source covering range rows are admitted after a range-bound/source change',
             ]);
         }
 
