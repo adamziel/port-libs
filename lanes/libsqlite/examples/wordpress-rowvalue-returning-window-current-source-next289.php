@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext289Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext289Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'home', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 21, 'option_value' => 'https://home.test'],
@@ -20,7 +21,7 @@ $attempt = "UPDATE wp_options SET status = 'attempt289' WHERE (blog_id, option_n
 $retryUpdate = "UPDATE wp_options SET status = 'retry289' WHERE (blog_id, option_name) IN ((1, 'home'), (2, 'pending_theme')) RETURNING option_id, option_name, status ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (3, 'rewrite_rules')) RETURNING option_id, option_name, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext289Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext289(
     ['wp_options' => $rows],
     [$attempt],
     [$retryUpdate, $retryDelete],

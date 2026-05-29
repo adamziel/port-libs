@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $candidate = static function (int $next, array $rowids): array {
     $rows = [];
@@ -24,7 +24,7 @@ $candidate = static function (int $next, array $rowids): array {
     ];
 };
 
-$summary = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Plan::prepare([
+$summary = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::prepareNext298301([
     $candidate(294, [2, 5]),
     $candidate(295, [3, 6, 8]),
     $candidate(296, [4]),

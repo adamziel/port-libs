@@ -8,7 +8,7 @@ receipt, next299 ledger, next300 handoff, and next301 seal hashes.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::prepareNext298301.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next298-301-after-ready.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Test.php`

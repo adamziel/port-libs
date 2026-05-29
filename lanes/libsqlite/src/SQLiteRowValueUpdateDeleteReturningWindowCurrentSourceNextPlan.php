@@ -17301,4 +17301,709 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $rows = array_slice($checkpoints, $index + 1);
         return ['after_peer_token' => $afterToken, 'remaining_count' => count($rows), 'rows' => $rows, 'exhausted' => $rows === []];
     }
+
+
+    /* Variant consolidated as executeNext289. */
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext289(
+        array $tables,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_source_next289',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        if ($attemptStatements === []) {
+            throw new \InvalidArgumentException('SQLite row-value window current-source next289 needs attempt statements');
+        }
+        if ($retryStatements === []) {
+            throw new \InvalidArgumentException('SQLite row-value window current-source next289 needs retry statements');
+        }
+        if ($uniqueConstraints === []) {
+            throw new \InvalidArgumentException('SQLite row-value window current-source next289 needs unique constraints');
+        }
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
+            throw new \InvalidArgumentException('SQLite row-value window current-source next289 savepoint must be an identifier');
+        }
+
+        $savepointImage = self::normalizeTablesNext289($tables);
+        [$attemptCurrent, $attemptSummaries, $attemptReturning] = self::runStatementsNext289(
+            $savepointImage,
+            $attemptStatements,
+            $uniqueConstraints,
+            $rowIdColumn,
+            'attempt-before-window-rollback-next289',
+        );
+
+        $rollbackCurrent = $savepointImage;
+        [$retryCurrent, $retrySummaries, $retryReturning] = self::runStatementsNext289(
+            $rollbackCurrent,
+            $retryStatements,
+            $uniqueConstraints,
+            $rowIdColumn,
+            'retry-after-window-rollback-next289',
+        );
+
+        $attemptWindow = self::windowRowsNext289(self::flattenReturningNext289($attemptReturning), $rowIdColumn);
+        $retryWindow = self::windowRowsNext289(self::flattenReturningNext289($retryReturning), $rowIdColumn);
+
+        return [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next289',
+            'savepoint' => $savepoint,
+            'savepoint_image_tables' => $savepointImage,
+            'attempt_current_source_tables' => $attemptCurrent,
+            'rollback_current_source_tables' => $rollbackCurrent,
+            'current_source_tables' => $retryCurrent,
+            'next_source_tables' => $retryCurrent,
+            'rolled_back_to_savepoint' => true,
+            'savepoint_preserved_after_rollback_to' => true,
+            'attempt_returning_window_suppressed_by_rollback' => true,
+            'retry_returning_window_yielded_from_current_source' => true,
+            'window_order_columns_next289' => [$rowIdColumn],
+            'attempt_statements' => $attemptSummaries,
+            'retry_statements' => $retrySummaries,
+            'discarded_attempt_returning' => $attemptReturning,
+            'yielded_after_retry_returning' => $retryReturning,
+            'discarded_attempt_window_rows' => $attemptWindow,
+            'yielded_retry_window_rows' => $retryWindow,
+            'discarded_attempt_returning_count' => self::returningCountNext289($attemptReturning),
+            'yielded_after_retry_count' => self::returningCountNext289($retryReturning),
+            'attempt_changes_before_rollback' => self::changeCountNext289($attemptSummaries),
+            'retry_changes_after_rollback' => self::changeCountNext289($retrySummaries),
+            'changed_tables_after_retry' => self::changedTablesNext289($savepointImage, $retryCurrent),
+            'row_counts' => self::rowCountsNext289($retryCurrent),
+            'dependency_closure_next289' => 'no new support component needed; next289 reuses native row-value UPDATE/DELETE RETURNING execution and adds current-source RETURNING window receipts after savepoint retry',
+            'non_overlap_next289' => 'adds row_number/lag/lead style receipts over UPDATE/DELETE RETURNING rows after rollback and retry; avoids accepted next219 negative LIMIT/OFFSET, next224/230 nested savepoints, next231 compound tuple sources, JSON table, WAL/VFS, planner, trigger, and B-tree clusters',
+            'dependencies' => [
+                'sqlite-rowvalue-update-returning-window-current-source-next289',
+                'sqlite-rowvalue-delete-returning-window-current-source-next289',
+                'sqlite-rowvalue-returning-window-savepoint-retry-current-source-next289',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array<string,list<array<string,mixed>>>
+     */
+    private static function normalizeTablesNext289(array $tables): array
+    {
+        foreach ($tables as $name => $rows) {
+            if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
+                throw new \InvalidArgumentException('SQLite row-value window current-source next289 tables must be named row lists');
+            }
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    throw new \InvalidArgumentException('SQLite row-value window current-source next289 rows must be arrays');
+                }
+            }
+        }
+
+        return $tables;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $statements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
+     */
+    private static function runStatementsNext289(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    {
+        $current = $tables;
+        $summaries = [];
+        $yielded = [];
+
+        foreach ($statements as $ordinal => $sql) {
+            $before = $current;
+            $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
+            $current = $result['tables'];
+            $summaries[] = self::statementSummaryNext289($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
+            $yielded[] = [
+                'phase' => $phase,
+                'ordinal' => $ordinal,
+                'action' => $result['action'],
+                'conflict_action' => $result['conflict_action'],
+                'rows' => $result['returning'],
+            ];
+        }
+
+        return [$current, $summaries, $yielded];
+    }
+
+    /**
+     * @param array<string,mixed> $result
+     * @param array<string,list<array<string,mixed>>> $before
+     * @return array<string,mixed>
+     */
+    private static function statementSummaryNext289(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    {
+        return [
+            'phase' => $phase,
+            'ordinal' => $ordinal,
+            'sql' => $sql,
+            'action' => $result['action'],
+            'conflict_action' => $result['conflict_action'],
+            'table' => $result['table'],
+            'selected_ids' => $result['plan']->selectedIds,
+            'mutation_ids' => $result['plan']->mutationIds,
+            'source_rows' => self::rowsByIdsNext289($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'returning_rows' => $result['returning'],
+            'ignored_rows' => $result['ignored_rows'],
+            'deleted_conflict_rows' => $result['deleted_conflict_rows'],
+            'conflicts' => $result['conflicts'],
+            'failed_conflict' => $result['failed_conflict'] ?? null,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<int|string> $ids
+     * @return list<array<string,mixed>>
+     */
+    private static function rowsByIdsNext289(array $rows, array $ids, string $rowIdColumn): array
+    {
+        $wanted = [];
+        foreach ($ids as $id) {
+            $wanted[(string) $id] = true;
+        }
+
+        $matched = [];
+        foreach ($rows as $row) {
+            if (!array_key_exists($rowIdColumn, $row)) {
+                throw new \InvalidArgumentException("SQLite row-value window current-source next289 rowid column {$rowIdColumn} is missing");
+            }
+            $id = $row[$rowIdColumn];
+            if (!is_int($id) && !is_string($id)) {
+                throw new \InvalidArgumentException("SQLite row-value window current-source next289 rowid column {$rowIdColumn} must be int or string");
+            }
+            if (isset($wanted[(string) $id])) {
+                $matched[] = $row;
+            }
+        }
+
+        return $matched;
+    }
+
+    /**
+     * @param list<array{rows:list<array<string,mixed>>}> $yielded
+     * @return list<array<string,mixed>>
+     */
+    private static function flattenReturningNext289(array $yielded): array
+    {
+        $rows = [];
+        foreach ($yielded as $stream) {
+            foreach ($stream['rows'] as $row) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function windowRowsNext289(array $rows, string $rowIdColumn): array
+    {
+        usort($rows, static fn (array $left, array $right): int => ($left[$rowIdColumn] ?? 0) <=> ($right[$rowIdColumn] ?? 0));
+        $windowRows = [];
+        $count = count($rows);
+
+        foreach ($rows as $index => $row) {
+            $windowRows[] = [
+                'row_number' => $index + 1,
+                'current_rowid' => $row[$rowIdColumn] ?? null,
+                'previous_rowid' => $rows[$index - 1][$rowIdColumn] ?? null,
+                'next_rowid' => $rows[$index + 1][$rowIdColumn] ?? null,
+                'peer_count' => $count,
+                'status' => $row['status'] ?? null,
+                'option_name' => $row['option_name'] ?? null,
+                'source' => 'returning-current-source-next289',
+            ];
+        }
+
+        return $windowRows;
+    }
+
+    /**
+     * @param list<array{rows:list<array<string,mixed>>}> $yielded
+     */
+    private static function returningCountNext289(array $yielded): int
+    {
+        $count = 0;
+        foreach ($yielded as $stream) {
+            $count += count($stream['rows']);
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $summaries
+     */
+    private static function changeCountNext289(array $summaries): int
+    {
+        $count = 0;
+        foreach ($summaries as $summary) {
+            $count += count($summary['mutation_ids'] ?? []);
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $before
+     * @param array<string,list<array<string,mixed>>> $after
+     * @return list<string>
+     */
+    private static function changedTablesNext289(array $before, array $after): array
+    {
+        $changed = [];
+        foreach ($after as $table => $rows) {
+            if (($before[$table] ?? null) !== $rows) {
+                $changed[] = $table;
+            }
+        }
+        sort($changed);
+
+        return $changed;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array<string,int>
+     */
+    private static function rowCountsNext289(array $tables): array
+    {
+        $counts = [];
+        foreach ($tables as $table => $rows) {
+            $counts[$table] = count($rows);
+        }
+        ksort($counts);
+
+        return $counts;
+    }
+
+
+    /* Variant consolidated as executeNext290293. */
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext290293(
+        array $tables,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_source_next290293',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        if ($attemptStatements === []) {
+            throw new \InvalidArgumentException('SQLite row-value window current-source next290293 needs attempt statements');
+        }
+        if ($retryStatements === []) {
+            throw new \InvalidArgumentException('SQLite row-value window current-source next290293 needs retry statements');
+        }
+        if ($uniqueConstraints === []) {
+            throw new \InvalidArgumentException('SQLite row-value window current-source next290293 needs unique constraints');
+        }
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
+            throw new \InvalidArgumentException('SQLite row-value window current-source next290293 savepoint must be an identifier');
+        }
+
+        $savepointImage = self::normalizeTablesNext290293($tables);
+        [$attemptCurrent, $attemptSummaries, $attemptReturning] = self::runStatementsNext290293(
+            $savepointImage,
+            $attemptStatements,
+            $uniqueConstraints,
+            $rowIdColumn,
+            'attempt-before-window-rollback-next290293',
+        );
+
+        $rollbackCurrent = $savepointImage;
+        [$retryCurrent, $retrySummaries, $retryReturning] = self::runStatementsNext290293(
+            $rollbackCurrent,
+            $retryStatements,
+            $uniqueConstraints,
+            $rowIdColumn,
+            'retry-after-window-rollback-next290293',
+        );
+
+        $attemptWindow = self::windowRowsNext290293(self::flattenReturningNext290293($attemptReturning), $rowIdColumn, 'attempt-all-next290293');
+        $retryWindow = self::windowRowsNext290293(self::flattenReturningNext290293($retryReturning), $rowIdColumn, 'retry-all-next290293');
+        $retryStatementWindows = self::statementWindowRowsNext290293($retryReturning, $rowIdColumn);
+
+        return [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next290293',
+            'savepoint' => $savepoint,
+            'savepoint_image_tables' => $savepointImage,
+            'attempt_current_source_tables' => $attemptCurrent,
+            'rollback_current_source_tables' => $rollbackCurrent,
+            'current_source_tables' => $retryCurrent,
+            'next_source_tables' => $retryCurrent,
+            'rolled_back_to_savepoint' => true,
+            'savepoint_preserved_after_rollback_to' => true,
+            'attempt_returning_window_suppressed_by_rollback' => true,
+            'retry_returning_window_yielded_from_current_source' => true,
+            'window_order_columns_next290293' => [$rowIdColumn],
+            'attempt_statements' => $attemptSummaries,
+            'retry_statements' => $retrySummaries,
+            'discarded_attempt_returning' => $attemptReturning,
+            'yielded_after_retry_returning' => $retryReturning,
+            'discarded_attempt_window_rows' => $attemptWindow,
+            'yielded_retry_window_rows' => $retryWindow,
+            'yielded_retry_statement_window_rows' => $retryStatementWindows,
+            'discarded_attempt_returning_count' => self::returningCountNext290293($attemptReturning),
+            'yielded_after_retry_count' => self::returningCountNext290293($retryReturning),
+            'yielded_retry_statement_window_count' => count($retryStatementWindows),
+            'attempt_changes_before_rollback' => self::changeCountNext290293($attemptSummaries),
+            'retry_changes_after_rollback' => self::changeCountNext290293($retrySummaries),
+            'changed_tables_after_retry' => self::changedTablesNext290293($savepointImage, $retryCurrent),
+            'row_counts' => self::rowCountsNext290293($retryCurrent),
+            'dependency_closure_next290293' => 'no new support component needed; next290-293 reuses native row-value UPDATE/DELETE RETURNING execution and adds statement-partitioned current-source RETURNING window receipts after savepoint retry',
+            'non_overlap_next290293' => 'adds statement-partitioned row_number/lag/lead receipts over UPDATE/DELETE RETURNING rows after rollback and retry; avoids accepted next219 negative LIMIT/OFFSET, next224/230 nested savepoints, next231 compound tuple sources, next289 all-stream windows, JSON table, WAL/VFS, planner, trigger, and B-tree clusters',
+            'dependencies' => [
+                'sqlite-rowvalue-update-returning-window-current-source-next290293',
+                'sqlite-rowvalue-delete-returning-window-current-source-next290293',
+                'sqlite-rowvalue-returning-window-savepoint-retry-current-source-next290293',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array<string,list<array<string,mixed>>>
+     */
+    private static function normalizeTablesNext290293(array $tables): array
+    {
+        foreach ($tables as $name => $rows) {
+            if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
+                throw new \InvalidArgumentException('SQLite row-value window current-source next290293 tables must be named row lists');
+            }
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    throw new \InvalidArgumentException('SQLite row-value window current-source next290293 rows must be arrays');
+                }
+            }
+        }
+
+        return $tables;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $statements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
+     */
+    private static function runStatementsNext290293(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    {
+        $current = $tables;
+        $summaries = [];
+        $yielded = [];
+
+        foreach ($statements as $ordinal => $sql) {
+            $before = $current;
+            $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
+            $current = $result['tables'];
+            $summaries[] = self::statementSummaryNext290293($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
+            $yielded[] = [
+                'phase' => $phase,
+                'ordinal' => $ordinal,
+                'action' => $result['action'],
+                'conflict_action' => $result['conflict_action'],
+                'rows' => $result['returning'],
+            ];
+        }
+
+        return [$current, $summaries, $yielded];
+    }
+
+    /**
+     * @param array<string,mixed> $result
+     * @param array<string,list<array<string,mixed>>> $before
+     * @return array<string,mixed>
+     */
+    private static function statementSummaryNext290293(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    {
+        return [
+            'phase' => $phase,
+            'ordinal' => $ordinal,
+            'sql' => $sql,
+            'action' => $result['action'],
+            'conflict_action' => $result['conflict_action'],
+            'table' => $result['table'],
+            'selected_ids' => $result['plan']->selectedIds,
+            'mutation_ids' => $result['plan']->mutationIds,
+            'source_rows' => self::rowsByIdsNext290293($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'returning_rows' => $result['returning'],
+            'ignored_rows' => $result['ignored_rows'],
+            'deleted_conflict_rows' => $result['deleted_conflict_rows'],
+            'conflicts' => $result['conflicts'],
+            'failed_conflict' => $result['failed_conflict'] ?? null,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<int|string> $ids
+     * @return list<array<string,mixed>>
+     */
+    private static function rowsByIdsNext290293(array $rows, array $ids, string $rowIdColumn): array
+    {
+        $wanted = [];
+        foreach ($ids as $id) {
+            $wanted[(string) $id] = true;
+        }
+
+        $matched = [];
+        foreach ($rows as $row) {
+            if (!array_key_exists($rowIdColumn, $row)) {
+                throw new \InvalidArgumentException("SQLite row-value window current-source next290293 rowid column {$rowIdColumn} is missing");
+            }
+            $id = $row[$rowIdColumn];
+            if (!is_int($id) && !is_string($id)) {
+                throw new \InvalidArgumentException("SQLite row-value window current-source next290293 rowid column {$rowIdColumn} must be int or string");
+            }
+            if (isset($wanted[(string) $id])) {
+                $matched[] = $row;
+            }
+        }
+
+        return $matched;
+    }
+
+    /**
+     * @param list<array{rows:list<array<string,mixed>>}> $yielded
+     * @return list<array<string,mixed>>
+     */
+    private static function flattenReturningNext290293(array $yielded): array
+    {
+        $rows = [];
+        foreach ($yielded as $stream) {
+            foreach ($stream['rows'] as $row) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function windowRowsNext290293(array $rows, string $rowIdColumn, string $source): array
+    {
+        usort($rows, static fn (array $left, array $right): int => ($left[$rowIdColumn] ?? 0) <=> ($right[$rowIdColumn] ?? 0));
+        $windowRows = [];
+        $count = count($rows);
+
+        foreach ($rows as $index => $row) {
+            $windowRows[] = [
+                'row_number' => $index + 1,
+                'current_rowid' => $row[$rowIdColumn] ?? null,
+                'previous_rowid' => $rows[$index - 1][$rowIdColumn] ?? null,
+                'next_rowid' => $rows[$index + 1][$rowIdColumn] ?? null,
+                'peer_count' => $count,
+                'status' => $row['status'] ?? null,
+                'option_name' => $row['option_name'] ?? null,
+                'source' => $source,
+            ];
+        }
+
+        return $windowRows;
+    }
+
+    /**
+     * @param list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}> $yielded
+     * @return list<array<string,mixed>>
+     */
+    private static function statementWindowRowsNext290293(array $yielded, string $rowIdColumn): array
+    {
+        $windows = [];
+        foreach ($yielded as $stream) {
+            $rows = $stream['rows'];
+            usort($rows, static fn (array $left, array $right): int => ($left[$rowIdColumn] ?? 0) <=> ($right[$rowIdColumn] ?? 0));
+            $count = count($rows);
+
+            foreach ($rows as $index => $row) {
+                $windows[] = [
+                    'statement_ordinal' => $stream['ordinal'],
+                    'action' => $stream['action'],
+                    'conflict_action' => $stream['conflict_action'],
+                    'row_number_in_statement' => $index + 1,
+                    'current_rowid' => $row[$rowIdColumn] ?? null,
+                    'previous_rowid_in_statement' => $rows[$index - 1][$rowIdColumn] ?? null,
+                    'next_rowid_in_statement' => $rows[$index + 1][$rowIdColumn] ?? null,
+                    'statement_peer_count' => $count,
+                    'status' => $row['status'] ?? null,
+                    'option_name' => $row['option_name'] ?? null,
+                    'source' => 'retry-statement-current-source-next290293',
+                ];
+            }
+        }
+
+        return $windows;
+    }
+
+    /**
+     * @param list<array{rows:list<array<string,mixed>>}> $yielded
+     */
+    private static function returningCountNext290293(array $yielded): int
+    {
+        $count = 0;
+        foreach ($yielded as $stream) {
+            $count += count($stream['rows']);
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $summaries
+     */
+    private static function changeCountNext290293(array $summaries): int
+    {
+        $count = 0;
+        foreach ($summaries as $summary) {
+            $count += count($summary['mutation_ids'] ?? []);
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $before
+     * @param array<string,list<array<string,mixed>>> $after
+     * @return list<string>
+     */
+    private static function changedTablesNext290293(array $before, array $after): array
+    {
+        $changed = [];
+        foreach ($after as $table => $rows) {
+            if (($before[$table] ?? null) !== $rows) {
+                $changed[] = $table;
+            }
+        }
+        sort($changed);
+
+        return $changed;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array<string,int>
+     */
+    private static function rowCountsNext290293(array $tables): array
+    {
+        $counts = [];
+        foreach ($tables as $table => $rows) {
+            $counts[$table] = count($rows);
+        }
+        ksort($counts);
+
+        return $counts;
+    }
+
+
+    /* Variant consolidated as prepareNext298301. */
+    /**
+     * @param list<array<string,mixed>> $readyCandidates
+     * @return array<string,mixed>
+     */
+    public static function prepareNext298301(array $readyCandidates, string $sourceToken = 'rowvalue-window-current-source-next298-301'): array
+    {
+        if (count($readyCandidates) !== 4) {
+            throw new \InvalidArgumentException('SQLite row-value returning window next298-301 requires exactly four next294-297 ready candidates');
+        }
+        if ($sourceToken === '') {
+            throw new \InvalidArgumentException('SQLite row-value returning window next298-301 source token must be non-empty');
+        }
+
+        $expected = [294, 295, 296, 297];
+        $validated = [];
+        $rowCounts = [];
+        $retryRowids = [];
+
+        foreach ($readyCandidates as $index => $candidate) {
+            $next = $expected[$index];
+            $validated[] = self::validateCandidateNext298301($candidate, $next);
+            $rowCounts[$next] = count($candidate['retry_window_rows']);
+            $retryRowids[$next] = array_column($candidate['retry_window_rows'], 'current_rowid');
+        }
+
+        $receipt298 = self::hashNext298301(['next' => 298, 'source' => $sourceToken, 'ready' => $validated, 'rowids' => $retryRowids]);
+        $ledger299 = self::hashNext298301(['next' => 299, 'receipt' => $receipt298, 'rows' => $rowCounts]);
+        $handoff300 = self::hashNext298301(['next' => 300, 'ledger' => $ledger299, 'statuses' => array_column($validated, 'status')]);
+        $seal301 = self::hashNext298301(['next' => 301, 'handoff' => $handoff300, 'source' => $sourceToken]);
+
+        return [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next298-301-after-ready',
+            'source_token' => $sourceToken,
+            'ready_candidate_statuses' => array_column($validated, 'status'),
+            'ready_candidate_nexts' => $expected,
+            'retry_window_row_counts' => $rowCounts,
+            'retry_window_rowids' => $retryRowids,
+            'next298_receipt' => $receipt298,
+            'next299_ledger' => $ledger299,
+            'next300_handoff' => $handoff300,
+            'next301_seal' => $seal301,
+            'next301_ready' => true,
+            'dependency_closure_next298_301' => 'no new support component needed; next298-301 prepares after-ready row-value UPDATE/DELETE RETURNING window current-source metadata from next294-297 ready candidates',
+            'non_overlap_next298_301' => 'prepares only post-ready receipts for row-value UPDATE/DELETE RETURNING window current-source next294-297 candidates; avoids suite, JSON table, WAL/VFS, planner, PRAGMA, ATTACH, B-tree, and unrelated window slices',
+            'dependencies' => [
+                'sqlite-rowvalue-update-delete-returning-window-current-source-next294-ready',
+                'sqlite-rowvalue-update-delete-returning-window-current-source-next295-ready',
+                'sqlite-rowvalue-update-delete-returning-window-current-source-next296-ready',
+                'sqlite-rowvalue-update-delete-returning-window-current-source-next297-ready',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $candidate
+     * @return array{next:int,status:string}
+     */
+    private static function validateCandidateNext298301(array $candidate, int $next): array
+    {
+        $status = $candidate['status'] ?? null;
+        $expectedStatus = "rowvalue-update-delete-returning-window-current-source-next{$next}-ready";
+        if ($status !== $expectedStatus) {
+            throw new \InvalidArgumentException("SQLite row-value returning window next298-301 expected {$expectedStatus}");
+        }
+        if (($candidate['after_ready'] ?? null) !== true) {
+            throw new \InvalidArgumentException("SQLite row-value returning window next298-301 next{$next} is not after-ready");
+        }
+        if (!isset($candidate['retry_window_rows']) || !is_array($candidate['retry_window_rows']) || !array_is_list($candidate['retry_window_rows'])) {
+            throw new \InvalidArgumentException("SQLite row-value returning window next298-301 next{$next} needs retry window rows");
+        }
+        foreach ($candidate['retry_window_rows'] as $row) {
+            if (!is_array($row) || !array_key_exists('current_rowid', $row) || !array_key_exists('row_number', $row)) {
+                throw new \InvalidArgumentException("SQLite row-value returning window next298-301 next{$next} retry rows need row_number and current_rowid");
+            }
+        }
+
+        return ['next' => $next, 'status' => $expectedStatus];
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     */
+    private static function hashNext298301(array $payload): string
+    {
+        return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
+    }
+
 }

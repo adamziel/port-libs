@@ -2,11 +2,11 @@
 
 Status: focused PHP behavior growth for row-value UPDATE/DELETE RETURNING current-source windows after savepoint rollback and retry.
 
-This slice adds `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext289Plan`. It reuses the lane-local row-value UPDATE/DELETE RETURNING executor, records RETURNING rows generated before `ROLLBACK TO`, restores the savepoint image, retries UPDATE/DELETE statements, and emits deterministic current-source window receipts over the yielded retry stream.
+This slice adds `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext289`. It reuses the lane-local row-value UPDATE/DELETE RETURNING executor, records RETURNING rows generated before `ROLLBACK TO`, restores the savepoint image, retries UPDATE/DELETE statements, and emits deterministic current-source window receipts over the yielded retry stream.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext289Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext289.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext289Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next289.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext289Test.php`

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
 
 $candidate298301 = static function (int $next, array $rowids): array {
     $rows = [];
@@ -26,7 +26,7 @@ $ready298301 = [
     $candidate298301(297, [7, 9]),
 ];
 
-$plan298301 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Plan::prepare($ready298301);
+$plan298301 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::prepareNext298301($ready298301);
 
 $cases298301 = [
     'status' => [static fn (): mixed => $plan298301()['status'], 'rowvalue-update-delete-returning-window-current-source-next298-301-after-ready'],
@@ -45,9 +45,9 @@ $cases298301 = [
     'ready flag' => [static fn (): mixed => $plan298301()['next301_ready'], true],
     'dependency closure' => [static fn (): mixed => str_contains($plan298301()['dependency_closure_next298_301'], 'no new support component needed'), true],
     'non overlap' => [static fn (): mixed => str_contains($plan298301()['non_overlap_next298_301'], 'avoids suite'), true],
-    'bad candidate count rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Plan::prepare(array_slice($ready298301, 0, 3)), InvalidArgumentException::class],
-    'bad status rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Plan::prepare([['status' => 'bad']]), InvalidArgumentException::class],
-    'bad after ready rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Plan::prepare([
+    'bad candidate count rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::prepareNext298301(array_slice($ready298301, 0, 3)), InvalidArgumentException::class],
+    'bad status rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::prepareNext298301([['status' => 'bad']]), InvalidArgumentException::class],
+    'bad after ready rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::prepareNext298301([
         $candidate298301(294, [1]),
         ['status' => 'rowvalue-update-delete-returning-window-current-source-next295-ready', 'after_ready' => false, 'retry_window_rows' => []],
         $candidate298301(296, [3]),
