@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan;
+use PortLibs\LibSqlite\SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -50,7 +50,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options',
     int $currentCookie = 1240,
     int $nextCookie = 1241,
-): array => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan::wordpressOptionValuePlan(
+): array => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan(
     $currentRows,
     $nextRows,
     'option_value',
@@ -149,38 +149,38 @@ foreach ($cases as $name => $case) {
 }
 
 $tests['utf16 like glob affinity range current source next124 accepts utf8 pattern bytes'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $plan = SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:%', 'UTF-8'), 'UTF-8');
+    $plan = SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:%', 'UTF-8'), 'UTF-8');
     $t->same([1], $plan['currentRowids']);
 };
 
 $tests['utf16 like glob affinity range current source next124 accepts utf16 keyword alias'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $plan = SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:%', 'UTF-16LE'), 'UTF-16');
+    $plan = SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:%', 'UTF-16LE'), 'UTF-16');
     $t->same('UTF-16LE', $plan['patternEncoding']);
 };
 
 $tests['utf16 like glob affinity range current source next124 rejects invalid encoding'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:%', 'UTF-16LE'), 'UTF-32'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:%', 'UTF-16LE'), 'UTF-32'));
 };
 
 $tests['utf16 like glob affinity range current source next124 rejects malformed utf16 pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', "\x00\xd8", 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', "\x00\xd8", 'UTF-16LE'));
 };
 
 $tests['utf16 like glob affinity range current source next124 rejects malformed utf16 escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('cache:!%%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', "\x00\xd8", 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('cache:!%%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', "\x00\xd8", 'UTF-16LE'));
 };
 
 $tests['utf16 like glob affinity range current source next124 rejects multi-character escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('cache:!!%%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', $bytes('!!', 'UTF-16LE'), 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('cache:!!%%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'TEXT', 'BINARY', $bytes('!!', 'UTF-16LE'), 'UTF-16LE'));
 };
 
 $tests['utf16 like glob affinity range current source next124 rejects glob escape'] = static function (TestRunner $t) use ($currentRows, $nextRows, $bytes): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:*', 'UTF-16LE'), 'UTF-16LE', 'GLOB', 'TEXT', 'BINARY', $bytes('!', 'UTF-16LE'), 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $nextRows, 'option_value', $bytes('autoload:*', 'UTF-16LE'), 'UTF-16LE', 'GLOB', 'TEXT', 'BINARY', $bytes('!', 'UTF-16LE'), 'UTF-16LE'));
 };
 
 $tests['utf16 like glob affinity range current source next124 rejects malformed row text after decode'] = static function (TestRunner $t) use ($bytes, $nextRows): void {
     $badRows = [['option_id' => 12, 'option_value' => "bad\xc3"]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan::wordpressOptionValuePlan($badRows, $nextRows, 'option_value', $bytes('bad%', 'UTF-16LE'), 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan($badRows, $nextRows, 'option_value', $bytes('bad%', 'UTF-16LE'), 'UTF-16LE'));
 };
 
 return $tests;

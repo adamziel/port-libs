@@ -5,10 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteBlobValue.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
-require_once __DIR__ . '/../src/SQLiteUtf16LikeEscapeCurrentSourceNext143Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16LikeEscapeCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16LikeEscapeCurrentSourceNext143Plan;
+use PortLibs\LibSqlite\SQLiteUtf16LikeEscapeCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
@@ -37,7 +37,7 @@ $next = [
     $row(5, 'plugin_100%_enabled_new', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16LikeEscapeCurrentSourceNext143Plan::wordpressOptionNameLikeEscape(
+$plan = SQLiteUtf16LikeEscapeCurrentSourceNextPlan::wordpressOptionNameLikeEscape(
     $current,
     $next,
     'plugin\\_100\\%\\_enabled%',

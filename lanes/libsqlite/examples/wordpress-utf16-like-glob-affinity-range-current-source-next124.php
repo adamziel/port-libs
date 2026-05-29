@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan;
+use PortLibs\LibSqlite\SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -24,7 +24,7 @@ $nextRows = [
     ['option_id' => 5, 'option_value' => 'autoload:fresh'],
 ];
 
-$plan = SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan::wordpressOptionValuePlan(
+$plan = SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::wordpressOptionValuePlan(
     $currentRows,
     $nextRows,
     'option_value',

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for UTF-16 GLOB range current-source handoff.
 
-This slice adds `SQLiteUtf16GlobRangeCurrentSourceNext102Plan::wordpressOptionNameGlobRange()`. It composes the existing UTF-16 LIKE/GLOB cursor with current/next source metadata so a prepared GLOB range scan over copied `wp_options.option_name` rows can report decoded range bounds, UTF-16LE/UTF-16BE range-bound bytes, retained/exited/entered rowids, renamed key bytes, schema-cookie changes, and whether the cursor can be reused.
+This slice adds `SQLiteUtf16GlobRangeCurrentSourceNextPlan::wordpressOptionNameGlobRange()`. It composes the existing UTF-16 LIKE/GLOB cursor with current/next source metadata so a prepared GLOB range scan over copied `wp_options.option_name` rows can report decoded range bounds, UTF-16LE/UTF-16BE range-bound bytes, retained/exited/entered rowids, renamed key bytes, schema-cookie changes, and whether the cursor can be reused.
 
 WordPress path: `wordpress-utf16-glob-range-current-source-next102.php` models a plugin option-name GLOB scan across a rebuilt `wp_options` source where one plugin row is renamed, one row enters the `plugin_*` range, and the schema cookie changes.
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16CastGlobCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLiteUtf16CastGlobCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 
@@ -23,7 +23,7 @@ $nextRows = [
     ['option_id' => 5, 'option_name' => 'fresh_plugin', 'option_value_bytes' => $enc('plugin_cache_new', 3), 'text_encoding' => 3],
 ];
 
-$plan = SQLiteUtf16CastGlobCurrentSourceNext135Plan::wordpressOptionValuePlan(
+$plan = SQLiteUtf16CastGlobCurrentSourceNextPlan::wordpressOptionValuePlan(
     $currentRows,
     $nextRows,
     'plugin_*',

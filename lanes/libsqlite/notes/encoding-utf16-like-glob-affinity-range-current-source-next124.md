@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for UTF-16 LIKE/GLOB pattern bytes feeding affinity range current-source scans.
 
-This slice adds `SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Plan`. It decodes UTF-16LE/UTF-16BE/UTF-8 pattern and ESCAPE bytes, validates malformed UTF-16 and one-character `LIKE ESCAPE`, delegates matching to the existing affinity range current/next scanner, and records UTF-16LE/UTF-16BE range-bound bytes so a prepared WordPress `wp_options.option_value` range scan can explain why the next source needs reprepare.
+This slice adds `SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan`. It decodes UTF-16LE/UTF-16BE/UTF-8 pattern and ESCAPE bytes, validates malformed UTF-16 and one-character `LIKE ESCAPE`, delegates matching to the existing affinity range current/next scanner, and records UTF-16LE/UTF-16BE range-bound bytes so a prepared WordPress `wp_options.option_value` range scan can explain why the next source needs reprepare.
 
 WordPress path: `wordpress-utf16-like-glob-affinity-range-current-source-next124.php` models a copied `wp_options` import scan using a UTF-16 `LIKE` pattern over option values. It reports decoded pattern provenance, encoded range bounds, retained/entered rows, changed affinity text, and schema-cookie invalidation.
 

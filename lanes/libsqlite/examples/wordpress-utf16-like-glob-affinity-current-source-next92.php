@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16LikeGlobAffinityCurrentSourceNext92Plan;
+use PortLibs\LibSqlite\SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
@@ -35,9 +35,9 @@ $next = [
 
 $result = [
     'scenario' => 'wordpress-utf16-like-glob-affinity-current-source-next92',
-    'autoloadLike' => SQLiteUtf16LikeGlobAffinityCurrentSourceNext92Plan::wordpressOptionValuePlan($current, $next, 'autoload:%'),
-    'literalPercent' => SQLiteUtf16LikeGlobAffinityCurrentSourceNext92Plan::wordpressOptionValuePlan($current, $next, 'cache:!%%', 'LIKE', '!'),
-    'numericGlob' => SQLiteUtf16LikeGlobAffinityCurrentSourceNext92Plan::wordpressOptionValuePlan($current, $next, '4*', 'GLOB'),
+    'autoloadLike' => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, 'autoload:%'),
+    'literalPercent' => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, 'cache:!%%', 'LIKE', '!'),
+    'numericGlob' => SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, '4*', 'GLOB'),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

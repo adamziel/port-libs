@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -54,7 +54,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@163',
     int $currentCookie = 162,
     int $nextCookie = 163,
-): array => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan::wordpressOptionNameRtrimPatternPlan(
+): array => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $enc($currentPattern, $currentEncoding),
@@ -154,7 +154,7 @@ foreach ($cases as $name => [$path, $expected]) {
 
 $tests['utf16 nocase like rtrim rhs current source next163 stable trailing pattern spaces reusable'] = static function (TestRunner $t) use ($row, $enc): void {
     $rows = [$row(1, 'Plugin_Cache  ', 2), $row(2, 'plugin_cache', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan::wordpressOptionNameRtrimPatternPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
         $rows,
         $rows,
         $enc('plugin!_cache%   ', 2),
@@ -197,7 +197,7 @@ $tests['utf16 nocase like rtrim rhs current source next163 tabs are not trimmed 
 };
 
 $tests['utf16 nocase like rtrim rhs current source next163 rejects malformed rhs pattern'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan::wordpressOptionNameRtrimPatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
         $currentRows,
         $nextRows,
         "p\0x",
@@ -209,7 +209,7 @@ $tests['utf16 nocase like rtrim rhs current source next163 rejects malformed rhs
 
 $tests['utf16 nocase like rtrim rhs current source next163 rejects bad row shape'] = static function (TestRunner $t) use ($enc): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc('plugin_cache', 2)]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan::wordpressOptionNameRtrimPatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
         $rows,
         $rows,
         $enc('plugin%', 2),

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for UTF-16 RTRIM/NOCASE GLOB scans with NUMERIC affinity filtering.
 
-This slice adds `SQLiteUtf16RtrimGlobAffinityCurrentSourceNext145Plan`. It composes a copied `wp_options` current-source scan where `rtrim(option_name) COLLATE NOCASE` provides the broad GLOB range, the byte-sensitive SQLite GLOB residual keeps uppercase false positives out, and `option_value` is decoded from UTF-8/UTF-16LE/UTF-16BE before SQLite-style NUMERIC affinity decides the visible rowset.
+This slice adds `SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan`. It composes a copied `wp_options` current-source scan where `rtrim(option_name) COLLATE NOCASE` provides the broad GLOB range, the byte-sensitive SQLite GLOB residual keeps uppercase false positives out, and `option_value` is decoded from UTF-8/UTF-16LE/UTF-16BE before SQLite-style NUMERIC affinity decides the visible rowset.
 
 WordPress path: `wordpress-utf16-rtrim-glob-affinity-current-source-next145.php` models plugin option scans whose names and numeric values change encoding across copied import sources. The cursor is invalidated when source/schema/collation changes are accompanied by affinity rowset or value-byte changes, even when the name range still looks reusable.
 

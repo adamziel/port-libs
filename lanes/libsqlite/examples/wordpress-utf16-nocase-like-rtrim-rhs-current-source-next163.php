@@ -6,10 +6,10 @@ require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
 require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
@@ -29,7 +29,7 @@ $nextRows = [
     $row(4, 'plugin_cache_new  ', 2),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan::wordpressOptionNameRtrimPatternPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
     $currentRows,
     $nextRows,
     $enc('plugin!_cache%   ', 2),

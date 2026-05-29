@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for UTF-16 decoded LIKE/GLOB patterns with collation-aware range provenance.
 
-This slice adds `SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan::wordpressOptionValuePlan()`. It decodes UTF-8/UTF-16LE/UTF-16BE pattern and escape bytes, reuses existing option-value affinity matching, and adds BINARY/NOCASE/RTRIM range admission metadata plus current/next UTF-16 range-byte provenance for cursor invalidation.
+This slice adds `SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan()`. It decodes UTF-8/UTF-16LE/UTF-16BE pattern and escape bytes, reuses existing option-value affinity matching, and adds BINARY/NOCASE/RTRIM range admission metadata plus current/next UTF-16 range-byte provenance for cursor invalidation.
 
 WordPress path: `wordpress-utf16-collation-affinity-pattern-current-source-next118.php` models copied `wp_options.option_value` scans for autoload prefixes, literal percent escapes, and numeric option values during a current-source to next-source rebuild.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-collation-affinity-pattern-current-source-next118.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Test.php`

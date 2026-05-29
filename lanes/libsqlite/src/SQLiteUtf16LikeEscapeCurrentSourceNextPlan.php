@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteUtf16LikeEscapeCurrentSourceNext143Plan
+final class SQLiteUtf16LikeEscapeCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows

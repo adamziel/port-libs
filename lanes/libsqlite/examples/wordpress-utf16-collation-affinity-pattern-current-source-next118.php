@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan;
+use PortLibs\LibSqlite\SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
@@ -37,9 +37,9 @@ $next = [
 
 $result = [
     'scenario' => 'wordpress-utf16-collation-affinity-pattern-current-source-next118',
-    'nocaseAutoload' => SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan::wordpressOptionValuePlan($current, $next, $pattern('AUTOLOAD:%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'main.wp_options', 'main.wp_options', 'UTF-16LE', 'UTF-16BE'),
-    'literalPercent' => SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan::wordpressOptionValuePlan($current, $next, $pattern('cache:!%%', 'UTF-16BE'), 'UTF-16BE', 'LIKE', 'NOCASE', $pattern('!', 'UTF-16BE'), 'UTF-16BE'),
-    'numericAffinity' => SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan::wordpressOptionValuePlan($current, $next, $pattern('10', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'NOCASE'),
+    'nocaseAutoload' => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, $pattern('AUTOLOAD:%', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'NOCASE', null, null, false, 'main.wp_options', 'main.wp_options', 'UTF-16LE', 'UTF-16BE'),
+    'literalPercent' => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, $pattern('cache:!%%', 'UTF-16BE'), 'UTF-16BE', 'LIKE', 'NOCASE', $pattern('!', 'UTF-16BE'), 'UTF-16BE'),
+    'numericAffinity' => SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, $pattern('10', 'UTF-16LE'), 'UTF-16LE', 'LIKE', 'NOCASE'),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

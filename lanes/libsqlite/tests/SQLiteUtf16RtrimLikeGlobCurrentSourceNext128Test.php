@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Plan;
+use PortLibs\LibSqlite\SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -67,7 +67,7 @@ $plan = static fn (
     ?string $nextEscape = null,
     ?array $current = null,
     ?array $next = null,
-): array => SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Plan::wordpressOptionNameOperatorSwitchPlan(
+): array => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $currentPattern,
@@ -164,7 +164,7 @@ $tests['utf16 rtrim like glob current source next128 leading GLOB wildcard has n
 
 $tests['utf16 rtrim like glob current source next128 stable same GLOB cursor reusable'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 'UTF-16LE'), $row(2, 'plugin_cache ', 'UTF-16BE')];
-    $plan = SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Plan::wordpressOptionNameOperatorSwitchPlan(
+    $plan = SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan(
         $rows,
         $rows,
         'plugin_cache*',
@@ -183,7 +183,7 @@ $tests['utf16 rtrim like glob current source next128 stable same GLOB cursor reu
 
 $tests['utf16 rtrim like glob current source next128 stable same LIKE still records full scan'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 'UTF-16LE'), $row(2, 'plugin_cache ', 'UTF-16BE')];
-    $plan = SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Plan::wordpressOptionNameOperatorSwitchPlan(
+    $plan = SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan(
         $rows,
         $rows,
         'plugin_cache%',
@@ -213,15 +213,15 @@ $tests['utf16 rtrim like glob current source next128 rejects invalid LIKE escape
 };
 
 $tests['utf16 rtrim like glob current source next128 rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Plan::wordpressOptionNameOperatorSwitchPlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p%', 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p%', 'p*'));
 };
 
 $tests['utf16 rtrim like glob current source next128 rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Plan::wordpressOptionNameOperatorSwitchPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p%', 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p%', 'p*'));
 };
 
 $tests['utf16 rtrim like glob current source next128 rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Plan::wordpressOptionNameOperatorSwitchPlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, 'p%', 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::wordpressOptionNameOperatorSwitchPlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, 'p%', 'p*'));
 };
 
 return $tests;

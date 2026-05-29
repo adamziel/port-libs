@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for UTF-16 RTRIM current-source scans when a prepared WordPress option-name cursor changes from residual `LIKE` to prefix-ranged `GLOB`.
 
-This slice adds `SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Plan`, which decodes UTF-8/UTF-16LE/UTF-16BE source rows, sorts with SQLite `RTRIM` collation keys that trim only ASCII space, keeps residual `LIKE`/`GLOB` matching on the original decoded text, and reports current/next invalidation when the operator, pattern range, source, malformed text, encoded bytes, candidates, or matched rowset changes.
+This slice adds `SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan`, which decodes UTF-8/UTF-16LE/UTF-16BE source rows, sorts with SQLite `RTRIM` collation keys that trim only ASCII space, keeps residual `LIKE`/`GLOB` matching on the original decoded text, and reports current/next invalidation when the operator, pattern range, source, malformed text, encoded bytes, candidates, or matched rowset changes.
 
 WordPress path: `wordpress-utf16-rtrim-like-glob-current-source-next128.php` models a copied `wp_options.option_name` scan whose prepared predicate switches from escaped `LIKE 'plugin!_cache%' ESCAPE '!'` to `GLOB 'plugin_cache*'` across a current-source transition.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-rtrim-like-glob-current-source-next128.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16RtrimLikeGlobCurrentSourceNext128Test.php`

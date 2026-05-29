@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNext114Plan;
+use PortLibs\LibSqlite\SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
@@ -38,10 +38,10 @@ $next = [
 
 $result = [
     'scenario' => 'wordpress-utf16-pattern-like-glob-affinity-current-source-next114',
-    'autoloadLike' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNext114Plan::wordpressOptionValuePlan($current, $next, $pattern('autoload:%', 'UTF-16LE'), 'UTF-16LE'),
-    'literalPercent' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNext114Plan::wordpressOptionValuePlan($current, $next, $pattern('cache:!%%', 'UTF-16BE'), 'UTF-16BE', 'LIKE', $pattern('!', 'UTF-16BE'), 'UTF-16BE'),
-    'greekGlob' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNext114Plan::wordpressOptionValuePlan($current, $next, $pattern('plugin_[αγ]:*', 'UTF-16LE'), 'UTF-16LE', 'GLOB'),
-    'numericLike' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNext114Plan::wordpressOptionValuePlan($current, $next, $pattern('10', 'UTF-16LE'), 'UTF-16LE'),
+    'autoloadLike' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, $pattern('autoload:%', 'UTF-16LE'), 'UTF-16LE'),
+    'literalPercent' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, $pattern('cache:!%%', 'UTF-16BE'), 'UTF-16BE', 'LIKE', $pattern('!', 'UTF-16BE'), 'UTF-16BE'),
+    'greekGlob' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, $pattern('plugin_[αγ]:*', 'UTF-16LE'), 'UTF-16LE', 'GLOB'),
+    'numericLike' => SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($current, $next, $pattern('10', 'UTF-16LE'), 'UTF-16LE'),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16LikeRtrimCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteUtf16LikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -66,7 +66,7 @@ $plan137 = static fn (
     ?array $next = null,
     string $currentSource = 'main.wp_options@136',
     string $nextSource = 'main.wp_options@137',
-): array => SQLiteUtf16LikeRtrimCurrentSourceNext137Plan::wordpressOptionNamePlan(
+): array => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
     $current ?? $current137,
     $next ?? $next137,
     $pattern,
@@ -200,15 +200,15 @@ $tests['utf16 like rtrim current source next137 rejects invalid escape length'] 
 };
 
 $tests['utf16 like rtrim current source next137 rejects non integer option id'] = static function (TestRunner $t) use ($next137): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNext137Plan::wordpressOptionNamePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $next137, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $next137, 'plugin%'));
 };
 
 $tests['utf16 like rtrim current source next137 rejects missing bytes'] = static function (TestRunner $t) use ($next137): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNext137Plan::wordpressOptionNamePlan([['option_id' => 1, 'text_encoding' => 1]], $next137, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'text_encoding' => 1]], $next137, 'plugin%'));
 };
 
 $tests['utf16 like rtrim current source next137 rejects missing encoding'] = static function (TestRunner $t) use ($next137): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNext137Plan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'x']], $next137, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'x']], $next137, 'plugin%'));
 };
 
 return $tests;

@@ -7,12 +7,12 @@ require_once __DIR__ . '/../src/SQLiteBlobValue.php';
 require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
-require_once __DIR__ . '/../src/SQLiteUtf16LikeGlobAffinityCurrentSourceNext92Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNext114Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan;
+use PortLibs\LibSqlite\SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan;
 
 $bytes = static fn (string $value, string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($value, $encoding);
 $row = static fn (int $id, string $value, string $encoding = 'UTF-16LE'): array => [
@@ -40,7 +40,7 @@ $nextRows = [
     $row(5, 'plugin_[draft_new', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan::wordpressOptionValuePlan(
+$plan = SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan::wordpressOptionValuePlan(
     $currentRows,
     $nextRows,
     $bytes('plugin_[draft*', 'UTF-16LE'),

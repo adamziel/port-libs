@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16RtrimLikePatternCurrentSourceNext138Plan;
+use PortLibs\LibSqlite\SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan;
 
 $encodingNumber = static fn (string $encoding): int => match ($encoding) {
     'UTF-8' => 1,
@@ -36,7 +36,7 @@ $next = [
     $row(5, 'plugin_cache_new', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16RtrimLikePatternCurrentSourceNext138Plan::wordpressOptionNamePlan(
+$plan = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan(
     $current,
     $next,
     SQLiteEncodingCollationSourceCursor::encodeText('plugin_cache%', 'UTF-16LE'),
@@ -48,7 +48,7 @@ $plan = SQLiteUtf16RtrimLikePatternCurrentSourceNext138Plan::wordpressOptionName
     'main.wp_options@138',
 );
 
-$literal = SQLiteUtf16RtrimLikePatternCurrentSourceNext138Plan::wordpressOptionNamePlan(
+$literal = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::wordpressOptionNamePlan(
     $current,
     $next,
     SQLiteEncodingCollationSourceCursor::encodeText('plugin_!%literal', 'UTF-16BE'),

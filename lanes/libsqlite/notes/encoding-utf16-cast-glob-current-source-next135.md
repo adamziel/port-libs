@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for UTF-16 `CAST(... AS TEXT) GLOB` current-source scans.
 
-This slice adds `SQLiteUtf16CastGlobCurrentSourceNext135Plan`, which decodes UTF-16LE/UTF-16BE/UTF-8 option-value bytes before applying a binary `GLOB` prefix range and residual match for `CAST(option_value AS TEXT) GLOB ...`. It records malformed UTF-16 rows, encoded-byte and encoding changes, candidate/match rowset changes, and current/next invalidation reasons for copied `wp_options` sources.
+This slice adds `SQLiteUtf16CastGlobCurrentSourceNextPlan`, which decodes UTF-16LE/UTF-16BE/UTF-8 option-value bytes before applying a binary `GLOB` prefix range and residual match for `CAST(option_value AS TEXT) GLOB ...`. It records malformed UTF-16 rows, encoded-byte and encoding changes, candidate/match rowset changes, and current/next invalidation reasons for copied `wp_options` sources.
 
 WordPress smoke: `php lanes/libsqlite/examples/wordpress-utf16-cast-glob-current-source-next135.php --self-test`
 
@@ -12,8 +12,8 @@ Dependency closure: no new support component is needed. The patch reuses native 
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16CastGlobCurrentSourceNext135Plan.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLiteUtf16CastGlobCurrentSourceNext135Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16CastGlobCurrentSourceNextPlan.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLiteUtf16CastGlobCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16CastGlobCurrentSourceNext135Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteUtf16CastGlobCurrentSourceNext135Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-cast-glob-current-source-next135.php`

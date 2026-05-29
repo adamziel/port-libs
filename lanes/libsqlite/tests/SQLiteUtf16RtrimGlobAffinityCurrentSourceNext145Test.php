@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16RtrimGlobAffinityCurrentSourceNext145Plan;
+use PortLibs\LibSqlite\SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -80,7 +80,7 @@ $plan = static fn (
     int $nextSchemaCookie = 32,
     int $currentCollationVersion = 8,
     int $nextCollationVersion = 9,
-): array => SQLiteUtf16RtrimGlobAffinityCurrentSourceNext145Plan::wordpressOptionNameValuePlan(
+): array => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -228,15 +228,15 @@ $tests['utf16 rtrim glob affinity current source next145 rejects non numeric bou
 };
 
 $tests['utf16 rtrim glob affinity current source next145 rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNext145Plan::wordpressOptionNameValuePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
 $tests['utf16 rtrim glob affinity current source next145 rejects missing value bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNext145Plan::wordpressOptionNameValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
 $tests['utf16 rtrim glob affinity current source next145 rejects missing value encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNext145Plan::wordpressOptionNameValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
 return $tests;

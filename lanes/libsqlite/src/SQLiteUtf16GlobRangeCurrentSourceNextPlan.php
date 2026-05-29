@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteUtf16GlobRangeCurrentSourceNext102Plan
+final class SQLiteUtf16GlobRangeCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows

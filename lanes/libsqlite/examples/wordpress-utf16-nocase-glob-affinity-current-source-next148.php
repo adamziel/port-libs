@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseGlobAffinityCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -27,7 +27,7 @@ $next = [
     $row(5, 'PLUGIN_cache_new', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseGlobAffinityCurrentSourceNext148Plan::wordpressOptionNameGlobPlan(
+$plan = SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan::wordpressOptionNameGlobPlan(
     $current,
     $next,
     $argv[1] ?? 'plugin_cache*',

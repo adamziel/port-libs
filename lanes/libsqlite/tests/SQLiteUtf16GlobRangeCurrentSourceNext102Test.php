@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteUtf16GlobRangeCurrentSourceNext102Plan;
+use PortLibs\LibSqlite\SQLiteUtf16GlobRangeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUtf16LikeGlobCurrentNextCursor;
 
 $tests = [];
@@ -54,7 +54,7 @@ $plan = static fn (
     int $nextSchemaCookie = 100,
     ?array $current = null,
     ?array $next = null,
-): array => SQLiteUtf16GlobRangeCurrentSourceNext102Plan::wordpressOptionNameGlobRange(
+): array => SQLiteUtf16GlobRangeCurrentSourceNextPlan::wordpressOptionNameGlobRange(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,

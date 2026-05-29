@@ -6,7 +6,7 @@ collation.
 
 Behavior:
 
-- Adds `SQLiteUtf16RtrimLikePatternCurrentSourceNext138Plan`.
+- Adds `SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan`.
 - Decodes UTF-8/UTF-16LE/UTF-16BE pattern and optional ESCAPE bytes before
   applying SQLite LIKE matching.
 - Preserves current RTRIM behavior: the RTRIM index range remains unusable for
@@ -21,7 +21,7 @@ Evidence:
 ```sh
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16RtrimLikePatternCurrentSourceNext138Test.php
 php lanes/libsqlite/examples/wordpress-utf16-rtrim-like-pattern-current-source-next138.php --self-test
-php -l lanes/libsqlite/src/SQLiteUtf16RtrimLikePatternCurrentSourceNext138Plan.php
+php -l lanes/libsqlite/src/SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteUtf16RtrimLikePatternCurrentSourceNext138Test.php
 php -l lanes/libsqlite/examples/wordpress-utf16-rtrim-like-pattern-current-source-next138.php
 git diff --check -- lanes/libsqlite

@@ -3,12 +3,12 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16LikeRtrimCurrentSourceNext137Plan;
+use PortLibs\LibSqlite\SQLiteUtf16LikeRtrimCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
-require_once __DIR__ . '/../src/SQLiteUtf16LikeRtrimCurrentSourceNext137Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16LikeRtrimCurrentSourceNextPlan.php';
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
@@ -37,7 +37,7 @@ $next = [
     $row(5, 'plugin_cache_new', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16LikeRtrimCurrentSourceNext137Plan::wordpressOptionNamePlan(
+$plan = SQLiteUtf16LikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
     $current,
     $next,
     'plugin_cache',

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteUtf16RtrimLikeCurrentSourceNext121Plan
+final class SQLiteUtf16RtrimGlobCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows
@@ -15,16 +15,16 @@ final class SQLiteUtf16RtrimLikeCurrentSourceNext121Plan
         array $currentRows,
         array $nextRows,
         string $pattern,
-        ?string $escape = null,
-        bool $caseSensitiveLike = true,
-        string $currentSource = 'main.wp_options',
-        string $nextSource = 'main.wp_options',
+        string $currentSource = 'main.wp_options@current',
+        string $nextSource = 'main.wp_options@next',
     ): array {
-        $likePlan = SQLiteLikeCollationPlan::plan($pattern, 'RTRIM', $escape, $caseSensitiveLike);
-        $current = self::scanRows($currentRows, $pattern, $escape, $caseSensitiveLike);
-        $next = self::scanRows($nextRows, $pattern, $escape, $caseSensitiveLike);
+        $range = SQLiteDatabase::globPrefixRangeBounds($pattern);
+        $current = self::scanRows($currentRows, $pattern, $range);
+        $next = self::scanRows($nextRows, $pattern, $range);
         $currentRowids = array_column($current['matchedRows'], 'rowid');
         $nextRowids = array_column($next['matchedRows'], 'rowid');
+        $currentCandidateRowids = array_column($current['candidateRows'], 'rowid');
+        $nextCandidateRowids = array_column($next['candidateRows'], 'rowid');
         $retained = array_values(array_intersect($currentRowids, $nextRowids));
         $entered = array_values(array_diff($nextRowids, $currentRowids));
         $exited = array_values(array_diff($currentRowids, $nextRowids));
@@ -36,13 +36,13 @@ final class SQLiteUtf16RtrimLikeCurrentSourceNext121Plan
         $changedBytes = [];
         foreach (array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)) as $rowid) {
             if ($currentByRowid[$rowid]['text'] !== $nextByRowid[$rowid]['text']) {
-                $changedText[] = $rowid;
+                $changedText[] = (int) $rowid;
             }
             if ($currentByRowid[$rowid]['encoding'] !== $nextByRowid[$rowid]['encoding']) {
-                $changedEncoding[] = $rowid;
+                $changedEncoding[] = (int) $rowid;
             }
             if ($currentByRowid[$rowid]['bytesHex'] !== $nextByRowid[$rowid]['bytesHex']) {
-                $changedBytes[] = $rowid;
+                $changedBytes[] = (int) $rowid;
             }
         }
         sort($changedText);
@@ -53,8 +53,8 @@ final class SQLiteUtf16RtrimLikeCurrentSourceNext121Plan
         if ($currentSource !== $nextSource) {
             $reasons[] = 'source-name';
         }
-        if (!$likePlan['indexUsable']) {
-            $reasons[] = 'full-scan-rtrim-like';
+        if ($range === null) {
+            $reasons[] = 'no-prefix-range';
         }
         if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
             $reasons[] = 'malformed-text';
@@ -68,23 +68,27 @@ final class SQLiteUtf16RtrimLikeCurrentSourceNext121Plan
         if ($changedBytes !== []) {
             $reasons[] = 'encoded-bytes';
         }
+        if ($currentCandidateRowids !== $nextCandidateRowids) {
+            $reasons[] = 'candidate-rowset';
+        }
         if ($entered !== [] || $exited !== []) {
             $reasons[] = 'matched-rowset';
         }
 
         return [
-            'operator' => 'LIKE',
+            'operator' => 'GLOB',
             'collation' => 'RTRIM',
             'pattern' => $pattern,
-            'escape' => $escape,
-            'caseSensitiveLike' => $caseSensitiveLike,
-            'range' => $likePlan['range'],
-            'indexUsable' => false,
-            'rejectedReason' => $likePlan['rejectedReason'],
+            'range' => $range,
+            'indexUsable' => $range !== null,
             'residualScan' => true,
-            'likeDoesNotTrimTrailingSpaces' => true,
+            'globDoesNotTrimTrailingSpaces' => true,
             'currentSource' => $currentSource,
             'nextSource' => $nextSource,
+            'currentCandidateRowids' => $currentCandidateRowids,
+            'nextCandidateRowids' => $nextCandidateRowids,
+            'currentResidualRejectedRowids' => array_column($current['residualRejectedRows'], 'rowid'),
+            'nextResidualRejectedRowids' => array_column($next['residualRejectedRows'], 'rowid'),
             'currentRowids' => $currentRowids,
             'nextRowids' => $nextRowids,
             'retainedRowids' => $retained,
@@ -106,36 +110,42 @@ final class SQLiteUtf16RtrimLikeCurrentSourceNext121Plan
             'invalidationReasons' => $reasons,
             'dependencies' => [
                 'sqlite-utf16-decode',
-                'sqlite-like-rtrim-residual-scan',
-                'sqlite-current-source-next121',
+                'sqlite-rtrim-glob-prefix-range',
+                'sqlite-glob-residual-scan',
+                'sqlite-current-source-next125',
             ],
         ];
     }
 
     /**
      * @param list<array<string,mixed>> $rows
+     * @param null|array{lowerInclusive:string,upperBound:?string} $range
      * @return array{
      *   decodedRows:list<array{rowid:int,text:string,rtrimKey:string,encoding:string,bytesHex:string,payload:array<string,mixed>}>,
+     *   candidateRows:list<array{rowid:int,text:string,rtrimKey:string,encoding:string,bytesHex:string,payload:array<string,mixed>}>,
+     *   residualRejectedRows:list<array{rowid:int,text:string,rtrimKey:string,encoding:string,bytesHex:string,payload:array<string,mixed>}>,
      *   matchedRows:list<array{rowid:int,text:string,rtrimKey:string,encoding:string,bytesHex:string,payload:array<string,mixed>}>,
      *   malformedRowids:list<int>,
      *   errors:array<int,string>
      * }
      */
-    private static function scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    private static function scanRows(array $rows, string $pattern, ?array $range): array
     {
         $decoded = [];
+        $candidates = [];
+        $rejected = [];
         $matched = [];
         $malformed = [];
         $errors = [];
         foreach ($rows as $row) {
             if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 RTRIM LIKE rows require integer option_id');
+                throw new \InvalidArgumentException('SQLite UTF-16 RTRIM GLOB rows require integer option_id');
             }
             if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 RTRIM LIKE rows require option_name_bytes');
+                throw new \InvalidArgumentException('SQLite UTF-16 RTRIM GLOB rows require option_name_bytes');
             }
             if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 RTRIM LIKE rows require integer text_encoding');
+                throw new \InvalidArgumentException('SQLite UTF-16 RTRIM GLOB rows require integer text_encoding');
             }
 
             try {
@@ -156,16 +166,26 @@ final class SQLiteUtf16RtrimLikeCurrentSourceNext121Plan
                 'payload' => $row,
             ];
             $decoded[] = $entry;
-            if (SQLiteDatabase::likeMatches($text, $pattern, $escape, $caseSensitiveLike)) {
+            if (!self::inRtrimRange($text, $range)) {
+                continue;
+            }
+            $candidates[] = $entry;
+            if (SQLiteDatabase::globMatches($text, $pattern)) {
                 $matched[] = $entry;
+            } else {
+                $rejected[] = $entry;
             }
         }
 
         usort($decoded, self::sortRows(...));
+        usort($candidates, self::sortRows(...));
+        usort($rejected, self::sortRows(...));
         usort($matched, self::sortRows(...));
 
         return [
             'decodedRows' => $decoded,
+            'candidateRows' => $candidates,
+            'residualRejectedRows' => $rejected,
             'matchedRows' => $matched,
             'malformedRowids' => $malformed,
             'errors' => $errors,
@@ -173,7 +193,26 @@ final class SQLiteUtf16RtrimLikeCurrentSourceNext121Plan
     }
 
     /**
-     * @param list<array{rowid:int,text:string,rtrimKey:string,encoding:string,bytesHex:string,payload:array<string,mixed>}> $rows
+     * @param null|array{lowerInclusive:string,upperBound:?string} $range
+     */
+    private static function inRtrimRange(string $text, ?array $range): bool
+    {
+        if ($range === null) {
+            return false;
+        }
+        $key = rtrim($text, ' ');
+        if (strcmp($key, rtrim($range['lowerInclusive'], ' ')) < 0) {
+            return false;
+        }
+        if ($range['upperBound'] !== null && strcmp($key, rtrim($range['upperBound'], ' ')) >= 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array{rowid:int,text:string,encoding:string,bytesHex:string}> $rows
      * @return array<int,array{text:string,encoding:string,bytesHex:string}>
      */
     private static function rowsByRowid(array $rows): array

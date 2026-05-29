@@ -5,9 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
 require_once __DIR__ . '/../src/SQLiteUtf16LikeGlobCurrentNextCursor.php';
-require_once __DIR__ . '/../src/SQLiteUtf16GlobRangeCurrentSourceNext102Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16GlobRangeCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteUtf16GlobRangeCurrentSourceNext102Plan;
+use PortLibs\LibSqlite\SQLiteUtf16GlobRangeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUtf16LikeGlobCurrentNextCursor;
 
 $enc = static fn (string $text): string => SQLiteUtf16LikeGlobCurrentNextCursor::encodeUtf16($text, 'UTF-16LE');
@@ -33,7 +33,7 @@ $next = [
     $row(5, 'plugin_enabled'),
 ];
 
-$plan = SQLiteUtf16GlobRangeCurrentSourceNext102Plan::wordpressOptionNameGlobRange(
+$plan = SQLiteUtf16GlobRangeCurrentSourceNextPlan::wordpressOptionNameGlobRange(
     $current,
     $next,
     'plugin_*',

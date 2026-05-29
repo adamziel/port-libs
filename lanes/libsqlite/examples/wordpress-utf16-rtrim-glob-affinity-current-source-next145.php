@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16RtrimGlobAffinityCurrentSourceNext145Plan;
+use PortLibs\LibSqlite\SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan;
 
 $code = static fn (string $encoding): int => match ($encoding) {
     'UTF-8' => 1,
@@ -38,7 +38,7 @@ $next = [
     $row(5, 'plugin_cache_new', '12', 'UTF-16LE', 'UTF-8'),
 ];
 
-$plan = SQLiteUtf16RtrimGlobAffinityCurrentSourceNext145Plan::wordpressOptionNameValuePlan(
+$plan = SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan(
     $current,
     $next,
     'plugin_*',

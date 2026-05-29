@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16LikeEscapeCurrentSourceNext143Plan;
+use PortLibs\LibSqlite\SQLiteUtf16LikeEscapeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -57,7 +57,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@143',
     int $currentCookie = 142,
     int $nextCookie = 143,
-): array => SQLiteUtf16LikeEscapeCurrentSourceNext143Plan::wordpressOptionNameLikeEscape(
+): array => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::wordpressOptionNameLikeEscape(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -163,11 +163,11 @@ $tests['utf16 like escape current source next143 rejects unsupported collation']
 };
 
 $tests['utf16 like escape current source next143 rejects missing option bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeEscapeCurrentSourceNext143Plan::wordpressOptionNameLikeEscape([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::wordpressOptionNameLikeEscape([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
 };
 
 $tests['utf16 like escape current source next143 rejects non integer rowid'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeEscapeCurrentSourceNext143Plan::wordpressOptionNameLikeEscape([['option_id' => '1', 'option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeEscapeCurrentSourceNextPlan::wordpressOptionNameLikeEscape([['option_id' => '1', 'option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'plugin%'));
 };
 
 $tests['utf16 like escape current source next143 rejects invalid escape length'] = static function (TestRunner $t) use ($plan): void {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan
+final class SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows
@@ -47,7 +47,7 @@ final class SQLiteUtf16CollationAffinityPatternCurrentSourceNext118Plan
             }
         }
 
-        $base = SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNext114Plan::wordpressOptionValuePlan(
+        $base = SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
             $currentRows,
             $nextRows,
             $patternBytes,

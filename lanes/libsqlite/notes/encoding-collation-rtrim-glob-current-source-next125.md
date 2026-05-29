@@ -6,7 +6,7 @@ boundary.
 
 Behavior:
 
-- Adds `SQLiteUtf16RtrimGlobCurrentSourceNext125Plan::wordpressOptionNamePlan()`.
+- Adds `SQLiteUtf16RtrimGlobCurrentSourceNextPlan::wordpressOptionNamePlan()`.
 - Decodes per-row UTF-8, UTF-16LE, and UTF-16BE option-name bytes.
 - Uses SQLite GLOB prefix bounds with `RTRIM` comparison for range candidates,
   then applies exact GLOB residual matching so trailing ASCII spaces, tabs,

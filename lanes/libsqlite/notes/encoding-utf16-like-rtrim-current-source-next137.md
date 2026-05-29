@@ -1,6 +1,6 @@
 # Encoding UTF-16 LIKE RTRIM current-source next137
 
-This slice adds `SQLiteUtf16LikeRtrimCurrentSourceNext137Plan` for a
+This slice adds `SQLiteUtf16LikeRtrimCurrentSourceNextPlan` for a
 current/next `wp_options.option_name` scan where the source bytes are UTF-8,
 UTF-16LE, or UTF-16BE and the predicate is `LIKE ... COLLATE RTRIM`.
 
@@ -19,7 +19,7 @@ Behavior covered:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16LikeRtrimCurrentSourceNext137Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16LikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16LikeRtrimCurrentSourceNext137Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-like-rtrim-current-source-next137.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16LikeRtrimCurrentSourceNext137Test.php`

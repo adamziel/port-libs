@@ -24,7 +24,7 @@ final class SQLiteRtrimGlobNocaseAffinityCurrentSourceNext149Plan
         int $currentCollationVersion = 14,
         int $nextCollationVersion = 15,
     ): array {
-        $plan = SQLiteUtf16RtrimGlobAffinityCurrentSourceNext145Plan::wordpressOptionNameValuePlan(
+        $plan = SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::wordpressOptionNameValuePlan(
             $currentRows,
             $nextRows,
             $pattern,

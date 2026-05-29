@@ -48,7 +48,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
         self::assertSingleCharacterEscape($currentTrimmedEscape, 'current');
         self::assertSingleCharacterEscape($nextTrimmedEscape, 'next');
 
-        $base = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan::wordpressOptionNameRtrimPatternPlan(
+        $base = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,
@@ -62,7 +62,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextRtrimEscapeImpl
             $nextSchemaCookie,
         );
 
-        $nextBase = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan::wordpressOptionNameRtrimPatternPlan(
+        $nextBase = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::wordpressOptionNameRtrimPatternPlan(
             $nextRows,
             $nextRows,
             $nextPatternBytes,
