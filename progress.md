@@ -3046,3 +3046,20 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Public libsqlite counts remain 154,019 pass / 0 fail and 830 / 1,589 mapped
   coverage because this is consolidation-only. Continue accepting only
   current-head/current-base handoffs with affected-domain evidence.
+
+## Supervisor Rolling Integration 2026-05-29T21:11Z Root Gate Repair
+
+- Recovered the libsqlite dashboard gate after the eighty-first consolidation
+  batch found real root-run blockers instead of assertion regressions.
+- Repaired the release burnup helper collision by giving the suite-gap helpers
+  distinct names; the suite-gap/upstream burnup pair now passes with 2 files /
+  887 assertions / 0 failures.
+- Repaired rowvalue continuation memory in the next686-701 and next702-717
+  WordPress examples by extracting asserted summary fields per iteration rather
+  than retaining every large continuation plan. Each focused test now passes
+  under the default 128M PHP limit with 1 file / 17 assertions / 0 failures,
+  and both example self-tests pass.
+- The visible tmux pool is back at 11 isolated libsqlite workers with 11 Codex
+  worker processes and no long sleepers. Public counts still remain 154,019
+  pass / 0 fail and 830 / 1,589 mapped until a clean root dashboard gate can be
+  committed and pushed.
