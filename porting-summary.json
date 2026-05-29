@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 19:44:36 UTC",
-    "sourceCommit": "41f7b31b6052f64eed5f54647ca5ad4b1c39c9ba",
-    "sourceCommitShort": "41f7b31b6052",
-    "sourceBranch": "unknown",
-    "dashboardCommit": "41f7b31b6052f64eed5f54647ca5ad4b1c39c9ba",
-    "dashboardCommitShort": "41f7b31b6052",
+    "generated": "2026-05-29 19:51:23 UTC",
+    "sourceCommit": "f0f1f8ff498cf6f5a78ff9d10c6bddd214667fc8",
+    "sourceCommitShort": "f0f1f8ff498c",
+    "sourceBranch": "main",
+    "dashboardCommit": "f0f1f8ff498cf6f5a78ff9d10c6bddd214667fc8",
+    "dashboardCommitShort": "f0f1f8ff498c",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted one stale-base trigger RETURNING consolidation h...",
-            "currentWork": "Consolidated trigger recursive-view RETURNING current-source sequence/drain private hel...",
-            "nextTarget": "Keep 10-11 current-base libsqlite workers active, intake the next current-head handoffs t...",
+            "audit": "Accepted five clean 3-way consolidation h...",
+            "currentWork": "Consolidated five more numbered helper groups across trigger RETURNING, JSON table genera...",
+            "nextTarget": "Keep 10-11 libsqlite workers active on current-base or cleanly replayable consolidation s...",
             "blocker": "No blocker for the accepted safe subset.",
-            "commit": "588eb53"
+            "commit": "407606d"
         },
         {
             "library": "LightningCSS",
