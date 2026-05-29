@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext190193Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -23,7 +23,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext190193Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'lock(shared)',
             'access()',
             'truncate(12288)',
@@ -59,9 +59,9 @@ return [
     'vfs current source next190-193 deleted journal no longer exists' => static fn (TestRunner $t) => $t->same(false, $plan()['next']['sources']['journal']['exists']),
     'vfs current source next190-193 final source count' => static fn (TestRunner $t) => $t->same(2, $plan()['next']['source_count']),
     'vfs current source next190-193 final open count' => static fn (TestRunner $t) => $t->same(2, $plan()['next']['open_source_count']),
-    'vfs current source next190-193 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext190193Plan::run([])),
-    'vfs current source next190-193 rejects bad lock level' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext190193Plan::run([['op' => 'xLock', 'level' => 'writer']], ['current' => $current])),
-    'vfs current source next190-193 rejects small sector size' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext190193Plan::run([['op' => 'open', 'source' => 'bad', 'path' => '/tmp/bad.sqlite', 'sector_size' => 128]], ['current' => $current])),
-    'vfs current source next190-193 rejects unknown characteristic' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext190193Plan::run([['op' => 'open', 'source' => 'bad', 'path' => '/tmp/bad.sqlite', 'characteristics' => ['mystery']]], ['current' => $current])),
-    'vfs current source next190-193 rejects negative truncate size' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext190193Plan::run([['op' => 'xTruncate', 'size' => -1]], ['current' => $current])),
+    'vfs current source next190-193 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next190-193 rejects bad lock level' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xLock', 'level' => 'writer']], ['current' => $current])),
+    'vfs current source next190-193 rejects small sector size' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'open', 'source' => 'bad', 'path' => '/tmp/bad.sqlite', 'sector_size' => 128]], ['current' => $current])),
+    'vfs current source next190-193 rejects unknown characteristic' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'open', 'source' => 'bad', 'path' => '/tmp/bad.sqlite', 'characteristics' => ['mystery']]], ['current' => $current])),
+    'vfs current source next190-193 rejects negative truncate size' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xTruncate', 'size' => -1]], ['current' => $current])),
 ];

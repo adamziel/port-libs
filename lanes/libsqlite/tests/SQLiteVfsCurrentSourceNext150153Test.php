@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext150153Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -29,7 +29,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext150153Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'source(wal)',
             ['op' => 'filecontrol', 'control' => 'data_version'],
             'source(main)',
@@ -71,7 +71,7 @@ return [
     'vfs current source next150-153 final source main' => static fn (TestRunner $t) => $t->same('main', $plan()['next']['current_source']),
     'vfs current source next150-153 final source count' => static fn (TestRunner $t) => $t->same(4, $plan()['next']['source_count']),
     'vfs current source next150-153 final open count' => static fn (TestRunner $t) => $t->same(3, $plan()['next']['open_source_count']),
-    'vfs current source next150-153 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext150153Plan::run([])),
-    'vfs current source next150-153 rejects missing current source' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext150153Plan::run(['source(main)'], ['current' => ['current_source' => 'missing', 'sources' => []]])),
-    'vfs current source next150-153 rejects nonpositive generation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext150153Plan::run(['source(main)'], ['current' => ['sources' => ['main' => ['handle' => 'vfs1', 'path' => '/tmp/a', 'generation' => 0]]]])),
+    'vfs current source next150-153 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next150-153 rejects missing current source' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['source(main)'], ['current' => ['current_source' => 'missing', 'sources' => []]])),
+    'vfs current source next150-153 rejects nonpositive generation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['source(main)'], ['current' => ['sources' => ['main' => ['handle' => 'vfs1', 'path' => '/tmp/a', 'generation' => 0]]]])),
 ];

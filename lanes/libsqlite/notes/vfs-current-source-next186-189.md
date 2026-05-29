@@ -12,10 +12,10 @@ This layer follows the next182-185 temp-directory and readonly handoff and adds 
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext186189Plan.php
-php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext186189Test.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next186-189.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext186189Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-vfs-current-source-next186-189.php --self-test
 git diff --check
 ```

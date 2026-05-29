@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNext626641Plan.php';
+require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext626641Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $published = [
     'publish-next217',
@@ -41,7 +41,7 @@ $published = [
 ];
 $publishedDigest = hash('sha256', implode('|', $published));
 
-$plan = SQLiteVfsCurrentSourceNext626641Plan::run([
+$plan = SQLiteVfsCurrentSourceNextPlan::run([
     'snapshot(reader-ready-next657,shared-cache-next641)',
     'claim(reader-ready-next657,shared-cache-next641,reader-reuse-next657)',
     'publish(reader-ready-next657,reader-reuse-next657,shared-cache-next657)',

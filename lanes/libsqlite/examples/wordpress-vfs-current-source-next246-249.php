@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNext246249Plan.php';
+require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext246249Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
-$plan = SQLiteVfsCurrentSourceNext246249Plan::run([
+$plan = SQLiteVfsCurrentSourceNextPlan::run([
     'snapshot(reader-ready)',
     'reuse(reader-ready,reader-ready-next249)',
     'publish(reader-ready,shared-cache-next249)',

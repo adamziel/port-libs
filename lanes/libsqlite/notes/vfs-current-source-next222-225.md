@@ -7,10 +7,10 @@ This follow-on prepares the current-source snapshot/reuse/publish chain after ne
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext222225Plan.php
-php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext222225Test.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next222-225.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext222225Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-vfs-current-source-next222-225.php --self-test
 git diff --check
 ```

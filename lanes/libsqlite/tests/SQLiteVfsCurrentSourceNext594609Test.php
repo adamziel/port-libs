@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext594609Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $previousDigest = hash('sha256', 'publish-next217|shared-cache-next229|shared-cache-next237|shared-cache-next245|shared-cache-next257|shared-cache-next265|shared-cache-next273|shared-cache-next281|shared-cache-next289|shared-cache-next297|shared-cache-next313|shared-cache-next321|shared-cache-next337|shared-cache-next353|shared-cache-next369|shared-cache-next385|shared-cache-next401|shared-cache-next417|shared-cache-next433|shared-cache-next449|shared-cache-next465|shared-cache-next481|shared-cache-next497|shared-cache-next513|shared-cache-next529|shared-cache-next545|shared-cache-next561|shared-cache-next577|shared-cache-next593');
 $readyCurrent = [
@@ -71,7 +71,7 @@ $readyCurrent = [
 $plan = static function () use ($readyCurrent): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext594609Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'snapshot(reader-ready-next609,shared-cache-next593)',
             'claim(reader-ready-next609,shared-cache-next593,reader-reuse-next609)',
             'publish(reader-ready-next609,reader-reuse-next609,shared-cache-next609)',
@@ -138,13 +138,13 @@ return [
     'vfs current source next594-609 publish uses claim' => static fn (TestRunner $t) => $t->same('reader-reuse-next609', $plan()['events'][2]['claim']),
     'vfs current source next594-609 publish preserves ack' => static fn (TestRunner $t) => $t->same('shared-cache-next593', $plan()['events'][2]['reuse_ack']),
     'vfs current source next594-609 publish count advances' => static fn (TestRunner $t) => $t->same(30, $plan()['events'][2]['published_count']),
-    'vfs current source next594-609 blocks dirty snapshot' => static fn (TestRunner $t) => $t->same(true, in_array('dirty-pages-present', SQLiteVfsCurrentSourceNext594609Plan::run(['snapshot(reader-ready-next609,shared-cache-next593)'], ['current' => $dirtyCurrent])['events'][0]['blocked_reasons'], true)),
-    'vfs current source next594-609 blocks old snapshot ack' => static fn (TestRunner $t) => $t->same(true, in_array('ack-not-latest-publish', SQLiteVfsCurrentSourceNext594609Plan::run(['snapshot(reader-ready-next609,shared-cache-next593)'], ['current' => $oldAckCurrent])['events'][0]['blocked_reasons'], true)),
-    'vfs current source next594-609 blocks publish without claim' => static fn (TestRunner $t) => $t->same(true, in_array('missing-reuse-claim', SQLiteVfsCurrentSourceNext594609Plan::run(['snapshot(reader-ready-next609,shared-cache-next593)', 'publish(reader-ready-next609,reader-reuse-next609,shared-cache-next609)'], ['current' => $readyCurrent])['events'][1]['blocked_reasons'], true)),
-    'vfs current source next594-609 blocks stale claim' => static fn (TestRunner $t) => $t->same(true, in_array('stale-reuse-claim', SQLiteVfsCurrentSourceNext594609Plan::run(['publish(reader-ready-next609,reader-reuse-next609,shared-cache-next609)'], ['current' => $staleClaimCurrent])['events'][0]['blocked_reasons'], true)),
-    'vfs current source next594-609 accepts preclaimed publish' => static fn (TestRunner $t) => $t->same('published-reused-current-source', SQLiteVfsCurrentSourceNext594609Plan::run(['publish(reader-ready-next609,reader-reuse-next609,shared-cache-next609)'], ['current' => $claimedCurrent])['events'][0]['status']),
-    'vfs current source next594-609 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext594609Plan::run([])),
-    'vfs current source next594-609 rejects bad claim token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext594609Plan::run([['op' => 'claim', 'snapshot' => 'reader-ready-next609', 'ack' => 'shared-cache-next593', 'claim' => 'bad claim']], ['current' => $readyCurrent])),
-    'vfs current source next594-609 rejects unsupported operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext594609Plan::run(['republish(reader-ready-next609,shared-cache-next609)'], ['current' => $readyCurrent])),
+    'vfs current source next594-609 blocks dirty snapshot' => static fn (TestRunner $t) => $t->same(true, in_array('dirty-pages-present', SQLiteVfsCurrentSourceNextPlan::run(['snapshot(reader-ready-next609,shared-cache-next593)'], ['current' => $dirtyCurrent])['events'][0]['blocked_reasons'], true)),
+    'vfs current source next594-609 blocks old snapshot ack' => static fn (TestRunner $t) => $t->same(true, in_array('ack-not-latest-publish', SQLiteVfsCurrentSourceNextPlan::run(['snapshot(reader-ready-next609,shared-cache-next593)'], ['current' => $oldAckCurrent])['events'][0]['blocked_reasons'], true)),
+    'vfs current source next594-609 blocks publish without claim' => static fn (TestRunner $t) => $t->same(true, in_array('missing-reuse-claim', SQLiteVfsCurrentSourceNextPlan::run(['snapshot(reader-ready-next609,shared-cache-next593)', 'publish(reader-ready-next609,reader-reuse-next609,shared-cache-next609)'], ['current' => $readyCurrent])['events'][1]['blocked_reasons'], true)),
+    'vfs current source next594-609 blocks stale claim' => static fn (TestRunner $t) => $t->same(true, in_array('stale-reuse-claim', SQLiteVfsCurrentSourceNextPlan::run(['publish(reader-ready-next609,reader-reuse-next609,shared-cache-next609)'], ['current' => $staleClaimCurrent])['events'][0]['blocked_reasons'], true)),
+    'vfs current source next594-609 accepts preclaimed publish' => static fn (TestRunner $t) => $t->same('published-reused-current-source', SQLiteVfsCurrentSourceNextPlan::run(['publish(reader-ready-next609,reader-reuse-next609,shared-cache-next609)'], ['current' => $claimedCurrent])['events'][0]['status']),
+    'vfs current source next594-609 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next594-609 rejects bad claim token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'claim', 'snapshot' => 'reader-ready-next609', 'ack' => 'shared-cache-next593', 'claim' => 'bad claim']], ['current' => $readyCurrent])),
+    'vfs current source next594-609 rejects unsupported operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['republish(reader-ready-next609,shared-cache-next609)'], ['current' => $readyCurrent])),
     'vfs current source next594-609 notes prior window non-overlap' => static fn (TestRunner $t) => $t->same(true, str_contains($plan()['non_overlap'], 'prior next578-593')),
 ];

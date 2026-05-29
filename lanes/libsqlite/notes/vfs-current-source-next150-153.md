@@ -3,7 +3,7 @@
 - Behavior: carries the accepted next146-149 hydrated VFS source state into next150-153, tracks owner generations for stale sidecar `data_version` reads, records full syncs, releases locks on sidecar close, opens a fresh SHM source after close, and continues to block writer locks on readonly sources.
 - Regression covered: a WordPress SQLite connection can resume with main and WAL handles from prior current-source state, observe stale WAL generation after a main file-control change, close the stale WAL sidecar without dropping main state, reopen SHM with the current owner generation, and reject readonly archive writer locks.
 - WordPress smoke: `php lanes/libsqlite/examples/wordpress-vfs-current-source-next150-153.php --self-test`
-- Focused TestRunner: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext150153Test.php`
+- Focused TestRunner: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 
 Non-overlap:
 

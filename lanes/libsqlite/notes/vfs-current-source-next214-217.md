@@ -10,10 +10,10 @@ fences revoked, dirty, missing, or stale publication tickets.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext214217Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext214217Test.php`
+- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next214-217.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext214217Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-vfs-current-source-next214-217.php --self-test`
 - `git diff --check`
 

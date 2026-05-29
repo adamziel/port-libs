@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNext146149Plan.php';
+require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext146149Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
-$plan = SQLiteVfsCurrentSourceNext146149Plan::run([
+$plan = SQLiteVfsCurrentSourceNextPlan::run([
     'source(temp)',
     ['op' => 'filecontrol', 'control' => 'checkpoint_fullfsync', 'value' => true],
     'open(main, /srv/www/wp-content/database/wp.sqlite)',

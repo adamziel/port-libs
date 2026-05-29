@@ -25,9 +25,9 @@ current-source publication.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext234237Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext234237Test.php`
+- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next234-237.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext226229Test.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext234237Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-vfs-current-source-next234-237.php --self-test`
 - `git diff --check`

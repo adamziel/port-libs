@@ -13,10 +13,10 @@ This layer follows the next186-189 lock and metadata handoff and adds current-so
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext190193Plan.php
-php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext190193Test.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next190-193.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext190193Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-vfs-current-source-next190-193.php --self-test
 git diff --check
 ```

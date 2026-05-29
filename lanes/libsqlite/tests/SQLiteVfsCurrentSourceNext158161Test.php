@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext158161Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -29,7 +29,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext158161Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'mmap(32768)',
             'fetch(4096,8192)',
             ['op' => 'xShmMap', 'page' => 0, 'size' => 32768, 'extend' => true],
@@ -69,7 +69,7 @@ return [
     'vfs current source next158-161 returns main' => static fn (TestRunner $t) => $t->same('main', $plan()['next']['current_source']),
     'vfs current source next158-161 final source count' => static fn (TestRunner $t) => $t->same(3, $plan()['next']['source_count']),
     'vfs current source next158-161 final open count' => static fn (TestRunner $t) => $t->same(2, $plan()['next']['open_source_count']),
-    'vfs current source next158-161 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext158161Plan::run([])),
-    'vfs current source next158-161 rejects zero fetch amount' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext158161Plan::run([['op' => 'fetch', 'offset' => 0, 'amount' => 0]], ['current' => $current])),
-    'vfs current source next158-161 rejects unsupported shm mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext158161Plan::run([['op' => 'shm_lock', 'offset' => 0, 'mode' => 'bad']], ['current' => $current])),
+    'vfs current source next158-161 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next158-161 rejects zero fetch amount' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'fetch', 'offset' => 0, 'amount' => 0]], ['current' => $current])),
+    'vfs current source next158-161 rejects unsupported shm mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'shm_lock', 'offset' => 0, 'mode' => 'bad']], ['current' => $current])),
 ];

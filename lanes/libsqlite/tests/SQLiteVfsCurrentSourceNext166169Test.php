@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext166169Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -34,7 +34,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext166169Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'currenttime(1717000000)',
             'currenttimeint64(1717000001)',
             ['op' => 'xSetSystemCall', 'name' => 'pread64', 'enabled' => true],
@@ -68,7 +68,7 @@ return [
     'vfs current source next166-169 returns main' => static fn (TestRunner $t) => $t->same('main', $plan()['next']['current_source']),
     'vfs current source next166-169 final source count' => static fn (TestRunner $t) => $t->same(3, $plan()['next']['source_count']),
     'vfs current source next166-169 final open count' => static fn (TestRunner $t) => $t->same(2, $plan()['next']['open_source_count']),
-    'vfs current source next166-169 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext166169Plan::run([])),
-    'vfs current source next166-169 rejects bad system call' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext166169Plan::run([['op' => 'xGetSystemCall', 'name' => 'bad name']], ['current' => $current])),
-    'vfs current source next166-169 rejects bad error code' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext166169Plan::run([['op' => 'xGetLastError', 'code' => 'ioerr']], ['current' => $current])),
+    'vfs current source next166-169 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next166-169 rejects bad system call' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xGetSystemCall', 'name' => 'bad name']], ['current' => $current])),
+    'vfs current source next166-169 rejects bad error code' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xGetLastError', 'code' => 'ioerr']], ['current' => $current])),
 ];

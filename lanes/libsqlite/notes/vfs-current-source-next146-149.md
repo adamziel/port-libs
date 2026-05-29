@@ -3,7 +3,7 @@
 - Behavior: carries hydrated VFS current-source handles across the next146-149 window, reuses already-open main/temp handles, routes file-control and lock operations through the selected source, and blocks writer locks on readonly hydrated/opened sources.
 - Regression covered: after-current VFS source state can be resumed without reopening an existing main handle, losing temp file-control state, or allowing a readonly archive source to take a writer lock.
 - WordPress smoke: `php lanes/libsqlite/examples/wordpress-vfs-current-source-next146-149.php --self-test`
-- Focused TestRunner: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext146149Test.php`
+- Focused TestRunner: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - Result: `1 test files, 20 assertions, 0 failures`.
 
 Non-overlap:

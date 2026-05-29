@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext194197Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -23,7 +23,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext194197Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'write(12,4096)',
             'sync(full)',
             'barrier(checkpoint-194)',
@@ -55,8 +55,8 @@ return [
     'vfs current source next194-197 second sync is noop' => static fn (TestRunner $t) => $t->same('noop', $plan()['events'][7]['status']),
     'vfs current source next194-197 final source count' => static fn (TestRunner $t) => $t->same(2, $plan()['next']['source_count']),
     'vfs current source next194-197 final open count' => static fn (TestRunner $t) => $t->same(1, $plan()['next']['open_source_count']),
-    'vfs current source next194-197 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext194197Plan::run([])),
-    'vfs current source next194-197 rejects unsupported sync mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext194197Plan::run([['op' => 'xSync', 'mode' => 'unsafe']], ['current' => $current])),
-    'vfs current source next194-197 rejects bad barrier token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext194197Plan::run([['op' => 'barrier', 'token' => 'bad token']], ['current' => $current])),
-    'vfs current source next194-197 blocks write below reserved lock' => static fn (TestRunner $t) => $t->same('blocked', SQLiteVfsCurrentSourceNext194197Plan::run(['write(1,512)'], ['current' => ['current_source' => 'main', 'sources' => ['main' => ['path' => '/tmp/wp.sqlite', 'lock' => 'shared']]]])['events'][0]['status']),
+    'vfs current source next194-197 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next194-197 rejects unsupported sync mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xSync', 'mode' => 'unsafe']], ['current' => $current])),
+    'vfs current source next194-197 rejects bad barrier token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'barrier', 'token' => 'bad token']], ['current' => $current])),
+    'vfs current source next194-197 blocks write below reserved lock' => static fn (TestRunner $t) => $t->same('blocked', SQLiteVfsCurrentSourceNextPlan::run(['write(1,512)'], ['current' => ['current_source' => 'main', 'sources' => ['main' => ['path' => '/tmp/wp.sqlite', 'lock' => 'shared']]]])['events'][0]['status']),
 ];

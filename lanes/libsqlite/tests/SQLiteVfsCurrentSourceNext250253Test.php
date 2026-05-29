@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext250253Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $readyCurrent = [
     'current_source' => 'main',
@@ -36,7 +36,7 @@ $readyCurrent = [
 $plan = static function () use ($readyCurrent): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext250253Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'snapshot(reader-ready)',
             'reuse(reader-ready,reader-ready-next253)',
             'publish(reader-ready,shared-cache-next253)',
@@ -102,14 +102,14 @@ return [
     'vfs current source next250-253 publishes current source' => static fn (TestRunner $t) => $t->same('published-current-source', $plan()['events'][2]['status']),
     'vfs current source next250-253 publish uses reuse lease' => static fn (TestRunner $t) => $t->same('reader-ready-next253', $plan()['events'][2]['reuse_lease']),
     'vfs current source next250-253 publish count advances' => static fn (TestRunner $t) => $t->same(3, $plan()['events'][2]['published_count']),
-    'vfs current source next250-253 blocks dirty ready capture' => static fn (TestRunner $t) => $t->same('blocked-not-ready', SQLiteVfsCurrentSourceNext250253Plan::run(['snapshot(reader-ready)'], ['current' => $dirtyCurrent])['events'][0]['status']),
-    'vfs current source next250-253 blocks missing snapshot publish' => static fn (TestRunner $t) => $t->same('missing-snapshot', SQLiteVfsCurrentSourceNext250253Plan::run(['publish(reader-ready,shared-cache-next253)'], ['current' => $readyCurrent])['events'][0]['status']),
-    'vfs current source next250-253 blocks publish without reuse lease' => static fn (TestRunner $t) => $t->same(true, in_array('missing-reuse-lease', SQLiteVfsCurrentSourceNext250253Plan::run(['snapshot(reader-ready)', 'publish(reader-ready,shared-cache-next253)'], ['current' => $missingLeaseCurrent])['events'][1]['blocked_reasons'], true)),
-    'vfs current source next250-253 stale reuse is fenced' => static fn (TestRunner $t) => $t->same('blocked-stale', SQLiteVfsCurrentSourceNext250253Plan::run(['reuse(reader-ready)'], ['current' => $staleCurrent])['events'][0]['status']),
-    'vfs current source next250-253 stale reuse names data version blocker' => static fn (TestRunner $t) => $t->same(true, in_array('data-version-changed', SQLiteVfsCurrentSourceNext250253Plan::run(['reuse(reader-ready)'], ['current' => $staleCurrent])['events'][0]['blocked_reasons'], true)),
-    'vfs current source next250-253 changed receipt is fenced' => static fn (TestRunner $t) => $t->same(true, in_array('publish-receipt-digest-changed', SQLiteVfsCurrentSourceNext250253Plan::run(['reuse(reader-ready)'], ['current' => $changedReceiptCurrent])['events'][0]['blocked_reasons'], true)),
-    'vfs current source next250-253 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext250253Plan::run([])),
-    'vfs current source next250-253 rejects bad publish token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext250253Plan::run([['op' => 'publish', 'snapshot' => 'reader-ready', 'token' => 'bad token']], ['current' => $readyCurrent])),
-    'vfs current source next250-253 rejects unsupported operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext250253Plan::run(['write(1,4096)'], ['current' => $readyCurrent])),
+    'vfs current source next250-253 blocks dirty ready capture' => static fn (TestRunner $t) => $t->same('blocked-not-ready', SQLiteVfsCurrentSourceNextPlan::run(['snapshot(reader-ready)'], ['current' => $dirtyCurrent])['events'][0]['status']),
+    'vfs current source next250-253 blocks missing snapshot publish' => static fn (TestRunner $t) => $t->same('missing-snapshot', SQLiteVfsCurrentSourceNextPlan::run(['publish(reader-ready,shared-cache-next253)'], ['current' => $readyCurrent])['events'][0]['status']),
+    'vfs current source next250-253 blocks publish without reuse lease' => static fn (TestRunner $t) => $t->same(true, in_array('missing-reuse-lease', SQLiteVfsCurrentSourceNextPlan::run(['snapshot(reader-ready)', 'publish(reader-ready,shared-cache-next253)'], ['current' => $missingLeaseCurrent])['events'][1]['blocked_reasons'], true)),
+    'vfs current source next250-253 stale reuse is fenced' => static fn (TestRunner $t) => $t->same('blocked-stale', SQLiteVfsCurrentSourceNextPlan::run(['reuse(reader-ready)'], ['current' => $staleCurrent])['events'][0]['status']),
+    'vfs current source next250-253 stale reuse names data version blocker' => static fn (TestRunner $t) => $t->same(true, in_array('data-version-changed', SQLiteVfsCurrentSourceNextPlan::run(['reuse(reader-ready)'], ['current' => $staleCurrent])['events'][0]['blocked_reasons'], true)),
+    'vfs current source next250-253 changed receipt is fenced' => static fn (TestRunner $t) => $t->same(true, in_array('publish-receipt-digest-changed', SQLiteVfsCurrentSourceNextPlan::run(['reuse(reader-ready)'], ['current' => $changedReceiptCurrent])['events'][0]['blocked_reasons'], true)),
+    'vfs current source next250-253 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next250-253 rejects bad publish token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'publish', 'snapshot' => 'reader-ready', 'token' => 'bad token']], ['current' => $readyCurrent])),
+    'vfs current source next250-253 rejects unsupported operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['write(1,4096)'], ['current' => $readyCurrent])),
     'vfs current source next250-253 notes non-overlap' => static fn (TestRunner $t) => $t->same(true, str_contains($plan()['non_overlap'], 'does not repeat next214-217')),
 ];

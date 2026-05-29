@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext198201Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -26,7 +26,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext198201Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'write(12,4096)',
             ['op' => 'checkpoint', 'token' => 'before-flush'],
             'flush(full)',
@@ -60,8 +60,8 @@ return [
     'vfs current source next198-201 source handoff reports clean state' => static fn (TestRunner $t) => $t->same(0, $plan()['events'][7]['dirty_count']),
     'vfs current source next198-201 clean main close succeeds' => static fn (TestRunner $t) => $t->same('closed', $plan()['events'][8]['status']),
     'vfs current source next198-201 final open count' => static fn (TestRunner $t) => $t->same(0, $plan()['next']['open_source_count']),
-    'vfs current source next198-201 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext198201Plan::run([])),
-    'vfs current source next198-201 rejects unsupported flush mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext198201Plan::run([['op' => 'xFlush', 'mode' => 'unsafe']], ['current' => $current])),
-    'vfs current source next198-201 rejects bad checkpoint token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext198201Plan::run([['op' => 'checkpoint', 'token' => 'bad token']], ['current' => $current])),
-    'vfs current source next198-201 blocks clean close when dirty' => static fn (TestRunner $t) => $t->same('blocked-dirty', SQLiteVfsCurrentSourceNext198201Plan::run(['write(2,4096)', 'close(main)'], ['current' => $current])['events'][1]['status']),
+    'vfs current source next198-201 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next198-201 rejects unsupported flush mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xFlush', 'mode' => 'unsafe']], ['current' => $current])),
+    'vfs current source next198-201 rejects bad checkpoint token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'checkpoint', 'token' => 'bad token']], ['current' => $current])),
+    'vfs current source next198-201 blocks clean close when dirty' => static fn (TestRunner $t) => $t->same('blocked-dirty', SQLiteVfsCurrentSourceNextPlan::run(['write(2,4096)', 'close(main)'], ['current' => $current])['events'][1]['status']),
 ];

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext146149Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -23,7 +23,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext146149Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'source(temp)',
             ['op' => 'filecontrol', 'control' => 'checkpoint_fullfsync', 'value' => true],
             'open(main, /srv/www/wp-content/database/wp.sqlite)',
@@ -55,7 +55,7 @@ return [
     'vfs current source next146-149 returns to main' => static fn (TestRunner $t) => $t->same('main', $plan()['next']['current_source']),
     'vfs current source next146-149 final source count' => static fn (TestRunner $t) => $t->same(3, $plan()['next']['source_count']),
     'vfs current source next146-149 preserves hydrated temp lock' => static fn (TestRunner $t) => $t->same('wp-import', $plan()['next']['sources']['temp']['locks']['shared']),
-    'vfs current source next146-149 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext146149Plan::run([])),
-    'vfs current source next146-149 rejects missing hydrated source' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext146149Plan::run(['source(main)'], ['current' => ['current_source' => 'missing', 'sources' => []]])),
-    'vfs current source next146-149 rejects bad hydrated handle' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext146149Plan::run(['source(main)'], ['current' => ['sources' => ['main' => ['handle' => '../bad', 'path' => '/tmp/a']]]])),
+    'vfs current source next146-149 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next146-149 rejects missing hydrated source' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['source(main)'], ['current' => ['current_source' => 'missing', 'sources' => []]])),
+    'vfs current source next146-149 rejects bad hydrated handle' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['source(main)'], ['current' => ['sources' => ['main' => ['handle' => '../bad', 'path' => '/tmp/a']]]])),
 ];

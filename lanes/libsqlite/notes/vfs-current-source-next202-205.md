@@ -7,10 +7,10 @@ This follow-on slice keeps the ready next198-201 prerequisite local and adds the
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext202205Plan.php
-php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext202205Test.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next202-205.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext202205Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-vfs-current-source-next202-205.php --self-test
 composer dump-autoload
 git diff --check

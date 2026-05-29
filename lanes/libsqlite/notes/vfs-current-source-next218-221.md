@@ -25,9 +25,9 @@ next214-217 handoff.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext218221Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext218221Test.php`
+- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next218-221.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext206209Test.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext218221Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-vfs-current-source-next218-221.php --self-test`
 - `git diff --check`

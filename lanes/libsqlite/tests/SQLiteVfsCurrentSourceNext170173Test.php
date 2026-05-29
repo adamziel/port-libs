@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext170173Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -30,7 +30,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext170173Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             ['op' => 'xFileControl', 'name' => 'chunk-size', 'value' => 8192],
             ['op' => 'xFileControl', 'name' => 'powersafe_overwrite', 'value' => false],
             'pathname(-wal)',
@@ -62,7 +62,7 @@ return [
     'vfs current source next170-173 returns main' => static fn (TestRunner $t) => $t->same('main', $plan()['next']['current_source']),
     'vfs current source next170-173 final source count' => static fn (TestRunner $t) => $t->same(3, $plan()['next']['source_count']),
     'vfs current source next170-173 final open count' => static fn (TestRunner $t) => $t->same(2, $plan()['next']['open_source_count']),
-    'vfs current source next170-173 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext170173Plan::run([])),
-    'vfs current source next170-173 rejects bad file control' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext170173Plan::run([['op' => 'xFileControl', 'name' => 'unknown']], ['current' => $current])),
-    'vfs current source next170-173 rejects bad path suffix' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext170173Plan::run(['pathname(-other)'], ['current' => $current])),
+    'vfs current source next170-173 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next170-173 rejects bad file control' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xFileControl', 'name' => 'unknown']], ['current' => $current])),
+    'vfs current source next170-173 rejects bad path suffix' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['pathname(-other)'], ['current' => $current])),
 ];

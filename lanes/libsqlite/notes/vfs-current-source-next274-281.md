@@ -33,9 +33,9 @@ post-ack reuse claim required before another current-source snapshot publication
 Validation:
 
 - `composer dump-autoload`
-- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext274281Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext274281Test.php`
+- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next274-281.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext266273Test.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext274281Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-vfs-current-source-next274-281.php --self-test`
 - `git diff --check`

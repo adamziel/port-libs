@@ -1,14 +1,14 @@
 # SQLite VFS current-source next626-641
 
-This slice adds `SQLiteVfsCurrentSourceNext626641Plan` as the direct successor to merged next610-625. It requires the latest `shared-cache-next625` publish receipt before snapshotting `reader-ready-next641`, records a reuse claim, and only publishes `shared-cache-next641` when the source handle/path/owner/data version, publish count, receipt digest, and dirty-page state still match the captured snapshot.
+This slice adds `SQLiteVfsCurrentSourceNextPlan` as the direct successor to merged next610-625. It requires the latest `shared-cache-next625` publish receipt before snapshotting `reader-ready-next641`, records a reuse claim, and only publishes `shared-cache-next641` when the source handle/path/owner/data version, publish count, receipt digest, and dirty-page state still match the captured snapshot.
 
 A new numbered source class is used because the established VFS current-source classes are final per slice; this keeps the next626-641 handoff independent while preserving the canonical snapshot/claim/publish contract.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext626641Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext626641Test.php`
+- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next626-641.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext626641Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-vfs-current-source-next626-641.php --self-test`
 - `git diff --check`

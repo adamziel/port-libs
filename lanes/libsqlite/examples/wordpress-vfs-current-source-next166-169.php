@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNext166169Plan.php';
+require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext166169Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
-$plan = SQLiteVfsCurrentSourceNext166169Plan::run([
+$plan = SQLiteVfsCurrentSourceNextPlan::run([
     'currenttime(1717000000)',
     'currenttimeint64(1717000001)',
     ['op' => 'xSetSystemCall', 'name' => 'pread64', 'enabled' => true],

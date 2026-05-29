@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext162165Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -30,7 +30,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext162165Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'access(/srv/www/wp-content/database/wp.sqlite-wal,exists)',
             'access(/srv/www/wp-content/other.sqlite,exists)',
             ['op' => 'xFullPathname', 'path' => 'wp.sqlite'],
@@ -70,7 +70,7 @@ return [
     'vfs current source next162-165 returns main' => static fn (TestRunner $t) => $t->same('main', $plan()['next']['current_source']),
     'vfs current source next162-165 final source count' => static fn (TestRunner $t) => $t->same(3, $plan()['next']['source_count']),
     'vfs current source next162-165 final open count' => static fn (TestRunner $t) => $t->same(2, $plan()['next']['open_source_count']),
-    'vfs current source next162-165 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext162165Plan::run([])),
-    'vfs current source next162-165 rejects bad access mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext162165Plan::run([['op' => 'access', 'mode' => 'writeonly']], ['current' => $current])),
-    'vfs current source next162-165 rejects unsupported device flag' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext162165Plan::run([['op' => 'device', 'flags' => ['networked']]], ['current' => $current])),
+    'vfs current source next162-165 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next162-165 rejects bad access mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'access', 'mode' => 'writeonly']], ['current' => $current])),
+    'vfs current source next162-165 rejects unsupported device flag' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'device', 'flags' => ['networked']]], ['current' => $current])),
 ];

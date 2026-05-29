@@ -32,9 +32,9 @@ the post-next281 snapshot capture plus the matching reuse/publish handoff.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext282289Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext282289Test.php`
+- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next282-289.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext274281Test.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext282289Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-vfs-current-source-next282-289.php --self-test`
 - `git diff --check`

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNext162165Plan.php';
+require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext162165Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
-$plan = SQLiteVfsCurrentSourceNext162165Plan::run([
+$plan = SQLiteVfsCurrentSourceNextPlan::run([
     'access(/srv/www/wp-content/database/wp.sqlite-wal,exists)',
     ['op' => 'xFullPathname', 'path' => 'wp.sqlite'],
     ['op' => 'xDeviceCharacteristics', 'flags' => 'safe_append powersafe_overwrite'],

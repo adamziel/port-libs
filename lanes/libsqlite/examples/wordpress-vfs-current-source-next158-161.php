@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNext158161Plan.php';
+require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext158161Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
-$plan = SQLiteVfsCurrentSourceNext158161Plan::run([
+$plan = SQLiteVfsCurrentSourceNextPlan::run([
     'mmap(49152)',
     'fetch(0,4096)',
     ['op' => 'xShmMap', 'page' => 0, 'size' => 32768, 'extend' => true],

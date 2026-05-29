@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext178181Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -29,7 +29,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext178181Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'write(512,4096)',
             'sync(full)',
             ['op' => 'xWrite', 'bytes' => 128, 'offset' => 8192],
@@ -64,7 +64,7 @@ return [
     'vfs current source next178-181 returns main' => static fn (TestRunner $t) => $t->same('main', $plan()['next']['current_source']),
     'vfs current source next178-181 final source count' => static fn (TestRunner $t) => $t->same(3, $plan()['next']['source_count']),
     'vfs current source next178-181 final open count' => static fn (TestRunner $t) => $t->same(2, $plan()['next']['open_source_count']),
-    'vfs current source next178-181 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext178181Plan::run([])),
-    'vfs current source next178-181 rejects bad sync mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext178181Plan::run([['op' => 'xSync', 'mode' => 'unsafe']], ['current' => $current])),
-    'vfs current source next178-181 rejects zero write' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext178181Plan::run(['write(0)'], ['current' => $current])),
+    'vfs current source next178-181 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next178-181 rejects bad sync mode' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xSync', 'mode' => 'unsafe']], ['current' => $current])),
+    'vfs current source next178-181 rejects zero write' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['write(0)'], ['current' => $current])),
 ];

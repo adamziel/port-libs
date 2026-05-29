@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNext170173Plan.php';
+require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext170173Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
-$plan = SQLiteVfsCurrentSourceNext170173Plan::run([
+$plan = SQLiteVfsCurrentSourceNextPlan::run([
     ['op' => 'xFileControl', 'name' => 'chunk-size', 'value' => 8192],
     ['op' => 'xFileControl', 'name' => 'persist_wal', 'value' => true],
     'pathname(-wal)',

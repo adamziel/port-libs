@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext182185Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -23,7 +23,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext182185Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'tempname(upload)',
             'syncdir(/srv/www/wp-content/database)',
             'readonly(true)',
@@ -55,7 +55,7 @@ return [
     'vfs current source next182-185 close restores main source' => static fn (TestRunner $t) => $t->same('main', $plan()['events'][8]['next']['current_source']),
     'vfs current source next182-185 final source count' => static fn (TestRunner $t) => $t->same(2, $plan()['next']['source_count']),
     'vfs current source next182-185 final open count' => static fn (TestRunner $t) => $t->same(1, $plan()['next']['open_source_count']),
-    'vfs current source next182-185 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext182185Plan::run([])),
-    'vfs current source next182-185 rejects bad temp suffix' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext182185Plan::run([['op' => 'xTempName', 'suffix' => 'bad suffix']], ['current' => $current])),
-    'vfs current source next182-185 rejects negative directory sync count' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext182185Plan::run(['tempname(ok)'], ['current' => ['sources' => ['main' => ['path' => '/tmp/a.sqlite', 'directory_syncs' => -1]], 'current_source' => 'main']])),
+    'vfs current source next182-185 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next182-185 rejects bad temp suffix' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xTempName', 'suffix' => 'bad suffix']], ['current' => $current])),
+    'vfs current source next182-185 rejects negative directory sync count' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['tempname(ok)'], ['current' => ['sources' => ['main' => ['path' => '/tmp/a.sqlite', 'directory_syncs' => -1]], 'current_source' => 'main']])),
 ];

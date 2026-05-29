@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext206209Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $cleanCurrent = [
     'current_source' => 'main',
@@ -26,7 +26,7 @@ $cleanCurrent = [
 $plan = static function () use ($cleanCurrent): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext206209Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'snapshot(reader-cache)',
             'reuse(reader-cache)',
             'publish(shared-cache-visible)',
@@ -64,13 +64,13 @@ return [
     'vfs current source next206-209 reuse has no blockers' => static fn (TestRunner $t) => $t->same([], $plan()['events'][1]['blocked_reasons']),
     'vfs current source next206-209 publish records clean source' => static fn (TestRunner $t) => $t->same('published', $plan()['events'][2]['status']),
     'vfs current source next206-209 publish count advances' => static fn (TestRunner $t) => $t->same(1, $plan()['events'][2]['published_count']),
-    'vfs current source next206-209 blocks dirty snapshot' => static fn (TestRunner $t) => $t->same('blocked-unpublished', SQLiteVfsCurrentSourceNext206209Plan::run(['snapshot(reader-cache)'], ['current' => $dirtyCurrent])['events'][0]['status']),
-    'vfs current source next206-209 blocks dirty publish' => static fn (TestRunner $t) => $t->same('blocked-dirty', SQLiteVfsCurrentSourceNext206209Plan::run(['publish(shared-cache-visible)'], ['current' => $dirtyCurrent])['events'][0]['status']),
-    'vfs current source next206-209 stale reuse is fenced' => static fn (TestRunner $t) => $t->same('blocked-stale', SQLiteVfsCurrentSourceNext206209Plan::run(['reuse(reader-cache)'], ['current' => $staleCurrent])['events'][0]['status']),
-    'vfs current source next206-209 stale reuse names data version blocker' => static fn (TestRunner $t) => $t->same(true, in_array('data-version-changed', SQLiteVfsCurrentSourceNext206209Plan::run(['reuse(reader-cache)'], ['current' => $staleCurrent])['events'][0]['blocked_reasons'], true)),
-    'vfs current source next206-209 stale reuse names durable blocker' => static fn (TestRunner $t) => $t->same(true, in_array('durable-count-changed', SQLiteVfsCurrentSourceNext206209Plan::run(['reuse(reader-cache)'], ['current' => $staleCurrent])['events'][0]['blocked_reasons'], true)),
-    'vfs current source next206-209 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext206209Plan::run([])),
-    'vfs current source next206-209 rejects bad snapshot token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext206209Plan::run([['op' => 'snapshot', 'snapshot' => 'bad token']], ['current' => $cleanCurrent])),
-    'vfs current source next206-209 rejects unsupported operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext206209Plan::run(['write(1,4096)'], ['current' => $cleanCurrent])),
+    'vfs current source next206-209 blocks dirty snapshot' => static fn (TestRunner $t) => $t->same('blocked-unpublished', SQLiteVfsCurrentSourceNextPlan::run(['snapshot(reader-cache)'], ['current' => $dirtyCurrent])['events'][0]['status']),
+    'vfs current source next206-209 blocks dirty publish' => static fn (TestRunner $t) => $t->same('blocked-dirty', SQLiteVfsCurrentSourceNextPlan::run(['publish(shared-cache-visible)'], ['current' => $dirtyCurrent])['events'][0]['status']),
+    'vfs current source next206-209 stale reuse is fenced' => static fn (TestRunner $t) => $t->same('blocked-stale', SQLiteVfsCurrentSourceNextPlan::run(['reuse(reader-cache)'], ['current' => $staleCurrent])['events'][0]['status']),
+    'vfs current source next206-209 stale reuse names data version blocker' => static fn (TestRunner $t) => $t->same(true, in_array('data-version-changed', SQLiteVfsCurrentSourceNextPlan::run(['reuse(reader-cache)'], ['current' => $staleCurrent])['events'][0]['blocked_reasons'], true)),
+    'vfs current source next206-209 stale reuse names durable blocker' => static fn (TestRunner $t) => $t->same(true, in_array('durable-count-changed', SQLiteVfsCurrentSourceNextPlan::run(['reuse(reader-cache)'], ['current' => $staleCurrent])['events'][0]['blocked_reasons'], true)),
+    'vfs current source next206-209 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next206-209 rejects bad snapshot token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'snapshot', 'snapshot' => 'bad token']], ['current' => $cleanCurrent])),
+    'vfs current source next206-209 rejects unsupported operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['write(1,4096)'], ['current' => $cleanCurrent])),
     'vfs current source next206-209 notes non-overlap' => static fn (TestRunner $t) => $t->same(true, str_contains($plan()['non_overlap'], 'does not repeat open/write/flush/checkpoint')),
 ];

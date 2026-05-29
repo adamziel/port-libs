@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext202205Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -23,7 +23,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext202205Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'prepare(4,lease-main-4)',
             'prepare(7,lease-main-7)',
             'publish(batch-202,4,7)',
@@ -54,9 +54,9 @@ return [
     'vfs current source next202-205 fences stale reader' => static fn (TestRunner $t) => $t->same('reader-reopen-required', $plan()['events'][5]['status']),
     'vfs current source next202-205 records reader fence' => static fn (TestRunner $t) => $t->same('reader-reopen-required', $plan()['next']['sources']['main']['reader_fences']['reader-b']['status']),
     'vfs current source next202-205 reports non overlap' => static fn (TestRunner $t) => $t->contains('does not repeat durable receipts next194-197', $plan()['non_overlap']),
-    'vfs current source next202-205 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext202205Plan::run([])),
-    'vfs current source next202-205 blocks stale durable prepare' => static fn (TestRunner $t) => $t->same('stale-durable-count', SQLiteVfsCurrentSourceNext202205Plan::run([['op' => 'prepare_page', 'page' => 4, 'lease' => 'lease-main-4', 'durable_count' => 2]], ['current' => $current])['events'][0]['status']),
-    'vfs current source next202-205 blocks missing publish page' => static fn (TestRunner $t) => $t->same('missing-prepared-pages', SQLiteVfsCurrentSourceNext202205Plan::run(['publish(batch-missing,8)'], ['current' => $current])['events'][0]['status']),
-    'vfs current source next202-205 blocks missing ack' => static fn (TestRunner $t) => $t->same('missing-published-batch', SQLiteVfsCurrentSourceNext202205Plan::run(['ack(batch-missing)'], ['current' => $current])['events'][0]['status']),
-    'vfs current source next202-205 rejects bad reader token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext202205Plan::run([['op' => 'reader_fence', 'reader' => 'bad token', 'page' => 1, 'lease' => 'lease']], ['current' => $current])),
+    'vfs current source next202-205 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next202-205 blocks stale durable prepare' => static fn (TestRunner $t) => $t->same('stale-durable-count', SQLiteVfsCurrentSourceNextPlan::run([['op' => 'prepare_page', 'page' => 4, 'lease' => 'lease-main-4', 'durable_count' => 2]], ['current' => $current])['events'][0]['status']),
+    'vfs current source next202-205 blocks missing publish page' => static fn (TestRunner $t) => $t->same('missing-prepared-pages', SQLiteVfsCurrentSourceNextPlan::run(['publish(batch-missing,8)'], ['current' => $current])['events'][0]['status']),
+    'vfs current source next202-205 blocks missing ack' => static fn (TestRunner $t) => $t->same('missing-published-batch', SQLiteVfsCurrentSourceNextPlan::run(['ack(batch-missing)'], ['current' => $current])['events'][0]['status']),
+    'vfs current source next202-205 rejects bad reader token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'reader_fence', 'reader' => 'bad token', 'page' => 1, 'lease' => 'lease']], ['current' => $current])),
 ];

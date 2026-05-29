@@ -13,10 +13,10 @@ This layer builds on next154-157 current-source I/O method state. It adds focuse
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext158161Plan.php
-php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext158161Test.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next158-161.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext158161Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-vfs-current-source-next158-161.php --self-test
 git diff --check
 ```

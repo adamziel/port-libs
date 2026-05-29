@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext210213Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -22,7 +22,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext210213Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'snapshot(wp-options-visible)',
             'reuse(wp-options-visible)',
             'publish(wp-options-publication)',
@@ -42,10 +42,10 @@ return [
     'vfs current source next210-213 publishes reused snapshot' => static fn (TestRunner $t) => $t->same('published', $plan()['events'][2]['status']),
     'vfs current source next210-213 publish receipt is recorded' => static fn (TestRunner $t) => $t->same(1, $plan()['events'][2]['publish_count']),
     'vfs current source next210-213 final status is published' => static fn (TestRunner $t) => $t->same('published', $plan()['status']),
-    'vfs current source next210-213 blocks publish without reuse' => static fn (TestRunner $t) => $t->same('blocked-no-reuse', SQLiteVfsCurrentSourceNext210213Plan::run(['publish(empty)'], ['current' => $current])['status']),
-    'vfs current source next210-213 blocks reuse when current dirty' => static fn (TestRunner $t) => $t->same('blocked-dirty', SQLiteVfsCurrentSourceNext210213Plan::run(['snapshot(stale)', 'reuse(stale)'], ['current' => array_replace_recursive($current, ['sources' => ['main' => ['dirty_pages' => [7 => ['page' => 7]]]]])])['events'][1]['status']),
-    'vfs current source next210-213 reports missing snapshot' => static fn (TestRunner $t) => $t->same('missing-snapshot', SQLiteVfsCurrentSourceNext210213Plan::run(['reuse(missing)'], ['current' => $current])['status']),
-    'vfs current source next210-213 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext210213Plan::run([])),
-    'vfs current source next210-213 rejects bad token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext210213Plan::run([['op' => 'snapshot', 'token' => 'bad token']], ['current' => $current])),
-    'vfs current source next210-213 rejects missing selected source' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext210213Plan::run(['snapshot(no-source)'])),
+    'vfs current source next210-213 blocks publish without reuse' => static fn (TestRunner $t) => $t->same('blocked-no-reuse', SQLiteVfsCurrentSourceNextPlan::run(['publish(empty)'], ['current' => $current])['status']),
+    'vfs current source next210-213 blocks reuse when current dirty' => static fn (TestRunner $t) => $t->same('blocked-dirty', SQLiteVfsCurrentSourceNextPlan::run(['snapshot(stale)', 'reuse(stale)'], ['current' => array_replace_recursive($current, ['sources' => ['main' => ['dirty_pages' => [7 => ['page' => 7]]]]])])['events'][1]['status']),
+    'vfs current source next210-213 reports missing snapshot' => static fn (TestRunner $t) => $t->same('missing-snapshot', SQLiteVfsCurrentSourceNextPlan::run(['reuse(missing)'], ['current' => $current])['status']),
+    'vfs current source next210-213 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next210-213 rejects bad token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'snapshot', 'token' => 'bad token']], ['current' => $current])),
+    'vfs current source next210-213 rejects missing selected source' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['snapshot(no-source)'])),
 ];

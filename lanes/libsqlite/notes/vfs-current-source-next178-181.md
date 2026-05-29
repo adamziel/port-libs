@@ -12,13 +12,13 @@ This layer follows the next174-177 access/delete/random/sleep handoff and adds c
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext166169Plan.php
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext170173Plan.php
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext174177Plan.php
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext178181Plan.php
-php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext178181Test.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next178-181.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext178181Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-vfs-current-source-next178-181.php --self-test
 git diff --check
 ```

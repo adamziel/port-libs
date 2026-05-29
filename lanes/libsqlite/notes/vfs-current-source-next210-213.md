@@ -7,10 +7,10 @@ This layer prepares the follow-on after the next206-209 snapshot/reuse handoff. 
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext210213Plan.php
-php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext210213Test.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next210-213.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext210213Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-vfs-current-source-next210-213.php --self-test
 git diff --check
 ```

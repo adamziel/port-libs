@@ -22,9 +22,9 @@ snapshot reuse and stale-reader fencing for next206-209.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext206209Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext206209Test.php`
+- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next206-209.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext198201Test.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext206209Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-vfs-current-source-next206-209.php --self-test`
 - `git diff --check`

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext174177Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
 $current = [
     'current_source' => 'main',
@@ -32,7 +32,7 @@ $current = [
 $plan = static function () use ($current): array {
     static $result = null;
     if ($result === null) {
-        $result = SQLiteVfsCurrentSourceNext174177Plan::run([
+        $result = SQLiteVfsCurrentSourceNextPlan::run([
             'access(-wal)',
             'delete(-wal)',
             'access(-wal)',
@@ -65,7 +65,7 @@ return [
     'vfs current source next174-177 returns main' => static fn (TestRunner $t) => $t->same('main', $plan()['next']['current_source']),
     'vfs current source next174-177 final source count' => static fn (TestRunner $t) => $t->same(3, $plan()['next']['source_count']),
     'vfs current source next174-177 final open count' => static fn (TestRunner $t) => $t->same(2, $plan()['next']['open_source_count']),
-    'vfs current source next174-177 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext174177Plan::run([])),
-    'vfs current source next174-177 rejects bad random seed' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext174177Plan::run([['op' => 'xRandomness', 'seed' => 'bad seed']], ['current' => $current])),
-    'vfs current source next174-177 rejects negative sleep' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNext174177Plan::run([['op' => 'xSleep', 'microseconds' => -1]], ['current' => $current])),
+    'vfs current source next174-177 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
+    'vfs current source next174-177 rejects bad random seed' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xRandomness', 'seed' => 'bad seed']], ['current' => $current])),
+    'vfs current source next174-177 rejects negative sleep' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'xSleep', 'microseconds' => -1]], ['current' => $current])),
 ];

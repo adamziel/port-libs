@@ -12,12 +12,12 @@ This layer follows the next170-173 path/control handoff and adds current-source 
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext166169Plan.php
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext170173Plan.php
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext174177Plan.php
-php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext174177Test.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next174-177.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext174177Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-vfs-current-source-next174-177.php --self-test
 git diff --check
 ```

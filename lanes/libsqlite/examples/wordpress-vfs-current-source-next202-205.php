@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNext194197Plan.php';
-require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNext202205Plan.php';
+require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteVfsCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNext202205Plan;
+use PortLibs\LibSqlite\SQLiteVfsCurrentSourceNextPlan;
 
-$plan = SQLiteVfsCurrentSourceNext202205Plan::run([
+$plan = SQLiteVfsCurrentSourceNextPlan::run([
     'prepare(4,wp-options-lease)',
     'prepare(9,wp-postmeta-lease)',
     'publish(import-checkpoint-202,4,9)',

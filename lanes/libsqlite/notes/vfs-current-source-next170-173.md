@@ -12,10 +12,10 @@ This layer follows the next166-169 time/error/syscall handoff and adds current-s
 Validation:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext170173Plan.php
-php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext170173Test.php
+php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNextPlan.php
+php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next170-173.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext170173Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-vfs-current-source-next170-173.php --self-test
 git diff --check
 ```
