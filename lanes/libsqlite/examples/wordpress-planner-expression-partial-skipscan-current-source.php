@@ -13,7 +13,7 @@ $prepared = [
     'name' => 'prepared-main.wp_options@cookie1410',
     'schemaCookie' => 1410,
     'stat4Generation' => 41,
-    'indexName' => 'idx_wp_options_autoload_lower_name_partial_next141',
+    'indexName' => 'idx_wp_options_autoload_lower_name_partial_current-source',
     'rootPage' => 14101,
     'skippedColumn' => 'autoload',
     'rangeColumn' => 'option_name',
@@ -61,7 +61,7 @@ $query = [
 ];
 $order = [['expression' => 'kind'], ['expression' => 'lower(option_name)']];
 
-$plan = SQLiteSkipScanStat4PartialOrderPlan::expressionPartialSkipScanCurrentSourceNext141(
+$plan = SQLiteSkipScanStat4PartialOrderPlan::expressionPartialSkipScan(
     $prepared,
     $current,
     $partial,
@@ -77,12 +77,12 @@ if (in_array('--self-test', $argv, true)) {
     assert($plan['nextSourceAdmitted'] === false);
     assert($plan['selectedPlan']['rowids'] === [1, 2, 4]);
     assert($plan['nextSource']['replanReasons'] === ['schema-cookie', 'stat4-generation', 'row-signature', 'stat4-signature']);
-    echo "wordpress-planner-expression-partial-skipscan-current-source-next141 self-test passed\n";
+    echo "wordpress-planner-expression-partial-skipscan-current-source self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-planner-expression-partial-skipscan-current-source-next141',
+    'scenario' => 'wordpress-planner-expression-partial-skipscan-current-source',
     'wordpressUse' => 'Copied wp_options plugin scans can keep a partial skip-scan over lower(option_name) only for the selected current source, while rejecting a next source whose expression keys and STAT4 samples changed before the prepared cursor is reused.',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],

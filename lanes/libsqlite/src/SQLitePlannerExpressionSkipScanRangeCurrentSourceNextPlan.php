@@ -25,7 +25,7 @@ final class SQLitePlannerExpressionSkipScanRangeCurrentSourceNextPlan
             array $orderByExpressions,
             array $neededColumns,
         ): array {
-            $preparedView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScanCurrentSourceNext129(
+            $preparedView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScan(
                 $preparedSource,
                 $preparedSource,
                 $partialPredicate,
@@ -33,7 +33,7 @@ final class SQLitePlannerExpressionSkipScanRangeCurrentSourceNextPlan
                 $orderByExpressions,
                 $neededColumns,
             );
-            $currentView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScanCurrentSourceNext129(
+            $currentView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScan(
                 $preparedSource,
                 $currentSource,
                 $partialPredicate,
@@ -74,11 +74,11 @@ final class SQLitePlannerExpressionSkipScanRangeCurrentSourceNextPlan
                 'detail' => ($currentView['detail'] ?? 'PARTIAL EXPRESSION SKIP-SCAN')
                     . ' current-range-fence=' . ($rangeChanged ? 'changed' : 'stable'),
                 'dependencies' => [
-                    'SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScanCurrentSourceNext129',
+                    'SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScan',
                     'sqlite-sqlplanner-expression-skipscan-range-current-source-next143',
                 ],
                 'dependency_closure' => 'no new support component needed; next143 reuses native PHP expression skip-scan materialization, current-source fences, and bounded range cursor evidence',
-                'non_overlap' => 'avoids partial expression skip-scan next129, expression covering next132, STAT4 stale-source next137, partial predicate changes next139, covering partial range next131, and expression-index range-cost ranking; this slice only fences stale expression skip-scan lower/upper/collation range bounds on the current source',
+                'non_overlap' => 'avoids partial expression skip-scan current-source, expression covering current-source, STAT4 stale-source next137, partial predicate changes next139, covering partial range next131, and expression-index range-cost ranking; this slice only fences stale expression skip-scan lower/upper/collation range bounds on the current source',
             ]);
         }
 

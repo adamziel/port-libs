@@ -14,7 +14,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function coveringCurrentSourceNext125(
+    public static function coveringCurrentSource(
         array $preparedSource,
         array $currentSource,
         SQLiteIndexPredicate $partialPredicate,
@@ -59,7 +59,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
                 . self::sourceString($selectedSource, 'name')
                 . ' '
                 . ($selected['detail'] ?? 'NO PLAN'),
-            'dependencies' => ['sqlite-sqlplanner-covering-partial-skipscan-current-source-next125'],
+            'dependencies' => ['sqlite-sqlplanner-covering-partial-skipscan-current-source'],
         ];
     }
 
@@ -71,7 +71,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function partialCoveringSkipScanCurrentSourceNext127(
+    public static function partialCoveringSkipScan(
         array $preparedSource,
         array $currentSource,
         SQLiteIndexPredicate $partialPredicate,
@@ -82,7 +82,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
         $preparedOrder = self::reducedOrderByExpressions($preparedSource, $queryTerms, $orderByExpressions);
         $currentOrder = self::reducedOrderByExpressions($currentSource, $queryTerms, $orderByExpressions);
 
-        $prepared = self::coveringCurrentSourceNext125(
+        $prepared = self::coveringCurrentSource(
             $preparedSource,
             $preparedSource,
             $partialPredicate,
@@ -90,7 +90,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             $preparedOrder['orderBy'],
             array_values(array_unique(array_merge($neededColumns, $preparedOrder['neededExpressionColumns']))),
         );
-        $current = self::coveringCurrentSourceNext125(
+        $current = self::coveringCurrentSource(
             $currentSource,
             $currentSource,
             $partialPredicate,
@@ -147,7 +147,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
                 . self::sourceString($selectedSource, 'name')
                 . ' constants=' . count($selectedOrder['constantExpressions'])
                 . ' uncovered=' . count($selectedOrder['uncoveredExpressions']),
-            'dependencies' => ['sqlite-sqlplanner-partial-covering-skipscan-current-source-next127'],
+            'dependencies' => ['sqlite-sqlplanner-partial-covering-skipscan-current-source'],
         ];
     }
 
@@ -159,7 +159,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function partialExpressionSkipScanCurrentSourceNext129(
+    public static function partialExpressionSkipScan(
         array $preparedSource,
         array $currentSource,
         SQLiteIndexPredicate $partialPredicate,
@@ -179,7 +179,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
         $preparedOrder = self::materializedExpressionOrder($orderByExpressions, $preparedExpression, $preparedRangeColumn);
         $currentOrder = self::materializedExpressionOrder($orderByExpressions, $currentExpression, $currentRangeColumn);
 
-        $prepared = self::partialCoveringSkipScanCurrentSourceNext127(
+        $prepared = self::partialCoveringSkipScan(
             $preparedMaterialized,
             $preparedMaterialized,
             $partialPredicate,
@@ -187,7 +187,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             $preparedOrder,
             $neededColumns,
         );
-        $current = self::partialCoveringSkipScanCurrentSourceNext127(
+        $current = self::partialCoveringSkipScan(
             $currentMaterialized,
             $currentMaterialized,
             $partialPredicate,
@@ -243,8 +243,8 @@ final class SQLiteSkipScanStat4PartialOrderPlan
                 . 'PARTIAL EXPRESSION SKIP-SCAN '
                 . self::sourceString($selectedSource, 'name')
                 . ' expr=' . $selectedExpression,
-            'dependencies' => ['sqlite-sqlplanner-partial-expression-skipscan-current-source-next129'],
-            'dependency_closure' => 'no new support component needed; next129 reuses native PHP skip-scan, partial predicate proof, current-source fences, and bounded SQL expression-key materialization',
+            'dependencies' => ['sqlite-sqlplanner-partial-expression-skipscan-current-source'],
+            'dependency_closure' => 'no new support component needed; current-source reuses native PHP skip-scan, partial predicate proof, current-source fences, and bounded SQL expression-key materialization',
         ];
     }
 
@@ -257,7 +257,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
      * @param list<string> $neededExpressions
      * @return array<string,mixed>
      */
-    public static function expressionCoveringSkipScanCurrentSourceNext132(
+    public static function expressionCoveringSkipScan(
         array $preparedSource,
         array $currentSource,
         SQLiteIndexPredicate $partialPredicate,
@@ -267,7 +267,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
         array $neededExpressions,
     ): array {
         $neededExpressions = self::validatedExpressionList($neededExpressions, 'SQLite expression covering skip-scan projection');
-        $base = self::partialExpressionSkipScanCurrentSourceNext129(
+        $base = self::partialExpressionSkipScan(
             $preparedSource,
             $currentSource,
             $partialPredicate,
@@ -281,8 +281,8 @@ final class SQLiteSkipScanStat4PartialOrderPlan
         if ($selectedPlan === null) {
             return array_replace($base, [
                 'status' => 'unusable',
-                'dependencies' => ['sqlite-sqlplanner-expression-covering-skipscan-current-source-next132'],
-                'dependency_closure' => 'no new support component needed; next132 reuses native PHP expression skip-scan materialization and covering-index cursor evidence',
+                'dependencies' => ['sqlite-sqlplanner-expression-covering-skipscan-current-source'],
+                'dependency_closure' => 'no new support component needed; current-source reuses native PHP expression skip-scan materialization and covering-index cursor evidence',
             ]);
         }
 
@@ -336,8 +336,8 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             ),
             'detail' => ($base['detail'] ?? 'PARTIAL EXPRESSION SKIP-SCAN')
                 . ' expression-covering=' . ($expressionCovering ? 'yes' : 'no'),
-            'dependencies' => ['sqlite-sqlplanner-expression-covering-skipscan-current-source-next132'],
-            'dependency_closure' => 'no new support component needed; next132 reuses native PHP expression skip-scan materialization, current-source fences, and covering-index cursor evidence',
+            'dependencies' => ['sqlite-sqlplanner-expression-covering-skipscan-current-source'],
+            'dependency_closure' => 'no new support component needed; current-source reuses native PHP expression skip-scan materialization, current-source fences, and covering-index cursor evidence',
         ]);
     }
 
@@ -350,7 +350,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
      * @param array<string,mixed>|null $nextSource
      * @return array<string,mixed>
      */
-    public static function expressionPartialSkipScanCurrentSourceNext141(
+    public static function expressionPartialSkipScan(
         array $preparedSource,
         array $currentSource,
         SQLiteIndexPredicate $partialPredicate,
@@ -359,7 +359,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
         array $neededColumns,
         ?array $nextSource = null,
     ): array {
-        $base = self::partialExpressionSkipScanCurrentSourceNext129(
+        $base = self::partialExpressionSkipScan(
             $preparedSource,
             $currentSource,
             $partialPredicate,
@@ -407,7 +407,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
 
         return array_replace($base, [
             'status' => (($base['status'] ?? null) === 'usable' && $selectedPlan !== null && $nextSourceAdmitted)
-                ? 'expression-partial-skipscan-current-source-next141-ready'
+                ? 'expression-partial-skipscan-current-source-ready'
                 : 'requires-current-source-reprepare',
             'selectedPlan' => $selectedPlan,
             'currentSourceFence' => array_replace(
@@ -423,10 +423,10 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             'nextSourceAdmitted' => $nextSourceAdmitted,
             'partialPredicateFence' => self::predicateFence($partialPredicate),
             'detail' => ($base['detail'] ?? 'PARTIAL EXPRESSION SKIP-SCAN')
-                . ' CURRENT-SOURCE PARTIAL FENCE next141',
-            'dependencies' => ['sqlite-sqlplanner-expression-partial-skipscan-current-source-next141'],
-            'dependency_closure' => 'no new support component needed; next141 reuses native PHP expression skip-scan materialization, partial-index proof, STAT4 skip-scan estimates, and current-source fences',
-            'non_overlap' => 'avoids accepted next129 expression skip-scan materialization and next132 expression-covering rows by adding current-source partial-predicate source fencing and explicit next-source rejection for stale expression keys',
+                . ' CURRENT-SOURCE PARTIAL FENCE current-source',
+            'dependencies' => ['sqlite-sqlplanner-expression-partial-skipscan-current-source'],
+            'dependency_closure' => 'no new support component needed; current-source reuses native PHP expression skip-scan materialization, partial-index proof, STAT4 skip-scan estimates, and current-source fences',
+            'non_overlap' => 'avoids accepted current-source expression skip-scan materialization and current-source expression-covering rows by adding current-source partial-predicate source fencing and explicit next-source rejection for stale expression keys',
         ]);
     }
 

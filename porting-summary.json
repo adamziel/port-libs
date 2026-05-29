@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 11:22:32 UTC",
-    "sourceCommit": "32bb0bd4268736bcca37795153fbf6193ba14ad7",
-    "sourceCommitShort": "32bb0bd42687",
+    "generated": "2026-05-29 11:26:06 UTC",
+    "sourceCommit": "e0481f1d3af0f254e76f7b89d56b7cfcb5a3c1b3",
+    "sourceCommitShort": "e0481f1d3af0",
     "sourceBranch": "unknown",
-    "dashboardCommit": "32bb0bd4268736bcca37795153fbf6193ba14ad7",
-    "dashboardCommitShort": "32bb0bd42687",
+    "dashboardCommit": "e0481f1d3af0f254e76f7b89d56b7cfcb5a3c1b3",
+    "dashboardCommitShort": "e0481f1d3af0",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -88,9 +88,9 @@
             "phase": "second current functional batch plus broad numeric suff...",
             "audit": "Accepted 9 ready libsqlite handoffs on to...",
             "currentWork": "Integrated functional helpers for attach temp WAL schema cache routing, JSON aggregate wi...",
-            "nextTarget": "Push the broad method-wrapper consolidation batch, keep 10-11 visible workers active, the...",
+            "nextTarget": "Push the follow-up method cleanup batch, keep 10-11 visible workers active, then integrat...",
             "blocker": "No blocker for the pushed focused batches.",
-            "commit": "broad m"
+            "commit": "follow-"
         },
         {
             "library": "LightningCSS",

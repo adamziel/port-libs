@@ -27,7 +27,7 @@ final class SQLitePlannerStat4PartialSkipScanCurrentSourceNextPlan
             array $neededColumns,
             ?array $nextSource = null,
         ): array {
-            $base = SQLiteSkipScanStat4PartialOrderPlan::expressionPartialSkipScanCurrentSourceNext141(
+            $base = SQLiteSkipScanStat4PartialOrderPlan::expressionPartialSkipScan(
                 $preparedSource,
                 $currentSource,
                 $partialPredicate,
@@ -39,7 +39,7 @@ final class SQLitePlannerStat4PartialSkipScanCurrentSourceNextPlan
 
             $selectedPlan = self::arrayValueNext145($base, 'selectedPlan');
             $selectedSource = ($base['selectedSource'] ?? null) === 'current' ? $currentSource : $preparedSource;
-            $status = ($base['status'] ?? null) === 'expression-partial-skipscan-current-source-next141-ready'
+            $status = ($base['status'] ?? null) === 'expression-partial-skipscan-current-source-ready'
                 ? 'stat4-partial-skipscan-current-source-next145-ready'
                 : 'requires-current-source-reprepare';
             $loopProgram = $selectedPlan === null ? [] : self::loopProgramNext145($selectedPlan, $selectedSource);
@@ -74,7 +74,7 @@ final class SQLitePlannerStat4PartialSkipScanCurrentSourceNextPlan
                     . ' STAT4 CURRENT-SOURCE PREFIX PROGRAM next145',
                 'dependencies' => ['sqlite-sqlplanner-stat4-partial-skipscan-current-source-next145'],
                 'dependency_closure' => 'no new support component needed; next145 reuses native partial-index proof, STAT4 skip-scan estimates, expression-key materialization, and current-source reprepare fences',
-                'non_overlap' => 'avoids accepted expression ORDER BY, range-cost, JSON, VFS, WAL, B-tree, and next141 source-fence-only surfaces by adding per-prefix STAT4 skip-scan cursor programs and covering payload evidence for the current source',
+                'non_overlap' => 'avoids accepted expression ORDER BY, range-cost, JSON, VFS, WAL, B-tree, and current-source source-fence-only surfaces by adding per-prefix STAT4 skip-scan cursor programs and covering payload evidence for the current source',
             ]);
         }
 

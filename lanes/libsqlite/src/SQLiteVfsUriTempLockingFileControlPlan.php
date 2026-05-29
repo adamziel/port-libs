@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan
+final class SQLiteVfsUriTempLockingFileControlPlan
 {
     /**
      * @param list<string|array<string,mixed>> $operations
@@ -14,7 +14,7 @@ final class SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan
     public static function run(array $operations, array $options = []): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS URI temp locking file-control current-source next130 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS URI temp locking file-control current-source requires operations');
         }
 
         $state = [
@@ -136,7 +136,7 @@ final class SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan
                 'vfs-temp-delete-on-close',
                 'vfs-file-control-current-source',
                 'vfs-lock-byte-state',
-                'vfs-uri-temp-locking-filecontrol-current-source-next130',
+                'vfs-uri-temp-locking-filecontrol',
             ],
         ];
     }
@@ -163,7 +163,7 @@ final class SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan
         $locks = !$temporary && is_array($state['persistent_locks'][$owner] ?? null) ? $state['persistent_locks'][$owner] : [];
 
         return [
-            'id' => 'vfs130-' . $state['sequence'],
+            'id' => 'vfs-uri-temp-filecontrol-' . $state['sequence'],
             'status' => $temporary ? 'temp-open' : 'open',
             'source' => $source,
             'owner' => $owner,

@@ -96,7 +96,7 @@ function libsqlite_suite_next158_record(
     ?int $expected = 72,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next158_evidence()->upstreamVeryquickShardRunnerCurrentSourceNext158(
+    return libsqlite_suite_next158_evidence()->upstreamVeryquickShardRunnerCurrentSource(
         $rows,
         604,
         44622,
@@ -105,7 +105,7 @@ function libsqlite_suite_next158_record(
         $statusSource,
         $implementationSource,
         $nextHead,
-        'lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardRunnerCurrentSourceNext158Test.php',
+        'lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardRunnerCurrentSourceAdmissionTest.php',
         $output ?? libsqlite_suite_next158_output(),
         'current-source next158 veryquick shard runner admission avoids accepted batch107/108, batch109-113, next148 exact-shard evidence, runner106/jsonvt104 rebase items, and live current-source next115/next116 B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE surfaces',
         $expected,

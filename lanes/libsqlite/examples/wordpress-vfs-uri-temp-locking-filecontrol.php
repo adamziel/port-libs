@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteFileUri.php';
-require_once __DIR__ . '/../src/SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteVfsUriTempLockingFileControlPlan.php';
 
-use PortLibs\LibSqlite\SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteVfsUriTempLockingFileControlPlan;
 
-$plan = SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan::run([
+$plan = SQLiteVfsUriTempLockingFileControlPlan::run([
     'open(main, file://localhost/srv/www/wp-content/database/wp.sqlite?mode=rw&cache=shared)',
     'file_control(reserve_bytes, 32)',
     'open(temp, file:/srv/www/wp-content/database/wp-temp-import.sqlite?mode=memory&cache=private)',
@@ -19,9 +19,9 @@ $plan = SQLiteVfsUriTempLockingFileControlCurrentSourceNextPlan::run([
 ]);
 
 $summary = [
-    'scenario' => 'wordpress-vfs-uri-temp-locking-filecontrol-current-source-next130',
+    'scenario' => 'wordpress-vfs-uri-temp-locking-filecontrol',
     'wordpressUse' => 'Model a copied WordPress import that opens a URI main database plus a temp import database, keeps temp locks and file-control state handle-local, and deletes temp state on close without requiring ext/sqlite.',
-    'dependency' => 'vfs-uri-temp-locking-filecontrol-current-source-next130',
+    'dependency' => 'vfs-uri-temp-locking-filecontrol',
     'mainReserveBytes' => $plan['events'][1]['next']['persistent_controls']['/srv/www/wp-content/database/wp.sqlite']['reserve_bytes'],
     'tempDeleted' => $plan['events'][5]['deleted_temp'],
     'reopenedTempOwner' => $plan['events'][6]['owner'],
@@ -35,7 +35,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($summary['reopenedTempOwner'] === 'temp:temp:3');
     assert($summary['finalCurrentSource'] === 'temp');
     assert($summary['tempOpenCount'] === 1);
-    echo "wordpress-vfs-uri-temp-locking-filecontrol-current-source-next130 self-test passed\n";
+    echo "wordpress-vfs-uri-temp-locking-filecontrol self-test passed\n";
     return;
 }
 

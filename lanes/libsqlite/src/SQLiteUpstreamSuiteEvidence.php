@@ -5855,7 +5855,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamExactShardRunnerCurrentSourceNext148(
+    public function upstreamExactShardRunnerCurrentSource(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -5906,7 +5906,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext155(
+    public function upstreamVeryquickShardCurrentSource(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -5919,7 +5919,8 @@ final class SQLiteUpstreamSuiteEvidence
         string $focusedTestOutput,
         string $nonOverlapNote,
         ?int $expectedPassDelta = null,
-        string $processSnapshot = ''
+        string $processSnapshot = '',
+        string $shardLabel = 'veryquick-shard'
     ): array {
         $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
             $rows,
@@ -5937,19 +5938,19 @@ final class SQLiteUpstreamSuiteEvidence
             $processSnapshot
         );
 
-        $record['status'] = str_replace('next116-full-suite-countability', 'next155-veryquick-shard', (string) $record['status']);
-        $record['counts_upstream_veryquick_shard_current_source_next155'] = $record['status'] !== 'blocked'
+        $record['status'] = str_replace('next116-full-suite-countability', $shardLabel, (string) $record['status']);
+        $record['counts_upstream_veryquick_shard_current_source'] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
         $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
         $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
         $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
         $record['counts_release_parity'] = false;
         $record['next_gate'] = match ($record['status']) {
-            'current-source-next155-veryquick-shard-advanced' => 'publish only the current-source next155 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
-            'current-source-next155-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick shard rows without mapped inflation',
-            default => 'repair current-source next155 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick shard row',
+            'current-source-veryquick-shard-advanced' => 'publish only the current-source veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
+            'current-source-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick-shard rows without mapped inflation',
+            default => 'repair current-source veryquick shard provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick-shard row',
         };
-        $record['dependency_closure'] = 'no new support component needed; current-source next155 veryquick shard admission composes lane-local artifact rows, authoritative launcher/source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
+        $record['dependency_closure'] = 'no new support component needed; current-source veryquick-shard admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, integration-source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
 
         return $record;
     }
@@ -5958,114 +5959,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext156(
-        array $rows,
-        int $currentMapped,
-        int $currentPhpPass,
-        string $launcherBaseHead,
-        string $dashboardSourceHead,
-        string $statusSourceHead,
-        string $implementationSourceHead,
-        string $nextSourceHead,
-        string $focusedPath,
-        string $focusedTestOutput,
-        string $nonOverlapNote,
-        ?int $expectedPassDelta = null,
-        string $processSnapshot = ''
-    ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
-            $rows,
-            $currentMapped,
-            $currentPhpPass,
-            $launcherBaseHead,
-            $dashboardSourceHead,
-            $statusSourceHead,
-            $implementationSourceHead,
-            $nextSourceHead,
-            $focusedPath,
-            $focusedTestOutput,
-            $nonOverlapNote,
-            $expectedPassDelta,
-            $processSnapshot
-        );
-
-        $record['status'] = str_replace('next116-full-suite-countability', 'next156-veryquick-shard', (string) $record['status']);
-        $record['counts_upstream_veryquick_shard_current_source_next156'] = $record['status'] !== 'blocked'
-            && ($record['admitted_count'] ?? 0) > 0;
-        $record['counts_upstream_veryquick_shard_current_source_next159'] = false;
-        $record['counts_upstream_veryquick_shard_current_source_next157'] = false;
-        $record['counts_upstream_veryquick_shard_current_source_next155'] = false;
-        $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
-        $record['counts_release_parity'] = false;
-        $record['next_gate'] = match ($record['status']) {
-            'current-source-next156-veryquick-shard-advanced' => 'publish only the current-source next156 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
-            'current-source-next156-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick shard rows without mapped inflation',
-            default => 'repair current-source next156 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick shard row',
-        };
-        $record['dependency_closure'] = 'no new support component needed; current-source next156 veryquick shard admission composes lane-local artifact rows, authoritative launcher/source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
-
-        return $record;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $rows
-     * @return array<string, mixed>
-     */
-    public function upstreamVeryquickShardCurrentSourceNext157(
-        array $rows,
-        int $currentMapped,
-        int $currentPhpPass,
-        string $launcherBaseHead,
-        string $dashboardSourceHead,
-        string $statusSourceHead,
-        string $implementationSourceHead,
-        string $nextSourceHead,
-        string $focusedPath,
-        string $focusedTestOutput,
-        string $nonOverlapNote,
-        ?int $expectedPassDelta = null,
-        string $processSnapshot = ''
-    ): array {
-        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
-            $rows,
-            $currentMapped,
-            $currentPhpPass,
-            $launcherBaseHead,
-            $dashboardSourceHead,
-            $statusSourceHead,
-            $implementationSourceHead,
-            $nextSourceHead,
-            $focusedPath,
-            $focusedTestOutput,
-            $nonOverlapNote,
-            $expectedPassDelta,
-            $processSnapshot
-        );
-
-        $record['status'] = str_replace('next116-full-suite-countability', 'next157-veryquick-shard', (string) $record['status']);
-        $record['counts_upstream_veryquick_shard_current_source_next157'] = $record['status'] !== 'blocked'
-            && ($record['admitted_count'] ?? 0) > 0;
-        $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
-        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
-        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
-        $record['counts_release_parity'] = false;
-        $record['next_gate'] = match ($record['status']) {
-            'current-source-next157-veryquick-shard-advanced' => 'publish only the current-source next157 veryquick-shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
-            'current-source-next157-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick-shard rows without mapped inflation',
-            default => 'repair current-source next157 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick-shard row',
-        };
-        $record['dependency_closure'] = 'no new support component needed; current-source next157 veryquick-shard admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, integration-source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
-
-        return $record;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $rows
-     * @return array<string, mixed>
-     */
-    public function upstreamVeryquickShardRunnerCurrentSourceNext158(
+    public function upstreamVeryquickShardRunnerCurrentSource(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -28763,7 +28657,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $denominatorRows
      * @return array<string, mixed>
      */
-    public function suiteDenominatorCurrentNext65(
+    public function suiteDenominatorCountability(
         array $denominatorRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -28776,10 +28670,10 @@ final class SQLiteUpstreamSuiteEvidence
         string $processSnapshot = ''
     ): array {
         if ($denominatorRows === []) {
-            throw new \InvalidArgumentException('SQLite current-next65 denominator admission requires at least one row');
+            throw new \InvalidArgumentException('SQLite suite denominator admission requires at least one row');
         }
         if ($currentMapped < 0) {
-            throw new \InvalidArgumentException('SQLite current-next65 denominator admission needs a non-negative current mapped count');
+            throw new \InvalidArgumentException('SQLite suite denominator admission needs a non-negative current mapped count');
         }
 
         $phpAdmission = $this->focusedPhpPassCurrentHeadAdmission(
@@ -28808,7 +28702,7 @@ final class SQLiteUpstreamSuiteEvidence
         $categories = [];
 
         foreach ($denominatorRows as $label => $row) {
-            $unit = is_string($label) ? $label : 'current-next65-' . count($entries);
+            $unit = is_string($label) ? $label : 'suite-denominator-' . count($entries);
             if (!is_array($row)) {
                 $blockedUnits[] = $unit;
                 $blockers[] = [
@@ -28924,14 +28818,14 @@ final class SQLiteUpstreamSuiteEvidence
         $scriptDelta = max(0, $nextScriptRows - $currentScriptRows);
         $status = 'blocked';
         if ($blockers === [] && ($mappedDelta > 0 || $scriptDelta > 0)) {
-            $status = 'current-next65-denominator-countable';
+            $status = 'suite-denominator-countable';
         } elseif ($blockers === []) {
-            $status = 'current-next65-denominator-preserved';
+            $status = 'suite-denominator-preserved';
         }
 
         return [
             'status' => $status,
-            'countable' => $status === 'current-next65-denominator-countable',
+            'countable' => $status === 'suite-denominator-countable',
             'accepted_repository_head' => $acceptedRepositoryHead,
             'evidence_repository_head' => $evidenceRepositoryHead,
             'current_mapped' => $currentMapped,
@@ -28962,10 +28856,10 @@ final class SQLiteUpstreamSuiteEvidence
             'blockers' => $blockers,
             'counts_release_parity' => false,
             'non_overlap_note' => trim($nonOverlapNote),
-            'next_gate' => $status === 'current-next65-denominator-countable'
-                ? 'publish only the current-next65 denominator/script movement with exact current-head focused PASS-line evidence; release/all parity remains gated'
-                : 'keep current-next65 denominator movement uncounted until row evidence, duplicate-runner, and focused PASS-line blockers are clear',
-            'dependency_closure' => 'no new support component needed; current-next65 denominator admission composes lane-local rows, active-runner gating, and current-head focused TestRunner PASS-line output only',
+            'next_gate' => $status === 'suite-denominator-countable'
+                ? 'publish only the suite denominator/script movement with exact current-head focused PASS-line evidence; release/all parity remains gated'
+                : 'keep suite denominator movement uncounted until row evidence, duplicate-runner, and focused PASS-line blockers are clear',
+            'dependency_closure' => 'no new support component needed; suite denominator admission composes lane-local rows, active-runner gating, and current-head focused TestRunner PASS-line output only',
         ];
     }
 
@@ -29424,7 +29318,7 @@ final class SQLiteUpstreamSuiteEvidence
         ?int $expectedPassDelta = null,
         string $processSnapshot = ''
     ): array {
-        $record = $this->suiteDenominatorCurrentNext65(
+        $record = $this->suiteDenominatorCountability(
             $denominatorRows,
             $currentMapped,
             $currentPhpPass,
@@ -29505,9 +29399,9 @@ final class SQLiteUpstreamSuiteEvidence
         $blocked = $blockers !== [];
         $baseStatus = is_string($record['status'] ?? null) ? $record['status'] : 'blocked';
         $status = 'blocked';
-        if (!$blocked && $baseStatus === 'current-next65-denominator-countable') {
+        if (!$blocked && $baseStatus === 'suite-denominator-countable') {
             $status = 'current-next69-denominator-current-source-countable';
-        } elseif (!$blocked && $baseStatus === 'current-next65-denominator-preserved') {
+        } elseif (!$blocked && $baseStatus === 'suite-denominator-preserved') {
             $status = 'current-next69-denominator-current-source-preserved';
         }
 
@@ -30564,13 +30458,13 @@ final class SQLiteUpstreamSuiteEvidence
         string $processSnapshot = ''
     ): array {
         if ($evidenceRows === []) {
-            throw new \InvalidArgumentException('SQLite current-next77 suite evidence slice requires at least one evidence row');
+            throw new \InvalidArgumentException('SQLite suite evidence slice requires at least one evidence row');
         }
         if ($currentMapped < 0) {
-            throw new \InvalidArgumentException('SQLite current-next77 suite evidence slice requires a non-negative mapped count');
+            throw new \InvalidArgumentException('SQLite suite evidence slice requires a non-negative mapped count');
         }
         if (trim($acceptedRepositoryHead) === '') {
-            throw new \InvalidArgumentException('SQLite current-next77 suite evidence slice requires an accepted repository HEAD');
+            throw new \InvalidArgumentException('SQLite suite evidence slice requires an accepted repository HEAD');
         }
 
         $phpAdmission = $this->focusedPhpPassCurrentHeadAdmission(
@@ -30597,11 +30491,11 @@ final class SQLiteUpstreamSuiteEvidence
         $nextTestsTotal = 0;
 
         foreach ($evidenceRows as $label => $row) {
-            $fallbackUnit = is_string($label) ? $label : 'current-next77-suite-evidence-' . count($entries);
+            $fallbackUnit = is_string($label) ? $label : 'suite-evidence-' . count($entries);
             if (!is_array($row)) {
                 $blockedUnits[] = $fallbackUnit;
                 $blockers[] = [
-                    'id' => 'current-next77-evidence-row-invalid',
+                    'id' => 'suite-evidence-row-invalid',
                     'unit' => $fallbackUnit,
                     'evidence' => 'suite evidence row must be an array',
                 ];
@@ -30685,7 +30579,7 @@ final class SQLiteUpstreamSuiteEvidence
                     $regressed[] = $unit;
                 }
                 $blockers[] = [
-                    'id' => 'current-next77-suite-evidence-blocked',
+                    'id' => 'suite-evidence-blocked',
                     'unit' => $unit,
                     'evidence' => implode('; ', $rowBlockers),
                 ];
@@ -30747,14 +30641,14 @@ final class SQLiteUpstreamSuiteEvidence
         $mappedDelta = count($advanced) > 0 ? 1 : 0;
         $status = 'blocked';
         if (!$blocked && $mappedDelta > 0) {
-            $status = 'current-next77-suite-evidence-countable';
+            $status = 'suite-evidence-countable';
         } elseif (!$blocked) {
-            $status = 'current-next77-suite-evidence-preserved';
+            $status = 'suite-evidence-preserved';
         }
 
         $record = [
             'status' => $status,
-            'countable' => $status === 'current-next77-suite-evidence-countable',
+            'countable' => $status === 'suite-evidence-countable',
             'accepted_repository_head' => $acceptedRepositoryHead,
             'current_mapped' => $currentMapped,
             'next_mapped' => $blocked ? $currentMapped : $currentMapped + $mappedDelta,
@@ -30780,60 +30674,16 @@ final class SQLiteUpstreamSuiteEvidence
             'php_pass_admission' => $phpAdmission,
             'blocker_count' => count($blockers),
             'blockers' => $blockers,
-            'counts_suite_evidence_current_next77' => $status === 'current-next77-suite-evidence-countable',
+            'counts_suite_evidence' => $status === 'suite-evidence-countable',
             'counts_release_parity' => false,
             'non_overlap_note' => trim($nonOverlapNote),
-            'next_gate' => $status === 'current-next77-suite-evidence-countable'
-                ? 'publish current-next77 as one bounded suite-evidence countability slice; release/all parity remains blocked until complete zero-error closure evidence is separately accepted'
-                : 'keep current-next77 suite evidence uncounted until accepted-head, lane-local artifact, zero-error runner, duplicate-runner, and focused PASS-line gates are clear',
-            'dependency_closure' => 'no new support component needed; current-next77 suite evidence composes lane-local artifact metadata, guarded runner commands, active-runner gates, and focused TestRunner PASS-line output only',
+            'next_gate' => $status === 'suite-evidence-countable'
+                ? 'publish this bounded suite-evidence countability slice; release/all parity remains blocked until complete zero-error closure evidence is separately accepted'
+                : 'keep suite evidence uncounted until accepted-head, lane-local artifact, zero-error runner, duplicate-runner, and focused PASS-line gates are clear',
+            'dependency_closure' => 'no new support component needed; suite evidence composes lane-local artifact metadata, guarded runner commands, active-runner gates, and focused TestRunner PASS-line output only',
         ];
 
-        return $this->retagSuiteEvidenceSliceRecord($record, $this->suiteEvidenceSliceNumber($focusedPath));
-    }
-
-
-    /**
-     * @param array<string, mixed> $record
-     * @return array<string, mixed>
-     */
-    private function retagSuiteEvidenceSliceRecord(array $record, int $sliceNumber): array
-    {
-        if ($sliceNumber === 77) {
-            return $record;
-        }
-
-        foreach (['status', 'next_gate', 'dependency_closure'] as $key) {
-            if (is_string($record[$key] ?? null)) {
-                $record[$key] = $this->replaceSuiteEvidenceSliceTag($record[$key], 77, $sliceNumber);
-            }
-        }
-        $record['countable'] = ($record['status'] ?? null) === 'current-next' . $sliceNumber . '-suite-evidence-countable';
-        unset($record['counts_suite_evidence_current_next77']);
-        for ($previous = 77; $previous < $sliceNumber; $previous++) {
-            $record['counts_suite_evidence_current_next' . $previous] = false;
-        }
-        $record['counts_suite_evidence_current_next' . $sliceNumber] = (bool) ($record['countable'] ?? false);
-
         return $record;
-    }
-
-    private function suiteEvidenceSliceNumber(string $focusedPath): int
-    {
-        if (preg_match('/CurrentNext(\d+)Test\.php$/', $focusedPath, $matches) === 1) {
-            return max(77, (int) $matches[1]);
-        }
-
-        return 77;
-    }
-
-    private function replaceSuiteEvidenceSliceTag(string $value, int $from, int $to): string
-    {
-        return str_replace(
-            ['current-next' . $from, 'next' . $from],
-            ['current-next' . $to, 'next' . $to],
-            $value
-        );
     }
 
     /**

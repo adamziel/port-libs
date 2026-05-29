@@ -25,7 +25,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
             array $orderByExpressions,
             array $neededColumns,
         ): array {
-            $preparedView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScanCurrentSourceNext129(
+            $preparedView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScan(
                 $preparedSource,
                 $preparedSource,
                 $partialPredicate,
@@ -33,7 +33,7 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
                 $orderByExpressions,
                 $neededColumns,
             );
-            $currentView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScanCurrentSourceNext129(
+            $currentView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScan(
                 $preparedSource,
                 $currentSource,
                 $partialPredicate,
@@ -82,12 +82,12 @@ final class SQLitePlannerStat4ExpressionSkipScanCurrentSourceNextPlan
                 ),
                 'cursorTape' => self::cursorTapeNext137($selectedPlan, $preparedPlan, $currentSource),
                 'dependencies' => [
-                    'SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScanCurrentSourceNext129',
+                    'SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScan',
                     'SQLiteIndexSkipScanPlan STAT4 per-prefix current/next samples',
                     'sqlite-sqlplanner-stat4-expression-skipscan-current-source-next137',
                 ],
                 'dependency_closure' => 'no new support component needed; next137 reuses native PHP expression skip-scan, STAT4 per-prefix samples, and current-source fences',
-                'non_overlap' => 'does not repeat partial expression skip-scan next129, covering skip-scan next125/127/132, STAT4 expression covering range next128, range-cost ranking, or SQL expression ORDER BY; this slice adds STAT4 stale-source selection and current/next deltas for expression skip-scan loops',
+                'non_overlap' => 'does not repeat partial expression skip-scan current-source, covering skip-scan current-source/127/132, STAT4 expression covering range next128, range-cost ranking, or SQL expression ORDER BY; this slice adds STAT4 stale-source selection and current/next deltas for expression skip-scan loops',
             ]);
         }
 

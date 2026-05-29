@@ -1,4 +1,4 @@
-# VFS URI Temp Locking File-Control Current Source Next130
+# VFS URI Temp Locking File-Control Current Source
 
 This slice adds a bounded current-source model for SQLite URI temp handles used by copied WordPress import flows. It is intentionally separate from accepted SHM/current-source, process-lock, locked-writer, sync, rollback-journal, and file-control persistence clusters.
 
@@ -12,8 +12,8 @@ Behavior covered:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsUriTempLockingFileControlCurrentSourceNext130Test.php`
-- `php lanes/libsqlite/examples/wordpress-vfs-uri-temp-locking-filecontrol-current-source-next130.php --self-test`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsUriTempLockingFileControlTest.php`
+- `php lanes/libsqlite/examples/wordpress-vfs-uri-temp-locking-filecontrol.php --self-test`
 - `php -l` for changed PHP files
 - `git diff --check -- lanes/libsqlite`
 

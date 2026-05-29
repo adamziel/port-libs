@@ -96,7 +96,7 @@ function libsqlite_suite_next156_record(
     ?int $expected = 69,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next156_evidence()->upstreamVeryquickShardCurrentSourceNext156(
+    return libsqlite_suite_next156_evidence()->upstreamVeryquickShardCurrentSource(
         $rows,
         607,
         71256,
@@ -105,7 +105,7 @@ function libsqlite_suite_next156_record(
         $statusSource,
         $implementationSource,
         $nextHead,
-        'lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext156Test.php',
+        'lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceProvenanceTest.php',
         $output ?? libsqlite_suite_next156_output(),
         'current-source next156 veryquick-shard admission avoids accepted batch155 veryquick evidence, suite155, exact-shard next148, queued runner106/jsonvt104 rebase work, and accepted B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE behavior surfaces',
         $expected,
@@ -119,7 +119,7 @@ foreach (range(1, 58) as $case) {
     $tests[sprintf('current source next156 admits veryquick shard case %02d', $case)] = static function (TestRunner $t) use ($case): void {
         $record = libsqlite_suite_next156_record(libsqlite_suite_next156_rows($case));
 
-        $t->same('current-source-next156-veryquick-shard-advanced', $record['status']);
+        $t->same('current-source-veryquick-shard-advanced', $record['status']);
         $t->same(true, $record['countable']);
         $t->same(607, $record['current_mapped']);
         $t->same(608, $record['next_mapped']);
@@ -129,10 +129,7 @@ foreach (range(1, 58) as $case) {
         $t->same(['suite-upstream-veryquick-shard-current-source-next156'], $record['admitted_units']);
         $t->same(['batch155-current-source-anchor'], $record['preserved_units']);
         $t->contains(sprintf('veryquick-current-source-next156-%02d.test', $case), implode(',', $record['target_scripts']));
-        $t->same(true, $record['counts_upstream_veryquick_shard_current_source_next156']);
-        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next159']);
-        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next157']);
-        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next155']);
+        $t->same(true, $record['counts_upstream_veryquick_shard_current_source']);
         $t->same(false, $record['counts_upstream_exact_shard_runner_current_source_next148']);
         $t->same(false, $record['counts_upstream_runner_full_suite_countability_current_source_next116']);
         $t->same(false, $record['counts_release_parity']);
@@ -169,7 +166,7 @@ $tests['current source next156 preserves already counted row without mapped infl
 
     $record = libsqlite_suite_next156_record($rows);
 
-    $t->same('current-source-next156-veryquick-shard-preserved', $record['status']);
+    $t->same('current-source-veryquick-shard-preserved', $record['status']);
     $t->same(0, $record['mapped_delta']);
     $t->same(607, $record['next_mapped']);
     $t->same(['batch155-current-source-anchor', 'suite-upstream-veryquick-shard-current-source-next156'], $record['preserved_units']);

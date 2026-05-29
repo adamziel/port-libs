@@ -96,7 +96,7 @@ function libsqlite_suite_next148_record(
     ?int $expected = 64,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next148_evidence()->upstreamExactShardRunnerCurrentSourceNext148(
+    return libsqlite_suite_next148_evidence()->upstreamExactShardRunnerCurrentSource(
         $rows,
         606,
         65533,
@@ -105,7 +105,7 @@ function libsqlite_suite_next148_record(
         $statusSource,
         $implementationSource,
         $nextHead,
-        'lanes/libsqlite/tests/SQLiteUpstreamExactShardRunnerCurrentSourceNext148Test.php',
+        'lanes/libsqlite/tests/SQLiteUpstreamExactShardRunnerCurrentSourceAdmissionTest.php',
         $output ?? libsqlite_suite_next148_output(),
         'current-source next148 exact-shard runner admission avoids accepted batch143 behavior surfaces, accepted next114/118/122 suite evidence, queued runner106/jsonvt104 rebase work, and live next115/next116 B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE surfaces',
         $expected,

@@ -5,10 +5,13 @@ This slice prepares the next298-301 after-ready metadata for row-value
 four ready candidate payloads for next294 through next297, validates their
 after-ready state and retry window rows, then emits deterministic next298
 receipt, next299 ledger, next300 handoff, and next301 seal hashes.
+The production entrypoint is now the stable
+`prepareAfterReadyWindowMetadata()` method; the old numbered wrapper name was
+removed and direct callers were migrated.
 
 Validation:
 
-- `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::prepareNext298301.php`
+- `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next298-301-after-ready.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext298301Test.php`

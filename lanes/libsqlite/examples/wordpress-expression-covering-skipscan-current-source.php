@@ -20,7 +20,7 @@ $prepared = [
     'name' => 'prepared-main.wp_options@cookie1320',
     'schemaCookie' => 1320,
     'stat4Generation' => 20,
-    'indexName' => 'idx_wp_options_autoload_lower_name_covering_next132',
+    'indexName' => 'idx_wp_options_autoload_lower_name_covering_current-source',
     'rootPage' => 72,
     'skippedColumn' => 'autoload',
     'rangeColumn' => 'option_name',
@@ -51,7 +51,7 @@ $partial = new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, [
     new SQLiteIndexPredicate('kind', SQLiteIndexPredicate::EQUALS, 'plugin'),
     new SQLiteIndexPredicate('option_name', SQLiteIndexPredicate::IS_NOT_NULL),
 ]);
-$plan = SQLiteSkipScanStat4PartialOrderPlan::expressionCoveringSkipScanCurrentSourceNext132(
+$plan = SQLiteSkipScanStat4PartialOrderPlan::expressionCoveringSkipScan(
     $prepared,
     $current,
     $partial,
@@ -83,12 +83,12 @@ if (($argv[1] ?? null) === '--self-test') {
         exit(1);
     }
 
-    echo "wordpress-expression-covering-skipscan-current-source-next132 self-test passed\n";
+    echo "wordpress-expression-covering-skipscan-current-source self-test passed\n";
     exit(0);
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-expression-covering-skipscan-current-source-next132',
+    'scenario' => 'wordpress-expression-covering-skipscan-current-source',
     'selectedSource' => $plan['selectedSource'],
     'rowids' => $plan['selectedPlan']['rowids'],
     'expressionCovering' => $plan['selectedPlan']['expressionCovering'],

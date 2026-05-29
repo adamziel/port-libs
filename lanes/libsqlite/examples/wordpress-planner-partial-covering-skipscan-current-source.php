@@ -52,7 +52,7 @@ $query = [
     ['operator' => '=', 'left' => ['column' => 'kind'], 'right' => 'plugin'],
     ['operator' => '>=', 'left' => ['column' => 'option_name'], 'right' => 'plugin_'],
 ];
-$plan = SQLiteSkipScanStat4PartialOrderPlan::partialCoveringSkipScanCurrentSourceNext127(
+$plan = SQLiteSkipScanStat4PartialOrderPlan::partialCoveringSkipScan(
     $prepared,
     $current,
     $partial,
@@ -79,7 +79,7 @@ if (($argv[1] ?? null) === '--self-test') {
         exit(1);
     }
 
-    echo "wordpress-planner-partial-covering-skipscan-current-source-next127 self-test passed\n";
+    echo "wordpress-planner-partial-covering-skipscan-current-source self-test passed\n";
     exit(0);
 }
 

@@ -26,7 +26,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
             array $orderByExpressions,
             array $neededColumns,
         ): array {
-            $preparedView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScanCurrentSourceNext129(
+            $preparedView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScan(
                 $preparedSource,
                 $preparedSource,
                 $preparedPredicate,
@@ -34,7 +34,7 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
                 $orderByExpressions,
                 $neededColumns,
             );
-            $currentView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScanCurrentSourceNext129(
+            $currentView = SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScan(
                 $preparedSource,
                 $currentSource,
                 $currentPredicate,
@@ -87,11 +87,11 @@ final class SQLitePlannerPartialExpressionSkipScanCurrentSourceNextPlan
                 'detail' => ($currentView['detail'] ?? 'PARTIAL EXPRESSION SKIP-SCAN')
                     . ' current-partial-predicate=' . ($predicateChanged ? 'changed' : 'stable'),
                 'dependencies' => [
-                    'SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScanCurrentSourceNext129',
+                    'SQLiteSkipScanStat4PartialOrderPlan::partialExpressionSkipScan',
                     'sqlite-sqlplanner-partial-expression-skipscan-current-source-next139',
                 ],
                 'dependency_closure' => 'no new support component needed; next139 reuses native PHP expression skip-scan materialization, partial predicate proof, and current-source fences',
-                'non_overlap' => 'avoids next129 expression-key materialization, next132 expression covering, next137 STAT4 stale-source deltas, range-cost ranking, and SQL expression ORDER BY; this slice fences stale prepared partial expression skip-scan plans when the partial index predicate changes in the current schema',
+                'non_overlap' => 'avoids current-source expression-key materialization, current-source expression covering, next137 STAT4 stale-source deltas, range-cost ranking, and SQL expression ORDER BY; this slice fences stale prepared partial expression skip-scan plans when the partial index predicate changes in the current schema',
             ]);
         }
 

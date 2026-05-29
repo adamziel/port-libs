@@ -24,7 +24,7 @@ $candidate = static function (int $next, array $rowids): array {
     ];
 };
 
-$summary = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::prepareNext298301([
+$summary = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::prepareAfterReadyWindowMetadata([
     $candidate(294, [2, 5]),
     $candidate(295, [3, 6, 8]),
     $candidate(296, [4]),

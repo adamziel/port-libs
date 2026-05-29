@@ -96,7 +96,7 @@ function libsqlite_suite_next157_record(
     ?int $expected = 78,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next157_evidence()->upstreamVeryquickShardCurrentSourceNext157(
+    return libsqlite_suite_next157_evidence()->upstreamVeryquickShardCurrentSource(
         $rows,
         604,
         44622,
@@ -105,7 +105,7 @@ function libsqlite_suite_next157_record(
         $statusSource,
         $implementationSource,
         $nextHead,
-        'lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext157Test.php',
+        'lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceRunnerGateTest.php',
         $output ?? libsqlite_suite_next157_output(),
         'current-source next157 veryquick-shard admission avoids accepted batch107/108 and batch109-113 behavior surfaces, queued runner106/jsonvt104 rebase work, accepted next114/116/118/120/122/148 suite evidence, and live next115/next116 B-tree/JSON/VFS/WAL/planner/PRAGMA/ATTACH/window/VDBE surfaces',
         $expected,
@@ -119,7 +119,7 @@ foreach (range(1, 60) as $case) {
     $tests[sprintf('current source next157 admits veryquick shard case %02d', $case)] = static function (TestRunner $t) use ($case): void {
         $record = libsqlite_suite_next157_record(libsqlite_suite_next157_rows($case));
 
-        $t->same('current-source-next157-veryquick-shard-advanced', $record['status']);
+        $t->same('current-source-veryquick-shard-advanced', $record['status']);
         $t->same(true, $record['countable']);
         $t->same(604, $record['current_mapped']);
         $t->same(605, $record['next_mapped']);
@@ -129,7 +129,7 @@ foreach (range(1, 60) as $case) {
         $t->same(['suite-upstream-veryquick-shard-current-source-next157'], $record['admitted_units']);
         $t->same(['batch109-113-current-source-anchor'], $record['preserved_units']);
         $t->contains(sprintf('veryquick-current-source-next157-%02d.test', $case), implode(',', $record['target_scripts']));
-        $t->same(true, $record['counts_upstream_veryquick_shard_current_source_next157']);
+        $t->same(true, $record['counts_upstream_veryquick_shard_current_source']);
         $t->same(false, $record['counts_upstream_exact_shard_runner_current_source_next148']);
         $t->same(false, $record['counts_release_parity']);
     };
@@ -165,7 +165,7 @@ $tests['current source next157 preserves already counted row without mapped infl
 
     $record = libsqlite_suite_next157_record($rows);
 
-    $t->same('current-source-next157-veryquick-shard-preserved', $record['status']);
+    $t->same('current-source-veryquick-shard-preserved', $record['status']);
     $t->same(0, $record['mapped_delta']);
     $t->same(604, $record['next_mapped']);
     $t->same(['batch109-113-current-source-anchor', 'suite-upstream-veryquick-shard-current-source-next157'], $record['preserved_units']);
@@ -248,7 +248,7 @@ $tests['current source next157 blocks active broad runner snapshot'] = static fu
 $tests['current source next157 reports dependency closure and next gate'] = static function (TestRunner $t): void {
     $record = libsqlite_suite_next157_record(libsqlite_suite_next157_rows(21));
 
-    $t->contains('publish only the current-source next157 veryquick-shard', $record['next_gate']);
+    $t->contains('publish only the current-source veryquick shard', $record['next_gate']);
     $t->contains('no new support component needed', $record['dependency_closure']);
     $t->contains('runner106/jsonvt104 rebase', $record['non_overlap_note']);
 };
