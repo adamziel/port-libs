@@ -1465,6 +1465,153 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,rollback_recovery:array<string, mixed>,wal_recovery:array<string, mixed>|null,atomic:bool}
+     */
+    public function applyHotJournalThenWalRecovery(
+        string $databaseBytes,
+        string $journalBytes,
+        string $walBytes,
+        string $databasePath,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+        ?int $databasePageSize = null,
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite hot journal plus WAL recovery requires a database path');
+        }
+
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+        $rollback = $journal->hotJournalRecoveryResult(
+            $databaseBytes,
+            $journalBytes,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+        if (!$rollback['recovered']) {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => ['sqlite-hot-journal-before-wal-recovery', 'sqlite-rollback-journal-recovery'],
+                'rollback_recovery' => $rollback,
+                'wal_recovery' => null,
+                'atomic' => true,
+            ];
+        }
+
+        $walRecovery = SQLiteWal::transactionRecoveryBoundary($walBytes, $rollback['database_bytes'], $databasePageSize);
+        $walPath = $databasePath . '-wal';
+        $journalPath = $databasePath . '-journal';
+        $operations = [
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($rollback['database_bytes']),
+                'durable' => false,
+                'reason' => 'restore_database_pages_from_hot_journal_before_wal',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($rollback['database_bytes']),
+                'durable' => false,
+                'reason' => 'truncate_database_to_hot_journal_size_before_wal',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_hot_journal_recovered_database_before_wal',
+            ],
+        ];
+        $payloads = [$databasePath => $rollback['database_bytes']];
+
+        if ($walRecovery['checkpoint_database_bytes'] !== null) {
+            $operations[] = [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($walRecovery['checkpoint_database_bytes']),
+                'durable' => false,
+                'reason' => 'checkpoint_committed_wal_after_hot_journal',
+            ];
+            $operations[] = [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($walRecovery['checkpoint_database_bytes']),
+                'durable' => false,
+                'reason' => 'trim_database_after_committed_wal_recovery',
+            ];
+            $operations[] = [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_database_after_committed_wal_recovery',
+            ];
+            $payloads[$databasePath . '#wal-checkpoint'] = $walRecovery['checkpoint_database_bytes'];
+            $operations[count($operations) - 3]['payload_key'] = $databasePath . '#wal-checkpoint';
+        }
+
+        $operations[] = [
+            'op' => 'write',
+            'path' => $walPath,
+            'offset' => 0,
+            'bytes' => strlen($walRecovery['committed_wal_bytes']),
+            'durable' => false,
+            'reason' => 'restore_committed_wal_prefix_after_hot_journal',
+        ];
+        $operations[] = [
+            'op' => 'truncate',
+            'path' => $walPath,
+            'bytes' => strlen($walRecovery['committed_wal_bytes']),
+            'durable' => false,
+            'reason' => 'discard_uncommitted_wal_tail_after_hot_journal',
+        ];
+        $operations[] = [
+            'op' => 'sync',
+            'path' => $walPath,
+            'durable' => true,
+            'reason' => 'sync_committed_wal_prefix_after_hot_journal',
+        ];
+        $operations[] = [
+            'op' => 'delete',
+            'path' => $journalPath,
+            'durable' => false,
+            'reason' => 'delete_hot_journal_after_ordered_wal_recovery',
+        ];
+        $operations[] = [
+            'op' => 'sync_directory',
+            'path' => dirname($databasePath),
+            'durable' => true,
+            'reason' => 'persist_hot_journal_wal_recovery_sidecars',
+        ];
+        $payloads[$walPath] = $walRecovery['committed_wal_bytes'];
+
+        $applied = $this->applyAtomicOperations(
+            $operations,
+            $payloads,
+            array_values(array_unique(array_merge(
+                $walRecovery['dependencies'],
+                ['sqlite-hot-journal-before-wal-recovery', 'sqlite-rollback-journal-recovery', 'vfs-atomic-rollback-on-write-failure']
+            )))
+        );
+        $applied['rollback_recovery'] = $rollback;
+        $applied['wal_recovery'] = $walRecovery;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @param array<int, string> $databasePages 1-indexed page numbers to page images.
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,commit:array<string, mixed>}
      */
