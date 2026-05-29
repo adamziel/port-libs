@@ -71,7 +71,17 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    private static function runCurrentSourceNext(array $operations, array $options, string $dependencyMarker, bool $trackGeneration = false, bool $trackShmOwners = false, bool $trackShmRanges = false): array
+    public static function currentSourceNext134(array $operations, array $options = []): array
+    {
+        return self::runCurrentSourceNext($operations, $options, 'vfs-temp-uri-shm-filecontrol-current-source-next134', true, true, true, true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function runCurrentSourceNext(array $operations, array $options, string $dependencyMarker, bool $trackGeneration = false, bool $trackShmOwners = false, bool $trackShmRanges = false, bool $trackTemporary = false): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS SHM file-control lock current-source requires operations');
@@ -85,7 +95,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             $before = self::snapshot($state);
 
             if ($op['kind'] === 'open') {
-                $handle = self::openHandle($state, $op, $options, $trackGeneration);
+                $handle = self::openHandle($state, $op, $options, $trackGeneration, $trackTemporary);
                 $state['handles'][$handle['id']] = $handle;
                 $state['source_handles'][$handle['source']] = $handle['id'];
                 $state['current_source'] = $handle['source'];
@@ -96,6 +106,8 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                     'reused_controls' => $handle['reused_controls'],
                     'reused_shm_locks' => $handle['reused_shm_locks'],
                     'source_generation' => $handle['source_generation'] ?? null,
+                    'temporary' => $handle['temporary'] ?? false,
+                    'delete_on_close' => $handle['delete_on_close'] ?? false,
                 ]);
                 continue;
             }
@@ -147,7 +159,16 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                     ]);
                     continue;
                 }
+                $temporary = (bool) ($handle['temporary'] ?? false);
+                $reason = null;
                 $status = ($handle['readonly'] && self::writeControl($control)) ? 'ignored' : 'ok';
+                if ($status === 'ignored') {
+                    $reason = 'readonly handle ignores mutating file-control';
+                }
+                if ($temporary && $control === 'persist_wal') {
+                    $status = 'ignored';
+                    $reason = 'temporary database handles do not persist WAL state';
+                }
                 if ($status === 'ok') {
                     $handle['controls'][$control] = $value;
                     if ($trackGeneration && self::writeControl($control) && $previous !== $value) {
@@ -160,7 +181,9 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                         }
                         $handle['controls']['data_version'] = $state['persistent_generations'][$handle['owner']];
                     }
-                    $state['persistent_controls'][$handle['owner']] = self::persistentSubset($handle['controls']);
+                    if (!$temporary) {
+                        $state['persistent_controls'][$handle['owner']] = self::persistentSubset($handle['controls']);
+                    }
                 }
                 $owner = (string) $handle['owner'];
                 unset($handle);
@@ -172,6 +195,8 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                     'previous' => $previous,
                     'changed' => $status === 'ok' && $previous !== $value,
                     'routed_to' => 'database',
+                    'temporary' => $temporary,
+                    'reason' => $reason,
                     'source_generation' => $trackGeneration ? self::ownerGeneration($state, $owner) : null,
                     'stale_handles' => $trackGeneration ? self::staleHandles($state, $owner) : [],
                 ]);
@@ -217,6 +242,15 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                     unset($state['persistent_shm_locks'][$handle['owner']]);
                     unset($state['persistent_shm_lock_owners'][$handle['owner']]);
                 }
+                if (($handle['temporary'] ?? false) === true) {
+                    unset(
+                        $state['persistent_controls'][$handle['owner']],
+                        $state['persistent_generations'][$handle['owner']],
+                        $state['persistent_shm_locks'][$handle['owner']],
+                        $state['persistent_shm_lock_owners'][$handle['owner']]
+                    );
+                    $state['deleted_temp_owners'][] = $handle['owner'];
+                }
                 if ($state['current_source'] === $source) {
                     $state['current_source'] = isset($state['source_handles']['main']) ? 'main' : null;
                 }
@@ -224,6 +258,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                 $events[] = self::event('close', 'closed', $source, $before, self::snapshot($state), [
                     'handle' => $handleId,
                     'released_shm_locks' => $handle['source'] === 'shm',
+                    'deleted_temp' => ($handle['temporary'] ?? false) === true,
                 ]);
                 continue;
             }
@@ -259,6 +294,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                 'persistent_shm_locks' => [],
                 'persistent_shm_lock_owners' => [],
                 'persistent_generations' => [],
+                'deleted_temp_owners' => [],
             ];
         }
 
@@ -271,6 +307,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             'persistent_shm_locks' => is_array($current['persistent_shm_locks'] ?? null) ? self::normalizePersistentShmLocks($current['persistent_shm_locks']) : [],
             'persistent_shm_lock_owners' => is_array($current['persistent_shm_lock_owners'] ?? null) ? self::normalizePersistentShmLockOwners($current['persistent_shm_lock_owners']) : [],
             'persistent_generations' => is_array($current['persistent_generations'] ?? null) ? $current['persistent_generations'] : [],
+            'deleted_temp_owners' => is_array($current['deleted_temp_owners'] ?? null) ? array_values(array_map('strval', $current['deleted_temp_owners'])) : [],
         ];
     }
 
@@ -384,7 +421,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    private static function openHandle(array &$state, array $op, array $options, bool $trackGeneration = false): array
+    private static function openHandle(array &$state, array $op, array $options, bool $trackGeneration = false, bool $trackTemporary = false): array
     {
         $state['sequence']++;
         $source = self::sourceName((string) ($op['source'] ?? 'main'));
@@ -392,12 +429,16 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
         if ($filename === '') {
             $filename = (string) ($options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite');
         }
-        $owner = self::ownerPath($filename);
         $uri = str_starts_with(strtolower(trim($filename)), 'file:') ? SQLiteFileUri::parse(trim($filename)) : null;
+        $temporary = $trackTemporary && ($source === 'temp' || $source === 'temp-shm' || $filename === '' || (is_array($uri) && ($uri['mode'] ?? null) === 'memory'));
+        $owner = $temporary ? 'temp:' . $source . ':' . $state['sequence'] : self::ownerPath($filename);
+        $decodedPath = is_array($uri) ? self::stripSidecarSuffix((string) $uri['path']) : self::stripSidecarSuffix($filename);
         $path = match ($source) {
             'wal' => $owner . '-wal',
             'shm' => $owner . '-shm',
-            default => $owner,
+            'temp-shm' => ($decodedPath === '' ? $owner : $decodedPath) . '-shm',
+            'temp' => $decodedPath === '' ? $owner : $decodedPath,
+            default => $temporary && $decodedPath !== '' ? $decodedPath : $owner,
         };
         $controls = is_array($state['persistent_controls'][$owner] ?? null) ? $state['persistent_controls'][$owner] : [];
         $shmLocks = is_array($state['persistent_shm_locks'][$owner] ?? null) ? $state['persistent_shm_locks'][$owner] : [];
@@ -411,12 +452,14 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             'path' => $path,
             'readonly' => (bool) ($op['readonly'] ?? (is_array($uri) && ($uri['mode'] ?? null) === 'ro')),
             'nolock' => (bool) ($op['nolock'] ?? (is_array($uri) && ($uri['nolock'] ?? null) === true)),
-            'controls' => $source === 'main' ? $controls : [],
-            'shm_locks' => $source === 'shm' ? $shmLocks : [],
-            'shm_lock_owners' => $source === 'shm' ? $shmLockOwners : [],
+            'controls' => in_array($source, ['main', 'temp'], true) ? $controls : [],
+            'shm_locks' => in_array($source, ['shm', 'temp-shm'], true) ? $shmLocks : [],
+            'shm_lock_owners' => in_array($source, ['shm', 'temp-shm'], true) ? $shmLockOwners : [],
             'reused_controls' => $source === 'main' && $controls !== [],
-            'reused_shm_locks' => $source === 'shm' && $shmLocks !== [],
+            'reused_shm_locks' => in_array($source, ['shm', 'temp-shm'], true) && $shmLocks !== [],
             'source_generation' => $trackGeneration ? self::ownerGeneration($state, $owner) : null,
+            'temporary' => $temporary,
+            'delete_on_close' => $temporary,
         ];
     }
 
@@ -452,13 +495,13 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
         }
 
         $trimmed = trim($operation);
-        if (preg_match('/^open\s*(?:\((?<source>main|wal|shm)(?:\s*,\s*(?<filename>[^)]*))?\))?$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^open\s*(?:\((?<source>main|wal|shm|temp|temp-shm)(?:\s*,\s*(?<filename>[^)]*))?\))?$/i', $trimmed, $matches) === 1) {
             return ['kind' => 'open', 'source' => strtolower($matches['source'] ?? 'main'), 'filename' => trim($matches['filename'] ?? '')];
         }
-        if (preg_match('/^source\s*\(\s*(?<source>main|wal|shm)\s*\)$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^source\s*\(\s*(?<source>main|wal|shm|temp|temp-shm)\s*\)$/i', $trimmed, $matches) === 1) {
             return ['kind' => 'source', 'source' => strtolower($matches['source'])];
         }
-        if (preg_match('/^close\s*(?:\((?<source>main|wal|shm)\))?$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^close\s*(?:\((?<source>main|wal|shm|temp|temp-shm)\))?$/i', $trimmed, $matches) === 1) {
             return ['kind' => 'close', 'source' => strtolower($matches['source'] ?? '') ?: null];
         }
         if (preg_match('/^file_control\s*\(\s*(?<control>[A-Za-z_][A-Za-z0-9_-]*)\s*(?:,\s*(?<value>.*))?\)$/i', $trimmed, $matches) === 1) {
@@ -492,8 +535,8 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
     private static function sourceName(string $source): string
     {
         $source = strtolower(trim($source));
-        if (!in_array($source, ['main', 'wal', 'shm'], true)) {
-            throw new \InvalidArgumentException('SQLite VFS current source must be main, wal, or shm');
+        if (!in_array($source, ['main', 'wal', 'shm', 'temp', 'temp-shm'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS current source must be main, wal, shm, temp, or temp-shm');
         }
 
         return $source;
@@ -526,6 +569,12 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
         if ($source === 'main' && isset($state['source_handles']['main'])) {
             return (string) $state['source_handles']['main'];
         }
+        if ($source === 'temp' && isset($state['source_handles']['temp'])) {
+            return (string) $state['source_handles']['temp'];
+        }
+        if ($source === 'temp-shm' && isset($state['source_handles']['temp'])) {
+            return (string) $state['source_handles']['temp'];
+        }
         if (isset($state['source_handles']['main'])) {
             return (string) $state['source_handles']['main'];
         }
@@ -538,11 +587,11 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      */
     private static function shmHandleFor(array $state, string $source): ?string
     {
-        if ($source !== 'shm') {
+        if (!in_array($source, ['shm', 'temp-shm'], true)) {
             return null;
         }
-        if (isset($state['source_handles']['shm'])) {
-            return (string) $state['source_handles']['shm'];
+        if (isset($state['source_handles'][$source])) {
+            return (string) $state['source_handles'][$source];
         }
 
         return null;
@@ -560,6 +609,10 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             throw new \InvalidArgumentException('SQLite SHM lock mode is unsupported');
         }
         $locksToApply = self::lockRange($lock, $span);
+        if (($handle['temporary'] ?? false) === true) {
+            unset($handle);
+            return ['lock' => $lock, 'span' => $span, 'locks' => $locksToApply, 'mode' => $mode, 'connection' => $connection, 'status' => 'blocked', 'reason' => 'temporary database handles do not use persistent SHM byte-range locks'];
+        }
         if ($handle['nolock']) {
             unset($handle);
             return ['lock' => $lock, 'span' => $span, 'locks' => $locksToApply, 'mode' => $mode, 'status' => 'blocked', 'reason' => 'nolock VFS disables SHM byte-range locking'];
@@ -825,6 +878,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
         ksort($state['persistent_shm_locks']);
         ksort($state['persistent_shm_lock_owners']);
         ksort($state['persistent_generations']);
+        sort($state['deleted_temp_owners']);
 
         return $state;
     }
@@ -837,22 +891,31 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
     {
         $openBySource = ['main' => 0, 'wal' => 0, 'shm' => 0];
         $shmLockCount = 0;
+        $tempOpenCount = 0;
         foreach ($state['handles'] as $handle) {
             $source = (string) ($handle['source'] ?? 'main');
             $openBySource[$source] = ($openBySource[$source] ?? 0) + 1;
-            if ($source === 'shm' && is_array($handle['shm_locks'] ?? null)) {
+            if (in_array($source, ['shm', 'temp-shm'], true) && is_array($handle['shm_locks'] ?? null)) {
                 $shmLockCount += count($handle['shm_locks']);
             }
+            if (($handle['temporary'] ?? false) === true) {
+                $tempOpenCount++;
+            }
+        }
+        if ($tempOpenCount > 0 || $state['deleted_temp_owners'] !== []) {
+            $openBySource += ['temp' => 0, 'temp-shm' => 0];
         }
 
         return [
             'current_source' => $state['current_source'],
             'open_by_source' => $openBySource,
+            'temp_open_count' => $tempOpenCount,
             'persistent_control_count' => count($state['persistent_controls']),
             'shm_lock_count' => $shmLockCount,
             'persistent_shm_owner_count' => count(array_filter($state['persistent_shm_locks'], static fn (mixed $locks): bool => is_array($locks) && $locks !== [])),
             'persistent_shm_connection_count' => self::persistentShmConnectionCount($state),
             'persistent_generation_count' => count($state['persistent_generations']),
+            'deleted_temp_owners' => array_values(array_unique($state['deleted_temp_owners'])),
         ];
     }
 
