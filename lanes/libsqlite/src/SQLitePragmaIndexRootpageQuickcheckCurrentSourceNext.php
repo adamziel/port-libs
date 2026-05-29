@@ -32,7 +32,7 @@ final class SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext
             throw new InvalidArgumentException('SQLite PRAGMA index rootpage quickcheck current-source next129 requires PRAGMA quick_check SQL');
         }
 
-        $base = SQLitePragmaIntegrityIndexRootpageCurrentSourceNext124::page(
+        $base = SQLitePragmaIntegrityIndexRootpageCurrentSourceNext::page(
             $catalog,
             $indexXinfoSql,
             $database,
@@ -204,7 +204,7 @@ final class SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext
             $base['rows'],
             static fn (array $row): bool => ($row['kind'] ?? null) === 'index_xinfo',
         ));
-        $analysis = SQLitePragmaRootpageIntegrityAnalysisCurrentSourceNext111::analyze($database);
+        $analysis = SQLitePragmaRootpageIntegrityAnalysisCurrentSourceNext::analyze($database);
         $rootRows = $analysis['rows'];
         $rootByMessage = [];
         $rootByPage = [];

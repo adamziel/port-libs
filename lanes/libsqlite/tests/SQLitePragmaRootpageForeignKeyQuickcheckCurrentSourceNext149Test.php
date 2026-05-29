@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -113,7 +113,7 @@ $page149 = static fn (
     ?array $cursor = null,
     ?string $nextDatabase = null,
     ?array $nextSchemas = null,
-): array => SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Plan::page(
+): array => SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan::page(
     $dirty149,
     $schemas149(),
     $catalog149,

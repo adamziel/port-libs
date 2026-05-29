@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -127,7 +127,7 @@ $page145 = static fn (
     ?array $nextSchemas = null,
     string $foreignKeySql = "SELECT * FROM archive.pragma_foreign_key_check('wp_archive_options')",
     string $quickCheckSql = 'PRAGMA quick_check(wp_archive_options)',
-): array => SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Plan::page(
+): array => SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan::page(
     $dirty145,
     $schemas145(),
     $catalog145,

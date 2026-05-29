@@ -112,7 +112,7 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
         ?SQLiteAttachedSchemaCatalog $catalog = null,
         string $integritySql = 'PRAGMA integrity_check',
     ): array {
-        $rootpage = SQLitePragmaRootpageIntegrityAnalysisCurrentSourceNext111::analyze($database);
+        $rootpage = SQLitePragmaRootpageIntegrityAnalysisCurrentSourceNext::analyze($database);
         $rows = [];
         foreach (self::integrityRootRows($database, $rootpage['rows'], $integritySql) as $row) {
             if (($row['status'] ?? null) === 'ok' || ($row['status'] ?? null) === 'ignored') {

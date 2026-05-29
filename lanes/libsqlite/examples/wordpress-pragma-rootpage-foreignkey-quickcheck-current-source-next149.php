@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 spl_autoload_register(static function (string $class): void {
     $prefix = 'PortLibs\\LibSqlite\\';
     if (!str_starts_with($class, $prefix)) {
@@ -16,7 +17,7 @@ spl_autoload_register(static function (string $class): void {
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Plan;
+use PortLibs\LibSqlite\SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -111,7 +112,7 @@ $schemas = static function (int $missing): array {
     ];
 };
 
-$page = SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Plan::page(
+$page = SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan::page(
     $current,
     $schemas(4),
     $catalog,

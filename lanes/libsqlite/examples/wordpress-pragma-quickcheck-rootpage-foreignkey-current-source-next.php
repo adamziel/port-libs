@@ -30,7 +30,7 @@ $header = static function (int $largestRootPage) use ($pageSize): string {
     $page = substr_replace($page, pack('n', $pageSize), 16, 2);
     $page[18] = "\x01";
     $page[19] = "\x01";
-    $page = substr_replace($page, pack('N', 9), 28, 4);
+    $page = substr_replace($page, pack('N', 8), 28, 4);
     $page = substr_replace($page, pack('N', $largestRootPage), 52, 4);
     $page = substr_replace($page, pack('N', 1), 56, 4);
 
@@ -38,19 +38,20 @@ $header = static function (int $largestRootPage) use ($pageSize): string {
 };
 $putPointer = static fn (string $page, int $pageNumber, int $type, int $parent): string => substr_replace($page, chr($type) . pack('N', $parent), 5 * ($pageNumber - 3), 5);
 $schemaCell = static fn (array $values, int $rowId): string => SQLiteTableLeafCell::encode($rowId, SQLiteRecord::encode($values));
-$schemaRows = [
-    ['table', 'wp_archive_option_names', 'wp_archive_option_names', 6, 'CREATE TABLE wp_archive_option_names(name text primary key)'],
-    ['index', 'wp_archive_option_names_name', 'wp_archive_option_names', 7, 'CREATE INDEX wp_archive_option_names_name ON wp_archive_option_names(name)'],
-    ['table', 'wp_archive_options', 'wp_archive_options', 8, 'CREATE TABLE wp_archive_options(option_id integer primary key, option_name text)'],
+$rows = [
+    ['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text)'],
+    ['index', 'wp_options_name', 'wp_options', 5, 'CREATE UNIQUE INDEX wp_options_name ON wp_options(option_name)'],
+    ['table', 'wp_option_names', 'wp_option_names', 6, 'CREATE TABLE wp_option_names(name text primary key)'],
+    ['index', 'wp_option_names_name', 'wp_option_names', 7, 'CREATE UNIQUE INDEX wp_option_names_name ON wp_option_names(name)'],
 ];
-$database = static function (array $entries, int $largestRootPage) use ($pageSize, $header, $putPointer, $schemaCell, $schemaRows): string {
+$database = static function (array $entries, int $largestRootPage) use ($header, $putPointer, $schemaCell, $rows, $pageSize): string {
     $pointerMap = str_repeat("\0", $pageSize);
     foreach ($entries as $entry) {
         $pointerMap = $putPointer($pointerMap, $entry[0], $entry[1], $entry[2]);
     }
     $pages = [
         1 => SQLiteTableLeafPage::assemble(
-            array_map(static fn (array $row, int $index): string => $schemaCell($row, $index + 1), $schemaRows, array_keys($schemaRows)),
+            array_map(static fn (array $row, int $index): string => $schemaCell($row, $index + 1), $rows, array_keys($rows)),
             $pageSize,
             100,
             $header($largestRootPage),
@@ -62,7 +63,6 @@ $database = static function (array $entries, int $largestRootPage) use ($pageSiz
         6 => SQLiteTableLeafPage::assemble([], $pageSize),
         7 => SQLiteIndexLeafPage::assemble([], $pageSize),
         8 => SQLiteTableLeafPage::assemble([], $pageSize),
-        9 => SQLiteTableLeafPage::assemble([], $pageSize),
     ];
     ksort($pages);
 
@@ -71,13 +71,12 @@ $database = static function (array $entries, int $largestRootPage) use ($pageSiz
 
 $current = $database([
     [3, SQLitePointerMapEntry::BTREE_PAGE, 4],
-    [4, SQLitePointerMapEntry::ROOT_PAGE, 0],
+    [4, SQLitePointerMapEntry::BTREE_PAGE, 3],
     [5, SQLitePointerMapEntry::ROOT_PAGE, 0],
     [6, SQLitePointerMapEntry::BTREE_PAGE, 4],
-    [7, SQLitePointerMapEntry::ROOT_PAGE, 0],
-    [8, SQLitePointerMapEntry::BTREE_PAGE, 6],
-    [9, SQLitePointerMapEntry::ROOT_PAGE, 0],
-], 5);
+    [7, SQLitePointerMapEntry::BTREE_PAGE, 6],
+    [8, SQLitePointerMapEntry::ROOT_PAGE, 0],
+], 4);
 $next = $database([
     [3, SQLitePointerMapEntry::BTREE_PAGE, 4],
     [4, SQLitePointerMapEntry::ROOT_PAGE, 0],
@@ -85,29 +84,27 @@ $next = $database([
     [6, SQLitePointerMapEntry::ROOT_PAGE, 0],
     [7, SQLitePointerMapEntry::ROOT_PAGE, 0],
     [8, SQLitePointerMapEntry::ROOT_PAGE, 0],
-    [9, SQLitePointerMapEntry::ROOT_PAGE, 0],
-], 8);
+], 7);
 
 $record = static fn (string $type, string $name, string $table, int $root): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, 'CREATE ' . strtoupper($type) . ' ' . $name, $root);
-$catalog = new SQLiteAttachedSchemaCatalog([]);
-$catalog->attach('archive', '/tmp/wp-archive.sqlite', [
-    $record('table', 'wp_archive_option_names', 'wp_archive_option_names', 6),
-    $record('table', 'wp_archive_options', 'wp_archive_options', 8),
+$catalog = new SQLiteAttachedSchemaCatalog([
+    $record('table', 'wp_options', 'wp_options', 4),
+    $record('table', 'wp_option_names', 'wp_option_names', 6),
 ]);
 $schemas = static function (int $missing): array {
-    $rows = [['rowid' => 1, 'option_name' => 'legacy_siteurl']];
+    $options = [['rowid' => 1, 'option_name' => 'siteurl']];
     for ($i = 1; $i <= $missing; $i++) {
-        $rows[] = ['rowid' => 'archive-missing-' . $i, 'option_name' => 'missing_' . $i];
+        $options[] = ['rowid' => 'missing-' . $i, 'option_name' => 'missing_' . $i];
     }
 
     return [
-        'archive' => [
+        'main' => [
             'tables' => [
-                'wp_archive_option_names' => [['rowid' => 1, 'name' => 'legacy_siteurl']],
-                'wp_archive_options' => $rows,
+                'wp_option_names' => [['rowid' => 1, 'name' => 'siteurl']],
+                'wp_options' => $options,
             ],
             'foreignKeys' => [
-                ['id' => 145, 'table' => 'wp_archive_options', 'parent' => 'wp_archive_option_names', 'columns' => [
+                ['id' => 142, 'table' => 'wp_options', 'parent' => 'wp_option_names', 'columns' => [
                     ['child' => 'option_name', 'parent' => 'name', 'affinity' => 'text', 'collation' => 'nocase'],
                 ]],
             ],
@@ -122,29 +119,25 @@ $page = SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan::page(
     $next,
     $schemas(0),
     $catalog,
-    "SELECT * FROM archive.pragma_foreign_key_check('wp_archive_options')",
-    'PRAGMA quick_check(wp_archive_options)',
+    'PRAGMA foreign_key_check(wp_options)',
+    'PRAGMA quick_check',
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-if ($page['status'] !== 'ok' || $page['current']['foreign_key_violations'] !== 2 || $page['current']['quick_check_errors'] !== 1 || $page['rows'][1]['target_source'] !== 'pragma-schema') {
-        fwrite(STDERR, "wordpress-pragma-quickcheck-foreignkey-rootpage-current-source-next145 self-test failed\n");
+    if ($page['status'] !== 'ok' || $page['current']['quick_check_errors'] !== 4 || $page['current']['foreign_key_violations'] !== 2 || $page['delta']['cleared'] !== true) {
+        fwrite(STDERR, "wordpress-pragma-quickcheck-rootpage-foreignkey-current-source-next self-test failed\n");
         exit(1);
     }
 
-    fwrite(STDOUT, "wordpress-pragma-quickcheck-foreignkey-rootpage-current-source-next145 self-test passed\n");
+    fwrite(STDOUT, "wordpress-pragma-quickcheck-rootpage-foreignkey-current-source-next self-test passed\n");
     exit(0);
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-pragma-quickcheck-foreignkey-rootpage-current-source-next145',
-    'wordpressUse' => 'Gate attached WordPress archive imports on a resumable quick_check plus schema-qualified pragma_foreign_key_check rootpage stream.',
+    'scenario' => 'wordpress-pragma-quickcheck-rootpage-foreignkey-current-source-next',
+    'wordpressUse' => 'Gate copied wp_options imports on one resumable current-source stream that clears quick_check rootpage diagnostics and foreign_key_check rootpage blockers together.',
     'status' => $page['status'],
     'current' => $page['current'],
     'next' => $page['next_counts'],
-    'foreignKeyTarget' => [
-        'schema' => $page['rows'][1]['target_schema'],
-        'table' => $page['rows'][1]['target'],
-        'source' => $page['rows'][1]['target_source'],
-    ],
+    'delta' => $page['delta'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

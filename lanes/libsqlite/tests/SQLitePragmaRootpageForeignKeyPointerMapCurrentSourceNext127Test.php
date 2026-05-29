@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122;
+use PortLibs\LibSqlite\SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -127,7 +127,7 @@ $schemas = static function (int $archiveMisses = 3): array {
     ];
 };
 
-$page = static fn (int $offset = 0, int $limit = 127, ?array $cursor = null, string $sql = 'PRAGMA foreign_key_check'): array => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122::page(
+$page = static fn (int $offset = 0, int $limit = 127, ?array $cursor = null, string $sql = 'PRAGMA foreign_key_check'): array => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext::page(
     $database(true),
     $schemas(),
     $catalog(),
@@ -136,10 +136,10 @@ $page = static fn (int $offset = 0, int $limit = 127, ?array $cursor = null, str
     $limit,
     $cursor,
 );
-$cleanPage = static fn (): array => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122::page($database(false), $schemas(), $catalog());
-$mutatedSchemaPage = static fn (): array => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122::page($database(true), $schemas(4), $catalog());
-$mainOnly = static fn (): array => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122::page($database(true), $schemas(), $catalog(), "SELECT * FROM pragma_foreign_key_check('main.wp_options')");
-$archiveOnly = static fn (int $offset = 0, int $limit = 127, ?array $cursor = null): array => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122::page($database(true), $schemas(), $catalog(), "SELECT * FROM pragma_foreign_key_check('archive.wp_options')", $offset, $limit, $cursor);
+$cleanPage = static fn (): array => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext::page($database(false), $schemas(), $catalog());
+$mutatedSchemaPage = static fn (): array => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext::page($database(true), $schemas(4), $catalog());
+$mainOnly = static fn (): array => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext::page($database(true), $schemas(), $catalog(), "SELECT * FROM pragma_foreign_key_check('main.wp_options')");
+$archiveOnly = static fn (int $offset = 0, int $limit = 127, ?array $cursor = null): array => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext::page($database(true), $schemas(), $catalog(), "SELECT * FROM pragma_foreign_key_check('archive.wp_options')", $offset, $limit, $cursor);
 
 $valueAt = static function (mixed $value, string $path): mixed {
     foreach (explode('.', $path) as $part) {
@@ -241,7 +241,7 @@ $tests['pragma rootpage foreignkey pointermap current source next127 source chan
 
 $tests['pragma rootpage foreignkey pointermap current source next127 rejects stale duplicate-name cursor'] = static function (TestRunner $t) use ($page, $database, $schemas, $catalog): void {
     $first = $page(0, 2);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122::page($database(false), $schemas(), $catalog(), 'PRAGMA foreign_key_check', 2, 2, ['source_id' => $first['source_id'], 'next_offset' => 2]));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext::page($database(false), $schemas(), $catalog(), 'PRAGMA foreign_key_check', 2, 2, ['source_id' => $first['source_id'], 'next_offset' => 2]));
 };
 
 return $tests;

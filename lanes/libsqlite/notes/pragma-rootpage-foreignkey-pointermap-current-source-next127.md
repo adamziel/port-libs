@@ -1,6 +1,6 @@
 # pragma-rootpage-foreignkey-pointermap-current-source-next127
 
-This slice tightens `SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122`
+This slice tightens `SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext`
 for attached-schema WordPress copy/import diagnostics. The helper now resolves
 child and parent rootpage analysis rows by the catalog rootpage first, falling
 back to table name only when a rootpage row is unavailable. That prevents a
