@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -128,8 +128,8 @@ $allocatedImages117 = static fn (): array => [
     ]),
 ];
 
-$fixture117 = static function (int $allocationCount = 4, ?int $parentPage = 42) use ($databaseFixture117, $deleteResults117, $allocatedImages117): SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan {
-    return SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan::fromOverflowDeleteResults(
+$fixture117 = static function (int $allocationCount = 4, ?int $parentPage = 42) use ($databaseFixture117, $deleteResults117, $allocatedImages117): SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNextPlan {
+    return SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNextPlan::fromOverflowDeleteResults(
         $databaseFixture117(),
         $deleteResults117(),
         3,
@@ -150,8 +150,8 @@ $throwsMessage117 = static function (callable $callback): string {
     return 'not rejected';
 };
 
-$rows117 = static fn (SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan $plan): array => $plan->pointerMapVacuumReuseRows();
-$mapRows117 = static fn (SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan $plan): array => $plan->touchedPointerMapPageRows();
+$rows117 = static fn (SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNextPlan $plan): array => $plan->pointerMapVacuumReuseRows();
+$mapRows117 = static fn (SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNextPlan $plan): array => $plan->touchedPointerMapPageRows();
 
 $cases117 = [
     'action label' => static fn (): mixed => $fixture117()->toArray()['action'],
@@ -199,7 +199,7 @@ $cases117 = [
     'non allocated image rejected' => static fn (): mixed => $throwsMessage117(static function () use ($databaseFixture117, $deleteResults117, $allocatedImages117): void {
         $images = $allocatedImages117();
         $images[205] = str_repeat("\0", 512);
-        SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan::fromOverflowDeleteResults(
+        SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNextPlan::fromOverflowDeleteResults(
             $databaseFixture117(),
             $deleteResults117(),
             3,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
@@ -96,14 +96,14 @@ $indexDatabase120 = static function () use ($firstPage120, $putPointerMapEntry12
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$tableFixture120 = static fn (): SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::tableLeaf(
+$tableFixture120 = static fn (): SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::tableLeaf(
     $tableDatabase120(),
     3,
     [21, 22],
     true,
 );
 
-$indexFixture120 = static fn (): SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::indexLeaf(
+$indexFixture120 = static fn (): SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::indexLeaf(
     $indexDatabase120(),
     3,
     $indexRecords120(),
@@ -121,37 +121,37 @@ $throwsMessage120 = static function (callable $callback): string {
 };
 
 $commonCases120 = [
-    'action' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->toArray()['action'],
-    'step count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->toArray()['step_count'],
-    'step types' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => array_column($plan->transitionRows(), 'step_type'),
-    'derived overflow chains' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->toArray()['derived_overflow_page_numbers'],
-    'first freed pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->transitionRows()[0]['freed_pages'],
-    'second freed pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->transitionRows()[1]['freed_pages'],
-    'released pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->releasedPageNumbers(),
-    'materialized pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->materializedPageNumbers(),
-    'first freelist count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->transitionRows()[0]['freelist_page_count'],
-    'final freelist count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->finalFreelistPageCount(),
-    'header freelist count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->header->freelistPageCount,
-    'first trunk page' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->header->firstFreelistTrunkPage,
-    'freelist traversal' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->freelistPageNumbers(),
-    'allocation order' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->finalFreelistAllocationOrder(),
-    'leaf page cleared' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => trim($plan->databaseAfter()->page(3), "\0") === '',
-    'first trunk next' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => unpack('N', substr($plan->databaseAfter()->page(6), 0, 4))[1],
-    'first trunk leaf count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => unpack('N', substr($plan->databaseAfter()->page(6), 4, 4))[1],
-    'first trunk first leaf' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => unpack('N', substr($plan->databaseAfter()->page(6), 8, 4))[1],
-    'tail page secure deleted' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->page(10) === str_repeat("\0", 512),
-    'leaf pointer map type' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->pointerMapEntryForPage(3)->typeName(),
-    'first overflow pointer map type' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->pointerMapEntryForPage(6)->typeName(),
-    'tail overflow pointer map type' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->pointerMapEntryForPage(10)->typeName(),
-    'leaf parent zero' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->pointerMapEntryForPage(3)->parentPageNumber,
-    'tail parent zero' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->pointerMapEntryForPage(10)->parentPageNumber,
-    'first updated pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->transitionRows()[0]['updated_page_numbers'],
-    'second updated pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->transitionRows()[1]['updated_page_numbers'],
-    'first write order starts leaf' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => array_slice($plan->events[0]['write_order_page_numbers'], 0, 3),
-    'second write order includes header last' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => array_slice($plan->events[1]['write_order_page_numbers'], -1)[0],
-    'database page count stable' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->pageCount(),
-    'header database size stable' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->databaseAfter()->header->databaseSizePages,
-    'toArray final count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $plan): mixed => $plan->toArray()['final_freelist_page_count'],
+    'action' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->toArray()['action'],
+    'step count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->toArray()['step_count'],
+    'step types' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => array_column($plan->transitionRows(), 'step_type'),
+    'derived overflow chains' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->toArray()['derived_overflow_page_numbers'],
+    'first freed pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->transitionRows()[0]['freed_pages'],
+    'second freed pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->transitionRows()[1]['freed_pages'],
+    'released pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->releasedPageNumbers(),
+    'materialized pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->materializedPageNumbers(),
+    'first freelist count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->transitionRows()[0]['freelist_page_count'],
+    'final freelist count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->finalFreelistPageCount(),
+    'header freelist count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->header->freelistPageCount,
+    'first trunk page' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->header->firstFreelistTrunkPage,
+    'freelist traversal' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->freelistPageNumbers(),
+    'allocation order' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->finalFreelistAllocationOrder(),
+    'leaf page cleared' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => trim($plan->databaseAfter()->page(3), "\0") === '',
+    'first trunk next' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => unpack('N', substr($plan->databaseAfter()->page(6), 0, 4))[1],
+    'first trunk leaf count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => unpack('N', substr($plan->databaseAfter()->page(6), 4, 4))[1],
+    'first trunk first leaf' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => unpack('N', substr($plan->databaseAfter()->page(6), 8, 4))[1],
+    'tail page secure deleted' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->page(10) === str_repeat("\0", 512),
+    'leaf pointer map type' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->pointerMapEntryForPage(3)->typeName(),
+    'first overflow pointer map type' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->pointerMapEntryForPage(6)->typeName(),
+    'tail overflow pointer map type' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->pointerMapEntryForPage(10)->typeName(),
+    'leaf parent zero' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->pointerMapEntryForPage(3)->parentPageNumber,
+    'tail parent zero' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->pointerMapEntryForPage(10)->parentPageNumber,
+    'first updated pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->transitionRows()[0]['updated_page_numbers'],
+    'second updated pages' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->transitionRows()[1]['updated_page_numbers'],
+    'first write order starts leaf' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => array_slice($plan->events[0]['write_order_page_numbers'], 0, 3),
+    'second write order includes header last' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => array_slice($plan->events[1]['write_order_page_numbers'], -1)[0],
+    'database page count stable' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->pageCount(),
+    'header database size stable' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->databaseAfter()->header->databaseSizePages,
+    'toArray final count' => static fn (SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $plan): mixed => $plan->toArray()['final_freelist_page_count'],
 ];
 
 $expectedCommonTable120 = [
@@ -237,26 +237,26 @@ $tests['btree freelist overflow rebalance current source next120 index final hea
     $t->same('free-page', $indexFixture120()->databaseAfter()->pointerMapEntryForPage(3)->typeName());
 };
 $tests['btree freelist overflow rebalance current source next120 table rejects empty input'] = static function (TestRunner $t) use ($tableDatabase120, $throwsMessage120): void {
-    $t->same('SQLite freelist overflow rebalance current-source next120 requires at least one table rowid', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::tableLeaf($tableDatabase120(), 3, [])));
+    $t->same('SQLite freelist overflow rebalance current-source next120 requires at least one table rowid', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::tableLeaf($tableDatabase120(), 3, [])));
 };
 $tests['btree freelist overflow rebalance current source next120 index rejects empty input'] = static function (TestRunner $t) use ($indexDatabase120, $throwsMessage120): void {
-    $t->same('SQLite freelist overflow rebalance current-source next120 requires at least one index record', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::indexLeaf($indexDatabase120(), 3, [])));
+    $t->same('SQLite freelist overflow rebalance current-source next120 requires at least one index record', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::indexLeaf($indexDatabase120(), 3, [])));
 };
 $tests['btree freelist overflow rebalance current source next120 table rejects stale rowid'] = static function (TestRunner $t) use ($tableDatabase120, $throwsMessage120): void {
-    $t->same('SQLite table leaf rowid was not found', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::tableLeaf($tableDatabase120(), 3, [999])));
+    $t->same('SQLite table leaf rowid was not found', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::tableLeaf($tableDatabase120(), 3, [999])));
 };
 $tests['btree freelist overflow rebalance current source next120 index rejects stale record'] = static function (TestRunner $t) use ($indexDatabase120, $throwsMessage120): void {
-    $t->same('SQLite index leaf cell record was not found', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::indexLeaf($indexDatabase120(), 3, [['missing']])));
+    $t->same('SQLite index leaf cell record was not found', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::indexLeaf($indexDatabase120(), 3, [['missing']])));
 };
 $tests['btree freelist overflow rebalance current source next120 table detects overflow loop'] = static function (TestRunner $t) use ($tableDatabase120, $throwsMessage120): void {
     $bytes = $tableDatabase120()->toBytes();
     $bytes = substr_replace($bytes, pack('N', 6), (6 - 1) * 512, 4);
-    $t->same('SQLite overflow chain loops at page 6', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::tableLeaf(SQLiteDatabase::fromBytes($bytes), 3, [21])));
+    $t->same('SQLite overflow chain loops at page 6', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::tableLeaf(SQLiteDatabase::fromBytes($bytes), 3, [21])));
 };
 $tests['btree freelist overflow rebalance current source next120 index detects overflow loop'] = static function (TestRunner $t) use ($indexDatabase120, $indexRecords120, $throwsMessage120): void {
     $bytes = $indexDatabase120()->toBytes();
     $bytes = substr_replace($bytes, pack('N', 6), (6 - 1) * 512, 4);
-    $t->same('SQLite overflow chain loops at page 6', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::indexLeaf(SQLiteDatabase::fromBytes($bytes), 3, [$indexRecords120()[0]])));
+    $t->same('SQLite overflow chain loops at page 6', $throwsMessage120(static fn () => SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::indexLeaf(SQLiteDatabase::fromBytes($bytes), 3, [$indexRecords120()[0]])));
 };
 
 return $tests;

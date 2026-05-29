@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Plan
+final class SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNextPlan
 {
     private function __construct(
-        public readonly SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan $basePlan,
+        public readonly SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan $basePlan,
     ) {
     }
 
@@ -21,7 +21,7 @@ final class SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Plan
         int $parentBtreePageNumber,
         bool $secureDelete = false,
     ): self {
-        $basePlan = SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan::fromOverflowChains(
+        $basePlan = SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan::fromOverflowChains(
             $database,
             $releasedChains,
             $replacementPayload,

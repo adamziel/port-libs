@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -85,7 +85,7 @@ $chains132 = static fn (): array => [
     ],
 ];
 
-$plan132 = static fn (bool $secureDelete = false): SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan => SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan::fromOverflowChains(
+$plan132 = static fn (bool $secureDelete = false): SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan => SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan::fromOverflowChains(
     $database132(),
     $chains132(),
     str_repeat('R', 1600),
@@ -155,13 +155,13 @@ $cases132 = [
     'summary reuse rows' => static fn (): mixed => array_column($plan132()->toArray()['btree_freelist_overflow_pointermap_current_source_next132'], 'page_number'),
     'summary final freelist pages' => static fn (): mixed => $plan132()->toArray()['final_freelist_page_numbers'],
     'secure delete clears all released pages' => static fn (): mixed => $plan132(true)->releasePlan->freePlan->clearedPageNumbers,
-    'empty replacement rejected' => static fn (): mixed => $throwMessage132(static fn () => SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan::fromOverflowChains($database132(), $chains132(), '', 4)),
-    'bad parent rejected' => static fn (): mixed => $throwMessage132(static fn () => SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan::fromOverflowChains($database132(), $chains132(), 'abc', 1)),
+    'empty replacement rejected' => static fn (): mixed => $throwMessage132(static fn () => SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan::fromOverflowChains($database132(), $chains132(), '', 4)),
+    'bad parent rejected' => static fn (): mixed => $throwMessage132(static fn () => SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan::fromOverflowChains($database132(), $chains132(), 'abc', 1)),
     'trailing current chain rejected' => static function () use ($database132, $chains132, $throwMessage132): mixed {
         $chains = $chains132();
         $chains[0]['overflow_payload_bytes'] = 508;
 
-        return $throwMessage132(static fn () => SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan::fromOverflowChains($database132(), $chains, str_repeat('R', 508), 4));
+        return $throwMessage132(static fn () => SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan::fromOverflowChains($database132(), $chains, str_repeat('R', 508), 4));
     },
 ];
 

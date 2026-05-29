@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistPointerMapReuseCurrentSourceNext124Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistPointerMapReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
@@ -73,8 +73,8 @@ $allocatedImages124 = static fn (): array => [
     ]),
 ];
 
-$fixture124 = static function (?int $parentPage = 125, bool $secureDelete = false) use ($databaseFixture124, $allocatedImages124): SQLiteBTreeFreelistPointerMapReuseCurrentSourceNext124Plan {
-    return SQLiteBTreeFreelistPointerMapReuseCurrentSourceNext124Plan::fromFreedPages(
+$fixture124 = static function (?int $parentPage = 125, bool $secureDelete = false) use ($databaseFixture124, $allocatedImages124): SQLiteBTreeFreelistPointerMapReuseCurrentSourceNextPlan {
+    return SQLiteBTreeFreelistPointerMapReuseCurrentSourceNextPlan::fromFreedPages(
         $databaseFixture124(),
         [130],
         1,
@@ -94,7 +94,7 @@ $throwsMessage124 = static function (callable $callback): string {
     return 'not rejected';
 };
 
-$rows124 = static fn (SQLiteBTreeFreelistPointerMapReuseCurrentSourceNext124Plan $plan): array => $plan->reuseRows;
+$rows124 = static fn (SQLiteBTreeFreelistPointerMapReuseCurrentSourceNextPlan $plan): array => $plan->reuseRows;
 
 $cases124 = [
     'action label' => static fn (): mixed => $fixture124()->toArray()['action'],
@@ -150,9 +150,9 @@ $cases124 = [
     'secure delete does not clear promoted trunk image' => static fn (): mixed => $fixture124(125, true)->freePlan->clearedPageNumbers,
     'secure delete leaves promoted trunk out of cleared images' => static fn (): mixed => array_key_exists(130, $fixture124(125, true)->freePlan->clearedPageImages),
     'final integrity check reports ok' => static fn (): mixed => SQLitePragmaIntegrityCheck::execute('PRAGMA integrity_check', $fixture124()->databaseAfterReuse)['rows'],
-    'zero allocation rejected' => static fn () => $throwsMessage124(static fn () => SQLiteBTreeFreelistPointerMapReuseCurrentSourceNext124Plan::fromFreedPages($databaseFixture124(), [130], 0, 125)),
-    'already free page rejected' => static fn () => $throwsMessage124(static fn () => SQLiteBTreeFreelistPointerMapReuseCurrentSourceNext124Plan::fromFreedPages($databaseFixture124(), [5], 1, 125)),
-    'non allocated supplied image rejected' => static fn () => $throwsMessage124(static fn () => SQLiteBTreeFreelistPointerMapReuseCurrentSourceNext124Plan::fromFreedPages($databaseFixture124(), [130], 1, 125, [131 => str_repeat("\0", 512)])),
+    'zero allocation rejected' => static fn () => $throwsMessage124(static fn () => SQLiteBTreeFreelistPointerMapReuseCurrentSourceNextPlan::fromFreedPages($databaseFixture124(), [130], 0, 125)),
+    'already free page rejected' => static fn () => $throwsMessage124(static fn () => SQLiteBTreeFreelistPointerMapReuseCurrentSourceNextPlan::fromFreedPages($databaseFixture124(), [5], 1, 125)),
+    'non allocated supplied image rejected' => static fn () => $throwsMessage124(static fn () => SQLiteBTreeFreelistPointerMapReuseCurrentSourceNextPlan::fromFreedPages($databaseFixture124(), [130], 1, 125, [131 => str_repeat("\0", 512)])),
 ];
 
 $expected124 = [

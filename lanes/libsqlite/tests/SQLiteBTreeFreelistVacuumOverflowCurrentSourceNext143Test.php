@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumOverflowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -64,8 +64,8 @@ $database143 = static function () use ($makeFirstPage143, $putPointerMapEntry143
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$plan143 = static function (int $maxTruncatedPages = 3, ?string $payload = null) use ($database143): SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan {
-    return SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan::fromCurrentSourceDeleteResults(
+$plan143 = static function (int $maxTruncatedPages = 3, ?string $payload = null) use ($database143): SQLiteBTreeFreelistVacuumOverflowCurrentSourceNextPlan {
+    return SQLiteBTreeFreelistVacuumOverflowCurrentSourceNextPlan::fromCurrentSourceDeleteResults(
         $database143(),
         [
             [
@@ -219,20 +219,20 @@ foreach (range(1, 30) as $index) {
 }
 
 $tests['btree freelist vacuum overflow current source next143 rejects empty current source rows'] = static function (TestRunner $t) use ($plan143): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan::fromBasePlan($plan143()->basePlan, []));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeFreelistVacuumOverflowCurrentSourceNextPlan::fromBasePlan($plan143()->basePlan, []));
 };
 
 $tests['btree freelist vacuum overflow current source next143 rejects malformed current row'] = static function (TestRunner $t) use ($plan143, $throwsMessage143): void {
     $t->same(
         'SQLite b-tree freelist vacuum overflow next143 current-source row page must be an integer',
-        $throwsMessage143(static fn () => SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan::fromBasePlan($plan143()->basePlan, [['page_number' => '306']])),
+        $throwsMessage143(static fn () => SQLiteBTreeFreelistVacuumOverflowCurrentSourceNextPlan::fromBasePlan($plan143()->basePlan, [['page_number' => '306']])),
     );
 };
 
 $tests['btree freelist vacuum overflow current source next143 rejects short chain length'] = static function (TestRunner $t) use ($database143, $throwsMessage143): void {
     $t->same(
         'SQLite overflow chain has trailing pages beyond the expected payload length',
-        $throwsMessage143(static fn () => SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan::fromCurrentSourceDeleteResults(
+        $throwsMessage143(static fn () => SQLiteBTreeFreelistVacuumOverflowCurrentSourceNextPlan::fromCurrentSourceDeleteResults(
             $database143(),
             [['source' => 'short', 'first_page' => 306, 'overflow_payload_bytes' => 508]],
             [['obsolete_overflow_page_numbers' => [306]]],

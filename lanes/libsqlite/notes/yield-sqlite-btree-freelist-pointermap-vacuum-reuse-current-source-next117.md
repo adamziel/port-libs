@@ -18,7 +18,7 @@ different auto-vacuum pointer-map pages.
 
 ## Verification
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-pointermap-vacuum-reuse-current-source-next117.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Test.php`

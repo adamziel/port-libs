@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
@@ -97,8 +97,8 @@ $indexDatabase = static function () use ($firstPage, $putPointerMapEntry, $index
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$tablePlan = SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::tableLeaf($tableDatabase(), 3, [21, 22], true);
-$indexPlan = SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::indexLeaf($indexDatabase(), 3, $indexRecords, true);
+$tablePlan = SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::tableLeaf($tableDatabase(), 3, [21, 22], true);
+$indexPlan = SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::indexLeaf($indexDatabase(), 3, $indexRecords, true);
 
 $summary = [
     'scenario' => 'wordpress-btree-freelist-overflow-rebalance-current-source-next120',

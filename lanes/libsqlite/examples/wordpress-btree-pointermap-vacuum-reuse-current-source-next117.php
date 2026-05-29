@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -63,7 +63,7 @@ foreach ([309, 310] as $index => $pageNumber) {
     $putPointerMapEntry($pages, $pageNumber, $index === 0 ? SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE : SQLitePointerMapEntry::OVERFLOW_PAGE, $index === 0 ? 4 : 309);
 }
 
-$plan = SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan::fromOverflowDeleteResults(
+$plan = SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNextPlan::fromOverflowDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         ['source' => 'wp_options-autoload-middle-overflow-next117', 'obsolete_overflow_page_numbers' => [203, 204], 'rowids' => [11701]],

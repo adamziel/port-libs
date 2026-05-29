@@ -11,7 +11,7 @@ final class SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan
      * @param list<array<string, mixed>> $reuseRows
      */
     private function __construct(
-        public readonly SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $deletePlan,
+        public readonly SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $deletePlan,
         public readonly SQLiteFreelistAllocationPlan $allocationPlan,
         public readonly SQLiteDatabase $databaseAfterAllocation,
         private readonly array $overflowPageImages,
@@ -40,7 +40,7 @@ final class SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite overflow rebalance freelist current-source next134 parent b-tree page must be at page 2 or later');
         }
 
-        $deletePlan = SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan::tableLeaf(
+        $deletePlan = SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan::tableLeaf(
             $database,
             $leafPageNumber,
             $rowIds,
@@ -153,7 +153,7 @@ final class SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan
         SQLiteDatabase $databaseBefore,
         SQLiteDatabase $databaseAfterDelete,
         SQLiteDatabase $databaseAfterAllocation,
-        SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $deletePlan,
+        SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $deletePlan,
         SQLiteFreelistAllocationPlan $allocationPlan,
     ): array {
         $released = array_fill_keys($deletePlan->releasedPageNumbers(), true);
@@ -193,7 +193,7 @@ final class SQLiteBTreeOverflowRebalanceFreelistCurrentSourceNextPlan
     /**
      * @return array<int, array{phase:string,step:int}>
      */
-    private static function deleteSourcesByPage(SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan $deletePlan): array
+    private static function deleteSourcesByPage(SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan $deletePlan): array
     {
         $sources = [];
         foreach ($deletePlan->transitionRows() as $row) {

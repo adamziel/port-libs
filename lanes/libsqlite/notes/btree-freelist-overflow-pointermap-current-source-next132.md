@@ -3,7 +3,7 @@
 Status: focused B-tree behavior growth for current-source next132.
 
 Behavior:
-- Adds `SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan`.
+- Adds `SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan`.
 - Reads two obsolete overflow chains from the current database image through their real next-page pointers before freeing them.
 - Releases both chains into the freelist with auto-vacuum pointer-map entries changed to `free-page` parent `0`.
 - Allocates a replacement overflow chain from the resulting freelist and rewrites pointer-map parents to match the newly materialized overflow order, including an existing freelist page before reused obsolete overflow pages.

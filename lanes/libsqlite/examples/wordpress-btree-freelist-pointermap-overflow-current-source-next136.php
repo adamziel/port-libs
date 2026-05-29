@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -68,7 +68,7 @@ foreach ([
     $putPointerMapEntry($pages, $pageNumber, $type, $parent);
 }
 
-$plan = SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Plan::fromOverflowChains(
+$plan = SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNextPlan::fromOverflowChains(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         [

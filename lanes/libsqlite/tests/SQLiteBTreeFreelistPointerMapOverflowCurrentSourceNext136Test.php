@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -87,7 +87,7 @@ $chains136 = static fn (): array => [
 
 $payload136 = static fn (): string => str_repeat('R', 3000);
 
-$plan136 = static fn (bool $secureDelete = false): SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Plan => SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Plan::fromOverflowChains(
+$plan136 = static fn (bool $secureDelete = false): SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNextPlan => SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNextPlan::fromOverflowChains(
     $database136(),
     $chains136(),
     $payload136(),
@@ -159,9 +159,9 @@ $cases136 = [
     'summary replacement pages' => static fn (): mixed => array_column($plan136()->toArray()['replacement_chain_rows'], 'page_number'),
     'summary final freelist count' => static fn (): mixed => $plan136()->toArray()['final_freelist_page_count'],
     'secure delete clears released pages' => static fn (): mixed => $plan136(true)->basePlan->releasePlan->freePlan->clearedPageNumbers,
-    'short replacement rejected' => static fn (): mixed => $throwsMessage136(static fn () => SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Plan::fromOverflowChains($database136(), $chains136(), str_repeat('x', 1600), 4)),
-    'empty replacement rejected' => static fn (): mixed => $throwsMessage136(static fn () => SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Plan::fromOverflowChains($database136(), $chains136(), '', 4)),
-    'bad parent rejected' => static fn (): mixed => $throwsMessage136(static fn () => SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNext136Plan::fromOverflowChains($database136(), $chains136(), $payload136(), 1)),
+    'short replacement rejected' => static fn (): mixed => $throwsMessage136(static fn () => SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNextPlan::fromOverflowChains($database136(), $chains136(), str_repeat('x', 1600), 4)),
+    'empty replacement rejected' => static fn (): mixed => $throwsMessage136(static fn () => SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNextPlan::fromOverflowChains($database136(), $chains136(), '', 4)),
+    'bad parent rejected' => static fn (): mixed => $throwsMessage136(static fn () => SQLiteBTreeFreelistPointerMapOverflowCurrentSourceNextPlan::fromOverflowChains($database136(), $chains136(), $payload136(), 1)),
 ];
 
 $expected136 = [

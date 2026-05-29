@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -62,7 +62,7 @@ foreach ([
     $putPointerMapEntry($pages, $pageNumber, $type, $parent);
 }
 
-$plan = SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan::fromOverflowChains(
+$plan = SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan::fromOverflowChains(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         [

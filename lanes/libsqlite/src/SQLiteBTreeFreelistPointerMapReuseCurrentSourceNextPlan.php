@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeFreelistPointerMapReuseCurrentSourceNext124Plan
+final class SQLiteBTreeFreelistPointerMapReuseCurrentSourceNextPlan
 {
     /**
      * @param array<int, string> $allocatedPageImages

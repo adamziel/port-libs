@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNext120Plan`, a current-source B-tree delete/rebalance materializer that:
+Adds `SQLiteBTreeFreelistOverflowRebalanceCurrentSourceNextPlan`, a current-source B-tree delete/rebalance materializer that:
 
 - deletes table leaf rowids and index leaf records from the current page image;
 - derives obsolete overflow chain page numbers by reading current overflow next pointers;

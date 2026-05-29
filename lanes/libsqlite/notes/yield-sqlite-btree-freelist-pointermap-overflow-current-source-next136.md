@@ -36,7 +36,7 @@ freelist trunk to an `overflow-page` with parent page `6`.
 
 ## Non-Overlap
 
-Avoids accepted `SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNext132Plan`
+Avoids accepted `SQLiteBTreeFreelistOverflowPointerMapCurrentSourceNextPlan`
 coverage for released overflow leaf reuse that leaves the freelist trunk in
 place. Avoids accepted overflow freelist release, page relocation, root
 collapse, index-interior merge, and bulk overflow freeblock materialization.

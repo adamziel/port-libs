@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan`, a bounded
+Adds `SQLiteBTreeFreelistVacuumOverflowCurrentSourceNextPlan`, a bounded
 current-source B-tree plan for the delete/vacuum/replacement path where copied
 WordPress option rows have obsolete overflow chains at the database tail.
 
