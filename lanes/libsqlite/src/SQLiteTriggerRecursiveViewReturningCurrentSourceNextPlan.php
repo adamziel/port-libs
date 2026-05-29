@@ -1005,7 +1005,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{release_next_source?:bool,max_depth?:int,savepoint?:string,current_generation?:string,next_generation?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext160(
+    public static function executeSourceGenerationBarrier(
         array $rows,
         array $currentRoots,
         array $nextRoots,
@@ -1014,8 +1014,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $currentGeneration = self::sourceTokenNext160((string) ($options['current_generation'] ?? 'current-source-next160'));
-        $nextGeneration = self::sourceTokenNext160((string) ($options['next_generation'] ?? 'next-source-next160'));
+        $currentGeneration = self::sourceGenerationToken((string) ($options['current_generation'] ?? 'current-source-source-generation'));
+        $nextGeneration = self::sourceGenerationToken((string) ($options['next_generation'] ?? 'next-source-source-generation'));
         $releaseNext = (bool) ($options['release_next_source'] ?? false);
 
         $plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveViewSourceHandoff(
@@ -1028,17 +1028,17 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             [
                 'admit_next_source' => $releaseNext,
                 'max_depth' => $options['max_depth'] ?? 8,
-                'savepoint' => $options['savepoint'] ?? 'wp_recursive_view_returning_next160',
+                'savepoint' => $options['savepoint'] ?? 'wp_recursive_view_returning_source-generation',
             ],
         );
 
-        $currentReturning = self::annotateReturningNext160(
+        $currentReturning = self::annotateSourceGenerationReturning(
             $plan['current_returning_rows'],
             $currentGeneration,
             'current-returning-drained',
             true,
         );
-        $attemptedNextReturning = self::annotateReturningNext160(
+        $attemptedNextReturning = self::annotateSourceGenerationReturning(
             $plan['attempted_next_returning_rows'],
             $nextGeneration,
             $releaseNext ? 'next-returning-released' : 'next-returning-attempted-only',
@@ -1046,8 +1046,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         );
 
         $plan['status'] = $releaseNext
-            ? 'trigger-recursive-view-returning-current-source-release-next160'
-            : 'trigger-recursive-view-returning-current-source-barrier-next160';
+            ? 'trigger-recursive-view-returning-current-source-release-source-generation'
+            : 'trigger-recursive-view-returning-current-source-barrier-source-generation';
         $plan['current_generation'] = $currentGeneration;
         $plan['next_generation'] = $nextGeneration;
         $plan['source_barrier'] = [
@@ -1074,10 +1074,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'suppressed' => $releaseNext ? [] : array_column($attemptedNextReturning, 'visibility_key'),
         ];
         $plan['yield_boundary'] = $releaseNext
-            ? 'current-source-returning-drained-release-admits-next-source-next160'
-            : 'current-source-returning-drained-next-source-held-at-barrier-next160';
+            ? 'current-source-returning-drained-release-admits-next-source-source-generation'
+            : 'current-source-returning-drained-next-source-held-at-barrier-source-generation';
         $plan['dependencies'] = array_values(array_unique(array_merge($plan['dependencies'], [
-            'sqlite-trigger-recursive-view-returning-current-source-next160',
+            'sqlite-trigger-recursive-view-returning-current-source-source-generation',
             'sqlite-returning-source-generation-barrier',
             'sqlite-next-source-release-required-after-current-returning',
         ])));
@@ -1089,13 +1089,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function annotateReturningNext160(array $rows, string $generation, string $visibility, bool $visible): array
+    private static function annotateSourceGenerationReturning(array $rows, string $generation, string $visibility, bool $visible): array
     {
         $out = [];
         foreach ($rows as $row) {
             $returning = $row['returning'] ?? [];
             if (!is_array($returning)) {
-                throw new InvalidArgumentException('SQLite trigger recursive view next160 returning row is malformed');
+                throw new InvalidArgumentException('SQLite trigger recursive view source-generation returning row is malformed');
             }
             $name = (string) ($returning['option_name'] ?? $row['ordinal'] ?? count($out));
             $row['source_generation'] = $generation;
@@ -1108,10 +1108,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $out;
     }
 
-    private static function sourceTokenNext160(string $value): string
+    private static function sourceGenerationToken(string $value): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
-            throw new InvalidArgumentException('SQLite trigger recursive view next160 source generation is malformed');
+            throw new InvalidArgumentException('SQLite trigger recursive view source-generation source generation is malformed');
         }
 
         return $value;
@@ -1550,7 +1550,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $savepoint = self::tokenNext162((string) ($options['savepoint'] ?? 'wp_recursive_view_next162'), 'savepoint');
         $maxDepth = $options['max_depth'] ?? 8;
 
-        $first = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext160(
+        $first = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSourceGenerationBarrier(
             $rows,
             $currentRoots,
             $firstNextRoots,
@@ -1567,7 +1567,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         );
 
         $secondBaseRows = $releaseCount >= 1 ? $first['after_savepoint'] : $rows;
-        $second = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext160(
+        $second = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSourceGenerationBarrier(
             $secondBaseRows,
             $currentRoots,
             $secondNextRoots,
@@ -1697,7 +1697,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $currentView = self::normalizeViewNext163($currentView, 'current view');
         $nextView = self::normalizeViewNext163($nextView, 'next view');
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext160(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSourceGenerationBarrier(
             $currentRows,
             $currentRoots,
             $nextRoots,
@@ -1847,7 +1847,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         }
 
         $rows = array_merge($baseRows, $generatedRows);
-        $probe = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext160(
+        $probe = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSourceGenerationBarrier(
             $rows,
             [],
             $nextRoots,

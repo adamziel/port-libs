@@ -22,7 +22,7 @@ $capability['file_controls']['size_limit'] = 1048576;
 $capability['file_controls']['data_version'] = 12;
 
 $state = SQLiteVfsFileControlState::fromCapabilityPlan($capability);
-$sequence = $state->currentNext64([
+$sequence = $state->fileControlSnapshotSequence([
     ['op' => 'name_hint', 'value' => 'wp-options-bulk-import'],
     ['op' => 'lock_timeout', 'value' => 2500],
     ['op' => 'reserve_bytes', 'value' => 32],

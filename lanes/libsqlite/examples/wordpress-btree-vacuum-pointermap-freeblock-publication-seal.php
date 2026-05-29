@@ -28,7 +28,7 @@ $pages[1] = $firstPage;
 $pages[2] = str_repeat("\0", 512);
 $pages[3] = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next227', str_repeat('cache:', 42)])),
+    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_publication-seal', str_repeat('cache:', 42)])),
     SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'rewrite_rules', str_repeat('rewrite:', 8)])),
 ]);
 $pages[105] = str_repeat("\0", 512);
@@ -72,7 +72,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafSeal
         'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
     ],
     2,
-    str_repeat('next227-current-seal-', 50),
+    str_repeat('pubseal-current-seal-', 50),
     3,
     true,
     2,
@@ -80,7 +80,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafSeal
 $summary = $plan->sealSummary();
 
 echo json_encode([
-    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-next227',
+    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-publication-seal',
     'wordpressUse' => 'After deleting an overflow-backed copied wp_options transient and vacuuming tail pages, seal the current-source pointer-map/freeblock readback set before publication.',
     'status' => $summary['status'],
     'seal_pages' => $summary['seal_pages'],
@@ -93,12 +93,12 @@ echo json_encode([
 ], JSON_PRETTY_PRINT) . PHP_EOL;
 
 if (
-    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-next227-ready'
+    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-publication-seal-ready'
     && $summary['seal_pages'] === [2, 105, 105, 3, 106, 107, 108]
     && $summary['duplicate_rewrite_seal_pages'] === [105]
     && $summary['all_pointer_maps_sealed_before_payload'] === true
     && $summary['all_tail_pages_excluded_from_seal'] === true
     && $summary['all_leaf_freeblock_receipts_sealed'] === true
 ) {
-    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-next227 self-test passed\n";
+    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-publication-seal self-test passed\n";
 }

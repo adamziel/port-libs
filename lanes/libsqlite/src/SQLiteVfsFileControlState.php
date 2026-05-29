@@ -179,13 +179,13 @@ final class SQLiteVfsFileControlState
                 $op = (string) $op;
             }
 
-            $current = $this->snapshot64();
+            $current = $this->fileControlSnapshot();
             $result = $this->apply($op, $argument);
             $pairs[] = [
                 'ordinal' => $ordinal++,
                 'op' => (string) $result['op'],
                 'current' => $current,
-                'next' => $this->snapshot64(),
+                'next' => $this->fileControlSnapshot(),
                 'result' => $result,
             ];
         }
@@ -218,13 +218,13 @@ final class SQLiteVfsFileControlState
                 $op = (string) $op;
             }
 
-            $current = $this->snapshot68();
+            $current = $this->transactionFileControlSnapshot();
             $result = $this->apply($op, $argument);
             $pairs[] = [
                 'ordinal' => $ordinal++,
                 'op' => (string) $result['op'],
                 'current' => $current,
-                'next' => $this->snapshot68(),
+                'next' => $this->transactionFileControlSnapshot(),
                 'result' => $result,
             ];
         }
@@ -254,7 +254,7 @@ final class SQLiteVfsFileControlState
         foreach ($controls as $op => $argument) {
             $source = is_int($op) ? $argument : [$op => $argument];
             [$normalizedOp, $value] = $this->normalizeSqlFileControl($op, $argument);
-            $current = $this->snapshot69();
+            $current = $this->sqlFileControlSnapshot();
             $result = $this->apply($normalizedOp, $value);
             $status = (string) $result['status'];
 
@@ -274,7 +274,7 @@ final class SQLiteVfsFileControlState
                 'source' => $source,
                 'op' => (string) $result['op'],
                 'current' => $current,
-                'next' => $this->snapshot69(),
+                'next' => $this->sqlFileControlSnapshot(),
                 'result' => $result,
             ];
         }
@@ -295,7 +295,7 @@ final class SQLiteVfsFileControlState
     /**
      * @return array<string, mixed>
      */
-    private function snapshot64(): array
+    private function fileControlSnapshot(): array
     {
         return [
             'size_limit' => $this->controls['size_limit'],
@@ -313,9 +313,9 @@ final class SQLiteVfsFileControlState
     /**
      * @return array<string, mixed>
      */
-    private function snapshot68(): array
+    private function transactionFileControlSnapshot(): array
     {
-        return array_merge($this->snapshot64(), [
+        return array_merge($this->fileControlSnapshot(), [
             'atomic_write_active' => $this->controls['atomic_write_active'],
             'atomic_write_generation' => $this->controls['atomic_write_generation'],
             'last_sync_flags' => $this->controls['last_sync_flags'],
@@ -329,9 +329,9 @@ final class SQLiteVfsFileControlState
     /**
      * @return array<string, mixed>
      */
-    private function snapshot69(): array
+    private function sqlFileControlSnapshot(): array
     {
-        return $this->snapshot68() + [
+        return $this->transactionFileControlSnapshot() + [
             'name_hint' => $this->controls['name_hint'],
             'tempfile' => $this->controls['tempfile'],
             'sector_size' => $this->controls['sector_size'],

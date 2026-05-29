@@ -47,7 +47,7 @@ $database227 = static function () use ($makeFirstPage227, $putPointerMapEntry227
     $pages[2] = str_repeat("\0", 512);
     $pages[3] = SQLiteTableLeafPage::assemble([
         SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next227', str_repeat('cache:', 42)])),
+        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_publication-seal', str_repeat('cache:', 42)])),
         SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'rewrite_rules', str_repeat('rewrite:', 8)])),
     ]);
     $pages[105] = str_repeat("\0", 512);
@@ -84,7 +84,7 @@ $plan227 = static function (int $batchSize = 2): SQLiteBTreeVacuumPointerMapFree
             'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
         ],
         2,
-        str_repeat('next227-current-seal-', 50),
+        str_repeat('pubseal-current-seal-', 50),
         3,
         true,
         $batchSize,
@@ -128,7 +128,7 @@ $cases227 = [
     'seal token count' => static fn (): mixed => count($plan227()->sealTokens()),
     'seal token lengths' => static fn (): mixed => array_map('strlen', $plan227()->sealTokens()),
     'seal signature length' => static fn (): mixed => strlen($plan227()->sealSummary()['seal_signature']),
-    'current source token length' => static fn (): mixed => strlen($plan227()->sealSummary()['current_source_next227_token']),
+    'current source token length' => static fn (): mixed => strlen($plan227()->sealSummary()['current_source_publication_seal_token']),
     'seal ordinals' => static fn (): mixed => array_column($plan227()->sealRows(), 'seal_ordinal'),
     'source read ordinals' => static fn (): mixed => array_column($plan227()->sealRows(), 'source_read_ordinal'),
     'seal channels' => static fn (): mixed => array_column($plan227()->sealRows(), 'seal_channel'),
@@ -160,8 +160,8 @@ $cases227 = [
 ];
 
 $expected227 = [
-    'action label' => 'btree-vacuum-pointermap-freeblock-current-source-next227',
-    'summary status' => 'btree-vacuum-pointermap-freeblock-current-source-next227-ready',
+    'action label' => 'btree-vacuum-pointermap-freeblock-current-source-publication-seal',
+    'summary status' => 'btree-vacuum-pointermap-freeblock-current-source-publication-seal-ready',
     'seal row count' => 7,
     'seal pages' => [2, 105, 105, 3, 106, 107, 108],
     'summary seal pages' => [2, 105, 105, 3, 106, 107, 108],
@@ -210,7 +210,7 @@ $expected227 = [
     'batch size three seal row count' => 6,
     'batch size three seal pages' => [2, 105, 3, 106, 107, 108],
     'batch size three source read ordinals' => [1, 2, 3, 4, 5, 6],
-    'dependency closure' => 'no new support component needed; next227 reuses next219 readback rows, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
+    'dependency closure' => 'no new support component needed; publication-seal reuses next219 readback rows, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
     'non overlap' => true,
     'base action' => 'btree-vacuum-pointermap-freeblock-current-source-next219',
     'base read row count' => 7,
@@ -220,13 +220,13 @@ $expected227 = [
 $tests = [];
 
 foreach ($cases227 as $name => $callback) {
-    $tests['btree vacuum pointermap freeblock current source next227 ' . $name] = static function (TestRunner $t) use ($callback, $expected227, $name): void {
+    $tests['btree vacuum pointermap freeblock current source publication-seal ' . $name] = static function (TestRunner $t) use ($callback, $expected227, $name): void {
         $t->same($expected227[$name], $callback());
     };
 }
 
 foreach (range(1, 80) as $index) {
-    $tests['btree vacuum pointermap freeblock current source next227 seal invariant ' . $index] = static function (TestRunner $t) use ($plan227): void {
+    $tests['btree vacuum pointermap freeblock current source publication-seal seal invariant ' . $index] = static function (TestRunner $t) use ($plan227): void {
         $plan = $plan227();
         $summary = $plan->sealSummary();
 
@@ -240,7 +240,7 @@ foreach (range(1, 80) as $index) {
         $t->same([true, true, true, true, true, true, true], array_column($plan->sealRows(), 'tail_page_excluded_from_seal'));
         $t->same([true, true, true, true, true, true, true], array_column($plan->sealRows(), 'freeblock_receipt_sealed'));
         $t->same([64, 64, 64, 64, 64, 64, 64], array_map('strlen', $plan->sealTokens()));
-        $t->same('btree-vacuum-pointermap-freeblock-current-source-next227-ready', $summary['status']);
+        $t->same('btree-vacuum-pointermap-freeblock-current-source-publication-seal-ready', $summary['status']);
         $t->same(true, $summary['seal_pages_match_read_pages']);
         $t->same(true, $summary['all_pointer_maps_sealed_before_payload']);
         $t->same(true, $summary['all_leaf_freeblock_receipts_sealed']);

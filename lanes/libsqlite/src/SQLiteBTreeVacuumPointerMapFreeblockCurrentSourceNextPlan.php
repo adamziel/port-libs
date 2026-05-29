@@ -25197,7 +25197,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealVariant
         $rows = self::buildSealRows($basePlan);
         $errors = self::sealErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next227 seal failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source publication-seal seal failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -25282,7 +25282,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealVariant
         $readSummary = $this->basePlan->readSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next227-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-publication-seal-ready',
             'seal_row_count' => count($this->sealRows),
             'seal_pages' => $this->sealPages(),
             'unique_seal_pages' => $this->uniqueSealPages(),
@@ -25303,17 +25303,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealVariant
             'all_seal_offsets_contiguous' => !in_array(false, array_column($this->sealRows, 'seal_offset_contiguous'), true),
             'seal_tokens' => $this->sealTokens(),
             'seal_signature' => self::signature($this->sealTokens()),
-            'current_source_next227_token' => self::signature(array_merge(
-                ['next227', $readSummary['current_source_next219_token']],
+            'current_source_publication_seal_token' => self::signature(array_merge(
+                ['publication-seal', $readSummary['current_source_next219_token']],
                 $this->sealPages(),
                 $this->sealTokens(),
             )),
             'seal_errors' => $this->sealErrors(),
             'dependencies' => [
                 'sqlite-btree-vacuum-pointermap-freeblock-current-source-next219',
-                'sqlite-current-source-next227',
+                'sqlite-current-source-publication-seal',
             ],
-            'dependency_closure' => 'no new support component needed; next227 reuses next219 readback rows, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
+            'dependency_closure' => 'no new support component needed; publication-seal reuses next219 readback rows, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
             'non_overlap' => 'adds durable publication sealing after next219 readback; does not repeat next219 readback, next217 page-write materialization, next212 apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
@@ -25324,7 +25324,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealVariant
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next227',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-publication-seal',
             'seal_summary' => $this->sealSummary(),
             'seal_errors' => $this->sealErrors(),
             'seal_rows' => $this->sealRows,
@@ -25378,7 +25378,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealVariant
             $sealOrdinal = $index + 1;
             $readToken = (string) $readRow['read_token'];
             $token = self::signature(array_merge(
-                ['next227', $sealOrdinal, $previousSealToken ?? 'initial', $readToken],
+                ['publication-seal', $sealOrdinal, $previousSealToken ?? 'initial', $readToken],
                 [$pageNumber, (int) $readRow['byte_offset'], (string) $readRow['read_channel']],
                 self::sortedIntKeys($sealedPages),
             ));
@@ -26241,17 +26241,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFinalVariant
             'final_tokens' => $this->finalTokens(),
             'final_signature' => self::signature($this->finalTokens()),
             'current_source_next230_token' => self::signature(array_merge(
-                ['next230', $sealSummary['current_source_next227_token']],
+                ['next230', $sealSummary['current_source_publication_seal_token']],
                 $this->finalPages(),
                 $this->finalTokens(),
             )),
             'final_errors' => $this->finalErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next227',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-publication-seal',
                 'sqlite-current-source-next230',
             ],
-            'dependency_closure' => 'no new support component needed; next230 reuses next227 publication seals, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
-            'non_overlap' => 'adds final current-source application ordering after next227 publication seals; does not repeat next227 sealing, next219 readback, next217 page-write materialization, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; next230 reuses publication seals, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
+            'non_overlap' => 'adds final current-source application ordering after publication seals; does not repeat publication sealing, next219 readback, next217 page-write materialization, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -27212,7 +27212,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceHandoffCursorVarian
                 'sqlite-current-source-next234',
             ],
             'dependency_closure' => 'no new support component needed; next234 reuses final-handoff handoff rows, leaf freeblock receipts, pointer-map handoff ordering, and fenced-tail guards',
-            'non_overlap' => 'adds a current-source freeblock cursor admission after final-handoff handoff rows; does not repeat final-handoff handoff construction, next227 sealing, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'non_overlap' => 'adds a current-source freeblock cursor admission after final-handoff handoff rows; does not repeat final-handoff handoff construction, publication sealing, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -37409,7 +37409,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealAuditVariant
         $rows = self::buildSealRows($basePlan);
         $errors = self::sealErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next227 seal failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source publication-seal seal failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -37494,7 +37494,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealAuditVariant
         $readSummary = $this->basePlan->readSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next227-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-publication-seal-ready',
             'seal_row_count' => count($this->sealRows),
             'seal_pages' => $this->sealPages(),
             'unique_seal_pages' => $this->uniqueSealPages(),
@@ -37515,17 +37515,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealAuditVariant
             'all_seal_offsets_contiguous' => !in_array(false, array_column($this->sealRows, 'seal_offset_contiguous'), true),
             'seal_tokens' => $this->sealTokens(),
             'seal_signature' => self::signature($this->sealTokens()),
-            'current_source_next227_token' => self::signature(array_merge(
-                ['next227', $readSummary['current_source_next219_token']],
+            'current_source_publication_seal_token' => self::signature(array_merge(
+                ['publication-seal', $readSummary['current_source_next219_token']],
                 $this->sealPages(),
                 $this->sealTokens(),
             )),
             'seal_errors' => $this->sealErrors(),
             'dependencies' => [
                 'sqlite-btree-vacuum-pointermap-freeblock-current-source-next219',
-                'sqlite-current-source-next227',
+                'sqlite-current-source-publication-seal',
             ],
-            'dependency_closure' => 'no new support component needed; next227 reuses next219 readback rows, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
+            'dependency_closure' => 'no new support component needed; publication-seal reuses next219 readback rows, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
             'non_overlap' => 'adds durable publication sealing after next219 readback; does not repeat next219 readback, next217 page-write materialization, next212 apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
@@ -37536,7 +37536,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealAuditVariant
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next227',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-publication-seal',
             'seal_summary' => $this->sealSummary(),
             'seal_errors' => $this->sealErrors(),
             'seal_rows' => $this->sealRows,
@@ -37590,7 +37590,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealAuditVariant
             $sealOrdinal = $index + 1;
             $readToken = (string) $readRow['read_token'];
             $token = self::signature(array_merge(
-                ['next227', $sealOrdinal, $previousSealToken ?? 'initial', $readToken],
+                ['publication-seal', $sealOrdinal, $previousSealToken ?? 'initial', $readToken],
                 [$pageNumber, (int) $readRow['byte_offset'], (string) $readRow['read_channel']],
                 self::sortedIntKeys($sealedPages),
             ));
@@ -38172,17 +38172,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFinalizationVariant
             'final_tokens' => $this->finalTokens(),
             'final_signature' => self::signature($this->finalTokens()),
             'current_source_next230_token' => self::signature(array_merge(
-                ['next230', $sealSummary['current_source_next227_token']],
+                ['next230', $sealSummary['current_source_publication_seal_token']],
                 $this->finalPages(),
                 $this->finalTokens(),
             )),
             'final_errors' => $this->finalErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next227',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-publication-seal',
                 'sqlite-current-source-next230',
             ],
-            'dependency_closure' => 'no new support component needed; next230 reuses next227 publication seals, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
-            'non_overlap' => 'adds final current-source application ordering after next227 publication seals; does not repeat next227 sealing, next219 readback, next217 page-write materialization, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; next230 reuses publication seals, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
+            'non_overlap' => 'adds final current-source application ordering after publication seals; does not repeat publication sealing, next219 readback, next217 page-write materialization, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -38515,17 +38515,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFinalHandoffVariant
             'handoff_tokens' => $this->handoffTokens(),
             'handoff_signature' => self::signature($this->handoffTokens()),
             'current_source_final_handoff_token' => self::signature(array_merge(
-                ['final-handoff', $sealSummary['current_source_next227_token']],
+                ['final-handoff', $sealSummary['current_source_publication_seal_token']],
                 $this->handoffPages(),
                 $this->handoffTokens(),
             )),
             'handoff_errors' => $this->handoffErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next227',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-publication-seal',
                 'sqlite-current-source-final-handoff',
             ],
-            'dependency_closure' => 'no new support component needed; final-handoff reuses next227 publication seals, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
-            'non_overlap' => 'adds next-writer current-source handoff admission after next227 publication sealing; does not repeat next227 sealing, next219 readback, next217 page-write materialization, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; final-handoff reuses publication seals, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
+            'non_overlap' => 'adds next-writer current-source handoff admission after publication-seal publication sealing; does not repeat publication sealing, next219 readback, next217 page-write materialization, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -38605,9 +38605,9 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFinalHandoffVariant
                 'source_seal_token' => $sealToken,
                 'expected_seal_token' => $sealTokens[$index] ?? null,
                 'seal_token_matches' => ($sealTokens[$index] ?? null) === $sealToken,
-                'current_source_token' => $sealSummary['current_source_next227_token'],
-                'expected_current_source_token' => $sealSummary['current_source_next227_token'],
-                'current_source_token_matches' => $sealSummary['current_source_next227_token'] !== '',
+                'current_source_token' => $sealSummary['current_source_publication_seal_token'],
+                'expected_current_source_token' => $sealSummary['current_source_publication_seal_token'],
+                'current_source_token_matches' => $sealSummary['current_source_publication_seal_token'] !== '',
                 'previous_handoff_token' => $previousHandoffToken,
                 'handoff_chain_valid' => $previousHandoffToken === null || is_string($previousHandoffToken),
                 'duplicate_pointer_map_rewrite_handoff' => $sealRow['duplicate_rewrite_sealed'] === true,

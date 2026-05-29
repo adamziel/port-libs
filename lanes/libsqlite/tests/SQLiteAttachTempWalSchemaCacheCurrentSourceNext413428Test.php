@@ -64,7 +64,7 @@ $plan413428 = static fn (array $events, ?array $statements = null, ?array $schem
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next413-428 extends next397-412'] = static function (TestRunner $t) use ($plan413428): void {
+$tests['attach temp wal schema cache current source next413-428 extends ledger segments window'] = static function (TestRunner $t) use ($plan413428): void {
     $result = $plan413428([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 413, 'table' => 'wp_navigation_rules_next413', 'indexes' => ['wp_navigation_rules_slug_next413'], 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_theme_stage_diff_key', 'to' => 'wp_theme_stage_diff_key_next414'],

@@ -15,9 +15,9 @@ $rows = [
 
 $view = [
     'name' => 'wp_recursive_autoload_view',
-    'source' => 'main@view-cookie-160-current',
+    'source' => 'main@view-cookie-source-generation-current',
     'trigger' => 'wp_recursive_autoload_view_io_insert',
-    'trigger_source' => 'main@trigger-cookie-160-current',
+    'trigger_source' => 'main@trigger-cookie-source-generation-current',
     'root_key' => 'root_name',
     'parent_key' => 'parent_name',
     'columns' => ['option_name', 'option_value', 'autoload', 'parent_name', 'priority'],
@@ -25,21 +25,21 @@ $view = [
     'order_by' => 'priority',
 ];
 $nextView = $view;
-$nextView['source'] = 'main@view-cookie-160-next';
-$nextView['trigger_source'] = 'main@trigger-cookie-160-next';
+$nextView['source'] = 'main@view-cookie-source-generation-next';
+$nextView['trigger_source'] = 'main@trigger-cookie-source-generation-next';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext160(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSourceGenerationBarrier(
     $rows,
     [['root_name' => 'siteurl']],
     [['root_name' => 'plugin_beta']],
     $view,
     $nextView,
     ['option_name', ['expr' => 'root', 'as' => 'root_name'], ['expr' => 'trigger_source', 'as' => 'trigger_cookie']],
-    ['savepoint' => 'wp_recursive_view_next160', 'current_generation' => 'wp-import-current-160', 'next_generation' => 'wp-import-next-160'],
+    ['savepoint' => 'wp_recursive_view_source-generation', 'current_generation' => 'wp-import-current-source-generation', 'next_generation' => 'wp-import-next-source-generation'],
 );
 
 if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    if (($summary['status'] ?? null) !== 'trigger-recursive-view-returning-current-source-barrier-next160') {
+    if (($summary['status'] ?? null) !== 'trigger-recursive-view-returning-current-source-barrier-source-generation') {
         fwrite(STDERR, "unexpected recursive view RETURNING barrier status\n");
         exit(1);
     }
@@ -47,11 +47,11 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
         fwrite(STDERR, "next-source RETURNING rows leaked before release\n");
         exit(1);
     }
-    echo "wordpress-trigger-recursive-view-returning-current-source-next160 self-test passed\n";
+    echo "wordpress-trigger-recursive-view-returning-current-source-source-generation self-test passed\n";
 }
 
 return [
-    'scenario' => 'wordpress-trigger-recursive-view-returning-current-source-next160',
+    'scenario' => 'wordpress-trigger-recursive-view-returning-current-source-source-generation',
     'wordpressUse' => 'Copied wp_options imports through an INSTEAD OF recursive view trigger can drain RETURNING rows from the current source while a next schema/source generation remains attempted-only until the savepoint releases it.',
     'dependencyClosure' => 'no new support component needed; reuses native PHP recursive view RETURNING execution and current-source savepoint modeling',
     'summary' => [

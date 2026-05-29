@@ -58,22 +58,22 @@ SELECT id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary167 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext167($sql167, $currentTables167, $nextTables167);
+$summary167 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowLimitSourceClasses($sql167, $currentTables167, $nextTables167);
 $tests = [];
 
-$tests['compound select window recursive limit next167 status dependencies'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes status dependencies'] = static function (TestRunner $t) use ($summary167): void {
     $plan = $summary167();
-    $t->same('compound-select-window-recursive-limit-current-source-next167-ready', $plan['status']);
+    $t->same('compound-select-window-recursive-limit-current-source-recursive-window-limit-source-classes-ready', $plan['status']);
     $t->same([
-        'sqlite-select-sql-recursive-limit-offset-next167',
-        'sqlite-select-sql-compound-intersect-window-next167',
-        'sqlite-select-sql-derived-intersect-tail-limit-next167',
-        'sqlite-current-source-next167',
+        'sqlite-select-sql-recursive-limit-offset-recursive-window-limit-source-classes',
+        'sqlite-select-sql-compound-intersect-window-recursive-window-limit-source-classes',
+        'sqlite-select-sql-derived-intersect-tail-limit-recursive-window-limit-source-classes',
+        'sqlite-current-source-recursive-window-limit-source-classes',
     ], $plan['dependencies']);
     $t->contains('no new support component needed', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit next167 compound metadata'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes compound metadata'] = static function (TestRunner $t) use ($summary167): void {
     $compound = $summary167()['compound'];
     $t->same(['UNION ALL', 'INTERSECT'], $compound['operators']);
     $t->same(3, $compound['currentArms']);
@@ -84,28 +84,28 @@ $tests['compound select window recursive limit next167 compound metadata'] = sta
     $t->true($compound['hasIntersect']);
 };
 
-$tests['compound select window recursive limit next167 current rows'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes current rows'] = static function (TestRunner $t) use ($summary167): void {
     $rows = $summary167()['currentRows'];
     $t->same([3, 3, 4, 1, 5], array_column($rows, 'id'));
     $t->same(['seed:2:3', 'theme_mods', 'seed:2:3:4', 'siteurl', 'seed:2:3:4:5'], array_column($rows, 'label'));
     $t->same([31, 30, 28, 26, 25], array_column($rows, 'metric'));
 };
 
-$tests['compound select window recursive limit next167 next rows'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes next rows'] = static function (TestRunner $t) use ($summary167): void {
     $rows = $summary167()['nextRows'];
     $t->same([2, 3, 5, 4, 1], array_column($rows, 'id'));
     $t->same(['seed:2', 'seed:2:3', 'plugin_alpha', 'seed:2:3:4', 'siteurl'], array_column($rows, 'label'));
     $t->same([31, 31, 30, 28, 26], array_column($rows, 'metric'));
 };
 
-$tests['compound select window recursive limit next167 prelimit captures intersect source shift'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes prelimit captures intersect source shift'] = static function (TestRunner $t) use ($summary167): void {
     $plan = $summary167();
     $t->same(['seed:2', 'seed:2:3', 'theme_mods'], array_slice(array_column($plan['currentPreLimitRows'], 'label'), 0, 3));
     $t->same(['rewrite_rules', 'seed:2', 'seed:2:3'], array_slice(array_column($plan['nextPreLimitRows'], 'label'), 0, 3));
     $t->true(in_array('plugin_alpha', array_column($plan['nextPreLimitRows'], 'label'), true));
 };
 
-$tests['compound select window recursive limit next167 recursive trace'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes recursive trace'] = static function (TestRunner $t) use ($summary167): void {
     $recursive = $summary167()['recursive'];
     $t->same('q', $recursive['name']);
     $t->same(['id', 'label', 'weight'], $recursive['columns']);
@@ -116,7 +116,7 @@ $tests['compound select window recursive limit next167 recursive trace'] = stati
     $t->same(0, $recursive['currentFinalOffsetRemaining']);
 };
 
-$tests['compound select window recursive limit next167 window metadata'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes window metadata'] = static function (TestRunner $t) use ($summary167): void {
     $windows = $summary167()['windows'];
     $t->same(['lag', 'lead'], $windows['functions']);
     $t->same(['metric', 'metric'], array_column($windows['current'], 'alias'));
@@ -124,7 +124,7 @@ $tests['compound select window recursive limit next167 window metadata'] = stati
     $t->same([1, 2], array_column($windows['current'], 'orderCount'));
 };
 
-$tests['compound select window recursive limit next167 limit trace'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes limit trace'] = static function (TestRunner $t) use ($summary167): void {
     $trace = $summary167()['limitTrace'];
     $t->same(9, $trace['current']['preLimitCount']);
     $t->same(11, $trace['next']['preLimitCount']);
@@ -134,13 +134,13 @@ $tests['compound select window recursive limit next167 limit trace'] = static fu
     $t->same(['seed:2:3:4:5', 'seed:2:3:4:5:6', 'home', 'seed:2:3:4:5:6:7', 'theme_mods'], array_column($trace['next']['truncatedAfterLimit'], 'label'));
 };
 
-$tests['compound select window recursive limit next167 source classes'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes source classes'] = static function (TestRunner $t) use ($summary167): void {
     $classes = $summary167()['sourceClasses'];
     $t->same(['recursive' => 3, 'table' => 2], $classes['current']);
     $t->same(['recursive' => 3, 'table' => 2], $classes['next']);
 };
 
-$tests['compound select window recursive limit next167 boundary delta'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes boundary delta'] = static function (TestRunner $t) use ($summary167): void {
     $boundary = $summary167()['boundary'];
     $t->same('seed:2:3', $boundary['currentFirst']['label']);
     $t->same('seed:2', $boundary['nextFirst']['label']);
@@ -150,7 +150,7 @@ $tests['compound select window recursive limit next167 boundary delta'] = static
     $t->contains('"label":"theme_mods"', implode("\n", $boundary['lostRows']));
 };
 
-$tests['compound select window recursive limit next167 replan reasons'] = static function (TestRunner $t) use ($summary167): void {
+$tests['compound select window recursive limit recursive-window-limit-source-classes replan reasons'] = static function (TestRunner $t) use ($summary167): void {
     $plan = $summary167();
     $changed = implode("\n", $plan['changedSignatures']);
     $t->contains('"label":"plugin_alpha"', $changed);
@@ -163,24 +163,24 @@ $tests['compound select window recursive limit next167 replan reasons'] = static
     $t->true(in_array('compound-tail-limit-offset', $plan['replanReasons'], true));
 };
 
-$tests['compound select window recursive limit next167 rejects missing intersect'] = static function (TestRunner $t) use ($currentTables167): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext167(
+$tests['compound select window recursive limit recursive-window-limit-source-classes rejects missing intersect'] = static function (TestRunner $t) use ($currentTables167): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowLimitSourceClasses(
         "WITH RECURSIVE q(id, label, weight) AS (VALUES (1, 'seed', 34) UNION ALL SELECT id + 1, label, weight - 3 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, lag(weight, 1, weight) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id, option_name, lead(weight, 1, weight) OVER (ORDER BY weight DESC) FROM wp_options ORDER BY metric LIMIT 3 OFFSET 1",
         $currentTables167,
         $currentTables167,
     ));
 };
 
-$tests['compound select window recursive limit next167 rejects missing mixed windows'] = static function (TestRunner $t) use ($currentTables167): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext167(
+$tests['compound select window recursive limit recursive-window-limit-source-classes rejects missing mixed windows'] = static function (TestRunner $t) use ($currentTables167): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowLimitSourceClasses(
         "WITH RECURSIVE q(id, label, weight) AS (VALUES (1, 'seed', 34) UNION ALL SELECT id + 1, label, weight - 3 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, lag(weight, 1, weight) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id, option_name, lag(weight, 1, weight) OVER (ORDER BY weight DESC) FROM wp_options INTERSECT SELECT option_id, option_name, weight FROM wp_options ORDER BY metric LIMIT 3 OFFSET 1",
         $currentTables167,
         $currentTables167,
     ));
 };
 
-$tests['compound select window recursive limit next167 rejects missing final offset'] = static function (TestRunner $t) use ($currentTables167): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext167(
+$tests['compound select window recursive limit recursive-window-limit-source-classes rejects missing final offset'] = static function (TestRunner $t) use ($currentTables167): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowLimitSourceClasses(
         "WITH RECURSIVE q(id, label, weight) AS (VALUES (1, 'seed', 34) UNION ALL SELECT id + 1, label, weight - 3 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, lag(weight, 1, weight) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id, option_name, lead(weight, 1, weight) OVER (ORDER BY weight DESC) FROM wp_options INTERSECT SELECT option_id, option_name, weight FROM wp_options ORDER BY metric LIMIT 3",
         $currentTables167,
         $currentTables167,
@@ -188,7 +188,7 @@ $tests['compound select window recursive limit next167 rejects missing final off
 };
 
 foreach (range(1, 54) as $case) {
-    $tests['compound select window recursive limit next167 generated intersect boundary ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit recursive-window-limit-source-classes generated intersect boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $recursiveLimit = 4 + ($case % 4);
         $finalLimit = 3 + ($case % 4);
         $tables = [

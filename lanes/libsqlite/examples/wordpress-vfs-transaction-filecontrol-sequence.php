@@ -21,7 +21,7 @@ $capability = SQLiteVfsCapabilityPlan::forFilename(
 $capability['file_controls']['size_limit'] = 8388608;
 
 $state = SQLiteVfsFileControlState::fromCapabilityPlan($capability);
-$sequence = $state->currentNext68([
+$sequence = $state->transactionFileControlSequence([
     ['op' => 'write_hint', 'value' => 16384],
     ['op' => 'begin_atomic_write'],
     ['op' => 'overwrite', 'value' => 1],

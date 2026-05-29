@@ -62,6 +62,6 @@ SELECT id,
 SQL;
 
 echo json_encode(
-    SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext167($sql, $currentTables, $nextTables),
+    SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowLimitSourceClasses($sql, $currentTables, $nextTables),
     JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR,
 ) . PHP_EOL;

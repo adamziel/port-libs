@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas397412 = [
+$schemasLedgerSegments = [
     'main' => [
         'schema_cookie' => 382,
         'tables' => ['wp_options', 'wp_posts', 'wp_postmeta', 'wp_users', 'wp_global_styles', 'wp_navigation_menus', 'wp_navigation_locations', 'wp_navigation_aliases'],
@@ -45,7 +45,7 @@ $schemas397412 = [
     ],
 ];
 
-$statements397412 = [
+$statementsLedgerSegments = [
     ['name' => 'alias-reader', 'sql' => 'SELECT alias_id FROM main.wp_navigation_aliases INDEXED BY wp_navigation_aliases_slug WHERE slug = ?', 'active' => true],
     ['name' => 'archive-reader', 'sql' => 'SELECT stage_id FROM temp.wp_theme_stage_archive INDEXED BY wp_theme_stage_archive_key WHERE cache_key = ?', 'active' => true],
     ['name' => 'capacity-reader', 'sql' => 'SELECT capacity FROM analytics.wp_event_capacity_next394 INDEXED BY wp_event_capacity_day_next394 WHERE day = ?'],
@@ -56,16 +56,16 @@ $statements397412 = [
     ['name' => 'ledger-writer', 'sql' => 'UPDATE ledger.wp_sync_ledger INDEXED BY wp_sync_ledger_status SET status = ? WHERE status = ?'],
 ];
 
-$plan397412 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
-    $schemas ?? $schemas397412,
-    $statements ?? $statements397412,
+$planLedgerSegments = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
+    $schemas ?? $schemasLedgerSegments,
+    $statements ?? $statementsLedgerSegments,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next397-412 extends next381-396'] = static function (TestRunner $t) use ($plan397412): void {
-    $result = $plan397412([
+$tests['attach temp wal schema cache ledger segments window expires changed schemas'] = static function (TestRunner $t) use ($planLedgerSegments): void {
+    $result = $planLedgerSegments([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 397, 'table' => 'wp_navigation_redirects', 'indexes' => ['wp_navigation_redirects_slug'], 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_theme_stage_archive_key', 'to' => 'wp_theme_stage_archive_key_next398'],
         ['op' => 'drop_table', 'schema' => 'analytics', 'table' => 'wp_event_capacity_next394'],
@@ -107,8 +107,8 @@ $tests['attach temp wal schema cache current source next397-412 extends next381-
     $t->same('__detached__', $result['statements']['ledger-writer']['schema_transitions'][0]['next_schema']);
 };
 
-$tests['attach temp wal schema cache current source next397-412 duplicate uncommitted churn stays stable'] = static function (TestRunner $t) use ($plan397412): void {
-    $result = $plan397412([
+$tests['attach temp wal schema cache ledger segments window duplicate uncommitted churn stays stable'] = static function (TestRunner $t) use ($planLedgerSegments): void {
+    $result = $planLedgerSegments([
         ['op' => 'attach', 'schema' => 'scratch', 'schema_cookie' => 11, 'tables' => ['wp_scratch'], 'indexes' => ['wp_scratch_key'], 'file' => '/srv/wp/scratch-next397.sqlite'],
         ['op' => 'detach', 'schema' => 'scratch'],
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 399, 'table' => 'wp_pending_next397', 'indexes' => ['wp_pending_next397_key'], 'commit' => false],
