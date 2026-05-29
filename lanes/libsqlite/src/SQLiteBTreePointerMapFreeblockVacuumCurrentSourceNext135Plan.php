@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
+require_once __DIR__ . '/SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan.php';
+
 final class SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan
 {
     /**
