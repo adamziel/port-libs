@@ -11,8 +11,12 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function plan(array $operations, array $options = []): array
+    public static function plan(array $operations, array $options = [], ?string $filename = null): array
     {
+        if ($filename !== null) {
+            return self::legacyUriShmLockPlan($operations, $options, $filename);
+        }
+
         return self::run($operations, $options, false, 'vfs-lock-byte-uri-shm-current-source-next97');
     }
 
@@ -73,7 +77,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      */
     public static function planTempUriFileControlRegression(array $operations, array $options = []): array
     {
-        return self::run($operations, $options, true, 'vfs-temp-uri-filecontrol-regression-current-source-next139', true);
+        return self::run($operations, $options, true, 'vfs-temp-uri-filecontrol-regression-current-source-next139', true, false, false, true);
     }
 
     /**
@@ -91,7 +95,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    private static function run(array $operations, array $options, bool $trackFileControls, string $dependency, bool $trackUriFileControls = false, bool $requireFreshWriteHandle = false, bool $releaseShmLocksOnClose = false): array
+    private static function run(array $operations, array $options, bool $trackFileControls, string $dependency, bool $trackUriFileControls = false, bool $requireFreshWriteHandle = false, bool $releaseShmLocksOnClose = false, bool $allowTempSource = false): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 requires operations');
@@ -106,7 +110,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
             $before = self::snapshot($state);
 
             if ($op['kind'] === 'open') {
-                $handle = self::openHandle($state, $op, $defaultFilename);
+                $handle = self::openHandle($state, $op, $defaultFilename, $allowTempSource);
                 $state['handles'][$handle['id']] = $handle;
                 $state['source_handles'][$handle['source']] = $handle['id'];
                 $state['current_source'] = $handle['source'];
@@ -127,6 +131,9 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
 
             if ($op['kind'] === 'source') {
                 $source = self::sourceName((string) $op['source']);
+                if ($source === 'temp' && !$allowTempSource) {
+                    throw new \InvalidArgumentException('SQLite VFS current source must be main, wal, or shm');
+                }
                 if (!isset($state['source_handles'][$source])) {
                     $events[] = self::event('source', 'missing-handle', $before, self::snapshot($state), ['source' => $source]);
                     continue;
@@ -168,6 +175,9 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
 
             if ($op['kind'] === 'close') {
                 $source = self::sourceFor($state, $op['source'] ?? null);
+                if ($source === 'temp' && !$allowTempSource) {
+                    throw new \InvalidArgumentException('SQLite VFS current source must be main, wal, or shm');
+                }
                 $handleId = $state['source_handles'][$source] ?? null;
                 if (!is_string($handleId) || !isset($state['handles'][$handleId])) {
                     $events[] = self::event('close', 'missing-handle', $before, self::snapshot($state), ['source' => $source]);
@@ -539,7 +549,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $op
      * @return array<string,mixed>
      */
-    private static function openHandle(array &$state, array $op, string $defaultFilename): array
+    private static function openHandle(array &$state, array $op, string $defaultFilename, bool $allowTempSource): array
     {
         $state['sequence']++;
         $filename = self::stringValue($op['filename'] ?? $defaultFilename, 'filename');
@@ -547,6 +557,9 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
         $path = self::openPath($filename, $uri);
         $memory = $path === ':memory:' || $uri['mode'] === 'memory';
         $source = isset($op['source']) && $op['source'] !== null ? self::sourceName((string) $op['source']) : self::sourceFromPath($path);
+        if ($source === 'temp' && !$allowTempSource) {
+            throw new \InvalidArgumentException('SQLite VFS current source must be main, wal, or shm');
+        }
         $temporary = $source === 'temp' || (bool) ($op['temporary'] ?? false);
         $owner = $memory
             ? 'memory:vfs97-' . $state['sequence']
