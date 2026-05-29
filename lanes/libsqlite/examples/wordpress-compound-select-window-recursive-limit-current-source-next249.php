@@ -62,31 +62,31 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext249(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowPromotionEpoch(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-next249-ready') {
-        throw new RuntimeException('unexpected next249 status');
+    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-recursive-window-promotion-epoch-ready') {
+        throw new RuntimeException('unexpected recursive-window-promotion-epoch status');
     }
-    if ($plan['compoundRecursiveWindowPromotionEpochNext249']['nextOnlyLabels'] !== ['plugin_prime']) {
+    if ($plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['nextOnlyLabels'] !== ['plugin_prime']) {
         throw new RuntimeException('unexpected next-only promotion labels');
     }
-    if ($plan['compoundRecursiveWindowPromotionEpochNext249']['nextWindowMetrics'] !== [2, 2, 3, 3]) {
+    if ($plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['nextWindowMetrics'] !== [2, 2, 3, 3]) {
         throw new RuntimeException('unexpected next window metrics');
     }
 
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next249 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-recursive-window-promotion-epoch self-test passed\n";
     return;
 }
 
 echo json_encode([
     'status' => $plan['status'],
-    'currentLabels' => $plan['compoundRecursiveWindowPromotionEpochNext249']['currentLabels'],
-    'nextLabels' => $plan['compoundRecursiveWindowPromotionEpochNext249']['nextLabels'],
-    'requiredPromotionEpochAckCount' => $plan['compoundRecursiveWindowPromotionEpochNext249']['requiredPromotionEpochAckCount'],
-    'nextExposure' => $plan['compoundRecursiveWindowPromotionEpochNext249']['nextExposure'],
+    'currentLabels' => $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['currentLabels'],
+    'nextLabels' => $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['nextLabels'],
+    'requiredPromotionEpochAckCount' => $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['requiredPromotionEpochAckCount'],
+    'nextExposure' => $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['nextExposure'],
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";

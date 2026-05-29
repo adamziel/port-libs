@@ -63,25 +63,25 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary249 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext249($sql249, $currentTables249, $nextTables249, $cursor);
+$summary249 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowPromotionEpoch($sql249, $currentTables249, $nextTables249, $cursor);
 $tests = [];
 
-$tests['compound select window recursive limit current source next249 status dependencies'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch status dependencies'] = static function (TestRunner $t) use ($summary249): void {
     $plan = $summary249();
-    $t->same('compound-select-window-recursive-limit-current-source-next249-ready', $plan['status']);
-    $t->true(in_array('sqlite-compound-window-recursive-promotion-epoch-next249', $plan['dependencies'], true));
+    $t->same('compound-select-window-recursive-limit-current-source-recursive-window-promotion-epoch-ready', $plan['status']);
+    $t->true(in_array('sqlite-compound-window-recursive-promotion-epoch-recursive-window-promotion-epoch', $plan['dependencies'], true));
     $t->contains('recursive-lineage/window-metric epoch fence', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit current source next249 keeps next245 snapshot'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch keeps next245 snapshot'] = static function (TestRunner $t) use ($summary249): void {
     $plan = $summary249();
     $t->same(2, $plan['compoundNextSourcePromotionSnapshotNext245']['requiredPromotionTicketCount']);
     $t->same(['plugin_prime'], $plan['compoundNextSourcePromotionSnapshotNext245']['nextOnlyLabels']);
     $t->same(['rewrite_rules'], $plan['compoundNextSourcePromotionSnapshotNext245']['currentOnlyLabels']);
 };
 
-$tests['compound select window recursive limit current source next249 epoch token shape'] = static function (TestRunner $t) use ($summary249): void {
-    $epoch = $summary249()['compoundRecursiveWindowPromotionEpochNext249'];
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch epoch token shape'] = static function (TestRunner $t) use ($summary249): void {
+    $epoch = $summary249()['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch'];
     $t->same(64, strlen($epoch['promotionEpochToken']));
     $t->same(64, strlen($epoch['recursiveLineageToken']));
     $t->same(64, strlen($epoch['windowMetricToken']));
@@ -91,8 +91,8 @@ $tests['compound select window recursive limit current source next249 epoch toke
     $t->same('metrics:', substr($epoch['requiredPromotionEpochAcks'][2], 0, 8));
 };
 
-$tests['compound select window recursive limit current source next249 labels and metrics'] = static function (TestRunner $t) use ($summary249): void {
-    $epoch = $summary249()['compoundRecursiveWindowPromotionEpochNext249'];
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch labels and metrics'] = static function (TestRunner $t) use ($summary249): void {
+    $epoch = $summary249()['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch'];
     $t->same(['home', 'seed:2:3', 'rewrite_rules', 'seed:2:3:4'], $epoch['currentLabels']);
     $t->same(['plugin_prime', 'seed:2:3', 'home', 'seed:2:3:4'], $epoch['nextLabels']);
     $t->same([2, 2, 3, 3], $epoch['currentWindowMetrics']);
@@ -100,18 +100,18 @@ $tests['compound select window recursive limit current source next249 labels and
     $t->same(false, $epoch['windowMetricsChanged']);
 };
 
-$tests['compound select window recursive limit current source next249 recursive lineage'] = static function (TestRunner $t) use ($summary249): void {
-    $lineage = $summary249()['compoundRecursiveWindowPromotionEpochNext249']['recursiveLineage'];
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch recursive lineage'] = static function (TestRunner $t) use ($summary249): void {
+    $lineage = $summary249()['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['recursiveLineage'];
     $t->same(['seed:2', 'seed:2:3', 'seed:2:3:4', 'seed:2:3:4:5', 'seed:2:3:4:5:6', 'seed:2:3:4:5:6:7'], $lineage['currentEmittedLabels']);
     $t->same(['seed:2', 'seed:2:3', 'seed:2:3:4', 'seed:2:3:4:5', 'seed:2:3:4:5:6', 'seed:2:3:4:5:6:7'], $lineage['nextEmittedLabels']);
     $t->same(['seed'], $lineage['currentSkippedLabels']);
     $t->same(['seed'], $lineage['nextSkippedLabels']);
-    $t->same(true, $summary249()['compoundRecursiveWindowPromotionEpochNext249']['lineageChanged']);
+    $t->same(true, $summary249()['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['lineageChanged']);
 };
 
-$tests['compound select window recursive limit current source next249 promotion tokens are bound'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch promotion tokens are bound'] = static function (TestRunner $t) use ($summary249): void {
     $plan = $summary249();
-    $epoch = $plan['compoundRecursiveWindowPromotionEpochNext249'];
+    $epoch = $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch'];
     $promotion = $plan['compoundNextSourcePromotionSnapshotNext245'];
     $t->same($promotion['promotionSnapshotToken'], $epoch['promotionSnapshotToken']);
     $t->same($promotion['nextSourceDeltaToken'], $epoch['nextSourceDeltaToken']);
@@ -120,73 +120,73 @@ $tests['compound select window recursive limit current source next249 promotion 
     $t->same(['rewrite_rules'], $epoch['currentOnlyLabels']);
 };
 
-$tests['compound select window recursive limit current source next249 cursor carries epoch'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch cursor carries epoch'] = static function (TestRunner $t) use ($summary249): void {
     $plan = $summary249();
     $cursor = $plan['cursor'];
-    $epoch = $plan['compoundRecursiveWindowPromotionEpochNext249'];
-    $t->same($epoch['promotionEpochToken'], $cursor['promotionEpochTokenNext249']);
-    $t->same($epoch['recursiveLineageToken'], $cursor['recursiveLineageTokenNext249']);
-    $t->same($epoch['windowMetricToken'], $cursor['windowMetricTokenNext249']);
-    $t->same($epoch['requiredPromotionEpochAcks'], $cursor['requiredPromotionEpochAcksNext249']);
-    $t->same('held-until-recursive-lineage-window-metrics-and-promotion-epoch-match', $cursor['nextExposureNext249']);
+    $epoch = $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch'];
+    $t->same($epoch['promotionEpochToken'], $cursor['promotionEpochTokenRecursiveWindowPromotionEpoch']);
+    $t->same($epoch['recursiveLineageToken'], $cursor['recursiveLineageTokenRecursiveWindowPromotionEpoch']);
+    $t->same($epoch['windowMetricToken'], $cursor['windowMetricTokenRecursiveWindowPromotionEpoch']);
+    $t->same($epoch['requiredPromotionEpochAcks'], $cursor['requiredPromotionEpochAcksRecursiveWindowPromotionEpoch']);
+    $t->same('held-until-recursive-lineage-window-metrics-and-promotion-epoch-match', $cursor['nextExposureRecursiveWindowPromotionEpoch']);
 };
 
-$tests['compound select window recursive limit current source next249 accepts exact epoch acknowledgements'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch accepts exact epoch acknowledgements'] = static function (TestRunner $t) use ($summary249): void {
     $plan = $summary249();
     $cursor = $plan['cursor'];
     $cursor['acknowledgedCurrentDequeueAcksNext237'] = $plan['currentSourceDequeueNext237']['requiredCurrentDequeueAcks'];
     $cursor['acknowledgedSpilloverAcksNext240'] = $plan['compoundFinalPageSpilloverDrainNext240']['requiredSpilloverAcks'];
     $cursor['acknowledgedReplayTicketsNext243'] = $plan['compoundWindowReplayFenceNext243']['requiredReplayTickets'];
     $cursor['acknowledgedPromotionTicketsNext245'] = $plan['compoundNextSourcePromotionSnapshotNext245']['requiredPromotionTickets'];
-    $cursor['acknowledgedPromotionEpochAcksNext249'] = $plan['compoundRecursiveWindowPromotionEpochNext249']['requiredPromotionEpochAcks'];
+    $cursor['acknowledgedPromotionEpochAcksRecursiveWindowPromotionEpoch'] = $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['requiredPromotionEpochAcks'];
     $again = $summary249($cursor);
-    $t->same($plan['compoundRecursiveWindowPromotionEpochNext249']['promotionEpochToken'], $again['compoundRecursiveWindowPromotionEpochNext249']['promotionEpochToken']);
-    $t->same($plan['compoundRecursiveWindowPromotionEpochNext249']['windowMetricToken'], $again['compoundRecursiveWindowPromotionEpochNext249']['windowMetricToken']);
+    $t->same($plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['promotionEpochToken'], $again['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['promotionEpochToken']);
+    $t->same($plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['windowMetricToken'], $again['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['windowMetricToken']);
 };
 
-$tests['compound select window recursive limit current source next249 rejects stale epoch token'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch rejects stale epoch token'] = static function (TestRunner $t) use ($summary249): void {
     $cursor = $summary249()['cursor'];
-    $cursor['promotionEpochTokenNext249'] = str_repeat('1', 64);
+    $cursor['promotionEpochTokenRecursiveWindowPromotionEpoch'] = str_repeat('1', 64);
     $t->throws(InvalidArgumentException::class, static fn () => $summary249($cursor));
 };
 
-$tests['compound select window recursive limit current source next249 rejects stale lineage token'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch rejects stale lineage token'] = static function (TestRunner $t) use ($summary249): void {
     $cursor = $summary249()['cursor'];
-    $cursor['recursiveLineageTokenNext249'] = str_repeat('2', 64);
+    $cursor['recursiveLineageTokenRecursiveWindowPromotionEpoch'] = str_repeat('2', 64);
     $t->throws(InvalidArgumentException::class, static fn () => $summary249($cursor));
 };
 
-$tests['compound select window recursive limit current source next249 rejects stale metric token'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch rejects stale metric token'] = static function (TestRunner $t) use ($summary249): void {
     $cursor = $summary249()['cursor'];
-    $cursor['windowMetricTokenNext249'] = str_repeat('3', 64);
+    $cursor['windowMetricTokenRecursiveWindowPromotionEpoch'] = str_repeat('3', 64);
     $t->throws(InvalidArgumentException::class, static fn () => $summary249($cursor));
 };
 
-$tests['compound select window recursive limit current source next249 rejects missing epoch ack'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch rejects missing epoch ack'] = static function (TestRunner $t) use ($summary249): void {
     $cursor = $summary249()['cursor'];
-    $cursor['acknowledgedPromotionEpochAcksNext249'] = array_slice($cursor['requiredPromotionEpochAcksNext249'], 0, 2);
+    $cursor['acknowledgedPromotionEpochAcksRecursiveWindowPromotionEpoch'] = array_slice($cursor['requiredPromotionEpochAcksRecursiveWindowPromotionEpoch'], 0, 2);
     $t->throws(InvalidArgumentException::class, static fn () => $summary249($cursor));
 };
 
-$tests['compound select window recursive limit current source next249 rejects unexpected epoch ack'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch rejects unexpected epoch ack'] = static function (TestRunner $t) use ($summary249): void {
     $cursor = $summary249()['cursor'];
-    $cursor['acknowledgedPromotionEpochAcksNext249'] = [...$cursor['requiredPromotionEpochAcksNext249'], 'metrics:' . str_repeat('4', 64)];
+    $cursor['acknowledgedPromotionEpochAcksRecursiveWindowPromotionEpoch'] = [...$cursor['requiredPromotionEpochAcksRecursiveWindowPromotionEpoch'], 'metrics:' . str_repeat('4', 64)];
     $t->throws(InvalidArgumentException::class, static fn () => $summary249($cursor));
 };
 
-$tests['compound select window recursive limit current source next249 executor parity'] = static function (TestRunner $t) use ($sql249, $currentTables249, $summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch executor parity'] = static function (TestRunner $t) use ($sql249, $currentTables249, $summary249): void {
     $t->same(SQLiteSelectSql::execute($sql249, $currentTables249), $summary249()['currentRows']);
 };
 
-$tests['compound select window recursive limit current source next249 non overlap'] = static function (TestRunner $t) use ($summary249): void {
+$tests['compound select window recursive limit current source recursive-window-promotion-epoch non overlap'] = static function (TestRunner $t) use ($summary249): void {
     $plan = $summary249();
     $t->contains('extends accepted next245', $plan['non_overlap']);
-    $t->true(in_array('compound-window-recursive-promotion-epoch-next249', $plan['replanReasons'], true));
-    $t->true(in_array('next-source-held-until-recursive-lineage-and-window-metrics-next249', $plan['replanReasons'], true));
+    $t->true(in_array('compound-window-recursive-promotion-epoch-recursive-window-promotion-epoch', $plan['replanReasons'], true));
+    $t->true(in_array('next-source-held-until-recursive-lineage-and-window-metrics-recursive-window-promotion-epoch', $plan['replanReasons'], true));
 };
 
 foreach (range(1, 72) as $case) {
-    $tests['compound select window recursive limit current source next249 generated promotion epoch ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit current source recursive-window-promotion-epoch generated promotion epoch ' . $case] = static function (TestRunner $t) use ($case): void {
         $tables = [
             'wp_options' => [
                 ['option_id' => 1, 'option_name' => 'siteurl_' . $case, 'autoload' => 'yes', 'score' => 100 + $case],
@@ -198,15 +198,15 @@ foreach (range(1, 72) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 95 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (130 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes' INTERSECT SELECT id, label, metric FROM (SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes') EXCEPT SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE option_name IN ('siteurl_{$case}') ORDER BY metric, label LIMIT 4 OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext249($sql, $tables, $nextTables);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowPromotionEpoch($sql, $tables, $nextTables);
         $cursor = $plan['cursor'];
         $cursor['acknowledgedCurrentDequeueAcksNext237'] = $plan['currentSourceDequeueNext237']['requiredCurrentDequeueAcks'];
         $cursor['acknowledgedSpilloverAcksNext240'] = $plan['compoundFinalPageSpilloverDrainNext240']['requiredSpilloverAcks'];
         $cursor['acknowledgedReplayTicketsNext243'] = $plan['compoundWindowReplayFenceNext243']['requiredReplayTickets'];
         $cursor['acknowledgedPromotionTicketsNext245'] = $plan['compoundNextSourcePromotionSnapshotNext245']['requiredPromotionTickets'];
-        $cursor['acknowledgedPromotionEpochAcksNext249'] = $plan['compoundRecursiveWindowPromotionEpochNext249']['requiredPromotionEpochAcks'];
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext249($sql, $tables, $nextTables, $cursor);
-        $epoch = $plan['compoundRecursiveWindowPromotionEpochNext249'];
+        $cursor['acknowledgedPromotionEpochAcksRecursiveWindowPromotionEpoch'] = $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['requiredPromotionEpochAcks'];
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveWindowPromotionEpoch($sql, $tables, $nextTables, $cursor);
+        $epoch = $plan['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch'];
 
         $t->same(['plugin_' . $case, 'seed_' . $case . ':2:3', 'home_' . $case, 'seed_' . $case . ':2:3:4'], $epoch['nextLabels']);
         $t->same(['plugin_' . $case], $epoch['nextOnlyLabels']);
@@ -214,8 +214,8 @@ foreach (range(1, 72) as $case) {
         $t->same([2, 2, 3, 3], $epoch['currentWindowMetrics']);
         $t->same([2, 2, 3, 3], $epoch['nextWindowMetrics']);
         $t->same(3, $epoch['requiredPromotionEpochAckCount']);
-        $t->same($epoch['promotionEpochToken'], $again['compoundRecursiveWindowPromotionEpochNext249']['promotionEpochToken']);
-        $t->same('held-until-recursive-lineage-window-metrics-and-promotion-epoch-match', $again['cursor']['nextExposureNext249']);
+        $t->same($epoch['promotionEpochToken'], $again['compoundRecursiveWindowPromotionEpochRecursiveWindowPromotionEpoch']['promotionEpochToken']);
+        $t->same('held-until-recursive-lineage-window-metrics-and-promotion-epoch-match', $again['cursor']['nextExposureRecursiveWindowPromotionEpoch']);
     };
 }
 

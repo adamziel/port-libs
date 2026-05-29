@@ -50,7 +50,7 @@ $savepoints->savepoint('transient-row');
 $savepoints->recordWalFrameWrite(6, 5, true);
 
 $wal = SQLiteWal::parse($walBytes, $pageSize, true);
-$plan = SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext90(
+$plan = SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointPinnedCurrentSourceNext(
     $savepoints,
     'plugin-settings',
     $wal,

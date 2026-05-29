@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for current-source admission before hot rollback-journal plus savepoint WAL replay.
 
-This slice adds `SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext87()`. The planner now verifies that the parsed rollback journal and parsed WAL exactly match the raw current journal/WAL bytes before hot-journal recovery, savepoint WAL prefix truncation, checkpoint image generation, or replay operations are produced. It rejects stale parsed journals, stale parsed WALs, mutated journal bytes, mutated WAL bytes, and empty journal bytes before applying a mixed-source recovery plan.
+This slice adds `SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext()`. The planner now verifies that the parsed rollback journal and parsed WAL exactly match the raw current journal/WAL bytes before hot-journal recovery, savepoint WAL prefix truncation, checkpoint image generation, or replay operations are produced. It rejects stale parsed journals, stale parsed WALs, mutated journal bytes, mutated WAL bytes, and empty journal bytes before applying a mixed-source recovery plan.
 
 Verification:
 

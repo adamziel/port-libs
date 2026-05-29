@@ -51,7 +51,7 @@ $makeShm = static function (array $readMarks, array $readLocks, int $backfill, i
 };
 
 $wal = SQLiteWal::parse($walBytes, null, true);
-$plan = $wal->checkpointReaderPinRestartCurrentNext76(
+$plan = $wal->checkpointReaderPinRestartCurrentNext(
     $databaseBytes,
     SQLiteShmIndex::parse($makeShm([0, 2, null, null, null], [false, true, false, false, false], 1, 4)),
     SQLiteShmIndex::parse($makeShm([0, 2, 7, null, null], [false, true, true, false, false], 1, 6)),

@@ -73,7 +73,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (string $mode = 'restart'): array => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext99(
+$plan = static fn (string $mode = 'restart'): array => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointRecoveryCurrentSourceNext(
     $makeStack(),
     'plugin-settings',
     $wal,
@@ -159,7 +159,7 @@ $cases = [
     'truncate released sources' => [static fn (): mixed => $truncate()['released_next_sources'], ['database', 'database', 'database', 'database', 'database']],
     'invalid mode rejected' => [static function () use ($makeStack, $wal, $walBytes, $databaseBytes): string {
         try {
-            SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext99($makeStack(), 'plugin-settings', $wal, $walBytes, $databaseBytes, [1], 'passive');
+            SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointRecoveryCurrentSourceNext($makeStack(), 'plugin-settings', $wal, $walBytes, $databaseBytes, [1], 'passive');
         } catch (InvalidArgumentException $exception) {
             return $exception->getMessage();
         }
@@ -168,7 +168,7 @@ $cases = [
     }, 'SQLite WAL savepoint reader checkpoint current-source next99 requires restart or truncate mode'],
     'empty page list rejected' => [static function () use ($makeStack, $wal, $walBytes, $databaseBytes): string {
         try {
-            SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext99($makeStack(), 'plugin-settings', $wal, $walBytes, $databaseBytes, []);
+            SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointRecoveryCurrentSourceNext($makeStack(), 'plugin-settings', $wal, $walBytes, $databaseBytes, []);
         } catch (InvalidArgumentException $exception) {
             return $exception->getMessage();
         }
@@ -177,7 +177,7 @@ $cases = [
     }, 'SQLite WAL savepoint reader checkpoint current-source next99 requires at least one page number'],
     'mutated source rejected' => [static function () use ($makeStack, $wal, $mutatedWalBytes, $databaseBytes): string {
         try {
-            SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext99($makeStack(), 'plugin-settings', $wal, $mutatedWalBytes, $databaseBytes, [1]);
+            SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointRecoveryCurrentSourceNext($makeStack(), 'plugin-settings', $wal, $mutatedWalBytes, $databaseBytes, [1]);
         } catch (InvalidArgumentException $exception) {
             return $exception->getMessage();
         }
@@ -186,7 +186,7 @@ $cases = [
     }, 'SQLite WAL savepoint checkpoint current source frame 4 mismatch'],
     'stale parsed wal rejected' => [static function () use ($makeStack, $mutatedWal, $walBytes, $databaseBytes): string {
         try {
-            SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext99($makeStack(), 'plugin-settings', $mutatedWal, $walBytes, $databaseBytes, [1]);
+            SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointRecoveryCurrentSourceNext($makeStack(), 'plugin-settings', $mutatedWal, $walBytes, $databaseBytes, [1]);
         } catch (InvalidArgumentException $exception) {
             return $exception->getMessage();
         }

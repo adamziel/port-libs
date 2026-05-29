@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for WAL restart/truncate reader current-source admission.
 
-This slice adds `SQLiteWal::restartTruncateReaderCurrentSourceNext86()`. It validates that raw WAL bytes still match the parsed current WAL header salt, checkpoint sequence, page size, and frame count before applying a drained-reader `RESTART` or `TRUNCATE` checkpoint boundary. Safe current-source bytes preserve current-reader page visibility, then expose the checkpointed database image plus restarted header or empty WAL to next readers. Stale salt, stale checkpoint sequence, shortened frame counts, stale parsed WAL objects, invalid modes, and invalid reader/page inputs are rejected before any reset/truncate decision is trusted.
+This slice adds `SQLiteWal::restartTruncateReaderCurrentSourceNext()`. It validates that raw WAL bytes still match the parsed current WAL header salt, checkpoint sequence, page size, and frame count before applying a drained-reader `RESTART` or `TRUNCATE` checkpoint boundary. Safe current-source bytes preserve current-reader page visibility, then expose the checkpointed database image plus restarted header or empty WAL to next readers. Stale salt, stale checkpoint sequence, shortened frame counts, stale parsed WAL objects, invalid modes, and invalid reader/page inputs are rejected before any reset/truncate decision is trusted.
 
 Focused evidence:
 

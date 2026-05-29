@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for WAL savepoint RELEASE checkpoint current
 
 ## Behavior
 
-- `SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext84()` now verifies that the parsed `SQLiteWal` object matches the raw current WAL bytes before checkpointing a released savepoint.
+- `SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext()` now verifies that the parsed `SQLiteWal` object matches the raw current WAL bytes before checkpointing a released savepoint.
 - The guard rejects stale raw WAL bytes with a different salt, different checkpoint sequence, or shorter frame set, and rejects a stale parsed WAL paired with current bytes.
 - Safe matching WAL bytes still preserve release/current/next reader visibility for restarted, truncated, and reader-pinned checkpoint paths.
 

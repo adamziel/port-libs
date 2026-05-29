@@ -50,7 +50,7 @@ $mutatedWalBytes = $makeWalBytes([
 ]);
 $staleHeaderBytes = $makeWalBytes($frames, 109);
 
-$plan = static fn (?int $current = 2, ?int $next = null, array $pages = [1, 2, 3, 4, 5]): array => $wal->checkpointSnapshotCurrentSourceNext108(
+$plan = static fn (?int $current = 2, ?int $next = null, array $pages = [1, 2, 3, 4, 5]): array => $wal->checkpointSnapshotCurrentSourceNext(
     $walBytes,
     $databaseBytes,
     $pages,
@@ -139,35 +139,35 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal reader checkpoint snapshot current source next108 rejects empty pages'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext108($walBytes, $databaseBytes, [], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext($walBytes, $databaseBytes, [], 2));
 };
 
 $tests['wal reader checkpoint snapshot current source next108 rejects negative current reader'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext108($walBytes, $databaseBytes, [1], -1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext($walBytes, $databaseBytes, [1], -1));
 };
 
 $tests['wal reader checkpoint snapshot current source next108 rejects current reader past mx frame'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext108($walBytes, $databaseBytes, [1], 7));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext($walBytes, $databaseBytes, [1], 7));
 };
 
 $tests['wal reader checkpoint snapshot current source next108 rejects negative next reader'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext108($walBytes, $databaseBytes, [1], 2, -1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext($walBytes, $databaseBytes, [1], 2, -1));
 };
 
 $tests['wal reader checkpoint snapshot current source next108 rejects next reader past mx frame'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext108($walBytes, $databaseBytes, [1], 2, 7));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext($walBytes, $databaseBytes, [1], 2, 7));
 };
 
 $tests['wal reader checkpoint snapshot current source next108 rejects non integer page'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext108($walBytes, $databaseBytes, ['1'], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext($walBytes, $databaseBytes, ['1'], 2));
 };
 
 $tests['wal reader checkpoint snapshot current source next108 rejects stale header source'] = static function (TestRunner $t) use ($wal, $staleHeaderBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext108($staleHeaderBytes, $databaseBytes, [1], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext($staleHeaderBytes, $databaseBytes, [1], 2));
 };
 
 $tests['wal reader checkpoint snapshot current source next108 rejects mutated frame source'] = static function (TestRunner $t) use ($wal, $mutatedWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext108($mutatedWalBytes, $databaseBytes, [1], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointSnapshotCurrentSourceNext($mutatedWalBytes, $databaseBytes, [1], 2));
 };
 
 return $tests;

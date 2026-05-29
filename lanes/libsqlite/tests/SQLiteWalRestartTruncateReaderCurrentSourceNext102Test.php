@@ -61,7 +61,7 @@ $currentShm = SQLiteShmIndex::parse($makeShm([0, 2, null, null, null], [false, t
 $nextReaderShm = SQLiteShmIndex::parse($makeShm([0, 2, 8, null, null], [false, true, true, false, false], 1, 7));
 $allReleasedShm = SQLiteShmIndex::parse($makeShm([0, null, null, null, null], [false, false, false, false, false], 8, 8));
 
-$plan = static fn (): array => $wal->checkpointRestartTruncateReaderCurrentSourceNext102(
+$plan = static fn (): array => $wal->checkpointRestartTruncateReaderRecoveryCurrentSourceNext(
     $databaseBytes,
     $walBytes,
     $currentShm,
@@ -142,21 +142,21 @@ foreach ($cases as $name => [$callback, $expected]) {
 
 $tests['wal restart truncate reader current source next102 rejects stale wal bytes'] = static function (TestRunner $t) use ($wal, $makeWal, $frames, $databaseBytes, $currentShm, $nextReaderShm, $allReleasedShm): void {
     $staleBytes = $makeWal($frames, 103);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderCurrentSourceNext102($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $allReleasedShm, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderRecoveryCurrentSourceNext($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $allReleasedShm, [2]));
 };
 
 $tests['wal restart truncate reader current source next102 rejects shm salt mismatch'] = static function (TestRunner $t) use ($wal, $walBytes, $makeShm, $databaseBytes, $nextReaderShm, $allReleasedShm): void {
     $badShm = SQLiteShmIndex::parse($makeShm([0, 2], [false, true], 1, 4, 8, 0x10211224));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderCurrentSourceNext102($databaseBytes, $walBytes, $badShm, $nextReaderShm, $allReleasedShm, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderRecoveryCurrentSourceNext($databaseBytes, $walBytes, $badShm, $nextReaderShm, $allReleasedShm, [2]));
 };
 
 $tests['wal restart truncate reader current source next102 rejects shm mx frame mismatch'] = static function (TestRunner $t) use ($wal, $walBytes, $makeShm, $databaseBytes, $nextReaderShm, $allReleasedShm): void {
     $badShm = SQLiteShmIndex::parse($makeShm([0, 2], [false, true], 1, 4, 7));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderCurrentSourceNext102($databaseBytes, $walBytes, $badShm, $nextReaderShm, $allReleasedShm, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderRecoveryCurrentSourceNext($databaseBytes, $walBytes, $badShm, $nextReaderShm, $allReleasedShm, [2]));
 };
 
 $tests['wal restart truncate reader current source next102 rejects empty page list'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $currentShm, $nextReaderShm, $allReleasedShm): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderCurrentSourceNext102($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $allReleasedShm, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderRecoveryCurrentSourceNext($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $allReleasedShm, []));
 };
 
 return $tests;

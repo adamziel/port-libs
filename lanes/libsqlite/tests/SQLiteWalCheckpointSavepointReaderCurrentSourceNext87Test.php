@@ -57,7 +57,7 @@ $makeStack = static function () use ($page): SQLiteSavepointStack {
     return $stack;
 };
 
-$restart = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87(
+$restart = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext(
     $makeStack(),
     'plugin-batch',
     $wal,
@@ -67,7 +67,7 @@ $restart = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBounda
     'restart'
 );
 
-$truncate = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87(
+$truncate = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext(
     $makeStack(),
     'plugin-batch',
     $wal,
@@ -77,7 +77,7 @@ $truncate = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBound
     'truncate'
 );
 
-$busy = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87(
+$busy = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext(
     $makeStack(),
     'plugin-batch',
     $wal,
@@ -88,7 +88,7 @@ $busy = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBoundaryC
     1
 );
 
-$passive = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87(
+$passive = static fn (): array => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext(
     $makeStack(),
     'plugin-batch',
     $wal,
@@ -175,7 +175,7 @@ $tests['wal checkpoint savepoint reader current source next87 rejects stale chec
         [1, 0, 'wal schema retained current source next87'],
         [2, 4, 'wal active_plugins retained commit next87'],
     ], 88);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87($makeStack(), 'plugin-batch', $wal, $staleBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext($makeStack(), 'plugin-batch', $wal, $staleBytes, $databaseBytes, [1]));
 };
 
 $tests['wal checkpoint savepoint reader current source next87 rejects stale salt source'] = static function (TestRunner $t) use ($makeStack, $wal, $makeWal, $databaseBytes): void {
@@ -186,7 +186,7 @@ $tests['wal checkpoint savepoint reader current source next87 rejects stale salt
         [2, 0, 'wal rolled back option draft next87'],
         [4, 4, 'wal rolled back transient commit next87'],
     ], 87, 0x20260588, 0x87000001);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87($makeStack(), 'plugin-batch', $wal, $staleBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext($makeStack(), 'plugin-batch', $wal, $staleBytes, $databaseBytes, [1]));
 };
 
 $tests['wal checkpoint savepoint reader current source next87 rejects stale frame count'] = static function (TestRunner $t) use ($makeStack, $wal, $makeWal, $databaseBytes): void {
@@ -194,19 +194,19 @@ $tests['wal checkpoint savepoint reader current source next87 rejects stale fram
         [1, 0, 'wal schema retained current source next87'],
         [2, 4, 'wal active_plugins retained commit next87'],
     ]);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87($makeStack(), 'plugin-batch', $wal, $staleBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext($makeStack(), 'plugin-batch', $wal, $staleBytes, $databaseBytes, [1]));
 };
 
 $tests['wal checkpoint savepoint reader current source next87 rejects empty pages'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87($makeStack(), 'plugin-batch', $wal, $walBytes, $databaseBytes, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext($makeStack(), 'plugin-batch', $wal, $walBytes, $databaseBytes, []));
 };
 
 $tests['wal checkpoint savepoint reader current source next87 rejects non integer page'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87($makeStack(), 'plugin-batch', $wal, $walBytes, $databaseBytes, ['2']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext($makeStack(), 'plugin-batch', $wal, $walBytes, $databaseBytes, ['2']));
 };
 
 $tests['wal checkpoint savepoint reader current source next87 rejects missing savepoint'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87($makeStack(), 'missing', $wal, $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext($makeStack(), 'missing', $wal, $walBytes, $databaseBytes, [1]));
 };
 
 return $tests;

@@ -50,7 +50,7 @@ $savepoints->savepoint('transient-cache');
 $savepoints->recordPageImageWrite(5, $page('db transient before savepoint'));
 $savepoints->recordWalFrameWrite(5, 5, true);
 
-$plan = SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext85(
+$plan = SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext(
     $savepoints,
     'plugin-settings',
     $wal,

@@ -55,7 +55,7 @@ $walBytes = $makeWal([
 ]);
 
 $wal = SQLiteWal::parse($walBytes, null, true);
-$plan = $wal->checkpointReaderRestartCurrentSourceNext89(
+$plan = $wal->checkpointReaderRestartCurrentSourceNext(
     $databaseBytes,
     $walBytes,
     SQLiteShmIndex::parse($makeShm([0, 2, null, null, null], [false, true, false, false, false], 1, 4)),

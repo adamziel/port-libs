@@ -17,8 +17,8 @@ The covered WordPress path is an import cleanup batch over copied
 
 Focused evidence:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext141Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-delete-update-savepoint-current-source-next141.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextTest.php`
+- `php lanes/libsqlite/examples/wordpress-rowvalue-delete-update-savepoint-between-cleanup.php`
 
 Non-overlap:
 

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext90()`, an additive current-source wrapper for the existing savepoint rollback/checkpoint reader path. The new behavior verifies that the supplied current WAL bytes are the exact source for the parsed `SQLiteWal` object at frame granularity, not only by header salt/checkpoint sequence and frame count.
+Adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointPinnedCurrentSourceNext()`, an additive current-source wrapper for the existing savepoint rollback/checkpoint reader path. The new behavior verifies that the supplied current WAL bytes are the exact source for the parsed `SQLiteWal` object at frame granularity, not only by header salt/checkpoint sequence and frame count.
 
 The planner now reports exact frame-source rows with frame index, page number, commit-frame marker, database page count after commit, source byte offset/length, and page-image SHA-256. A stale parsed WAL object or stale WAL byte source with matching header and frame count but different frame image is rejected before checkpoint planning.
 

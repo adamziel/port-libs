@@ -28,7 +28,7 @@ $statements = [
     ['name' => 'archive-reader', 'sql' => 'SELECT archive_id FROM archive.wp_schema_archive_final_next1036 INDEXED BY wp_schema_archive_final_key_next1036 WHERE archive_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext10211036($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::finalSchemaCacheAttachWindow($schemas, $statements, [
     ['op' => 'drop_table', 'schema' => 'temp', 'table' => 'wp_import_stage_shadow_next1021'],
     ['op' => 'rename_index', 'schema' => 'review', 'from' => 'wp_schema_review_receipt_key_next1016', 'to' => 'wp_schema_review_receipt_key_next1026'],
     ['op' => 'rename_table', 'schema' => 'publish', 'from' => 'wp_schema_publish_final_next1018', 'to' => 'wp_schema_publish_final_next1030'],
@@ -41,7 +41,7 @@ $plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext10
 ]);
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['operation'] === 'attach-wal-temp-schema-cache-current-source-next1021-1036');
+    assert($plan['operation'] === 'attach-wal-temp-schema-cache-final-attach-window');
     assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-current-source-next1021');
     assert($plan['dependencies'][15] === 'sqlite-attach-temp-wal-schema-cache-current-source-next1036');
     assert(in_array('sqlite-attach-temp-wal-schema-cache-current-source-next1020', $plan['dependencies'], true));
@@ -60,7 +60,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['archive-reader']['schema_transitions'][0]['next_schema'] === 'archive');
     assert($plan['stable_statements'] === []);
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next1021-1036 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-final-attach-window self-test passed\n";
     return;
 }
 

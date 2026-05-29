@@ -34,7 +34,7 @@ $append(2, 0, $page('wp119 active_plugins latest checkpointed frame'));
 $append(4, 5, $page('wp119 cron latest checkpointed frame'));
 
 $wal = SQLiteWal::parse($walBytes, null, true);
-$plan = $wal->restartTruncateReaderPinCurrentSourceNext119(
+$plan = $wal->restartTruncateReaderPinCurrentSourceNext(
     $walBytes,
     $databaseBytes,
     [2, 3, 4, 5],

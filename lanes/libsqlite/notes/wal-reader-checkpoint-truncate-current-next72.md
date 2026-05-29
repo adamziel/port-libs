@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for a drained-reader TRUNCATE checkpoint boundary.
 
-This slice adds `SQLiteWal::checkpointTruncateCurrentNext72()`. It captures the current reader snapshot through a chosen WAL frame, applies a TRUNCATE checkpoint after readers have drained, removes the WAL sidecar, and proves the next reader resolves the same latest committed page images from the checkpointed database image rather than from WAL frames.
+This slice adds `SQLiteWal::checkpointTruncateCurrentNext()`. It captures the current reader snapshot through a chosen WAL frame, applies a TRUNCATE checkpoint after readers have drained, removes the WAL sidecar, and proves the next reader resolves the same latest committed page images from the checkpointed database image rather than from WAL frames.
 
 Verification:
 

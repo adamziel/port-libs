@@ -2,7 +2,7 @@
 
 ## Scope
 
-Adds `SQLitePagerHotJournalWalRecoveryPlan::savepointCurrentSourceNext85()` for the pager ordering edge where a hot rollback journal first restores the database image, then the current WAL source is rolled back to a savepoint prefix and checkpointed for the next reader.
+Adds `SQLitePagerHotJournalWalRecoveryPlan::savepointWalRecoveryCurrentSourceNext()` for the pager ordering edge where a hot rollback journal first restores the database image, then the current WAL source is rolled back to a savepoint prefix and checkpointed for the next reader.
 
 This avoids the accepted hot-journal apply, WAL byte-truncation, VFS savepoint rollback, super-journal commit, WAL recovery checkpoint, and batch82 WAL savepoint master-journal surfaces. The new behavior proves the cross-boundary source order: dirty database pages are replaced by rollback-journal pages before retained WAL frames are considered current, while rolled-back WAL savepoint frames disappear before the next reader opens.
 

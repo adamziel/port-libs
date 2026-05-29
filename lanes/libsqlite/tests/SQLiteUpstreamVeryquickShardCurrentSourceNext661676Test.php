@@ -81,9 +81,8 @@ function libsqlite_suite_next661676_rows(int $next, int $case = 1): array
  */
 function libsqlite_suite_next661676_record(int $next, array $rows, ?string $output = null): array
 {
-    $method = sprintf('upstreamVeryquickShardCurrentSourceNext%d', $next);
-
-    return libsqlite_suite_next661676_evidence()->$method(
+    return libsqlite_suite_next661676_evidence()->upstreamVeryquickShardCurrentSourceShard(
+        $next,
         $rows,
         911,
         153885,

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-This slice adds `SQLiteWal::checkpointReaderPinCurrentNext68()` for the WAL-index handoff where a new reader acquires the latest committed read mark while an older current reader still pins checkpoint reset.
+This slice adds `SQLiteWal::checkpointReaderPinSlotHandoffCurrentNext()` for the WAL-index handoff where a new reader acquires the latest committed read mark while an older current reader still pins checkpoint reset.
 
 The behavior is disjoint from accepted reader-pin release/retry, append-after-pin, byte truncation, checkpoint transaction, VFS writer, rollback-journal, and savepoint writer slices:
 

@@ -52,7 +52,7 @@ $stack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$restart = static fn (?int $reader = null): array => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91(
+$restart = static fn (?int $reader = null): array => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext(
     $stack(),
     'released-plugin',
     'plugin-parent',
@@ -64,7 +64,7 @@ $restart = static fn (?int $reader = null): array => SQLiteWalSavepointCheckpoin
     $reader
 );
 
-$truncate = static fn (?int $reader = null): array => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91(
+$truncate = static fn (?int $reader = null): array => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext(
     $stack(),
     'released-plugin',
     'plugin-parent',
@@ -76,7 +76,7 @@ $truncate = static fn (?int $reader = null): array => SQLiteWalSavepointCheckpoi
     $reader
 );
 
-$busy = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91(
+$busy = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext(
     $stack(),
     'released-plugin',
     'plugin-parent',
@@ -88,7 +88,7 @@ $busy = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseThenRoll
     0
 );
 
-$partial = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91(
+$partial = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext(
     $stack(),
     'released-plugin',
     'plugin-parent',
@@ -181,39 +181,39 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal restart truncate savepoint current source next91 rejects stale checkpoint'] = static function (TestRunner $t) use ($stack, $wal, $staleCheckpointBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91($stack(), 'released-plugin', 'plugin-parent', $wal, $staleCheckpointBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext($stack(), 'released-plugin', 'plugin-parent', $wal, $staleCheckpointBytes, $databaseBytes, [1]));
 };
 
 $tests['wal restart truncate savepoint current source next91 rejects stale salt'] = static function (TestRunner $t) use ($stack, $wal, $staleSaltBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91($stack(), 'released-plugin', 'plugin-parent', $wal, $staleSaltBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext($stack(), 'released-plugin', 'plugin-parent', $wal, $staleSaltBytes, $databaseBytes, [1]));
 };
 
 $tests['wal restart truncate savepoint current source next91 rejects short current source'] = static function (TestRunner $t) use ($stack, $wal, $shortWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91($stack(), 'released-plugin', 'plugin-parent', $wal, $shortWalBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext($stack(), 'released-plugin', 'plugin-parent', $wal, $shortWalBytes, $databaseBytes, [1]));
 };
 
 $tests['wal restart truncate savepoint current source next91 rejects duplicate savepoint names'] = static function (TestRunner $t) use ($stack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91($stack(), 'plugin-parent', 'plugin-parent', $wal, $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext($stack(), 'plugin-parent', 'plugin-parent', $wal, $walBytes, $databaseBytes, [1]));
 };
 
 $tests['wal restart truncate savepoint current source next91 rejects missing release savepoint'] = static function (TestRunner $t) use ($stack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91($stack(), 'missing', 'plugin-parent', $wal, $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext($stack(), 'missing', 'plugin-parent', $wal, $walBytes, $databaseBytes, [1]));
 };
 
 $tests['wal restart truncate savepoint current source next91 rejects missing rollback savepoint'] = static function (TestRunner $t) use ($stack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91($stack(), 'released-plugin', 'missing', $wal, $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext($stack(), 'released-plugin', 'missing', $wal, $walBytes, $databaseBytes, [1]));
 };
 
 $tests['wal restart truncate savepoint current source next91 rejects empty page list'] = static function (TestRunner $t) use ($stack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91($stack(), 'released-plugin', 'plugin-parent', $wal, $walBytes, $databaseBytes, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext($stack(), 'released-plugin', 'plugin-parent', $wal, $walBytes, $databaseBytes, []));
 };
 
 $tests['wal restart truncate savepoint current source next91 rejects non integer page'] = static function (TestRunner $t) use ($stack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91($stack(), 'released-plugin', 'plugin-parent', $wal, $walBytes, $databaseBytes, [1, '2']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext($stack(), 'released-plugin', 'plugin-parent', $wal, $walBytes, $databaseBytes, [1, '2']));
 };
 
 $tests['wal restart truncate savepoint current source next91 rejects unsupported mode'] = static function (TestRunner $t) use ($stack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91($stack(), 'released-plugin', 'plugin-parent', $wal, $walBytes, $databaseBytes, [1], 'passive'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext($stack(), 'released-plugin', 'plugin-parent', $wal, $walBytes, $databaseBytes, [1], 'passive'));
 };
 
 return $tests;

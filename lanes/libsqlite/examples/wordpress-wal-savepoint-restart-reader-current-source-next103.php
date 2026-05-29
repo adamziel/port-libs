@@ -44,7 +44,7 @@ $savepoints->recordWalFrameWrite(3, 3);
 $savepoints->recordWalFrameWrite(4, 4, true);
 $savepoints->recordWalFrameWrite(5, 2);
 
-$plan = SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext103(
+$plan = SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext(
     $savepoints,
     'plugin-retry',
     SQLiteWal::parse($walBytes, $pageSize, true),

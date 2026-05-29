@@ -247,7 +247,7 @@ $cases = [
     'missing member recovered count' => static fn (): mixed => $missingMember()['applied']['recovery']['recovered_database_count'],
     'missing member operations omit super delete' => static fn (): mixed => in_array('delete_super_journal_after_named_hot_journals', array_column($missingMember()['applied']['operations'], 'reason'), true),
     'missing member dependencies include slice' => static fn (): mixed => in_array('sqlite-pager-hot-journal-master-super-vfs-apply74', $missingMember()['applied']['dependencies'], true),
-    'planner still exposes current next status' => static fn (): mixed => SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73($superPath, $superBytes, $databaseInputs())['status'],
+    'planner still exposes current next status' => static fn (): mixed => SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext($superPath, $superBytes, $databaseInputs())['status'],
     'read only writer rejects apply' => static function () use ($prepareRoot, $removeTree, $databaseInputs, $superPath, $superBytes): mixed {
         $root = $prepareRoot();
         try {

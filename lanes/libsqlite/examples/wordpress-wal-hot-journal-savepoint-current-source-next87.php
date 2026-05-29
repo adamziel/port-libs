@@ -55,7 +55,7 @@ $savepoints->savepoint('plugin_settings_batch');
 $savepoints->recordWalFrameWrite(3, 3);
 $savepoints->recordWalFrameWrite(4, 2, true);
 
-$plan = SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext87(
+$plan = SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext(
     SQLiteRollbackJournal::parse($journalBytes, true),
     $dirtyDatabase,
     $journalBytes,
@@ -69,7 +69,7 @@ $plan = SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext87(
 
 $staleRejected = false;
 try {
-    SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext87(
+    SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext(
         SQLiteRollbackJournal::parse(substr($journalBytes, 0, -1) . 'x'),
         $dirtyDatabase,
         $journalBytes,

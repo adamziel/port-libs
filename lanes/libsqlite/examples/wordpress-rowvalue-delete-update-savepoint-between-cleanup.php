@@ -20,7 +20,7 @@ $statements = [
     "DELETE FROM wp_options WHERE (status, bucket) BETWEEN ('reviewed', 'cache') AND ('reviewed', 'rewrite') RETURNING option_id, option_name, (status, bucket) BETWEEN ('reviewed', 'cache') AND ('reviewed', 'rewrite') AS reviewed_bucket ORDER BY option_id",
 ];
 
-$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141(
+$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeBetweenCleanupSavepoint(
     $tables,
     $statements,
     [['blog_id', 'option_name']],

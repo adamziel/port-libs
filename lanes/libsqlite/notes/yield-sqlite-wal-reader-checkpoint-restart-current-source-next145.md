@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `wal-reader-savepoint-checkpoint-restart-current-source-next145`.
 
-This slice adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145()` for the current-source WAL edge where a writer rolls back a savepoint to a retained WAL prefix, an active reader still pins rolled-back frames, and a released-reader RESTART checkpoint keeps a fresh WAL header for the retry writer. It validates the active and released SHM images against the parsed WAL source before trusting reset state.
+This slice adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext()` for the current-source WAL edge where a writer rolls back a savepoint to a retained WAL prefix, an active reader still pins rolled-back frames, and a released-reader RESTART checkpoint keeps a fresh WAL header for the retry writer. It validates the active and released SHM images against the parsed WAL source before trusting reset state.
 
 Focused evidence:
 

@@ -61,7 +61,7 @@ $nextReaderShm = SQLiteShmIndex::parse($makeShm([0, 2, 7, null, null], [false, t
 $currentReleasedShm = SQLiteShmIndex::parse($makeShm([0, null, 7, null, null], [false, false, true, false, false], 2, 7));
 $allReleasedShm = SQLiteShmIndex::parse($makeShm([0, null, null, null, null], [false, false, false, false, false], 7, 7));
 
-$restart = static fn (): array => $wal->checkpointReaderRestartCurrentSourceNext89(
+$restart = static fn (): array => $wal->checkpointReaderRestartCurrentSourceNext(
     $databaseBytes,
     $walBytes,
     $currentShm,
@@ -71,7 +71,7 @@ $restart = static fn (): array => $wal->checkpointReaderRestartCurrentSourceNext
     [1, 2, 3, 4, 5],
     'restart'
 );
-$truncate = static fn (): array => $wal->checkpointReaderRestartCurrentSourceNext89(
+$truncate = static fn (): array => $wal->checkpointReaderRestartCurrentSourceNext(
     $databaseBytes,
     $walBytes,
     $currentShm,
@@ -160,34 +160,34 @@ foreach ($cases as $name => [$callback, $expected]) {
 
 $tests['wal reader checkpoint restart current source next89 rejects stale checkpoint sequence'] = static function (TestRunner $t) use ($wal, $makeWal, $frames, $databaseBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm): void {
     $staleBytes = $makeWal($frames, 90);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext89($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, [2]));
 };
 
 $tests['wal reader checkpoint restart current source next89 rejects stale salt'] = static function (TestRunner $t) use ($wal, $makeWal, $frames, $databaseBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm): void {
     $staleBytes = $makeWal($frames, 89, 0x89112234);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext89($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, [2]));
 };
 
 $tests['wal reader checkpoint restart current source next89 rejects stale frame count'] = static function (TestRunner $t) use ($wal, $makeWal, $frames, $databaseBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm): void {
     $staleBytes = $makeWal(array_slice($frames, 0, 6));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext89($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, [2]));
 };
 
 $tests['wal reader checkpoint restart current source next89 rejects mutated matching header bytes'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm): void {
     $mutated = substr_replace($walBytes, 'X', 32 + 24 + 12, 1);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext89($databaseBytes, $mutated, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext($databaseBytes, $mutated, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, [2]));
 };
 
 $tests['wal reader checkpoint restart current source next89 rejects empty page list'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext89($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, []));
 };
 
 $tests['wal reader checkpoint restart current source next89 rejects non integer page'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext89($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, ['2']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, ['2']));
 };
 
 $tests['wal reader checkpoint restart current source next89 rejects passive mode'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext89($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, [2], 'passive'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderRestartCurrentSourceNext($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $currentReleasedShm, $allReleasedShm, [2], 'passive'));
 };
 
 return $tests;

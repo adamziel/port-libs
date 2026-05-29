@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-$tests = [];
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
-$database = '/srv/wp-content/database/wp-next990.sqlite';
+$database = '/srv/wp-content/database/wp-vdbe-branch-condition.sqlite';
 $journal = $database . '-journal';
 $master = $database . '-mj';
 $masterBytes = $journal . "\n";
@@ -342,14 +342,14 @@ $next975990Fields = [
 $variantFields = array_merge($tokenFields, $next639654Fields, $next655670Fields, $next671686Fields, $next687702Fields, $next703718Fields, $next719734Fields, $next735766Fields, $next751766Fields, $next767782Fields, $next783798Fields, $next799814Fields, $next815830Fields, $next831846Fields, $next847862Fields, $next863878Fields, $next879894Fields, $next895910Fields, $next911926Fields, $next927942Fields, $next943958Fields, $next959974Fields, $next975990Fields);
 $before = [1 => $formatPage('stale schema'), 2 => $page('stale options')];
 $recovered = [1 => $formatPage('current schema'), 2 => $page('current options')];
-$tokens = [$journal => 'member-main-current-990'];
-$headers = [$journal => hash('sha256', 'main header next990')];
+$tokens = [$journal => 'member-main-current-vdbe-branch-condition'];
+$headers = [$journal => hash('sha256', 'main header vdbe branch condition')];
 $base = [
-    'source_id' => 'pager-reader-cache-current-source-next990',
+    'source_id' => 'wordpress-pager-reader-cache-vdbe-branch-condition',
     'epoch' => 990,
     'format_signature' => hash('sha256', implode('|', [512, 4, 2, 990, 0])),
     'publication_generation' => 990,
-    'master_source_digest' => hash('sha256', 'master-next990'),
+    'master_source_digest' => hash('sha256', 'wordpress vdbe branch condition master source'),
     'recovery_sequence' => 990,
     'recovered_page_set_digest' => $recoveredDigest($recovered),
     'member_journal_tokens' => $tokens,
@@ -358,26 +358,27 @@ $base = [
     'master_journal_bytes_digest' => hash('sha256', $masterBytes),
 ];
 foreach ($variantFields as $field) {
-    $base[$field] = str_replace('_', '-', preg_replace('/_token$/', '', $field)) . '-current-990';
+    $base[$field] = str_replace('_', '-', preg_replace('/_token$/', '', $field)) . '-current-vdbe-branch-condition';
 }
-$base['reader_cache_stmt_vdbe_real_affinity_value_token'] = 'reader-cache-stmt-vdbe-affinity-current-990';
-$base['reader_cache_stmt_vdbe_real_affinity_value_handoff_token'] = 'reader-cache-stmt-vdbe-affinity-handoff-current-990';
-$cacheEntry = static fn (array $extra = []): array => array_merge($base, ['reader_id' => 'wp-options-reader', 'image' => $recovered[1]], $extra);
-$read = static fn (array $extra = []): array => array_merge($base, [
+$base['reader_cache_stmt_vdbe_real_affinity_value_token'] = 'reader-cache-stmt-vdbe-affinity-current-vdbe-branch-condition';
+$base['reader_cache_stmt_vdbe_real_affinity_value_handoff_token'] = 'reader-cache-stmt-vdbe-affinity-handoff-current-vdbe-branch-condition';
+$cache = [1 => array_merge($base, ['reader_id' => 'wp-options-reader', 'image' => $recovered[1], 'reader_cache_stmt_vdbe_le_branch_handoff_token' => 'stmt-vdbe-le-branch-handoff-old'])];
+$read = array_merge($base, [
     'reader_id' => 'read-options',
     'page_number' => 1,
     'member_journal_token_digest' => $mapDigest($tokens),
     'member_journal_header_digest' => $mapDigest($headers),
-], $extra);
-$plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext990(
+    'reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_token' => 'stmt-vdbe-isnull-branch-condition-branch-condition-handoff-old',
+]);
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeSavepointBranchConditionFence(
     $database,
     $master,
     $masterBytes,
     implode('', $before),
     $pageSize,
     $recovered,
-    [1 => $cacheEntry($cacheExtra)],
-    [$read($readExtra)],
+    $cache,
+    [$read],
     $base['source_id'],
     990,
     990,
@@ -387,142 +388,10 @@ $plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLi
     $headers,
     ...array_map(static fn (string $field): string => $base[$field], $variantFields),
 );
-$opCount = static fn (array $plan, string $op): int => count(array_filter($plan['operations'], static fn (array $operation): bool => ($operation['op'] ?? '') === $op));
 
-$tests['pager master journal reader cache current source next990 publishes current VDBE literal and arithmetic opcode fences'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan();
-    $t->same('pager-master-journal-reader-cache-current-source-next990', $result['status']);
-    $t->same([1], $result['invalidated_cache_page_numbers']);
-    $t->same(['read-options' => false], $result['read_cache_hits']);
-    $t->same('reader-cache-stmt-vdbe-null-branch-current-990', $result['current_reader_cache_stmt_vdbe_null_branch_token']);
-    $t->same('reader-cache-stmt-vdbe-opcode-trace-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-shift-right-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_shift_right_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-gt-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_gt_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-incr-vacuum-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-init-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_init_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-goto-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_goto_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-null-row-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_null_row_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-row-value-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_row_value_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-real-affinity-value-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_real_affinity_value_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-cast-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_cast_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-column-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_column_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-affinity-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_affinity_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-cast-affinity-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_cast_affinity_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-compare-collseq-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_compare_collseq_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-once-flag-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_once_flag_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vbegin-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vbegin_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-else-eq-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_else_eq_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-if-open-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_if_open_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-transaction-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_transaction_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vbegin-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vbegin_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vcreate-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vcreate_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vdestroy-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vdestroy_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vopen-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vopen_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vfilter-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vfilter_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vcolumn-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vcolumn_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vnext-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vnext_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vrename-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vrename_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-pagecount-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_pagecount_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-maxpgcnt-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-cursorhint-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_cursorhint_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-noop-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_noop_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-gosub-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_gosub_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-return-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_return_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-yield-op-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_yield_op_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-halt-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_halt_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-soft-null-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_soft_null_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-boolean-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_boolean_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-zeroblob-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_zeroblob_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-string8-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_string8_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-concat-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_concat_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-add-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_add_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-subtract-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_subtract_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-multiply-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_multiply_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-divide-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_divide_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-remainder-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_remainder_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-bit-and-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_bit_and_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-bit-or-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_bit_or_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-shift-left-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_shift_left_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-shift-right-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_shift_right_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-add-imm-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_add_imm_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-bit-not-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_bit_not_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-affinity-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_affinity_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-cast-affinity-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_cast_affinity_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-permutation-affinity-branch-handoff-current-990', $result['current_reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vnext-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vnext_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-vrename-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_vrename_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-pagecount-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_pagecount_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-opcode-trace-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_opcode_trace_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-goto-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_goto_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-yield-op-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_yield_op_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-blob-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_blob_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-null-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_null_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-soft-null-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_soft_null_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-integer-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_integer_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-int64-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_int64_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-real-value-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_real_value_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-boolean-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_boolean_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-null-row-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_null_row_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-row-value-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_row_value_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-zeroblob-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_zeroblob_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-string8-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_string8_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-concat-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_concat_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-add-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_add_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-subtract-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_subtract_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-multiply-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_multiply_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-divide-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_divide_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-remainder-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_remainder_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-bit-and-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_bit_and_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-compare-affinity-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_compare_affinity_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-compare-collseq-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_compare_collseq_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-if-branch-condition-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_if_branch_condition_branch_condition_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-savepoint-branch-condition-branch-condition-handoff-current-990', $result['current_reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_token']);
-    $t->same(true, in_array('sqlite-pager-master-journal-reader-cache-current-source-next718', $result['dependencies'], true));
-    $t->same(true, in_array('sqlite-pager-master-journal-reader-cache-current-source-next766', $result['dependencies'], true));
-    $t->same(true, in_array('sqlite-pager-master-journal-reader-cache-current-source-next782', $result['dependencies'], true));
-    $t->same(true, in_array('sqlite-pager-master-journal-reader-cache-current-source-next990', $result['dependencies'], true));
-};
-
-$tests['pager master journal reader cache current source plan dispatches full width calls to next990'] = static function (TestRunner $t) use ($database, $master, $masterBytes, $before, $pageSize, $recovered, $cacheEntry, $read, $base, $tokens, $headers, $variantFields): void {
-    $result = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::plan(
-        $database,
-        $master,
-        $masterBytes,
-        implode('', $before),
-        $pageSize,
-        $recovered,
-        [1 => $cacheEntry()],
-        [$read()],
-        $base['source_id'],
-        990,
-        990,
-        $base['master_source_digest'],
-        990,
-        $tokens,
-        $headers,
-        ...array_map(static fn (string $field): string => $base[$field], $variantFields),
-    );
-
-    $t->same('pager-master-journal-reader-cache-current-source-next990', $result['status']);
-};
-
-$tests['pager master journal reader cache current source next990 preserves next974 isnull branch condition branch handoff continuity'] = static function (TestRunner $t) use ($plan, $opCount): void {
-    $result = $plan(['reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff_token' => 'stmt-vdbe-isnull-branch-condition-branch-condition-handoff-old']);
-    $t->same([1], $result['invalidated_cache_page_numbers']);
-    $t->same('reader_cache_already_invalidated_before_reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff', $result['reader_rows'][0]['reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff_token_reason']);
-    $t->same(0, $opCount($result, 'invalidate_reader_cache_reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff_current_source_next974'));
-};
-
-$tests['pager master journal reader cache current source next990 reopens stale savepoint branch condition branch handoff read ticket'] = static function (TestRunner $t) use ($plan, $opCount): void {
-    $result = $plan([], ['reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_token' => 'stmt-vdbe-isnull-branch-condition-branch-condition-handoff-old']);
-    $t->same(['read-options'], $result['reopen_reader_ids']);
-    $t->same(false, $result['next_reads'][0]['cache_hit']);
-    $t->same('reader_ticket_reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_predates_current_source', $result['next_reads'][0]['reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_token_reason']);
-    $t->same(1, $opCount($result, 'reopen_reader_for_reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_current_source_next990'));
-};
-
-$tests['pager master journal reader cache current source next990 missing savepoint branch condition branch handoff token rejects'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(Throwable::class, static fn () => $plan(['reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_token' => null]));
-};
-
-return $tests;
+echo json_encode([
+    'status' => $plan['status'],
+    'reopen_reader_ids' => $plan['reopen_reader_ids'],
+    'next735_invalidated_pages' => $plan['reader_cache_stmt_vdbe_le_branch_handoff_invalidated_cache_page_numbers'],
+    'vdbe_branch_condition_fence_reopen_reason' => $plan['next_reads'][0]['reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_token_reason'],
+], JSON_PRETTY_PRINT) . PHP_EOL;

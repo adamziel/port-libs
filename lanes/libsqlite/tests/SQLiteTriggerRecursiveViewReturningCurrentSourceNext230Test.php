@@ -47,7 +47,7 @@ $returning230 = [
     ['expr' => 'spawn_child', 'as' => 'spawn_child'],
 ];
 
-$plan230 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext230(
+$plan230 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceEpochReceipt(
     $rows230,
     $currentInput230,
     $nextInput230,

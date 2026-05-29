@@ -10,7 +10,7 @@ final class SQLitePagerHotJournalWalRecoveryPlan
      * @param list<array{database_path:string,database_bytes:string,journal:SQLiteRollbackJournal,journal_bytes:string,wal_bytes:string,page_numbers:list<int>,database_page_size?:int,reserved_lock?:bool}> $databases
      * @return array{status:string,reason:string,super_journal_path:string,super_journal_exists:bool,super_journal_members:list<string>,database_count:int,recovered_database_count:int,skipped_database_count:int,current_reader_sources:array<string,list<string>>,next_reader_sources:array<string,list<string>>,current_reader_frame_indexes:array<string,list<int|null>>,next_reader_frame_indexes:array<string,list<int|null>>,journal_actions:array<string,string>,super_journal_action:string,operations:list<array<string,mixed>>,databases:array<string,array<string,mixed>>,dependencies:list<string>}
      */
-    public static function masterSuperJournalCurrentNext73(
+    public static function masterSuperJournalCurrentNext(
         string $superJournalPath,
         string $superJournalBytes,
         array $databases,
@@ -377,7 +377,7 @@ final class SQLitePagerHotJournalWalRecoveryPlan
      * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,database_path:string,journal_path:string,wal_path:string,savepoint:string,mode:string,hot_recovered:bool,journal_action:string,wal_recovery_status:string,base_database_bytes:int,valid_wal_bytes_length:int,before_reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,retained_frame_count:int,discarded_frame_count:int,wal_action:string,checkpoint_busy:bool,before_reader:list<array<string,mixed>>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,before_reader_sources:list<string|null>,current_reader_sources:list<string|null>,next_reader_sources:list<string|null>,before_reader_frame_indexes:list<int|null>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,before_to_current_images_match:bool,current_to_next_images_match:bool,next_uses_checkpoint_database:bool,next_uses_preserved_wal:bool,operations:list<array<string,mixed>>,hot_recovery:array<string,mixed>,savepoint_checkpoint:array<string,mixed>,dependencies:list<string>}
      */
-    public static function savepointCurrentSourceNext85(
+    public static function savepointWalRecoveryCurrentSourceNext(
         SQLiteRollbackJournal $journal,
         string $databaseBytes,
         string $journalBytes,
@@ -512,7 +512,7 @@ final class SQLitePagerHotJournalWalRecoveryPlan
      * @param array<int,string> $currentPageImages
      * @return array{status:string,reason:string,database_path:string,journal_path:string,wal_path:string,current_statement:string,next_statement:string,savepoint:string,page_size:int,hot_recovered:bool,journal_action:string,wal_recovery_status:string,current_source_verified:bool,current_source_page_numbers:list<int>,current_reader:list<array<string,mixed>>,current_reader_sources:list<string|null>,current_reader_frame_indexes:list<int|null>,current_database_bytes:int,rolled_back_database_bytes:int,rollback_to_wal_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,rollback_restored_page_numbers:list<int>,rollback_discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,statement_journals_after_rollback:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,statement_journals_after_next:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,pending_page_numbers_after_rollback:list<int>,pending_wal_frame_indexes_after_rollback:list<int>,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,current_source_prefixes:array<int,string>,next_source_prefixes:array<int,string>,operations:list<array<string,mixed>>,hot_recovery:array<string,mixed>,statement_recovery:array<string,mixed>,dependencies:list<string>}
      */
-    public static function statementCurrentSourceNext93(
+    public static function statementWalRecoveryCurrentSourceNext(
         SQLiteRollbackJournal $journal,
         string $databaseBytes,
         string $journalBytes,

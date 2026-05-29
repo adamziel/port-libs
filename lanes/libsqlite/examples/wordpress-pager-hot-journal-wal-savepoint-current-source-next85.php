@@ -65,7 +65,7 @@ $savepoints->savepoint('plugin-settings');
 $savepoints->recordWalFrameWrite(3, 2);
 $savepoints->recordWalFrameWrite(4, 3, true);
 
-$plan = SQLitePagerHotJournalWalRecoveryPlan::savepointCurrentSourceNext85(
+$plan = SQLitePagerHotJournalWalRecoveryPlan::savepointWalRecoveryCurrentSourceNext(
     SQLiteRollbackJournal::parse($journalBytes, true),
     $databaseBytes,
     $journalBytes,

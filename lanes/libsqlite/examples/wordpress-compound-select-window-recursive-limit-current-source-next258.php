@@ -53,29 +53,29 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$payload = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext258(
+$payload = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCurrentSourceHandoff(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],
 );
 
 $out = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next258',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-current-source-handoff',
     'wordpressUse' => 'Copied wp_options preview queries keep next-source plugin rows hidden until the current-source compound/window/recursive LIMIT page high-water row is acknowledged.',
     'status' => $payload['status'],
-    'currentHighWaterLabel' => $payload['compoundWindowRecursiveSourceHandoffNext258']['currentHighWaterLabel'],
-    'nextCandidateLabel' => $payload['compoundWindowRecursiveSourceHandoffNext258']['nextCandidateLabel'],
-    'requiredAckCount' => $payload['compoundWindowRecursiveSourceHandoffNext258']['requiredSourceHandoffAckCount'],
-    'nextExposure' => $payload['compoundWindowRecursiveSourceHandoffNext258']['nextExposure'],
+    'currentHighWaterLabel' => $payload['compoundWindowRecursiveSourceHandoffCurrentSourceHandoff']['currentHighWaterLabel'],
+    'nextCandidateLabel' => $payload['compoundWindowRecursiveSourceHandoffCurrentSourceHandoff']['nextCandidateLabel'],
+    'requiredAckCount' => $payload['compoundWindowRecursiveSourceHandoffCurrentSourceHandoff']['requiredSourceHandoffAckCount'],
+    'nextExposure' => $payload['compoundWindowRecursiveSourceHandoffCurrentSourceHandoff']['nextExposure'],
     'dependencyClosure' => $payload['dependency_closure'],
 ];
 
-if (($out['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next258-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next258 self-test failed\n");
+if (($out['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-current-source-handoff-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-current-source-handoff self-test failed\n");
     exit(1);
 }
 if (($out['currentHighWaterLabel'] ?? null) !== 'seed:2:3:4' || ($out['nextCandidateLabel'] ?? null) !== 'plugin_prime') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next258 boundary guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-current-source-handoff boundary guard failed\n");
     exit(1);
 }
 

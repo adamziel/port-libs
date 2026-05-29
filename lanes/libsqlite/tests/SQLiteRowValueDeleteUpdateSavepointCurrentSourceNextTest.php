@@ -36,8 +36,8 @@ $updateAfterDelete = static function () use ($deleteBetweenSql, $updateNotBetwee
 
     return SQLiteUpdateDeleteReturningSql::execute($updateNotBetweenSql, $deleted['tables']);
 };
-$commit = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141($tables, $commitStatements, $unique);
-$rollback = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141($tables, $rollbackStatements, $unique);
+$commit = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeBetweenCleanupSavepoint($tables, $commitStatements, $unique);
+$rollback = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeBetweenCleanupSavepoint($tables, $rollbackStatements, $unique);
 
 $cases = [
     'delete parser preserves between predicate' => [static fn (): mixed => $parsedDelete()['where'], "(blog_id, option_name) BETWEEN (1, '_transient_feed') AND (1, '_transient_timeout_feed')"],
@@ -73,7 +73,7 @@ $cases = [
     'commit changes include delete update delete' => [static fn (): mixed => $commit()['changes'], 5],
     'commit attempted changes equals changes' => [static fn (): mixed => $commit()['attempted_changes'], 5],
     'commit changed table recorded' => [static fn (): mixed => $commit()['changed_tables'], ['wp_options']],
-    'commit dependency records next141 cluster' => [static fn (): mixed => in_array('sqlite-row-value-between-delete-update-current-source-next141', $commit()['dependencies'], true), true],
+    'commit dependency records between cleanup cluster' => [static fn (): mixed => in_array('sqlite-row-value-between-delete-update-current-source', $commit()['dependencies'], true), true],
     'rollback status rolls back' => [static fn (): mixed => $rollback()['status'], 'rolled-back-to-savepoint'],
     'rollback flag true' => [static fn (): mixed => $rollback()['rolled_back'], true],
     'rollback statement ordinal failing update' => [static fn (): mixed => $rollback()['rollback_statement_ordinal'], 2],
@@ -88,15 +88,15 @@ $cases = [
     'rollback changes reset to zero' => [static fn (): mixed => $rollback()['changes'], 0],
     'rollback attempted changes include successful statements only' => [static fn (): mixed => $rollback()['attempted_changes'], 3],
     'rollback savepoint image equals input tables' => [static fn (): mixed => $rollback()['savepoint_image_tables'], $tables],
-    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141($tables, [$deleteBetweenSql], []), InvalidArgumentException::class],
+    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeBetweenCleanupSavepoint($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeBetweenCleanupSavepoint($tables, [$deleteBetweenSql], []), InvalidArgumentException::class],
     'malformed between arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE (blog_id, option_name) BETWEEN (1) AND (2) RETURNING option_id", $tables), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141(['wp_options' => ['bad']], [$deleteBetweenSql], $unique), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeBetweenCleanupSavepoint(['wp_options' => ['bad']], [$deleteBetweenSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['rowvalue delete update savepoint current source next141 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue delete update savepoint current source between cleanup ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

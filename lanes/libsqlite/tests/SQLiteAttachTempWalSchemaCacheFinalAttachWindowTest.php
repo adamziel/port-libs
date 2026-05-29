@@ -62,7 +62,7 @@ $statements10211036 = [
     ['name' => 'archive-reader', 'sql' => 'SELECT archive_id FROM archive.wp_schema_archive_final_next1036 INDEXED BY wp_schema_archive_final_key_next1036 WHERE archive_key = ?'],
 ];
 
-$plan10211036 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext10211036(
+$plan10211036 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::finalSchemaCacheAttachWindow(
     $schemas ?? $schemas10211036,
     $statements ?? $statements10211036,
     $events,
@@ -70,7 +70,7 @@ $plan10211036 = static fn (array $events, ?array $statements = null, ?array $sch
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next1021-1036 extends next1005-1020 handoff'] = static function (TestRunner $t) use ($plan10211036): void {
+$tests['attach temp wal schema cache final attach window extends publish handoff'] = static function (TestRunner $t) use ($plan10211036): void {
     $result = $plan10211036([
         ['op' => 'drop_table', 'schema' => 'temp', 'table' => 'wp_import_stage_shadow_next1021'],
         ['op' => 'rename_index', 'schema' => 'review', 'from' => 'wp_schema_review_receipt_key_next1016', 'to' => 'wp_schema_review_receipt_key_next1026'],
@@ -83,7 +83,7 @@ $tests['attach temp wal schema cache current source next1021-1036 extends next10
         ['op' => 'wal_commit', 'schema' => 'archive', 'schema_cookie' => 1021, 'table' => 'wp_schema_archive_uncommitted_next1021', 'indexes' => ['wp_schema_archive_uncommitted_key_next1021'], 'commit' => false],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next1021-1036', $result['operation']);
+    $t->same('attach-wal-temp-schema-cache-final-attach-window', $result['operation']);
     $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1021', $result['dependencies'][0]);
     $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1036', $result['dependencies'][15]);
     $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1005', $result['dependencies'][16]);
@@ -108,7 +108,7 @@ $tests['attach temp wal schema cache current source next1021-1036 extends next10
     $t->same([], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next1021-1036 ignores uncommitted scratch detach'] = static function (TestRunner $t) use ($plan10211036): void {
+$tests['attach temp wal schema cache final attach window ignores uncommitted scratch detach'] = static function (TestRunner $t) use ($plan10211036): void {
     $result = $plan10211036([
         ['op' => 'attach', 'schema' => 'scratch', 'schema_cookie' => 1021, 'tables' => ['wp_schema_scratch_next1021'], 'indexes' => ['wp_schema_scratch_key_next1021'], 'file' => '/srv/wp/scratch-next1021.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'scratch', 'schema_cookie' => 1022, 'table' => 'wp_schema_scratch_meta_next1022', 'indexes' => ['wp_schema_scratch_meta_key_next1022'], 'commit' => false],

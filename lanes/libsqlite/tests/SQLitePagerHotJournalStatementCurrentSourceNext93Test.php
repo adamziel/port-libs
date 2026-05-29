@@ -94,7 +94,7 @@ $makeStack = static function () use ($cleanPages): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (array $pages = null, string $walInput = null, bool $commit = true): array => SQLitePagerHotJournalWalRecoveryPlan::statementCurrentSourceNext93(
+$plan = static fn (array $pages = null, string $walInput = null, bool $commit = true): array => SQLitePagerHotJournalWalRecoveryPlan::statementWalRecoveryCurrentSourceNext(
     $journal,
     $databaseBytes,
     $journalBytes,
@@ -178,15 +178,15 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty current statement rejected' => static fn () => SQLitePagerHotJournalWalRecoveryPlan::statementCurrentSourceNext93($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $makeStack(), '', 'retry', $currentPageImages, 6, $nextBeforeImage, $pageSize),
-    'empty next statement rejected' => static fn () => SQLitePagerHotJournalWalRecoveryPlan::statementCurrentSourceNext93($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $makeStack(), 'insert-transient-next93', '', $currentPageImages, 6, $nextBeforeImage, $pageSize),
-    'empty current images rejected' => static fn () => SQLitePagerHotJournalWalRecoveryPlan::statementCurrentSourceNext93($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $makeStack(), 'insert-transient-next93', 'retry', [], 6, $nextBeforeImage, $pageSize),
+    'empty current statement rejected' => static fn () => SQLitePagerHotJournalWalRecoveryPlan::statementWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $makeStack(), '', 'retry', $currentPageImages, 6, $nextBeforeImage, $pageSize),
+    'empty next statement rejected' => static fn () => SQLitePagerHotJournalWalRecoveryPlan::statementWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $makeStack(), 'insert-transient-next93', '', $currentPageImages, 6, $nextBeforeImage, $pageSize),
+    'empty current images rejected' => static fn () => SQLitePagerHotJournalWalRecoveryPlan::statementWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $makeStack(), 'insert-transient-next93', 'retry', [], 6, $nextBeforeImage, $pageSize),
     'bad page number rejected' => static fn () => $plan([0 => $currentPageImages[4]]),
     'bad page image rejected' => static fn () => $plan([4 => 'short']),
     'stale wal current source rejected' => static fn () => $plan($currentPageImages, $staleWalBytes),
     'missing wal current source rejected' => static fn () => $plan([5 => $currentPageImages[5]], $shortWalBytes),
-    'bad next page rejected' => static fn () => SQLitePagerHotJournalWalRecoveryPlan::statementCurrentSourceNext93($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $makeStack(), 'insert-transient-next93', 'retry', $currentPageImages, 0, $nextBeforeImage, $pageSize),
-    'bad next image rejected' => static fn () => SQLitePagerHotJournalWalRecoveryPlan::statementCurrentSourceNext93($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $makeStack(), 'insert-transient-next93', 'retry', $currentPageImages, 6, 'short', $pageSize),
+    'bad next page rejected' => static fn () => SQLitePagerHotJournalWalRecoveryPlan::statementWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $makeStack(), 'insert-transient-next93', 'retry', $currentPageImages, 0, $nextBeforeImage, $pageSize),
+    'bad next image rejected' => static fn () => SQLitePagerHotJournalWalRecoveryPlan::statementWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $makeStack(), 'insert-transient-next93', 'retry', $currentPageImages, 6, 'short', $pageSize),
 ];
 
 foreach ($throws as $name => $callback) {

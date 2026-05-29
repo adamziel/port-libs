@@ -53,7 +53,7 @@ $siteJournalBytes = $makeJournal([
     2 => $page('site clean wp_2_options before master-journal crash'),
 ], 0x73020002);
 
-$plan = SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73(
+$plan = SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext(
     '/wp-content/database/main.sqlite-mj73',
     $mainPath . "-journal\n" . $sitePath . "-journal\n",
     [

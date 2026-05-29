@@ -80,7 +80,7 @@ $savepoints->savepoint('transient-row-next105');
 $savepoints->recordWalFrameWrite(6, 5, true);
 $savepoints->recordWalFrameWrite(7, 2, true);
 
-$plan = SQLiteWalSavepointCheckpointPlan::checkpointRestartTruncateSavepointReaderCurrentSourceNext105(
+$plan = SQLiteWalSavepointCheckpointPlan::checkpointRestartTruncateSavepointReaderCurrentSourceNext(
     $savepoints,
     'plugin-settings-next105',
     $wal,

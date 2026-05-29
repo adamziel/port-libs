@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointSavepointReaderRestartCurrentSourceNext151()`.
+- Adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointSavepointReaderRestartCurrentSourceNext()`.
 - Models a `RESTART` checkpoint after `ROLLBACK TO` truncates savepoint-owned WAL frames while an existing reader still pins the old current source.
 - Verifies the released SHM image unblocks reset, the restarted WAL header advances to a fresh current source, and a reopened reader sees the checkpointed database image at frame `0` before any retry writer appends new WAL frames.
 - Rejects stale reader WAL bytes, stale current WAL bytes, missing active reader pins, unreleased SHM state, SHM salt mismatches, empty inputs, and non-integer page watches.

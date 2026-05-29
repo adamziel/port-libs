@@ -60,7 +60,7 @@ $makeStack = static function () use ($page): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (string $mode = 'restart', ?int $reader = null, ?int $next = null, array $pages = [1, 2, 3, 4]): array => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext149(
+$plan = static fn (string $mode = 'restart', ?int $reader = null, ?int $next = null, array $pages = [1, 2, 3, 4]): array => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReplayCurrentSourceNext(
     $makeStack(),
     'plugin-update',
     $wal,
@@ -142,17 +142,17 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty savepoint rejected' => static fn () => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext149($makeStack(), '', $wal, $walBytes, $databaseBytes, [1]),
-    'empty pages rejected' => static fn () => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext149($makeStack(), 'plugin-update', $wal, $walBytes, $databaseBytes, []),
+    'empty savepoint rejected' => static fn () => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReplayCurrentSourceNext($makeStack(), '', $wal, $walBytes, $databaseBytes, [1]),
+    'empty pages rejected' => static fn () => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReplayCurrentSourceNext($makeStack(), 'plugin-update', $wal, $walBytes, $databaseBytes, []),
     'bad mode rejected' => static fn () => $plan('checkpoint'),
     'negative reader rejected' => static fn () => $plan('restart', -1),
     'reader past wal rejected' => static fn () => $plan('restart', 6),
     'bad next reader rejected' => static fn () => $plan('restart', null, 1),
     'non integer page rejected' => static fn () => $plan('restart', null, null, ['2']),
     'zero page rejected' => static fn () => $plan('restart', null, null, [0]),
-    'missing savepoint rejected' => static fn () => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext149($makeStack(), 'missing', $wal, $walBytes, $databaseBytes, [1]),
-    'wal bytes mismatch rejected' => static fn () => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext149($makeStack(), 'plugin-update', $wal, substr_replace($walBytes, 'x', 64, 1), $databaseBytes, [1]),
-    'empty database rejected' => static fn () => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext149($makeStack(), 'plugin-update', $wal, $walBytes, '', [1]),
+    'missing savepoint rejected' => static fn () => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReplayCurrentSourceNext($makeStack(), 'missing', $wal, $walBytes, $databaseBytes, [1]),
+    'wal bytes mismatch rejected' => static fn () => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReplayCurrentSourceNext($makeStack(), 'plugin-update', $wal, substr_replace($walBytes, 'x', 64, 1), $databaseBytes, [1]),
+    'empty database rejected' => static fn () => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReplayCurrentSourceNext($makeStack(), 'plugin-update', $wal, $walBytes, '', [1]),
 ];
 
 foreach ($throws as $name => $callback) {

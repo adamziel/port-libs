@@ -1342,7 +1342,7 @@ final class SQLiteVfsFileWriter
         string $superJournalBytes,
         array $databases,
     ): array {
-        $plan = SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73(
+        $plan = SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext(
             $superJournalPath,
             $superJournalBytes,
             $databases

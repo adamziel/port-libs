@@ -38,7 +38,7 @@ $stack->savepoint('plugin-settings');
 $stack->recordWalFrameWrite(3, 2);
 $stack->recordWalFrameWrite(4, 3, true);
 
-$plan = SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext81(
+$plan = SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext(
     $stack,
     'plugin-settings',
     SQLiteWal::parse($walBytes, $pageSize, true),

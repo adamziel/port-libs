@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for WAL checkpoint restart/truncate current-source validation with a current reader and a newer reader.
 
-This slice adds `SQLiteWal::checkpointRestartTruncateReaderCurrentSourceNext97()`. It validates raw current WAL sidecar bytes, runs the same pinned-reader state through both RESTART and TRUNCATE checkpoint modes, proves the newer reader keeps both reset modes busy after the old current reader releases, then verifies the final all-reader-released outcomes diverge correctly: RESTART leaves a fresh WAL header and TRUNCATE removes the WAL sidecar while both expose the same checkpointed database image to the next reader.
+This slice adds `SQLiteWal::checkpointRestartTruncateReaderPreserveCurrentSourceNext()`. It validates raw current WAL sidecar bytes, runs the same pinned-reader state through both RESTART and TRUNCATE checkpoint modes, proves the newer reader keeps both reset modes busy after the old current reader releases, then verifies the final all-reader-released outcomes diverge correctly: RESTART leaves a fresh WAL header and TRUNCATE removes the WAL sidecar while both expose the same checkpointed database image to the next reader.
 
 Focused verification:
 

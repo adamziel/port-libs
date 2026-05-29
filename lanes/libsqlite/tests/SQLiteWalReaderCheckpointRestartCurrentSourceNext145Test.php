@@ -87,7 +87,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (array $pages = [1, 2, 3, 4, 5, 6], array $next = null): array => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145(
+$plan = static fn (array $pages = [1, 2, 3, 4, 5, 6], array $next = null): array => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext(
     $makeStack(),
     'plugin-settings-next145',
     $wal,
@@ -180,46 +180,46 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal reader checkpoint restart savepoint current source next145 rejects empty savepoint'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145($makeStack(), '', $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, '/tmp/wp.sqlite', $transactions, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext($makeStack(), '', $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, '/tmp/wp.sqlite', $transactions, [1]));
 };
 
 $tests['wal reader checkpoint restart savepoint current source next145 rejects empty database'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $activeShm, $releasedShm, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145($makeStack(), 'plugin-settings-next145', $wal, $walBytes, '', $activeShm, $releasedShm, '/tmp/wp.sqlite', $transactions, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext($makeStack(), 'plugin-settings-next145', $wal, $walBytes, '', $activeShm, $releasedShm, '/tmp/wp.sqlite', $transactions, [1]));
 };
 
 $tests['wal reader checkpoint restart savepoint current source next145 rejects empty path'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, '', $transactions, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, '', $transactions, [1]));
 };
 
 $tests['wal reader checkpoint restart savepoint current source next145 rejects empty transactions'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, '/tmp/wp.sqlite', [], [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, '/tmp/wp.sqlite', [], [1]));
 };
 
 $tests['wal reader checkpoint restart savepoint current source next145 rejects empty pages'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, '/tmp/wp.sqlite', $transactions, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, '/tmp/wp.sqlite', $transactions, []));
 };
 
 $tests['wal reader checkpoint restart savepoint current source next145 rejects stale wal bytes'] = static function (TestRunner $t) use ($makeStack, $wal, $makeWalBytes, $databaseBytes, $activeShm, $releasedShm, $transactions): void {
     $staleBytes = $makeWalBytes(146);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145($makeStack(), 'plugin-settings-next145', $wal, $staleBytes, $databaseBytes, $activeShm, $releasedShm, '/tmp/wp.sqlite', $transactions, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext($makeStack(), 'plugin-settings-next145', $wal, $staleBytes, $databaseBytes, $activeShm, $releasedShm, '/tmp/wp.sqlite', $transactions, [1]));
 };
 
 $tests['wal reader checkpoint restart savepoint current source next145 rejects active shm salt mismatch'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $makeShm, $releasedShm, $transactions): void {
     $badShm = SQLiteShmIndex::parse($makeShm([0, 7], [false, true], 2, 5, 8, 0x14514503));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $badShm, $releasedShm, '/tmp/wp.sqlite', $transactions, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $badShm, $releasedShm, '/tmp/wp.sqlite', $transactions, [1]));
 };
 
 $tests['wal reader checkpoint restart savepoint current source next145 rejects missing active pin'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $makeShm, $releasedShm, $transactions): void {
     $unpinned = SQLiteShmIndex::parse($makeShm([0, null], [false, false], 8, 8));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $unpinned, $releasedShm, '/tmp/wp.sqlite', $transactions, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $unpinned, $releasedShm, '/tmp/wp.sqlite', $transactions, [1]));
 };
 
 $tests['wal reader checkpoint restart savepoint current source next145 rejects unreleased shm'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $activeShm, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $activeShm, $activeShm, '/tmp/wp.sqlite', $transactions, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $activeShm, $activeShm, '/tmp/wp.sqlite', $transactions, [1]));
 };
 
 $tests['wal reader checkpoint restart savepoint current source next145 rejects non integer page'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext145($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, '/tmp/wp.sqlite', $transactions, ['1']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::readerCheckpointRestartSavepointCurrentSourceNext($makeStack(), 'plugin-settings-next145', $wal, $walBytes, $databaseBytes, $activeShm, $releasedShm, '/tmp/wp.sqlite', $transactions, ['1']));
 };
 
 return $tests;

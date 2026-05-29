@@ -58,15 +58,15 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext255(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareContinuationResume(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],
 );
-$resume = $plan['compoundWindowRecursiveContinuationResumeNext255'];
+$resume = $plan['compoundWindowRecursiveContinuationResumeContinuationResume'];
 
 $payload = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next255',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-continuation-resume',
     'wordpressUse' => 'Copied wp_options retry scans can hold next-source compound rows until the current recursive/window LIMIT page and the queued next page both acknowledge the continuation resume fence.',
     'status' => $plan['status'],
     'continuationResumeTokenLength' => strlen($resume['continuationResumeToken']),
@@ -77,17 +77,17 @@ $payload = [
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next255-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next255 self-test failed\n");
+if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-continuation-resume-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-continuation-resume self-test failed\n");
     exit(1);
 }
 if ($payload['continuationResumeTokenLength'] !== 64 || $payload['requiredContinuationAckCount'] !== 4) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next255 continuation guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-continuation-resume continuation guard failed\n");
     exit(1);
 }
 
 if (in_array('--self-test', $argv, true)) {
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next255 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-continuation-resume self-test passed\n";
     exit(0);
 }
 

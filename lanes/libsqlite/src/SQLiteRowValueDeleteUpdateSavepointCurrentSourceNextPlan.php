@@ -7,14 +7,13 @@ namespace PortLibs\LibSqlite;
 final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
 {
 
-    /* Variant consolidated from SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan.php. */
-/**
+    /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $statements
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext135(
+    public static function executeDistinctReturningSavepoint(
         array $tables,
         array $statements,
         array $uniqueConstraints,
@@ -28,7 +27,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value DELETE/UPDATE savepoint needs unique constraints');
         }
 
-        $savepointImage = self::normalizeTablesNext135($tables);
+        $savepointImage = self::normalizeTables($tables);
         $attempted = $savepointImage;
         $executed = [];
         $yielded = [];
@@ -53,7 +52,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
 
             $attempted = $result['tables'];
             $sourceRows = $before[$result['table']] ?? [];
-            $selectedRows = self::rowsByIdsNext135($sourceRows, $result['plan']->selectedIds, $rowIdColumn);
+            $selectedRows = self::rowsByIds($sourceRows, $result['plan']->selectedIds, $rowIdColumn);
             $statement = [
                 'ordinal' => $ordinal,
                 'action' => $result['action'],
@@ -110,8 +109,8 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
             'ignored_rows' => $ignoredRows,
             'deleted_conflict_rows' => $deletedConflictRows,
             'conflicts' => $conflicts,
-            'changes' => $rolledBack ? 0 : self::changeCountNext135($executed),
-            'attempted_changes' => self::changeCountNext135($executed),
+            'changes' => $rolledBack ? 0 : self::changeCountWithConflictDeletes($executed),
+            'attempted_changes' => self::changeCountWithConflictDeletes($executed),
             'dependencies' => [
                 'sqlite-delete-returning-current-source',
                 'sqlite-row-value-update-after-delete',
@@ -124,7 +123,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext135(array $tables): array
+    private static function normalizeTables(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -145,7 +144,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext135(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -172,7 +171,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext135(array $executed): int
+    private static function changeCountWithConflictDeletes(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -183,15 +182,13 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
         return $changes;
     }
 
-
-    /* Variant consolidated from SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan.php. */
-/**
+    /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $statements
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext141(
+    public static function executeBetweenCleanupSavepoint(
         array $tables,
         array $statements,
         array $uniqueConstraints,
@@ -199,13 +196,13 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
         string $rowIdColumn = 'option_id',
     ): array {
         if ($statements === []) {
-            throw new \InvalidArgumentException('SQLite row-value DELETE/UPDATE savepoint next141 needs statements');
+            throw new \InvalidArgumentException('SQLite row-value DELETE/UPDATE savepoint needs statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value DELETE/UPDATE savepoint next141 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value DELETE/UPDATE savepoint needs unique constraints');
         }
 
-        $savepointImage = self::normalizeTablesNext141($tables);
+        $savepointImage = self::normalizeTables($tables);
         $attempted = $savepointImage;
         $executed = [];
         $yielded = [];
@@ -226,7 +223,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
             }
 
             $attempted = $result['tables'];
-            $selectedRows = self::rowsByIdsNext141($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn);
+            $selectedRows = self::rowsByIds($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn);
             $statement = [
                 'ordinal' => $ordinal,
                 'action' => $result['action'],
@@ -272,11 +269,11 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
             'attempted_returning' => $attemptedReturning,
             'deleted_rows' => $deletedRows,
             'updated_rows' => $updatedRows,
-            'changes' => $rolledBack ? 0 : self::changeCountNext141($executed),
-            'attempted_changes' => self::changeCountNext141($executed),
-            'changed_tables' => self::changedTablesNext141($savepointImage, $attempted),
+            'changes' => $rolledBack ? 0 : self::changeCountFromMutationIds($executed),
+            'attempted_changes' => self::changeCountFromMutationIds($executed),
+            'changed_tables' => self::changedTables($savepointImage, $attempted),
             'dependencies' => [
-                'sqlite-row-value-between-delete-update-current-source-next141',
+                'sqlite-row-value-between-delete-update-current-source',
                 'sqlite-delete-returning-current-source',
                 'sqlite-update-row-value-between-after-delete',
                 'sqlite-savepoint-current-source-delete-update-rollback',
@@ -285,58 +282,9 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
     }
 
     /**
-     * @param array<string,list<array<string,mixed>>> $tables
-     * @return array<string,list<array<string,mixed>>>
-     */
-    private static function normalizeTablesNext141(array $tables): array
-    {
-        foreach ($tables as $name => $rows) {
-            if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value DELETE/UPDATE savepoint next141 tables must be named row lists');
-            }
-            foreach ($rows as $row) {
-                if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value DELETE/UPDATE savepoint next141 rows must be arrays');
-                }
-            }
-        }
-
-        return $tables;
-    }
-
-    /**
-     * @param list<array<string,mixed>> $rows
-     * @param list<int|string> $ids
-     * @return list<array<string,mixed>>
-     */
-    private static function rowsByIdsNext141(array $rows, array $ids, string $rowIdColumn): array
-    {
-        $wanted = [];
-        foreach ($ids as $id) {
-            $wanted[(string) $id] = true;
-        }
-
-        $matched = [];
-        foreach ($rows as $row) {
-            if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value DELETE/UPDATE next141 rowid column {$rowIdColumn} is missing");
-            }
-            $id = $row[$rowIdColumn];
-            if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value DELETE/UPDATE next141 rowid column {$rowIdColumn} must be int or string");
-            }
-            if (isset($wanted[(string) $id])) {
-                $matched[] = $row;
-            }
-        }
-
-        return $matched;
-    }
-
-    /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function changeCountNext141(array $executed): int
+    private static function changeCountFromMutationIds(array $executed): int
     {
         $changes = 0;
         foreach ($executed as $statement) {
@@ -351,7 +299,7 @@ final class SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext141(array $before, array $after): array
+    private static function changedTables(array $before, array $after): array
     {
         $names = array_values(array_unique(array_merge(array_keys($before), array_keys($after))));
         sort($names);

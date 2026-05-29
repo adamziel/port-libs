@@ -35,8 +35,8 @@ $wal = SQLiteWal::parse($makeWal([
     [3, 5, $page('wal72-frame-6-index-final-commit')],
 ]), null, true);
 
-$plan = static fn (): array => $wal->checkpointTruncateCurrentNext72($databaseBytes, [1, 2, 3, 4, 5]);
-$partial = static fn (): array => $wal->checkpointTruncateCurrentNext72($databaseBytes, [2, 3, 4], 2);
+$plan = static fn (): array => $wal->checkpointTruncateCurrentNext($databaseBytes, [1, 2, 3, 4, 5]);
+$partial = static fn (): array => $wal->checkpointTruncateCurrentNext($databaseBytes, [2, 3, 4], 2);
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'truncate-checkpoint-drained-reader-next-database'],
@@ -100,19 +100,19 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal reader checkpoint truncate current next72 rejects empty page list'] = static function (TestRunner $t) use ($wal, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointTruncateCurrentNext72($databaseBytes, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointTruncateCurrentNext($databaseBytes, []));
 };
 
 $tests['wal reader checkpoint truncate current next72 rejects non integer page'] = static function (TestRunner $t) use ($wal, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointTruncateCurrentNext72($databaseBytes, [2, '3']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointTruncateCurrentNext($databaseBytes, [2, '3']));
 };
 
 $tests['wal reader checkpoint truncate current next72 rejects negative reader frame'] = static function (TestRunner $t) use ($wal, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointTruncateCurrentNext72($databaseBytes, [2], -1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointTruncateCurrentNext($databaseBytes, [2], -1));
 };
 
 $tests['wal reader checkpoint truncate current next72 rejects reader frame beyond wal'] = static function (TestRunner $t) use ($wal, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointTruncateCurrentNext72($databaseBytes, [2], 7));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointTruncateCurrentNext($databaseBytes, [2], 7));
 };
 
 return $tests;

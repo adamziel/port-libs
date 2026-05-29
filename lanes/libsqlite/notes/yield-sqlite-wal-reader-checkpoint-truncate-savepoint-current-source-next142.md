@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointTruncateSavepointCurrentSourceNext142()` for the WAL path where:
+Adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointTruncateSavepointCurrentSourceNext()` for the WAL path where:
 
 - a current-source reader is pinned in SHM on frames that a savepoint rollback will discard;
 - the writer rolls back to the retained WAL prefix and attempts a TRUNCATE checkpoint;

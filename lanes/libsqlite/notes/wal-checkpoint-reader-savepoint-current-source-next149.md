@@ -1,6 +1,6 @@
 # WAL Checkpoint Reader Savepoint Current Source Next149
 
-This slice adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext149()`.
+This slice adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReplayCurrentSourceNext()`.
 
 The behavior is the current-source reader boundary around `ROLLBACK TO` in WAL mode:
 

@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/SQLitePagerDirtyPageCacheSpillPlan.php';
 
 use PortLibs\LibSqlite\SQLitePagerDirtyPageCacheSpillPlan;
 
-$walPlan = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(
+$walPlan = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(
     16,
     9,
     5,
@@ -22,7 +22,7 @@ $walPlan = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(
     2
 );
 
-$rollbackPlan = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(
+$rollbackPlan = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(
     16,
     7,
     5,

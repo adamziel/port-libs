@@ -62,31 +62,31 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext257(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareSourceSwitchCheckpoint(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-next257-ready') {
-        throw new RuntimeException('unexpected next257 status');
+    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-source-switch-checkpoint-ready') {
+        throw new RuntimeException('unexpected source-switch-checkpoint status');
     }
-    if ($plan['compoundSourceSwitchCheckpointNext257']['nextOnlyLabels'] !== ['plugin_prime']) {
+    if ($plan['compoundSourceSwitchCheckpointSourceSwitchCheckpoint']['nextOnlyLabels'] !== ['plugin_prime']) {
         throw new RuntimeException('unexpected next-only source-switch label');
     }
-    if ($plan['compoundSourceSwitchCheckpointNext257']['requiredSourceSwitchReceiptCount'] !== 10) {
+    if ($plan['compoundSourceSwitchCheckpointSourceSwitchCheckpoint']['requiredSourceSwitchReceiptCount'] !== 10) {
         throw new RuntimeException('unexpected source-switch receipt count');
     }
 
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next257 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-source-switch-checkpoint self-test passed\n";
     return;
 }
 
 echo json_encode([
     'status' => $plan['status'],
-    'nextOnlyLabels' => $plan['compoundSourceSwitchCheckpointNext257']['nextOnlyLabels'],
-    'currentOnlyLabels' => $plan['compoundSourceSwitchCheckpointNext257']['currentOnlyLabels'],
-    'requiredSourceSwitchReceiptCount' => $plan['compoundSourceSwitchCheckpointNext257']['requiredSourceSwitchReceiptCount'],
-    'nextExposure' => $plan['compoundSourceSwitchCheckpointNext257']['nextExposure'],
+    'nextOnlyLabels' => $plan['compoundSourceSwitchCheckpointSourceSwitchCheckpoint']['nextOnlyLabels'],
+    'currentOnlyLabels' => $plan['compoundSourceSwitchCheckpointSourceSwitchCheckpoint']['currentOnlyLabels'],
+    'requiredSourceSwitchReceiptCount' => $plan['compoundSourceSwitchCheckpointSourceSwitchCheckpoint']['requiredSourceSwitchReceiptCount'],
+    'nextExposure' => $plan['compoundSourceSwitchCheckpointSourceSwitchCheckpoint']['nextExposure'],
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";

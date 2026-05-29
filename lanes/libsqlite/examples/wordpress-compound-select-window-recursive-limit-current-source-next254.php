@@ -64,17 +64,17 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext254($sql, $current, $next);
-$receipt = $plan['compoundWindowRecursiveLimitReceiptNext254'];
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::comparePromotionReceipt($sql, $current, $next);
+$receipt = $plan['compoundWindowRecursiveLimitReceiptPromotionReceipt'];
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-next254-ready');
+    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-promotion-receipt-ready');
     assert($receipt['compoundOperators'] === ['UNION ALL', 'INTERSECT', 'EXCEPT']);
     assert($receipt['currentLabels'] === ['home', 'seed:2:3', 'rewrite_rules', 'seed:2:3:4']);
     assert($receipt['nextLabels'] === ['plugin_prime', 'seed:2:3', 'home', 'seed:2:3:4']);
     assert($receipt['requiredCompoundReceiptAckCount'] === 3);
     assert($receipt['windowFrameChanged'] === true);
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next254 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-promotion-receipt self-test passed\n";
     return;
 }
 

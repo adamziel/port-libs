@@ -228,7 +228,7 @@ final class SQLiteWalHotJournalSavepointReplayPlan
      * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,database_path:string,journal_path:string,wal_path:string,savepoint:string,hot_recovered:bool,journal_action:string,rollback_to_frame:int,original_frame_count:int,retained_frame_count:int,discarded_frame_count:int,current_wal_bytes:string,current_wal_bytes_length:int,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,images_match:bool,next_uses_checkpoint_database:bool,can_checkpoint:bool,checkpoint_database_page_count:int|null,discarded_valid_tail_frame_count:int,discarded_corrupt_tail_frame_count:int,operations:list<array<string,mixed>>,payloads:array<string,string>,hot_journal:array<string,mixed>,savepoint_truncation:array<string,mixed>,wal_recovery:array<string,mixed>,current_source:array<string,mixed>,dependencies:list<string>}
      */
-    public static function replayCurrentSourceNext87(
+    public static function replayCurrentSourceNext(
         SQLiteRollbackJournal $journal,
         string $databaseBytes,
         string $journalBytes,
@@ -297,7 +297,7 @@ final class SQLiteWalHotJournalSavepointReplayPlan
      * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,master_journal_path:string,master_cache:array<string,mixed>,replay:array<string,mixed>,next_master_member:bool,stale_current_member:bool,operations:list<array<string,mixed>>,payloads:array<string,string>,dependencies:list<string>}
      */
-    public static function masterJournalCurrentSourceNext82(
+    public static function masterJournalCurrentSourceNext(
         string $masterJournalPath,
         ?string $currentMasterJournalBytes,
         ?string $nextMasterJournalBytes,

@@ -2,7 +2,7 @@
 
 Slice: `wal-reader-checkpoint-savepoint-current-source-next139`
 
-This slice adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointSavepointCurrentSourceNext139()`.
+This slice adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointSavepointCurrentSourceNext()`.
 
 Behavior covered:
 

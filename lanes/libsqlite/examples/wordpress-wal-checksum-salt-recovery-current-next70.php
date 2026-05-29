@@ -38,7 +38,7 @@ $newWal = $makeWal(71, 0x70010002, 0x70030003, [
     [3, 3, 'new wal committed transient cleanup'],
 ]);
 
-$plan = SQLiteWal::checksumSaltRecoveryCurrentNext70(
+$plan = SQLiteWal::checksumSaltRecoveryCurrentNext(
     $oldWal,
     $newWal . substr($oldWal, 32 + (24 + $pageSize)),
     $databaseBytes,

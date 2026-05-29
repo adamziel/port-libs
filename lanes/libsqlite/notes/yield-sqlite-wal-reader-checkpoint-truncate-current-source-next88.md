@@ -2,14 +2,14 @@
 
 ## Behavior
 
-Adds `SQLiteWal::checkpointTruncateReaderCurrentSourceNext88()` for the
+Adds `SQLiteWal::checkpointTruncateReaderCurrentSourceNext()` for the
 truncate-checkpoint path where a current reader pins an older WAL snapshot. The
 method validates the caller-provided current WAL bytes against the parsed source,
 checks current-reader visibility, models the next reader while truncation is
 blocked and the WAL is preserved, and models the drained retry where the WAL is
 truncated and new readers use the checkpointed database image.
 
-This is distinct from accepted `restartTruncateReaderCurrentSourceNext86`, which
+This is distinct from accepted `restartTruncateReaderCurrentSourceNext`, which
 models drained restart/truncate from current source without a blocking reader,
 and from accepted WAL reader-pin restart/truncate handoff surfaces.
 

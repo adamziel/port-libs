@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWal::checkpointReaderPinRestartCurrentSourceNext83()`, a current-source
+Adds `SQLiteWal::checkpointReaderPinRestartCurrentSourceNext()`, a current-source
 classification layer over the accepted reader-pin restart/truncate checkpoint
 handoff. It preserves the existing current/next/final reader visibility while
 also identifying whether each visible page is coming from the old database

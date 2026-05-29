@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext85()` for the WAL/savepoint current-source gap. The wrapper builds on the existing rollback-to-savepoint and checkpoint reader boundary, then emits per-page before/current/next source rows:
+Adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext()` for the WAL/savepoint current-source gap. The wrapper builds on the existing rollback-to-savepoint and checkpoint reader boundary, then emits per-page before/current/next source rows:
 
 - retained pages stay `wal>wal>wal`;
 - pages discarded by `ROLLBACK TO` move `wal>database>database`;

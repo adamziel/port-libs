@@ -67,7 +67,7 @@ $stack->recordStatementPageImageWrite('insert-transient-next93', 5, $clean[5]);
 $stack->recordStatementWalFrameWrite('insert-transient-next93', 4, 4);
 $stack->recordStatementWalFrameWrite('insert-transient-next93', 5, 5, true);
 
-$plan = SQLitePagerHotJournalWalRecoveryPlan::statementCurrentSourceNext93(
+$plan = SQLitePagerHotJournalWalRecoveryPlan::statementWalRecoveryCurrentSourceNext(
     $journal,
     implode('', $dirty),
     $journalBytes,

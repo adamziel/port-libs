@@ -62,34 +62,34 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext252(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareFinalPageYieldWatermark(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-next252-ready') {
-        throw new RuntimeException('unexpected next252 status');
+    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-final-page-yield-watermark-ready') {
+        throw new RuntimeException('unexpected final-page-yield-watermark status');
     }
-    if ($plan['compoundFinalPageYieldWatermarkNext252']['nextOnlyLabels'] !== ['plugin_prime']) {
+    if ($plan['compoundFinalPageYieldWatermarkFinalPageYieldWatermark']['nextOnlyLabels'] !== ['plugin_prime']) {
         throw new RuntimeException('unexpected next-only final-page label');
     }
-    if ($plan['compoundFinalPageYieldWatermarkNext252']['currentOnlyLabels'] !== ['rewrite_rules']) {
+    if ($plan['compoundFinalPageYieldWatermarkFinalPageYieldWatermark']['currentOnlyLabels'] !== ['rewrite_rules']) {
         throw new RuntimeException('unexpected current-only final-page label');
     }
-    if ($plan['compoundFinalPageYieldWatermarkNext252']['requiredFinalPageYieldAckCount'] !== 5) {
+    if ($plan['compoundFinalPageYieldWatermarkFinalPageYieldWatermark']['requiredFinalPageYieldAckCount'] !== 5) {
         throw new RuntimeException('unexpected final-page acknowledgement count');
     }
 
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next252 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-final-page-yield-watermark self-test passed\n";
     return;
 }
 
 echo json_encode([
     'status' => $plan['status'],
-    'nextOnlyLabels' => $plan['compoundFinalPageYieldWatermarkNext252']['nextOnlyLabels'],
-    'currentOnlyLabels' => $plan['compoundFinalPageYieldWatermarkNext252']['currentOnlyLabels'],
-    'requiredFinalPageYieldAckCount' => $plan['compoundFinalPageYieldWatermarkNext252']['requiredFinalPageYieldAckCount'],
-    'nextExposure' => $plan['compoundFinalPageYieldWatermarkNext252']['nextExposure'],
+    'nextOnlyLabels' => $plan['compoundFinalPageYieldWatermarkFinalPageYieldWatermark']['nextOnlyLabels'],
+    'currentOnlyLabels' => $plan['compoundFinalPageYieldWatermarkFinalPageYieldWatermark']['currentOnlyLabels'],
+    'requiredFinalPageYieldAckCount' => $plan['compoundFinalPageYieldWatermarkFinalPageYieldWatermark']['requiredFinalPageYieldAckCount'],
+    'nextExposure' => $plan['compoundFinalPageYieldWatermarkFinalPageYieldWatermark']['nextExposure'],
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";

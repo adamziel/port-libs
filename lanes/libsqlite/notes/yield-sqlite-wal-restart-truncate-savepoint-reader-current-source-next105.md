@@ -4,7 +4,7 @@ Slice: `wal-restart-truncate-savepoint-reader-current-source-next105`
 
 ## Behavior
 
-- Adds `SQLiteWalSavepointCheckpointPlan::checkpointRestartTruncateSavepointReaderCurrentSourceNext105()`.
+- Adds `SQLiteWalSavepointCheckpointPlan::checkpointRestartTruncateSavepointReaderCurrentSourceNext()`.
 - Verifies the supplied current WAL bytes still match the parsed WAL source.
 - Verifies current SHM salt and `mxFrame` match the current WAL before planning checkpoint reset.
 - Uses the current SHM checkpoint-pinned reader frame as the active savepoint reader.

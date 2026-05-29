@@ -51,9 +51,9 @@ $savepoints = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$restart = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext81($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, [1, 2, 3], 'restart');
-$truncate = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext81($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, [1, 2, 3], 'truncate');
-$clampedReader = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext81($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, [1, 2], 'restart', 99);
+$restart = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, [1, 2, 3], 'restart');
+$truncate = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, [1, 2, 3], 'truncate');
+$clampedReader = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, [1, 2], 'restart', 99);
 
 $cases = [
     'restart status' => [static fn (): mixed => $restart()['status'], 'released-checkpointed'],
@@ -112,16 +112,16 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal recovery savepoint checkpoint current next81 rejects empty savepoint'] = static function (TestRunner $t) use ($savepoints, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext81($savepoints(), '', $wal(), $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext($savepoints(), '', $wal(), $walBytes, $databaseBytes, [1]));
 };
 $tests['wal recovery savepoint checkpoint current next81 rejects empty pages'] = static function (TestRunner $t) use ($savepoints, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext81($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, []));
 };
 $tests['wal recovery savepoint checkpoint current next81 rejects passive mode'] = static function (TestRunner $t) use ($savepoints, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext81($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, [1], 'passive'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, [1], 'passive'));
 };
 $tests['wal recovery savepoint checkpoint current next81 rejects non integer page'] = static function (TestRunner $t) use ($savepoints, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext81($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, ['1']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseAfterRollbackCheckpointCurrentNext($savepoints(), 'plugin-settings', $wal(), $walBytes, $databaseBytes, ['1']));
 };
 
 return $tests;

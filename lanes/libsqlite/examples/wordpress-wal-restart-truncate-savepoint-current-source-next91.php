@@ -44,7 +44,7 @@ $stack->savepoint('released-plugin');
 $stack->recordWalFrameWrite(4, 2);
 $stack->recordWalFrameWrite(5, 4, true);
 
-$restart = SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91(
+$restart = SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext(
     $stack,
     'released-plugin',
     'plugin-parent',
@@ -55,7 +55,7 @@ $restart = SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurren
     'restart'
 );
 
-$truncate = SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91(
+$truncate = SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext(
     $stack,
     'released-plugin',
     'plugin-parent',

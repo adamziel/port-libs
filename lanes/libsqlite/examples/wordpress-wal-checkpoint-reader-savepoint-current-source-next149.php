@@ -36,7 +36,7 @@ $savepoints->savepoint('plugin-update');
 $savepoints->recordWalFrameWrite(3, 3);
 $savepoints->recordWalFrameWrite(4, 2, true);
 
-$summary = SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext149(
+$summary = SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReplayCurrentSourceNext(
     $savepoints,
     'plugin-update',
     SQLiteWal::parse($walBytes, $pageSize, true),

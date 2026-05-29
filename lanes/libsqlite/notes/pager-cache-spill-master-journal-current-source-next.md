@@ -5,7 +5,7 @@ Slice: `pager-cache-spill-master-journal-current-source-next`.
 Behavior added:
 - Re-read the current master journal before admitting dirty pager-cache pages to cache spill.
 - Reject stale cached master-journal membership, wrong attached journal membership, stale source id/epoch, pinned pages, clean pages, missing rollback sources, and before-images that no longer match the current database source.
-- Reuse `SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107()` for rollback-journal and WAL spill routing after the current-source filter.
+- Reuse `SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext()` for rollback-journal and WAL spill routing after the current-source filter.
 
 Focused evidence:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerCacheSpillMasterJournalCurrentSourceNextTest.php`

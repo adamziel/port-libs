@@ -39,21 +39,21 @@ $shortWalBytes = substr($currentWalBytes, 0, 32 + (3 * (24 + $pageSize)));
 $currentWal = SQLiteWal::parse($currentWalBytes, null, true);
 $staleWal = SQLiteWal::parse($staleSaltBytes, null, true);
 
-$restart = static fn (?int $reader = null): array => $currentWal->restartTruncateReaderCurrentSourceNext86(
+$restart = static fn (?int $reader = null): array => $currentWal->restartTruncateReaderCurrentSourceNext(
     $currentWalBytes,
     $databaseBytes,
     [1, 2, 3, 4],
     'restart',
     $reader
 );
-$truncate = static fn (?int $reader = null): array => $currentWal->restartTruncateReaderCurrentSourceNext86(
+$truncate = static fn (?int $reader = null): array => $currentWal->restartTruncateReaderCurrentSourceNext(
     $currentWalBytes,
     $databaseBytes,
     [2, 3, 4],
     'truncate',
     $reader
 );
-$partial = static fn (): array => $currentWal->restartTruncateReaderCurrentSourceNext86(
+$partial = static fn (): array => $currentWal->restartTruncateReaderCurrentSourceNext(
     $currentWalBytes,
     $databaseBytes,
     [2, 4],
@@ -128,39 +128,39 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal restart truncate reader current source next86 rejects stale salt bytes'] = static function (TestRunner $t) use ($currentWal, $staleSaltBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext86($staleSaltBytes, $databaseBytes, [2], 'restart'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext($staleSaltBytes, $databaseBytes, [2], 'restart'));
 };
 
 $tests['wal restart truncate reader current source next86 rejects stale checkpoint bytes'] = static function (TestRunner $t) use ($currentWal, $staleCheckpointBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext86($staleCheckpointBytes, $databaseBytes, [2], 'restart'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext($staleCheckpointBytes, $databaseBytes, [2], 'restart'));
 };
 
 $tests['wal restart truncate reader current source next86 rejects short frame count bytes'] = static function (TestRunner $t) use ($currentWal, $shortWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext86($shortWalBytes, $databaseBytes, [2], 'restart'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext($shortWalBytes, $databaseBytes, [2], 'restart'));
 };
 
 $tests['wal restart truncate reader current source next86 rejects stale parsed wal'] = static function (TestRunner $t) use ($staleWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $staleWal->restartTruncateReaderCurrentSourceNext86($currentWalBytes, $databaseBytes, [2], 'restart'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $staleWal->restartTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [2], 'restart'));
 };
 
 $tests['wal restart truncate reader current source next86 rejects empty page list'] = static function (TestRunner $t) use ($currentWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext86($currentWalBytes, $databaseBytes, [], 'restart'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [], 'restart'));
 };
 
 $tests['wal restart truncate reader current source next86 rejects non integer page'] = static function (TestRunner $t) use ($currentWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext86($currentWalBytes, $databaseBytes, [2, '3'], 'restart'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [2, '3'], 'restart'));
 };
 
 $tests['wal restart truncate reader current source next86 rejects unsupported mode'] = static function (TestRunner $t) use ($currentWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext86($currentWalBytes, $databaseBytes, [2], 'passive'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [2], 'passive'));
 };
 
 $tests['wal restart truncate reader current source next86 rejects negative reader frame'] = static function (TestRunner $t) use ($currentWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext86($currentWalBytes, $databaseBytes, [2], 'restart', -1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [2], 'restart', -1));
 };
 
 $tests['wal restart truncate reader current source next86 rejects reader beyond wal'] = static function (TestRunner $t) use ($currentWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext86($currentWalBytes, $databaseBytes, [2], 'restart', 5));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->restartTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [2], 'restart', 5));
 };
 
 return $tests;

@@ -17718,7 +17718,7 @@ SQL;
         $append(4, 5, $pageFourLatest);
 
         $wal = SQLiteWal::parse($walBytes, null, true);
-        $plan = $wal->restartTruncateReaderPinCurrentSourceNext119($walBytes, $baseDatabase, [2, 3, 4, 5], [0, 2, 4, null]);
+        $plan = $wal->restartTruncateReaderPinCurrentSourceNext($walBytes, $baseDatabase, [2, 3, 4, 5], [0, 2, 4, null]);
 
         $t->same('reader-pin-restart-truncate-current-source-next119', $plan['status']);
         $t->same('current-source', $plan['source_status']);
@@ -17783,9 +17783,9 @@ SQL;
         $t->same($pageTwoLatest, $plan['restart_next_reader'][0]['image']);
         $t->same($pageFourLatest, $plan['truncate_next_reader'][2]['image']);
         $t->same(true, in_array('sqlite-wal-reader-pin-restart-truncate-current-source-next119', $plan['dependencies'], true));
-        $t->throws(InvalidArgumentException::class, static fn () => $wal->restartTruncateReaderPinCurrentSourceNext119($walBytes, $baseDatabase, [], [0]));
-        $t->throws(InvalidArgumentException::class, static fn () => $wal->restartTruncateReaderPinCurrentSourceNext119(substr($walBytes, 0, -1), $baseDatabase, [2], [0]));
-        $t->throws(InvalidArgumentException::class, static fn () => $wal->restartTruncateReaderPinCurrentSourceNext119($walBytes, substr($baseDatabase, 1), [2], [0]));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->restartTruncateReaderPinCurrentSourceNext($walBytes, $baseDatabase, [], [0]));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->restartTruncateReaderPinCurrentSourceNext(substr($walBytes, 0, -1), $baseDatabase, [2], [0]));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->restartTruncateReaderPinCurrentSourceNext($walBytes, substr($baseDatabase, 1), [2], [0]));
     },
     'rejects malformed sqlite wal files' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHeader::parse(str_repeat("\0", 31)));

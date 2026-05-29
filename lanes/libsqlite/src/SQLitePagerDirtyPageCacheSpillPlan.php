@@ -177,7 +177,7 @@ final class SQLitePagerDirtyPageCacheSpillPlan
      * @param list<array{page:int,bytes?:int,journaled?:bool,dirty?:bool,pinned?:bool,walFrame?:int}> $cachePages
      * @return array<string, mixed>
      */
-    public static function journalModeCurrentSourceNext107(
+    public static function journalModeCurrentSourceNext(
         int $pageCount,
         int $cacheSize,
         int $spillThreshold,

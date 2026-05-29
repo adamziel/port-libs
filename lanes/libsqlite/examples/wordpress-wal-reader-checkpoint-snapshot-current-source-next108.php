@@ -35,7 +35,7 @@ $append(5, 0, 'wp108 cron tail before final commit');
 $append(2, 5, 'wp108 active_plugins latest committed');
 
 $wal = SQLiteWal::parse($walBytes, $pageSize, true);
-$plan = $wal->checkpointSnapshotCurrentSourceNext108($walBytes, $databaseBytes, [1, 2, 3, 4, 5], 2);
+$plan = $wal->checkpointSnapshotCurrentSourceNext($walBytes, $databaseBytes, [1, 2, 3, 4, 5], 2);
 
 $summary = [
     'status' => $plan['status'],

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext91()`
+Adds `SQLiteWalSavepointCheckpointPlan::releaseThenRollbackCheckpointCurrentSourceNext()`
 for the savepoint path where an inner WordPress import savepoint is released into
 its parent, then the parent is rolled back before a RESTART/TRUNCATE checkpoint.
 The method validates the caller-provided current WAL bytes against the parsed WAL

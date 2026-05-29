@@ -62,31 +62,31 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext248(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNextSourcePromotionFence(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-next248-ready') {
-        throw new RuntimeException('unexpected next248 status');
+    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-next-source-promotion-fence-ready') {
+        throw new RuntimeException('unexpected next-source-promotion-fence status');
     }
-    if ($plan['compoundNextSourcePromotionFenceNext248']['nextOnlyLabels'] !== ['plugin_prime']) {
+    if ($plan['compoundNextSourcePromotionFenceNextSourcePromotionFence']['nextOnlyLabels'] !== ['plugin_prime']) {
         throw new RuntimeException('unexpected next-only promotion label');
     }
-    if ($plan['compoundNextSourcePromotionFenceNext248']['currentOnlyLabels'] !== ['rewrite_rules']) {
+    if ($plan['compoundNextSourcePromotionFenceNextSourcePromotionFence']['currentOnlyLabels'] !== ['rewrite_rules']) {
         throw new RuntimeException('unexpected current-only promotion label');
     }
 
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next248 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-next-source-promotion-fence self-test passed\n";
     return;
 }
 
 echo json_encode([
     'status' => $plan['status'],
-    'nextOnlyLabels' => $plan['compoundNextSourcePromotionFenceNext248']['nextOnlyLabels'],
-    'currentOnlyLabels' => $plan['compoundNextSourcePromotionFenceNext248']['currentOnlyLabels'],
-    'requiredNextPromotionReceiptCount' => $plan['compoundNextSourcePromotionFenceNext248']['requiredNextPromotionReceiptCount'],
-    'nextExposure' => $plan['compoundNextSourcePromotionFenceNext248']['nextExposure'],
+    'nextOnlyLabels' => $plan['compoundNextSourcePromotionFenceNextSourcePromotionFence']['nextOnlyLabels'],
+    'currentOnlyLabels' => $plan['compoundNextSourcePromotionFenceNextSourcePromotionFence']['currentOnlyLabels'],
+    'requiredNextPromotionReceiptCount' => $plan['compoundNextSourcePromotionFenceNextSourcePromotionFence']['requiredNextPromotionReceiptCount'],
+    'nextExposure' => $plan['compoundNextSourcePromotionFenceNextSourcePromotionFence']['nextExposure'],
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";

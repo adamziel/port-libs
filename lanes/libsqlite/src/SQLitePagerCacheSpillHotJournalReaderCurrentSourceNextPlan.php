@@ -127,7 +127,7 @@ final class SQLitePagerCacheSpillHotJournalReaderCurrentSourceNextPlan
         ksort($rows, SORT_NUMERIC);
         ksort($rejected, SORT_NUMERIC);
 
-        $spill = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(
+        $spill = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(
             $pageCount,
             $cacheSize,
             $spillThreshold,

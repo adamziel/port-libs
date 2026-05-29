@@ -47,7 +47,7 @@ final class SQLitePagerMasterJournalCacheSpillSavepointCurrentSourceNextPlan
 
         $cacheInput = self::normalizeCachePages($cachePages, $pageSize);
         $pageCount = self::pageCount((string) (($recovery['retry_recovery']['recovered_database_bytes'] ?? '') ?: self::databaseBytes($databases, $primaryDatabasePath)), $pageSize, $retryPageWrites, $cacheInput);
-        $spill = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(
+        $spill = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(
             $pageCount,
             $cacheSize,
             $spillThreshold,

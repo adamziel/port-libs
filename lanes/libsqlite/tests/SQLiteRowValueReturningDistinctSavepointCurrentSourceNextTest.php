@@ -26,8 +26,8 @@ $abortDuplicate = "UPDATE wp_options SET (option_name, status) = ('siteurl', 'du
 $commitStatements = [$deleteDrift, $updateDrift, $deleteNetwork];
 $rollbackStatements = [$deleteDrift, $updateDrift, $abortDuplicate];
 
-$commit = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, $commitStatements, $unique, 'wp_options_distinct_rowvalue_batch');
-$rollback = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, $rollbackStatements, $unique, 'wp_options_distinct_rowvalue_batch');
+$commit = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint($tables, $commitStatements, $unique, 'wp_options_distinct_rowvalue_batch');
+$rollback = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint($tables, $rollbackStatements, $unique, 'wp_options_distinct_rowvalue_batch');
 $parsedDelete = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($deleteDrift);
 $parsedUpdate = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($updateDrift);
 
@@ -84,13 +84,13 @@ $cases = [
     'direct row-value not distinct numeric int real equal' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE option_id = 4 RETURNING (bytes, status) IS NOT DISTINCT FROM (12, 'stale') AS same", $tables)['returning'][0]['same'], 1],
     'direct where one-sided null is distinct selects rows' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE (status, checksum) IS DISTINCT FROM (NULL, NULL) RETURNING option_id ORDER BY option_id", $tables)['plan']->selectedIds, [1, 2, 3, 4, 5, 7]],
     'direct where aligned null not distinct selects row six' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE (status, checksum) IS NOT DISTINCT FROM (NULL, NULL) RETURNING option_id", $tables)['plan']->selectedIds, [6]],
-    'malformed distinct arity rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, ["DELETE FROM wp_options WHERE (status, checksum) IS DISTINCT FROM ('stale') RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE row-value expressions need at least two values'],
-    'malformed missing column rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, ["DELETE FROM wp_options WHERE (status, missing_column) IS DISTINCT FROM ('stale', NULL) RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE column missing_column is missing'],
+    'malformed distinct arity rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint($tables, ["DELETE FROM wp_options WHERE (status, checksum) IS DISTINCT FROM ('stale') RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE row-value expressions need at least two values'],
+    'malformed missing column rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint($tables, ["DELETE FROM wp_options WHERE (status, missing_column) IS DISTINCT FROM ('stale', NULL) RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE column missing_column is missing'],
 ];
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['rowvalue returning distinct savepoint current source next145 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue returning distinct savepoint current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }

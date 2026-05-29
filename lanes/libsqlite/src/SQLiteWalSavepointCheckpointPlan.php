@@ -218,7 +218,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array{status:string,savepoint:string,mode:string,rollback:array<string,mixed>,release:array<string,mixed>,checkpoint:array<string,mixed>,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_kept_rollback_wal_prefix:bool,release_allows_checkpoint_reset:bool,next_reader_uses_checkpoint_database:bool,images_match:bool,dependencies:list<string>}
      */
-    public static function releaseAfterRollbackCheckpointCurrentNext81(
+    public static function releaseAfterRollbackCheckpointCurrentNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -601,7 +601,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array{status:string,savepoint:string,mode:string,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,original_reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,retained_frame_count:int,discarded_frame_count:int,current_source_rows:list<array{page_number:int,before_source:string,current_source:string,next_source:string,before_frame:int|null,current_frame:int|null,next_frame:int|null,rollback_changed_current:bool,checkpoint_changed_next:bool,source_transition:string,current_label:string,next_label:string}>,current_sources:list<string>,next_sources:list<string>,source_transitions:list<string>,current_source_counts:array<string,int>,next_source_counts:array<string,int>,rolled_back_page_numbers:list<int>,rolled_back_frame_indexes:list<int>,current_uses_rollback_prefix:bool,next_uses_checkpoint_database:bool,next_uses_preserved_wal:bool,images_match:bool,yield_count:int,dependencies:list<string>}
      */
-    public static function checkpointReaderSavepointCurrentSourceNext85(
+    public static function checkpointReaderSavepointCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -873,7 +873,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array{status:string,savepoint:string,mode:string,before_reader_end_frame:int,after_release_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,release:array<string,mixed>,before_reader:list<array<string,mixed>>,after_release_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,before_reader_sources:list<string>,after_release_reader_sources:list<string>,next_reader_sources:list<string>,before_reader_frame_indexes:list<int|null>,after_release_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,before_to_release_images_match:bool,release_to_next_images_match:bool,merged_page_numbers:list<int>,released_frame_names:list<string>,yield_count:int,current_wal_bytes_length:int,current_wal_frame_count:int,current_wal_checkpoint_sequence:int,current_wal_salt1:int,current_wal_salt2:int,current_source_verified:bool,dependencies:list<string>}
      */
-    public static function releaseReaderCheckpointCurrentSourceNext84(
+    public static function releaseReaderCheckpointCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -915,7 +915,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array{status:string,savepoint:string,mode:string,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,retained_frame_count:int,discarded_frame_count:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_images:list<string>,next_reader_images:list<string>,next_reader_uses_checkpoint_database:bool,current_reader_kept_wal_snapshot:bool,images_match:bool,current_source_verified:bool,current_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},retained_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},next_source:array{kind:string,checkpoint_sequence:int|null,salt1:int|null,salt2:int|null,page_size:int,frame_count:int,wal_bytes_length:int,database_bytes_length:int},dependencies:list<string>}
      */
-    public static function readerBoundaryCurrentSourceNext87(
+    public static function readerBoundaryCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -971,7 +971,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array{status:string,savepoint:string,mode:string,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,original_reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,retained_frame_count:int,discarded_frame_count:int,current_source_rows:list<array{page_number:int,before_source:string,current_source:string,next_source:string,before_frame:int|null,current_frame:int|null,next_frame:int|null,rollback_changed_current:bool,checkpoint_changed_next:bool,source_transition:string,current_label:string,next_label:string}>,current_sources:list<string>,next_sources:list<string>,source_transitions:list<string>,current_source_counts:array<string,int>,next_source_counts:array<string,int>,rolled_back_page_numbers:list<int>,rolled_back_frame_indexes:list<int>,current_uses_rollback_prefix:bool,next_uses_checkpoint_database:bool,next_uses_preserved_wal:bool,images_match:bool,yield_count:int,current_source_verified:bool,current_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},retained_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},frame_source_rows:list<array{frame_index:int,page_number:int,commit_frame:bool,database_page_count_after_commit:int,image_sha256:string,source_offset:int,source_length:int,matched_current_wal:bool}>,commit_frame_indexes:list<int>,dependencies:list<string>}
      */
-    public static function checkpointReaderSavepointCurrentSourceNext90(
+    public static function checkpointReaderSavepointPinnedCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -984,7 +984,7 @@ final class SQLiteWalSavepointCheckpointPlan
     ): array {
         self::assertCurrentWalSource($wal, $walBytes);
 
-        $plan = self::checkpointReaderSavepointCurrentSourceNext85(
+        $plan = self::checkpointReaderSavepointCurrentSourceNext(
             $savepoints,
             $savepoint,
             $wal,
@@ -1019,7 +1019,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public static function checkpointReaderSavepointReleaseCurrentSourceNext94(
+    public static function checkpointReaderSavepointReleaseCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -1040,7 +1040,7 @@ final class SQLiteWalSavepointCheckpointPlan
 
         self::assertCurrentWalSource($wal, $walBytes);
 
-        $pinned = self::checkpointReaderSavepointCurrentSourceNext90(
+        $pinned = self::checkpointReaderSavepointPinnedCurrentSourceNext(
             $savepoints,
             $savepoint,
             $wal,
@@ -1146,7 +1146,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public static function checkpointReaderSavepointCurrentSourceNext99(
+    public static function checkpointReaderSavepointRecoveryCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -1167,7 +1167,7 @@ final class SQLiteWalSavepointCheckpointPlan
 
         self::assertCurrentWalSource($wal, $walBytes);
 
-        $pinned = self::checkpointReaderSavepointCurrentSourceNext90(
+        $pinned = self::checkpointReaderSavepointPinnedCurrentSourceNext(
             $savepoints,
             $savepoint,
             $wal,
@@ -1177,7 +1177,7 @@ final class SQLiteWalSavepointCheckpointPlan
             $mode,
             $pinnedReaderEndFrame
         );
-        $released = self::checkpointReaderSavepointReleaseCurrentSourceNext94(
+        $released = self::checkpointReaderSavepointReleaseCurrentSourceNext(
             $savepoints,
             $savepoint,
             $wal,
@@ -1283,7 +1283,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public static function savepointRestartAppendReaderCurrentSourceNext103(
+    public static function savepointRestartAppendReaderCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -1311,7 +1311,7 @@ final class SQLiteWalSavepointCheckpointPlan
 
         self::assertCurrentWalSource($wal, $walBytes);
 
-        $released = self::checkpointReaderSavepointCurrentSourceNext99(
+        $released = self::checkpointReaderSavepointRecoveryCurrentSourceNext(
             $savepoints,
             $savepoint,
             $wal,
@@ -1429,7 +1429,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public static function checkpointRestartTruncateSavepointReaderCurrentSourceNext105(
+    public static function checkpointRestartTruncateSavepointReaderCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -1461,7 +1461,7 @@ final class SQLiteWalSavepointCheckpointPlan
             throw new \InvalidArgumentException('SQLite WAL savepoint restart/truncate reader current-source next105 requires a current reader pin');
         }
 
-        $restart = self::checkpointReaderSavepointCurrentSourceNext99(
+        $restart = self::checkpointReaderSavepointRecoveryCurrentSourceNext(
             $savepoints,
             $savepoint,
             $wal,
@@ -1471,7 +1471,7 @@ final class SQLiteWalSavepointCheckpointPlan
             'restart',
             $pinnedFrame
         );
-        $truncate = self::checkpointReaderSavepointCurrentSourceNext99(
+        $truncate = self::checkpointReaderSavepointRecoveryCurrentSourceNext(
             $savepoints,
             $savepoint,
             $wal,
@@ -1578,7 +1578,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public static function readerCheckpointSavepointCurrentSourceNext139(
+    public static function readerCheckpointSavepointCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -1742,7 +1742,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public static function readerCheckpointTruncateSavepointCurrentSourceNext142(
+    public static function readerCheckpointTruncateSavepointCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -1929,7 +1929,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public static function readerCheckpointRestartSavepointCurrentSourceNext145(
+    public static function readerCheckpointRestartSavepointCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -2115,7 +2115,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public static function readerCheckpointTruncateReaderRestartCurrentSourceNext146(
+    public static function readerCheckpointTruncateReaderRestartCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -2321,7 +2321,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public static function readerCheckpointSavepointReaderRestartCurrentSourceNext151(
+    public static function readerCheckpointSavepointReaderRestartCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,
@@ -2630,7 +2630,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array{status:string,released_savepoint:string,rollback_savepoint:string,release:array<string,mixed>,boundary:array<string,mixed>,released_frame_names:list<string>,merged_page_numbers:list<int>,retained_frame_count:int,discarded_frame_count:int,rolled_back_released_frames:list<int>,rolled_back_released_pages:list<int>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,images_match:bool,current_source_verified:bool,current_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},retained_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},next_source:array{kind:string,checkpoint_sequence:int|null,salt1:int|null,salt2:int|null,page_size:int,frame_count:int,wal_bytes_length:int,database_bytes_length:int},dependencies:list<string>}
      */
-    public static function releaseThenRollbackCheckpointCurrentSourceNext91(
+    public static function releaseThenRollbackCheckpointCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $releasedSavepoint,
         string $rollbackSavepoint,
@@ -2790,7 +2790,7 @@ final class SQLiteWalSavepointCheckpointPlan
      * @param list<int> $pageNumbers
      * @return array{status:string,savepoint:string,mode:string,original_reader_end_frame:int,retained_reader_end_frame:int,next_reader_end_frame:int,rollback_to_frame:int,retained_frame_count:int,discarded_frame_count:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,original_reader:list<array<string,mixed>>,retained_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,original_reader_sources:list<string>,retained_reader_sources:list<string>,next_reader_sources:list<string>,original_reader_frame_indexes:list<int|null>,retained_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_source_keeps_original_wal:bool,retained_source_excludes_savepoint_tail:bool,next_reader_uses_checkpoint_database:bool,rolled_back_pages:list<int>,checkpointed_pages:list<int>,source_transitions:list<string>,images_match_retained_to_next:bool,images_match_original_to_retained:bool,current_wal_bytes_length:int,next_wal_bytes_length:int,database_bytes_length:int,dependencies:list<string>}
      */
-    public static function checkpointReaderSavepointCurrentSourceNext149(
+    public static function checkpointReaderSavepointReplayCurrentSourceNext(
         SQLiteSavepointStack $savepoints,
         string $savepoint,
         SQLiteWal $wal,

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReleaseCurrentSourceNext94()` for the savepoint-reader checkpoint handoff after a `ROLLBACK TO` truncates the WAL to a retained savepoint prefix.
+Adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReleaseCurrentSourceNext()` for the savepoint-reader checkpoint handoff after a `ROLLBACK TO` truncates the WAL to a retained savepoint prefix.
 
 The slice is narrower than the accepted batch90 savepoint reader coverage: batch90 proved the current source and a pinned reader forcing `preserve_wal`; this next94 slice proves that releasing that reader lets a restart/truncate checkpoint move new readers to checkpointed database bytes while preserving exact current WAL source validation.
 

@@ -313,7 +313,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,salt_changed:bool,current_salt:array{0:int,1:int},next_salt:array{0:int,1:int},current:array<string,mixed>,next:array<string,mixed>,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_valid_frame_count:int,next_valid_frame_count:int,current_committed_frame_count:int,next_committed_frame_count:int,next_discarded_corrupt_tail_frame_count:int,next_uses_checkpoint_database:bool,images_changed:bool,dependencies:list<string>}
      */
-    public static function checksumSaltRecoveryCurrentNext70(
+    public static function checksumSaltRecoveryCurrentNext(
         string $currentWalBytes,
         string $nextWalBytes,
         string $databaseBytes,
@@ -888,7 +888,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public function checkpointTruncateCurrentNext72(string $databaseBytes, array $pageNumbers, ?int $currentReaderEndFrame = null): array
+    public function checkpointTruncateCurrentNext(string $databaseBytes, array $pageNumbers, ?int $currentReaderEndFrame = null): array
     {
         if ($pageNumbers === []) {
             throw new \InvalidArgumentException('SQLite WAL checkpoint truncate current/next requires at least one page number');
@@ -954,7 +954,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array{status:string,mode:string,source_status:string,reason:string,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,wal_bytes_length:int,checkpoint_sequence:int,restarted_checkpoint_sequence:int|null,current_salt:array{0:int,1:int},next_salt:array{0:int,1:int}|null,checkpoint:array<string,mixed>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_sources:list<string>,next_sources:list<string>,current_frame_indexes:list<int|null>,next_frame_indexes:list<int|null>,current_errors:list<string>,next_errors:list<string>,images_match:bool,next_uses_checkpoint_database:bool,next_uses_restarted_header:bool,source_frame_count:int,parsed_frame_count:int,dependencies:list<string>}
      */
-    public function restartTruncateReaderCurrentSourceNext86(
+    public function restartTruncateReaderCurrentSourceNext(
         string $walBytes,
         string $databaseBytes,
         array $pageNumbers,
@@ -1037,7 +1037,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public function checkpointTruncateReaderCurrentSourceNext88(
+    public function checkpointTruncateReaderCurrentSourceNext(
         string $walBytes,
         string $databaseBytes,
         array $pageNumbers,
@@ -1333,7 +1333,7 @@ final class SQLiteWal
      * @param list<int|null> $readMarks
      * @return array<string,mixed>
      */
-    public function checkpointReaderPinCurrentNext68(
+    public function checkpointReaderPinSlotHandoffCurrentNext(
         string $databaseBytes,
         array $pageNumbers,
         array $readMarks,
@@ -2003,7 +2003,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public function checkpointReaderPinRestartCurrentNext76(
+    public function checkpointReaderPinRestartCurrentNext(
         string $databaseBytes,
         SQLiteShmIndex $currentShm,
         SQLiteShmIndex $nextReaderShm,
@@ -2106,7 +2106,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public function checkpointReaderPinRestartCurrentSourceNext83(
+    public function checkpointReaderPinRestartCurrentSourceNext(
         string $databaseBytes,
         SQLiteShmIndex $currentShm,
         SQLiteShmIndex $nextReaderShm,
@@ -2115,7 +2115,7 @@ final class SQLiteWal
         array $pageNumbers,
         string $mode = 'restart'
     ): array {
-        $plan = $this->checkpointReaderPinRestartCurrentNext76(
+        $plan = $this->checkpointReaderPinRestartCurrentNext(
             $databaseBytes,
             $currentShm,
             $nextReaderShm,
@@ -2171,7 +2171,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public function checkpointReaderRestartCurrentSourceNext89(
+    public function checkpointReaderRestartCurrentSourceNext(
         string $databaseBytes,
         string $walBytes,
         SQLiteShmIndex $currentShm,
@@ -2186,7 +2186,7 @@ final class SQLiteWal
             throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart current-source bytes mismatch');
         }
 
-        $plan = $this->checkpointReaderPinRestartCurrentSourceNext83(
+        $plan = $this->checkpointReaderPinRestartCurrentSourceNext(
             $databaseBytes,
             $currentShm,
             $nextReaderShm,
@@ -2256,7 +2256,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public function checkpointRestartTruncateReaderCurrentSourceNext93(
+    public function checkpointRestartTruncateReaderCurrentSourceNext(
         string $databaseBytes,
         string $walBytes,
         SQLiteShmIndex $currentShm,
@@ -2271,7 +2271,7 @@ final class SQLiteWal
             throw new \InvalidArgumentException('SQLite WAL checkpoint restart/truncate next93 current source bytes mismatch');
         }
 
-        $plan = $this->checkpointReaderRestartCurrentSourceNext89(
+        $plan = $this->checkpointReaderRestartCurrentSourceNext(
             $databaseBytes,
             $walBytes,
             $currentShm,
@@ -2336,7 +2336,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public function checkpointRestartTruncateReaderCurrentSourceNext97(
+    public function checkpointRestartTruncateReaderPreserveCurrentSourceNext(
         string $databaseBytes,
         string $walBytes,
         SQLiteShmIndex $currentShm,
@@ -2354,7 +2354,7 @@ final class SQLiteWal
         }
 
         $currentReleasedShm = $nextReaderShm;
-        $restart = $this->checkpointReaderRestartCurrentSourceNext89(
+        $restart = $this->checkpointReaderRestartCurrentSourceNext(
             $databaseBytes,
             $walBytes,
             $currentShm,
@@ -2364,7 +2364,7 @@ final class SQLiteWal
             $pageNumbers,
             'restart'
         );
-        $truncate = $this->checkpointReaderRestartCurrentSourceNext89(
+        $truncate = $this->checkpointReaderRestartCurrentSourceNext(
             $databaseBytes,
             $walBytes,
             $currentShm,
@@ -2436,7 +2436,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public function checkpointRestartTruncateReaderCurrentSourceNext102(
+    public function checkpointRestartTruncateReaderRecoveryCurrentSourceNext(
         string $databaseBytes,
         string $walBytes,
         SQLiteShmIndex $currentShm,
@@ -2460,7 +2460,7 @@ final class SQLiteWal
             throw new \InvalidArgumentException('SQLite WAL restart/truncate reader current-source next102 SHM mxFrame does not match current WAL');
         }
 
-        $plan = $this->checkpointRestartTruncateReaderCurrentSourceNext97(
+        $plan = $this->checkpointRestartTruncateReaderPreserveCurrentSourceNext(
             $databaseBytes,
             $walBytes,
             $currentShm,
@@ -2539,7 +2539,7 @@ final class SQLiteWal
      * @param list<int> $pageNumbers
      * @return array<string,mixed>
      */
-    public function checkpointSnapshotCurrentSourceNext108(
+    public function checkpointSnapshotCurrentSourceNext(
         string $walBytes,
         string $databaseBytes,
         array $pageNumbers,
@@ -2657,7 +2657,7 @@ final class SQLiteWal
      * @param list<int|null> $readMarks
      * @return array<string,mixed>
      */
-    public function restartTruncateReaderPinCurrentSourceNext119(
+    public function restartTruncateReaderPinCurrentSourceNext(
         string $walBytes,
         string $databaseBytes,
         array $pageNumbers,

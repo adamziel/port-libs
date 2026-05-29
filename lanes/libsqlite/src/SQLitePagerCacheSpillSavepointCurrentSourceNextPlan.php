@@ -90,7 +90,7 @@ final class SQLitePagerCacheSpillSavepointCurrentSourceNextPlan
         ksort($sources, SORT_NUMERIC);
         ksort($rejected, SORT_NUMERIC);
 
-        $spill = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(
+        $spill = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(
             (int) (strlen($databaseBytes) / $pageSize),
             $cacheSize,
             $spillThreshold,

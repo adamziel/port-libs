@@ -77,7 +77,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (array $pages = [1, 2, 3], string $savepoint = 'plugin_batch', string $journalBytesInput = null, SQLiteRollbackJournal $parsedJournal = null, string $walInput = null, SQLiteWal $parsedWal = null, bool $reservedLock = false, bool $requiresSuper = false, ?bool $superExists = null): array => SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext87(
+$plan = static fn (array $pages = [1, 2, 3], string $savepoint = 'plugin_batch', string $journalBytesInput = null, SQLiteRollbackJournal $parsedJournal = null, string $walInput = null, SQLiteWal $parsedWal = null, bool $reservedLock = false, bool $requiresSuper = false, ?bool $superExists = null): array => SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext(
     $parsedJournal ?? $journal,
     $dirtyDatabase,
     $journalBytesInput ?? $journalBytes,
@@ -172,7 +172,7 @@ $cases = [
     'missing super journal records skipped reason' => static fn (): mixed => $plan([1], 'plugin_batch', null, null, null, null, false, true, false)['current_source']['hot_journal_reason'],
     'empty journal bytes rejected' => static function () use ($journal, $dirtyDatabase, $makeStack, $wal, $walBytes, $databasePath): mixed {
         try {
-            SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext87($journal, $dirtyDatabase, '', $makeStack(), 'plugin_batch', $wal, $walBytes, $databasePath, [1]);
+            SQLiteWalHotJournalSavepointReplayPlan::replayCurrentSourceNext($journal, $dirtyDatabase, '', $makeStack(), 'plugin_batch', $wal, $walBytes, $databasePath, [1]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }

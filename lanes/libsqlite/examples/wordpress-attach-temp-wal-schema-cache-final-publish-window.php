@@ -28,7 +28,7 @@ $statements = [
     ['name' => 'review-reader', 'sql' => 'SELECT review_id FROM review.wp_schema_review_receipt_next1016 INDEXED BY wp_schema_review_receipt_key_next1016 WHERE review_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext10051020($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::finalSchemaCachePublishWindow($schemas, $statements, [
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 1008, 'table' => 'wp_theme_stage_publish_token_next1008', 'commit' => true],
     ['op' => 'rename_table', 'schema' => 'handoff', 'from' => 'wp_schema_handoff_receipt_next970', 'to' => 'wp_schema_handoff_receipt_next1010'],
     ['op' => 'attach', 'schema' => 'review', 'schema_cookie' => 1016, 'tables' => ['wp_schema_review_receipt_next1016'], 'indexes' => ['wp_schema_review_receipt_key_next1016'], 'file' => '/srv/wp/review-next1016.sqlite'],
@@ -40,7 +40,7 @@ $plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext10
 ]);
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['operation'] === 'attach-wal-temp-schema-cache-current-source-next1005-1020');
+    assert($plan['operation'] === 'attach-wal-temp-schema-cache-final-publish-window');
     assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-current-source-next1005');
     assert($plan['dependencies'][15] === 'sqlite-attach-temp-wal-schema-cache-current-source-next1020');
     assert(in_array('sqlite-attach-temp-wal-schema-cache-current-source-next1004', $plan['dependencies'], true));
@@ -59,7 +59,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['review-reader']['schema_transitions'][0]['next_schema'] === 'review');
     assert($plan['stable_statements'] === ['publish-reader']);
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next1005-1020 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-final-publish-window self-test passed\n";
     return;
 }
 

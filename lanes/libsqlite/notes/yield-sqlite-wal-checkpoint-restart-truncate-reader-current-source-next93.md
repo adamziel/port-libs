@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWal::checkpointRestartTruncateReaderCurrentSourceNext93()` for the
+Adds `SQLiteWal::checkpointRestartTruncateReaderCurrentSourceNext()` for the
 current-source WAL checkpoint path where the caller must prove the WAL sidecar
 bytes still match the parsed WAL before planning restart/truncate reader
 transitions. The method reports current, next, and final source generations:

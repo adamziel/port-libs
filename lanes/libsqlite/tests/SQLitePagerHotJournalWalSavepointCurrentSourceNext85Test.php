@@ -75,7 +75,7 @@ $savepoints = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (string $mode = 'restart', array $pages = [1, 2, 3]): array => SQLitePagerHotJournalWalRecoveryPlan::savepointCurrentSourceNext85(
+$plan = static fn (string $mode = 'restart', array $pages = [1, 2, 3]): array => SQLitePagerHotJournalWalRecoveryPlan::savepointWalRecoveryCurrentSourceNext(
     $journal,
     $databaseBytes,
     $journalBytes,
@@ -162,28 +162,28 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['pager hot journal wal savepoint current source next85 rejects empty savepoint'] = static function (TestRunner $t) use ($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalWalRecoveryPlan::savepointCurrentSourceNext85($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints(), '', [1], 'restart', $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalWalRecoveryPlan::savepointWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints(), '', [1], 'restart', $pageSize));
 };
 
 $tests['pager hot journal wal savepoint current source next85 rejects empty pages'] = static function (TestRunner $t) use ($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalWalRecoveryPlan::savepointCurrentSourceNext85($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints(), 'plugin-settings-next85', [], 'restart', $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalWalRecoveryPlan::savepointWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints(), 'plugin-settings-next85', [], 'restart', $pageSize));
 };
 
 $tests['pager hot journal wal savepoint current source next85 rejects passive mode'] = static function (TestRunner $t) use ($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalWalRecoveryPlan::savepointCurrentSourceNext85($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints(), 'plugin-settings-next85', [1], 'passive', $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalWalRecoveryPlan::savepointWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints(), 'plugin-settings-next85', [1], 'passive', $pageSize));
 };
 
 $tests['pager hot journal wal savepoint current source next85 rejects non integer page'] = static function (TestRunner $t) use ($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints, $pageSize): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalWalRecoveryPlan::savepointCurrentSourceNext85($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints(), 'plugin-settings-next85', ['2'], 'restart', $pageSize));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalWalRecoveryPlan::savepointWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $walBytes, $databasePath, $savepoints(), 'plugin-settings-next85', ['2'], 'restart', $pageSize));
 };
 
 $tests['pager hot journal wal savepoint current source next85 accepts self consistent alternate wal salts'] = static function (TestRunner $t) use ($journal, $databaseBytes, $journalBytes, $staleWalBytes, $databasePath, $savepoints, $pageSize): void {
-    $alternate = SQLitePagerHotJournalWalRecoveryPlan::savepointCurrentSourceNext85($journal, $databaseBytes, $journalBytes, $staleWalBytes, $databasePath, $savepoints(), 'plugin-settings-next85', [1], 'restart', $pageSize);
+    $alternate = SQLitePagerHotJournalWalRecoveryPlan::savepointWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $staleWalBytes, $databasePath, $savepoints(), 'plugin-settings-next85', [1], 'restart', $pageSize);
     $t->same('ready', $alternate['status']);
 };
 
 $tests['pager hot journal wal savepoint current source next85 short source still checkpoints retained prefix'] = static function (TestRunner $t) use ($journal, $databaseBytes, $journalBytes, $shortWalBytes, $databasePath, $savepoints, $pageSize): void {
-    $short = SQLitePagerHotJournalWalRecoveryPlan::savepointCurrentSourceNext85($journal, $databaseBytes, $journalBytes, $shortWalBytes, $databasePath, $savepoints(), 'plugin-settings-next85', [1], 'restart', $pageSize);
+    $short = SQLitePagerHotJournalWalRecoveryPlan::savepointWalRecoveryCurrentSourceNext($journal, $databaseBytes, $journalBytes, $shortWalBytes, $databasePath, $savepoints(), 'plugin-settings-next85', [1], 'restart', $pageSize);
     $t->same(2, $short['retained_frame_count']);
 };
 

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `wal-checkpoint-truncate-reader-restart-current-source-next146`.
 
-This slice adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointTruncateReaderRestartCurrentSourceNext146()`. It models the current-source boundary after a savepoint rollback leaves an old WAL reader pinned, a released-reader TRUNCATE checkpoint removes the old WAL sidecar, and the next opened reader must restart at frame 0 on the fresh WAL header/current database image before any retry writer appends a new generation. A stale reader WAL source is reported as blocked and requiring reopen.
+This slice adds `SQLiteWalSavepointCheckpointPlan::readerCheckpointTruncateReaderRestartCurrentSourceNext()`. It models the current-source boundary after a savepoint rollback leaves an old WAL reader pinned, a released-reader TRUNCATE checkpoint removes the old WAL sidecar, and the next opened reader must restart at frame 0 on the fresh WAL header/current database image before any retry writer appends a new generation. A stale reader WAL source is reported as blocked and requiring reopen.
 
 WordPress smoke: `wordpress-wal-checkpoint-truncate-reader-restart-current-source-next146.php` covers a copied `wp_options` import that rolls back plugin-setting frames, waits for the old reader to drain, truncates the WAL, and reopens the reader against the checkpointed database/fresh WAL source.
 

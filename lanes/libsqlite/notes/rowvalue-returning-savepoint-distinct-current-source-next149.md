@@ -13,7 +13,7 @@ text numeric storage as distinct.
 Focused evidence:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueReturningSavepointDistinctCurrentSourceNext149Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueReturningSavepointDistinctCurrentSourceNextTest.php
 ```
 
 Result:
@@ -26,13 +26,13 @@ Result:
 WordPress smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-savepoint-distinct-current-source-next149.php --self-test
+php lanes/libsqlite/examples/wordpress-rowvalue-returning-savepoint-distinct-current-source.php --self-test
 ```
 
 Result:
 
 ```text
-wordpress-rowvalue-returning-savepoint-distinct-current-source-next149 self-test passed
+wordpress-rowvalue-returning-savepoint-distinct-current-source self-test passed
 ```
 
 Expected dashboard delta: `phpPass` moves from `66428` to `66478` from 50

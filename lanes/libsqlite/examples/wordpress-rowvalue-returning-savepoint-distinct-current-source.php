@@ -19,7 +19,7 @@ $statements = [
     "UPDATE OR REPLACE wp_options SET (option_name, status, checksum) = ('siteurl', 'synced', option_name || ':' || expected_bytes) WHERE (blog_id, option_name) IS NOT DISTINCT FROM (2.0, '_transient_feed') AND (bytes, expected_bytes) IS NOT DISTINCT FROM (18.0, 18) RETURNING option_id, option_name, status, checksum, (bytes, expected_bytes) IS DISTINCT FROM (18, 18.0) AS storage_changed ORDER BY option_id",
 ];
 
-$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135(
+$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint(
     ['wp_options' => $rows],
     $statements,
     [['blog_id', 'option_name'], ['option_name']],
@@ -34,12 +34,12 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['executed_statements'][1]['returning_rows'][0]['storage_changed'] === 0);
     assert(array_column($plan['deleted_conflict_rows'], 'option_id') === [3]);
     assert(array_column($plan['current_source_tables']['wp_options'], 'option_id') === [1, 4, 5]);
-    echo "wordpress-rowvalue-returning-savepoint-distinct-current-source-next149 self-test passed\n";
+    echo "wordpress-rowvalue-returning-savepoint-distinct-current-source self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-rowvalue-returning-savepoint-distinct-current-source-next149',
+    'scenario' => 'wordpress-rowvalue-returning-savepoint-distinct-current-source',
     'status' => $plan['status'],
     'savepoint' => $plan['savepoint'],
     'returning' => $plan['yielded_returning'],

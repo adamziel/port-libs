@@ -85,7 +85,7 @@ $currentMaster = $journalPath . "\n";
 $nextMasterPresent = $journalPath . "\n";
 $nextMasterMissing = null;
 
-$present = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82(
+$present = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext(
     $masterPath,
     $currentMaster,
     $nextMasterPresent,
@@ -100,7 +100,7 @@ $present = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::master
     [1, 2, 3]
 );
 
-$stale = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82(
+$stale = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext(
     $masterPath,
     $currentMaster,
     $nextMasterMissing,
@@ -115,7 +115,7 @@ $stale = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::masterJo
     [1, 2, 3]
 );
 
-$created = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82(
+$created = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext(
     $masterPath,
     null,
     $nextMasterPresent,
@@ -130,7 +130,7 @@ $created = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::master
     [2]
 );
 
-$reserved = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82(
+$reserved = static fn (): array => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext(
     $masterPath,
     $currentMaster,
     $nextMasterPresent,
@@ -213,15 +213,15 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal savepoint master journal current source next82 rejects empty master path'] = static function (TestRunner $t) use ($currentMaster, $journal, $databaseBytes, $journalBytes, $makeStack, $wal, $walBytes, $databasePath): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82('', $currentMaster, null, $journal, $databaseBytes, $journalBytes, $makeStack(), 'plugin_batch', $wal, $walBytes, $databasePath, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext('', $currentMaster, null, $journal, $databaseBytes, $journalBytes, $makeStack(), 'plugin_batch', $wal, $walBytes, $databasePath, [1]));
 };
 
 $tests['wal savepoint master journal current source next82 rejects empty database path'] = static function (TestRunner $t) use ($masterPath, $currentMaster, $journal, $databaseBytes, $journalBytes, $makeStack, $wal, $walBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82($masterPath, $currentMaster, null, $journal, $databaseBytes, $journalBytes, $makeStack(), 'plugin_batch', $wal, $walBytes, '', [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext($masterPath, $currentMaster, null, $journal, $databaseBytes, $journalBytes, $makeStack(), 'plugin_batch', $wal, $walBytes, '', [1]));
 };
 
 $tests['wal savepoint master journal current source next82 rejects missing savepoint'] = static function (TestRunner $t) use ($masterPath, $currentMaster, $journal, $databaseBytes, $journalBytes, $makeStack, $wal, $walBytes, $databasePath): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82($masterPath, $currentMaster, null, $journal, $databaseBytes, $journalBytes, $makeStack(), 'missing', $wal, $walBytes, $databasePath, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext($masterPath, $currentMaster, null, $journal, $databaseBytes, $journalBytes, $makeStack(), 'missing', $wal, $walBytes, $databasePath, [1]));
 };
 
 return $tests;

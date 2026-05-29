@@ -58,7 +58,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$restart = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext84(
+$restart = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext(
     $makeStack(),
     'plugin-settings',
     $currentWal,
@@ -68,7 +68,7 @@ $restart = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseReade
     'restart'
 );
 
-$truncate = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext84(
+$truncate = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext(
     $makeStack(),
     'plugin-settings',
     $currentWal,
@@ -78,7 +78,7 @@ $truncate = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseRead
     'truncate'
 );
 
-$pinned = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext84(
+$pinned = static fn (): array => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext(
     $makeStack(),
     'plugin-settings',
     $currentWal,
@@ -154,19 +154,19 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal savepoint release checkpoint current source next84 rejects stale salt bytes'] = static function (TestRunner $t) use ($makeStack, $currentWal, $sameFrameStaleSaltBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext84($makeStack(), 'plugin-settings', $currentWal, $sameFrameStaleSaltBytes, $databaseBytes, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext($makeStack(), 'plugin-settings', $currentWal, $sameFrameStaleSaltBytes, $databaseBytes, [2]));
 };
 
 $tests['wal savepoint release checkpoint current source next84 rejects stale checkpoint bytes'] = static function (TestRunner $t) use ($makeStack, $currentWal, $sameFrameStaleCheckpointBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext84($makeStack(), 'plugin-settings', $currentWal, $sameFrameStaleCheckpointBytes, $databaseBytes, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext($makeStack(), 'plugin-settings', $currentWal, $sameFrameStaleCheckpointBytes, $databaseBytes, [2]));
 };
 
 $tests['wal savepoint release checkpoint current source next84 rejects shorter current bytes'] = static function (TestRunner $t) use ($makeStack, $currentWal, $shorterWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext84($makeStack(), 'plugin-settings', $currentWal, $shorterWalBytes, $databaseBytes, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext($makeStack(), 'plugin-settings', $currentWal, $shorterWalBytes, $databaseBytes, [2]));
 };
 
 $tests['wal savepoint release checkpoint current source next84 rejects stale parsed wal'] = static function (TestRunner $t) use ($makeStack, $staleWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext84($makeStack(), 'plugin-settings', $staleWal, $currentWalBytes, $databaseBytes, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::releaseReaderCheckpointCurrentSourceNext($makeStack(), 'plugin-settings', $staleWal, $currentWalBytes, $databaseBytes, [2]));
 };
 
 return $tests;

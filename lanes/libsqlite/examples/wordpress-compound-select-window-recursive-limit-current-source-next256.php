@@ -62,31 +62,31 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext256(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCurrentLimitResumeFence(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-next256-ready') {
-        throw new RuntimeException('unexpected next256 status');
+    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-current-limit-resume-fence-ready') {
+        throw new RuntimeException('unexpected current-limit-resume-fence status');
     }
-    if ($plan['compoundCurrentLimitResumeFenceNext256']['currentLabels'] !== ['home', 'seed:2:3', 'rewrite_rules', 'seed:2:3:4']) {
+    if ($plan['compoundCurrentLimitResumeFenceCurrentLimitResumeFence']['currentLabels'] !== ['home', 'seed:2:3', 'rewrite_rules', 'seed:2:3:4']) {
         throw new RuntimeException('unexpected current final LIMIT page');
     }
-    if ($plan['compoundCurrentLimitResumeFenceNext256']['requiredCurrentLimitResumeReceiptCount'] !== 5) {
+    if ($plan['compoundCurrentLimitResumeFenceCurrentLimitResumeFence']['requiredCurrentLimitResumeReceiptCount'] !== 5) {
         throw new RuntimeException('unexpected resume receipt count');
     }
 
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next256 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-current-limit-resume-fence self-test passed\n";
     return;
 }
 
 echo json_encode([
     'status' => $plan['status'],
-    'currentLabels' => $plan['compoundCurrentLimitResumeFenceNext256']['currentLabels'],
-    'nextLabels' => $plan['compoundCurrentLimitResumeFenceNext256']['nextLabels'],
-    'requiredCurrentLimitResumeReceiptCount' => $plan['compoundCurrentLimitResumeFenceNext256']['requiredCurrentLimitResumeReceiptCount'],
-    'currentExposure' => $plan['compoundCurrentLimitResumeFenceNext256']['currentExposure'],
+    'currentLabels' => $plan['compoundCurrentLimitResumeFenceCurrentLimitResumeFence']['currentLabels'],
+    'nextLabels' => $plan['compoundCurrentLimitResumeFenceCurrentLimitResumeFence']['nextLabels'],
+    'requiredCurrentLimitResumeReceiptCount' => $plan['compoundCurrentLimitResumeFenceCurrentLimitResumeFence']['requiredCurrentLimitResumeReceiptCount'],
+    'currentExposure' => $plan['compoundCurrentLimitResumeFenceCurrentLimitResumeFence']['currentExposure'],
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";

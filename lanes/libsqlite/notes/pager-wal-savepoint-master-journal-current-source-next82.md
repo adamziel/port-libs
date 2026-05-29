@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for WAL savepoint replay after master-journal membership changes.
 
-This slice adds `SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82()`. It composes the accepted master-journal cache recheck with the accepted WAL hot-journal savepoint replay, but makes the replay decision use the next master-journal source rather than stale current membership. This covers a WordPress import crash path where the current opener cached a master journal containing `.ht.sqlite-journal`, a later opener no longer sees that master-journal member, and rollback must skip hot-journal recovery while still truncating savepoint WAL frames.
+This slice adds `SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext()`. It composes the accepted master-journal cache recheck with the accepted WAL hot-journal savepoint replay, but makes the replay decision use the next master-journal source rather than stale current membership. This covers a WordPress import crash path where the current opener cached a master journal containing `.ht.sqlite-journal`, a later opener no longer sees that master-journal member, and rollback must skip hot-journal recovery while still truncating savepoint WAL frames.
 
 Verification:
 

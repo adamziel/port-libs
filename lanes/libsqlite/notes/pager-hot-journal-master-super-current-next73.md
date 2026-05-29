@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for attached-database hot rollback-journal recovery gated by a current master/super-journal.
 
-This slice adds `SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73()`. It models the SQLite pager edge where a surviving master/super-journal names the attached rollback journals that are hot for the next opener. Named journals recover their database image before WAL transaction-boundary recovery; unnamed or reserved-lock journals are skipped and keep their current dirty database image. The master/super-journal is deleted only after all named journals have been cleared.
+This slice adds `SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext()`. It models the SQLite pager edge where a surviving master/super-journal names the attached rollback journals that are hot for the next opener. Named journals recover their database image before WAL transaction-boundary recovery; unnamed or reserved-lock journals are skipped and keep their current dirty database image. The master/super-journal is deleted only after all named journals have been cleared.
 
 Focused evidence:
 

@@ -1,6 +1,6 @@
-# SQLite attach TEMP WAL schema cache current-source next1021-1036
+# SQLite attach TEMP WAL schema cache final attach window
 
-Extends the consolidated attach/TEMP/WAL schema-cache current-source planner in `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext10211036()`.
+Extends the consolidated attach/TEMP/WAL schema-cache current-source planner in `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::finalSchemaCacheAttachWindow()`.
 
 - next1021-1036 records the new dependency range before the next1005-1020 predecessor markers without adding a numbered production class.
 - The focused fixture covers TEMP table drop invalidation, attached index rename expiry, attached table rename expiry for an active writer, attached index drop expiry, committed WAL schema-cookie movement, DETACH removal, newly attached archive visibility, and uncommitted WAL filtering.
@@ -10,10 +10,10 @@ Validation:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
-php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext10211036Test.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next1021-1036.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext10211036Test.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next1021-1036.php --self-test
+php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalAttachWindowTest.php
+php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-attach-window.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalAttachWindowTest.php
+php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-attach-window.php --self-test
 git diff --check -- lanes/libsqlite
 ```
 

@@ -28,7 +28,7 @@ $statements = [
     ['name' => 'seal-reader', 'sql' => 'SELECT seal_id FROM seal.wp_schema_seal_receipt_next996 INDEXED BY wp_schema_seal_receipt_key_next996 WHERE seal_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext9891004($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::finalSchemaCachePreparationWindow($schemas, $statements, [
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 990, 'table' => 'wp_theme_stage_publish_token_next990', 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'archive', 'from' => 'wp_schema_archive_receipt_key_next966', 'to' => 'wp_schema_archive_receipt_key_next992'],
     ['op' => 'attach', 'schema' => 'seal', 'schema_cookie' => 996, 'tables' => ['wp_schema_seal_receipt_next996'], 'indexes' => ['wp_schema_seal_receipt_key_next996'], 'file' => '/srv/wp/seal-next996.sqlite'],
@@ -40,7 +40,7 @@ $plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext98
 ]);
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['operation'] === 'attach-wal-temp-schema-cache-current-source-next989-1004');
+    assert($plan['operation'] === 'attach-wal-temp-schema-cache-final-preparation-window');
     assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-current-source-next989');
     assert($plan['dependencies'][15] === 'sqlite-attach-temp-wal-schema-cache-current-source-next1004');
     assert(in_array('sqlite-attach-temp-wal-schema-cache-current-source-next988', $plan['dependencies'], true));
@@ -58,7 +58,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['seal-reader']['schema_transitions'][0]['next_schema'] === 'seal');
     assert($plan['stable_statements'] === ['handoff-reader']);
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next989-1004 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-final-preparation-window self-test passed\n";
     return;
 }
 

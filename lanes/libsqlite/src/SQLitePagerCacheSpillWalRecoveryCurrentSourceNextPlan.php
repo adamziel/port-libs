@@ -106,7 +106,7 @@ final class SQLitePagerCacheSpillWalRecoveryCurrentSourceNextPlan
         }
         $readerPinsDiscardedTail = $readerEndFrame > $boundary['committed_frame_count'];
 
-        $spill = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(
+        $spill = SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(
             $pageCount,
             $cacheSize,
             $spillThreshold,

@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for a WAL savepoint rollback checkpoint
 reader boundary that first proves the raw WAL bytes are the current source.
 
 This slice adds
-`SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87()`. The
+`SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext()`. The
 plan rejects stale WAL bytes before a savepoint rollback/checkpoint reader
 boundary, then reports the original current source, retained savepoint WAL
 prefix, and next durable source after RESTART/TRUNCATE/PASSIVE checkpoint

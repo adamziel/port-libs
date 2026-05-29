@@ -62,7 +62,7 @@ $stack->recordWalFrameWrite(3, 3);
 $stack->recordWalFrameWrite(4, 3, true);
 $stack->recordWalFrameWrite(5, 4, true);
 
-$plan = SQLiteWalSavepointCheckpointPlan::readerCheckpointTruncateReaderRestartCurrentSourceNext146(
+$plan = SQLiteWalSavepointCheckpointPlan::readerCheckpointTruncateReaderRestartCurrentSourceNext(
     $stack,
     'plugin-settings-next146',
     SQLiteWal::parse($walBytes, $pageSize, true),

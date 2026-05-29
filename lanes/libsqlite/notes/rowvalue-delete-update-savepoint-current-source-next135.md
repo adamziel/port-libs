@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for `rowvalue-delete-update-savepoint-curren
 
 This slice adds `SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan`, a bounded native PHP executor for statement-order `DELETE ... RETURNING` and row-value `UPDATE ... RETURNING` inside one savepoint. It proves a DELETE changes the current source seen by the following row-value UPDATE and DELETE, while an aborting later UPDATE rolls the current source back to the savepoint image and leaves attempted next-source diagnostics visible.
 
-WordPress smoke: `wordpress-rowvalue-delete-update-savepoint-current-source-next135.php` models a copied `wp_options` cleanup/promote batch where a stale transient is deleted, the following row-value UPDATE skips that deleted row, conflict replacement promotes the surviving network transient to `siteurl`, and the final DELETE sees the updated current source.
+WordPress smoke: `wordpress-rowvalue-delete-update-savepoint-current-source.php` models a copied `wp_options` cleanup/promote batch where a stale transient is deleted, the following row-value UPDATE skips that deleted row, conflict replacement promotes the surviving network transient to `siteurl`, and the final DELETE sees the updated current source.
 
 Verification:
 
@@ -12,18 +12,18 @@ Verification:
 php -l lanes/libsqlite/src/SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan.php
 No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan.php
 
-php -l lanes/libsqlite/tests/SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Test.php
-No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Test.php
+php -l lanes/libsqlite/tests/SQLiteRowValueDeleteUpdateSavepointCurrentSourcePlanTest.php
+No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueDeleteUpdateSavepointCurrentSourcePlanTest.php
 
-php -l lanes/libsqlite/examples/wordpress-rowvalue-delete-update-savepoint-current-source-next135.php
-No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-delete-update-savepoint-current-source-next135.php
+php -l lanes/libsqlite/examples/wordpress-rowvalue-delete-update-savepoint-current-source.php
+No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-delete-update-savepoint-current-source.php
 
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueDeleteUpdateSavepointCurrentSourcePlanTest.php
 Focused test run: 1 selected test files (root lock skipped)
 1 test files, 66 assertions, 0 failures
 
-php lanes/libsqlite/examples/wordpress-rowvalue-delete-update-savepoint-current-source-next135.php --self-test
-wordpress-rowvalue-delete-update-savepoint-current-source-next135 self-test passed
+php lanes/libsqlite/examples/wordpress-rowvalue-delete-update-savepoint-current-source.php --self-test
+wordpress-rowvalue-delete-update-savepoint-current-source self-test passed
 ```
 
 Dashboard delta: `phpPass` moves from `56681` to `56747` from 66 newly passing focused PASS lines. Mapped upstream coverage remains `606 / 1589`; this is fresh focused PHP behavior over already mapped row-value DML/savepoint primitives rather than a new manifest-backed upstream row.

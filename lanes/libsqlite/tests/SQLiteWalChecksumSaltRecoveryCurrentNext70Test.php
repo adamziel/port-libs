@@ -48,11 +48,11 @@ $sameSaltNextWal = $makeWal(72, $oldSalt1, $oldSalt2, [
 $nextWalHeaderOnly = $makeWal(73, $newSalt1 + 7, $newSalt2 + 7, []);
 $nextWalBadChecksum = substr_replace($nextWalClean, 'X', 32 + 24 + 40, 1);
 
-$saltRecovered = static fn (): array => SQLiteWal::checksumSaltRecoveryCurrentNext70($currentWal, $nextWalWithOldTail, $databaseBytes, [1, 2, 3], $pageSize);
-$cleanRestart = static fn (): array => SQLiteWal::checksumSaltRecoveryCurrentNext70($currentWal, $nextWalClean, $databaseBytes, [2, 3], $pageSize);
-$sameSalt = static fn (): array => SQLiteWal::checksumSaltRecoveryCurrentNext70($currentWal, $sameSaltNextWal, $databaseBytes, [2], $pageSize);
-$headerOnly = static fn (): array => SQLiteWal::checksumSaltRecoveryCurrentNext70($currentWal, $nextWalHeaderOnly, $databaseBytes, [2, 3], $pageSize);
-$badChecksum = static fn (): array => SQLiteWal::checksumSaltRecoveryCurrentNext70($currentWal, $nextWalBadChecksum, $databaseBytes, [2, 3], $pageSize);
+$saltRecovered = static fn (): array => SQLiteWal::checksumSaltRecoveryCurrentNext($currentWal, $nextWalWithOldTail, $databaseBytes, [1, 2, 3], $pageSize);
+$cleanRestart = static fn (): array => SQLiteWal::checksumSaltRecoveryCurrentNext($currentWal, $nextWalClean, $databaseBytes, [2, 3], $pageSize);
+$sameSalt = static fn (): array => SQLiteWal::checksumSaltRecoveryCurrentNext($currentWal, $sameSaltNextWal, $databaseBytes, [2], $pageSize);
+$headerOnly = static fn (): array => SQLiteWal::checksumSaltRecoveryCurrentNext($currentWal, $nextWalHeaderOnly, $databaseBytes, [2, 3], $pageSize);
+$badChecksum = static fn (): array => SQLiteWal::checksumSaltRecoveryCurrentNext($currentWal, $nextWalBadChecksum, $databaseBytes, [2, 3], $pageSize);
 
 $cases = [
     'status reports salt recovery' => [static fn (): mixed => $saltRecovered()['status'], 'salt-recovered-current-next'],
@@ -105,9 +105,9 @@ $cases = [
     'bad checksum next discards corrupt frame' => [static fn (): mixed => $badChecksum()['next_discarded_corrupt_tail_frame_count'], 2],
     'bad checksum next reads checkpoint database' => [static fn (): mixed => $badChecksum()['next_reader_sources'], ['database', 'database']],
     'bad checksum excludes corrupted replacement' => [static fn (): mixed => !str_contains((string) $badChecksum()['next_reader'][0]['image'], 'next restarted active_plugins draft'), true],
-    'rejects empty page list' => [static fn (): mixed => SQLiteWal::checksumSaltRecoveryCurrentNext70($currentWal, $nextWalClean, $databaseBytes, [], $pageSize), InvalidArgumentException::class],
-    'rejects non integer page' => [static fn (): mixed => SQLiteWal::checksumSaltRecoveryCurrentNext70($currentWal, $nextWalClean, $databaseBytes, [1, '2'], $pageSize), InvalidArgumentException::class],
-    'rejects invalid current wal magic' => [static fn (): mixed => SQLiteWal::checksumSaltRecoveryCurrentNext70(substr_replace($currentWal, pack('N', 0), 0, 4), $nextWalClean, $databaseBytes, [1], $pageSize), InvalidArgumentException::class],
+    'rejects empty page list' => [static fn (): mixed => SQLiteWal::checksumSaltRecoveryCurrentNext($currentWal, $nextWalClean, $databaseBytes, [], $pageSize), InvalidArgumentException::class],
+    'rejects non integer page' => [static fn (): mixed => SQLiteWal::checksumSaltRecoveryCurrentNext($currentWal, $nextWalClean, $databaseBytes, [1, '2'], $pageSize), InvalidArgumentException::class],
+    'rejects invalid current wal magic' => [static fn (): mixed => SQLiteWal::checksumSaltRecoveryCurrentNext(substr_replace($currentWal, pack('N', 0), 0, 4), $nextWalClean, $databaseBytes, [1], $pageSize), InvalidArgumentException::class],
 ];
 
 foreach ($cases as $name => [$case, $expected]) {

@@ -33,8 +33,8 @@ $append(2, 0, $page('wp86 active_plugins latest'));
 $append(4, 4, $page('wp86 cron commit'));
 
 $wal = SQLiteWal::parse($walBytes, null, true);
-$restart = $wal->restartTruncateReaderCurrentSourceNext86($walBytes, $databaseBytes, [2, 3, 4], 'restart', 2);
-$truncate = $wal->restartTruncateReaderCurrentSourceNext86($walBytes, $databaseBytes, [2, 3, 4], 'truncate');
+$restart = $wal->restartTruncateReaderCurrentSourceNext($walBytes, $databaseBytes, [2, 3, 4], 'restart', 2);
+$truncate = $wal->restartTruncateReaderCurrentSourceNext($walBytes, $databaseBytes, [2, 3, 4], 'truncate');
 
 $summary = [
     'database' => 'wp-content/database/.ht.sqlite',

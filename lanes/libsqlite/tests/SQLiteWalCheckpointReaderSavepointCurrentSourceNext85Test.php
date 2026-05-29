@@ -61,7 +61,7 @@ $makeStack = static function () use ($page): SQLiteSavepointStack {
     return $stack;
 };
 
-$restartPinned = static fn (): array => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext85(
+$restartPinned = static fn (): array => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext(
     $makeStack(),
     'plugin-settings',
     $wal,
@@ -72,7 +72,7 @@ $restartPinned = static fn (): array => SQLiteWalSavepointCheckpointPlan::checkp
     5
 );
 
-$truncateLatest = static fn (): array => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext85(
+$truncateLatest = static fn (): array => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext(
     $makeStack(),
     'plugin-settings',
     $wal,
@@ -83,7 +83,7 @@ $truncateLatest = static fn (): array => SQLiteWalSavepointCheckpointPlan::check
     2
 );
 
-$passivePinned = static fn (): array => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext85(
+$passivePinned = static fn (): array => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext(
     $makeStack(),
     'plugin-settings',
     $wal,
@@ -166,19 +166,19 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal checkpoint reader savepoint current source next85 rejects empty pages'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext85($makeStack(), 'plugin-settings', $wal, $walBytes, $databaseBytes, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext($makeStack(), 'plugin-settings', $wal, $walBytes, $databaseBytes, []));
 };
 
 $tests['wal checkpoint reader savepoint current source next85 rejects bad page'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext85($makeStack(), 'plugin-settings', $wal, $walBytes, $databaseBytes, ['3']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext($makeStack(), 'plugin-settings', $wal, $walBytes, $databaseBytes, ['3']));
 };
 
 $tests['wal checkpoint reader savepoint current source next85 rejects bad savepoint'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext85($makeStack(), 'missing', $wal, $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext($makeStack(), 'missing', $wal, $walBytes, $databaseBytes, [1]));
 };
 
 $tests['wal checkpoint reader savepoint current source next85 rejects bad mode'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext85($makeStack(), 'plugin-settings', $wal, $walBytes, $databaseBytes, [1], 'invalid'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext($makeStack(), 'plugin-settings', $wal, $walBytes, $databaseBytes, [1], 'invalid'));
 };
 
 return $tests;

@@ -60,7 +60,7 @@ $savepoints->savepoint('plugin_batch');
 $savepoints->recordWalFrameWrite(3, 3);
 $savepoints->recordWalFrameWrite(4, 2, true);
 
-$plan = SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82(
+$plan = SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext(
     $masterPath,
     $journalPath . "\n",
     null,

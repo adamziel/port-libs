@@ -62,31 +62,31 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext253(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCurrentSourceAdmission(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-next253-ready') {
-        throw new RuntimeException('unexpected next253 status');
+    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-current-source-admission-ready') {
+        throw new RuntimeException('unexpected current-source-admission status');
     }
-    if ($plan['compoundCurrentSourceAdmissionNext253']['currentLabels'] !== ['home', 'seed:2:3', 'rewrite_rules', 'seed:2:3:4']) {
+    if ($plan['compoundCurrentSourceAdmissionCurrentSourceAdmission']['currentLabels'] !== ['home', 'seed:2:3', 'rewrite_rules', 'seed:2:3:4']) {
         throw new RuntimeException('unexpected current-source labels');
     }
-    if ($plan['compoundCurrentSourceAdmissionNext253']['requiredCurrentSourceAckCount'] !== 3) {
+    if ($plan['compoundCurrentSourceAdmissionCurrentSourceAdmission']['requiredCurrentSourceAckCount'] !== 3) {
         throw new RuntimeException('unexpected current-source admission ack count');
     }
 
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next253 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-current-source-admission self-test passed\n";
     return;
 }
 
 echo json_encode([
     'status' => $plan['status'],
-    'currentLabels' => $plan['compoundCurrentSourceAdmissionNext253']['currentLabels'],
-    'currentWindowMetrics' => $plan['compoundCurrentSourceAdmissionNext253']['currentWindowMetrics'],
-    'requiredCurrentSourceAckCount' => $plan['compoundCurrentSourceAdmissionNext253']['requiredCurrentSourceAckCount'],
-    'currentExposure' => $plan['compoundCurrentSourceAdmissionNext253']['currentExposure'],
+    'currentLabels' => $plan['compoundCurrentSourceAdmissionCurrentSourceAdmission']['currentLabels'],
+    'currentWindowMetrics' => $plan['compoundCurrentSourceAdmissionCurrentSourceAdmission']['currentWindowMetrics'],
+    'requiredCurrentSourceAckCount' => $plan['compoundCurrentSourceAdmissionCurrentSourceAdmission']['requiredCurrentSourceAckCount'],
+    'currentExposure' => $plan['compoundCurrentSourceAdmissionCurrentSourceAdmission']['currentExposure'],
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";

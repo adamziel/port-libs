@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-active-plugins-next268',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext268(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceSlice(268,
     'json_tree',
     $current,
     $next,

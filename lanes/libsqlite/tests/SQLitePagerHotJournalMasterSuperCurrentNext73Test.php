@@ -80,7 +80,7 @@ $orphanWalBytes = $makeWalBytes([
 $superBytes = $mainPath . "-journal\n" . $sitePath . "-journal\n" . $mainPath . "-journal\n";
 $partialSuperBytes = $mainPath . "-journal\n";
 
-$build = static fn (string $superInput = null, bool $siteReserved = false): array => SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73(
+$build = static fn (string $superInput = null, bool $siteReserved = false): array => SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext(
     $superPath,
     $superInput ?? $superBytes,
     [
@@ -166,7 +166,7 @@ $cases = [
     'empty super bytes skips all databases' => static fn (): mixed => $build('')['skipped_database_count'],
     'empty super path rejected' => static function () use ($superBytes): mixed {
         try {
-            SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73('', $superBytes, []);
+            SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext('', $superBytes, []);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -174,7 +174,7 @@ $cases = [
     },
     'empty database list rejected' => static function () use ($superPath, $superBytes): mixed {
         try {
-            SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73($superPath, $superBytes, []);
+            SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext($superPath, $superBytes, []);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -182,7 +182,7 @@ $cases = [
     },
     'database path required' => static function () use ($superPath, $superBytes, $mainJournal, $mainJournalBytes, $mainWalBytes, $mainDirtyHeader, $mainDirtyOptions, $pageSize): mixed {
         try {
-            SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73($superPath, $superBytes, [[
+            SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext($superPath, $superBytes, [[
                 'database_path' => '',
                 'database_bytes' => $mainDirtyHeader . $mainDirtyOptions,
                 'journal' => $mainJournal,
@@ -198,7 +198,7 @@ $cases = [
     },
     'database journal required' => static function () use ($superPath, $superBytes, $mainPath, $mainJournalBytes, $mainWalBytes, $mainDirtyHeader, $mainDirtyOptions, $pageSize): mixed {
         try {
-            SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73($superPath, $superBytes, [[
+            SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext($superPath, $superBytes, [[
                 'database_path' => $mainPath,
                 'database_bytes' => $mainDirtyHeader . $mainDirtyOptions,
                 'journal_bytes' => $mainJournalBytes,
@@ -213,7 +213,7 @@ $cases = [
     },
     'database pages required' => static function () use ($superPath, $superBytes, $mainPath, $mainJournal, $mainJournalBytes, $mainWalBytes, $mainDirtyHeader, $mainDirtyOptions, $pageSize): mixed {
         try {
-            SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73($superPath, $superBytes, [[
+            SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext($superPath, $superBytes, [[
                 'database_path' => $mainPath,
                 'database_bytes' => $mainDirtyHeader . $mainDirtyOptions,
                 'journal' => $mainJournal,

@@ -18,16 +18,16 @@ $walPages = [
     ['page' => 7, 'bytes' => 1024, 'journaled' => false],
 ];
 
-$delete = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(10, 6, 4, $rollbackPages, 'delete', true, 'reserved', true, 1);
-$truncate = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(10, 6, 4, $rollbackPages, 'truncate', true, 'pending');
-$persist = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(10, 6, 4, $rollbackPages, 'persist', true, 'exclusive');
-$memory = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(10, 6, 4, [
+$delete = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(10, 6, 4, $rollbackPages, 'delete', true, 'reserved', true, 1);
+$truncate = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(10, 6, 4, $rollbackPages, 'truncate', true, 'pending');
+$persist = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(10, 6, 4, $rollbackPages, 'persist', true, 'exclusive');
+$memory = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(10, 6, 4, [
     ['page' => 1, 'bytes' => 512],
     ['page' => 9, 'bytes' => 512, 'dirty' => false],
 ], 'memory', true, 'reserved');
-$wal = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(10, 7, 4, $walPages, 'wal', true, 'shared', true, 2);
-$off = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(10, 7, 4, $rollbackPages, 'off', true, 'exclusive');
-$unsynced = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(10, 7, 4, $rollbackPages, 'delete', false, 'reserved');
+$wal = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(10, 7, 4, $walPages, 'wal', true, 'shared', true, 2);
+$off = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(10, 7, 4, $rollbackPages, 'off', true, 'exclusive');
+$unsynced = static fn (): array => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(10, 7, 4, $rollbackPages, 'delete', false, 'reserved');
 
 $cases = [
     'delete status spilled' => [static fn (): mixed => $delete()['status'], 'spilled'],
@@ -79,17 +79,17 @@ $cases = [
     'off database image unchanged' => [static fn (): mixed => $off()['next']['database_image'], 'unchanged'],
     'unsynced delete defers' => [static fn (): mixed => $unsynced()['status'], 'deferred'],
     'unsynced delete reason' => [static fn (): mixed => $unsynced()['blocked_reasons'], ['journal_not_synced']],
-    'uppercase journal mode normalized' => [static fn (): mixed => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(3, 3, 2, [['page' => 1, 'journaled' => true]], ' WAL ', true)['journal_mode'], 'wal'],
-    'disabled wal defers' => [static fn (): mixed => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(3, 3, 2, [['page' => 1, 'walFrame' => 1]], 'wal', true, 'shared', false)['blocked_reasons'], ['cache_spill_disabled']],
-    'below threshold wal defers' => [static fn (): mixed => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(3, 1, 2, [['page' => 1, 'walFrame' => 1]], 'wal', true)['blocked_reasons'], ['cache_below_spill_threshold']],
-    'pinned wal page defers no eligible' => [static fn (): mixed => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(3, 3, 2, [['page' => 1, 'walFrame' => 1, 'pinned' => true]], 'wal', true)['blocked_reasons'], ['no_journaled_unpinned_dirty_pages']],
-    'max spill one wal page' => [static fn (): mixed => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(10, 5, 2, $walPages, 'wal', true, 'shared', true, 1)['next']['spilled_pages'], [2]],
-    'bad journal mode rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(1, 1, 1, [], 'bad', true); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad wal frame rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(1, 1, 1, [['page' => 1, 'walFrame' => 0]], 'wal', true); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad page still rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(1, 1, 1, [['page' => 0]], 'delete', true); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad lock still rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(1, 1, 1, [], 'delete', true, 'bogus'); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'page past database still rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(1, 1, 1, [['page' => 2]], 'delete', true); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'duplicate page still rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107(2, 2, 1, [['page' => 1], ['page' => 1]], 'memory', true); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'uppercase journal mode normalized' => [static fn (): mixed => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(3, 3, 2, [['page' => 1, 'journaled' => true]], ' WAL ', true)['journal_mode'], 'wal'],
+    'disabled wal defers' => [static fn (): mixed => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(3, 3, 2, [['page' => 1, 'walFrame' => 1]], 'wal', true, 'shared', false)['blocked_reasons'], ['cache_spill_disabled']],
+    'below threshold wal defers' => [static fn (): mixed => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(3, 1, 2, [['page' => 1, 'walFrame' => 1]], 'wal', true)['blocked_reasons'], ['cache_below_spill_threshold']],
+    'pinned wal page defers no eligible' => [static fn (): mixed => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(3, 3, 2, [['page' => 1, 'walFrame' => 1, 'pinned' => true]], 'wal', true)['blocked_reasons'], ['no_journaled_unpinned_dirty_pages']],
+    'max spill one wal page' => [static fn (): mixed => SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(10, 5, 2, $walPages, 'wal', true, 'shared', true, 1)['next']['spilled_pages'], [2]],
+    'bad journal mode rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(1, 1, 1, [], 'bad', true); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad wal frame rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(1, 1, 1, [['page' => 1, 'walFrame' => 0]], 'wal', true); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad page still rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(1, 1, 1, [['page' => 0]], 'delete', true); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad lock still rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(1, 1, 1, [], 'delete', true, 'bogus'); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'page past database still rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(1, 1, 1, [['page' => 2]], 'delete', true); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'duplicate page still rejected' => [static function (): mixed { try { SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext(2, 2, 1, [['page' => 1], ['page' => 1]], 'memory', true); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {

@@ -62,7 +62,7 @@ $statements10051020 = [
     ['name' => 'review-reader', 'sql' => 'SELECT review_id FROM review.wp_schema_review_receipt_next1016 INDEXED BY wp_schema_review_receipt_key_next1016 WHERE review_key = ?'],
 ];
 
-$plan10051020 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext10051020(
+$plan10051020 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::finalSchemaCachePublishWindow(
     $schemas ?? $schemas10051020,
     $statements ?? $statements10051020,
     $events,
@@ -70,7 +70,7 @@ $plan10051020 = static fn (array $events, ?array $statements = null, ?array $sch
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next1005-1020 extends next989-1004 handoff'] = static function (TestRunner $t) use ($plan10051020): void {
+$tests['attach temp wal schema cache final publish window extends preparation handoff'] = static function (TestRunner $t) use ($plan10051020): void {
     $result = $plan10051020([
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 1008, 'table' => 'wp_theme_stage_publish_token_next1008', 'commit' => true],
         ['op' => 'rename_table', 'schema' => 'handoff', 'from' => 'wp_schema_handoff_receipt_next970', 'to' => 'wp_schema_handoff_receipt_next1010'],
@@ -82,7 +82,7 @@ $tests['attach temp wal schema cache current source next1005-1020 extends next98
         ['op' => 'wal_commit', 'schema' => 'review', 'schema_cookie' => 1005, 'table' => 'wp_schema_review_uncommitted_next1005', 'indexes' => ['wp_schema_review_uncommitted_key_next1005'], 'commit' => false],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next1005-1020', $result['operation']);
+    $t->same('attach-wal-temp-schema-cache-final-publish-window', $result['operation']);
     $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1005', $result['dependencies'][0]);
     $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1020', $result['dependencies'][15]);
     $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next989', $result['dependencies'][16]);
@@ -105,7 +105,7 @@ $tests['attach temp wal schema cache current source next1005-1020 extends next98
     $t->same(['publish-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next1005-1020 ignores detached scratch review'] = static function (TestRunner $t) use ($plan10051020): void {
+$tests['attach temp wal schema cache final publish window ignores detached scratch review'] = static function (TestRunner $t) use ($plan10051020): void {
     $result = $plan10051020([
         ['op' => 'attach', 'schema' => 'scratch', 'schema_cookie' => 1005, 'tables' => ['wp_schema_scratch_review_next1005'], 'indexes' => ['wp_schema_scratch_review_key_next1005'], 'file' => '/srv/wp/scratch-next1005.sqlite'],
         ['op' => 'schema_write', 'schema' => 'scratch', 'schema_cookie' => 1006, 'table' => 'wp_schema_scratch_review_meta_next1006', 'indexes' => ['wp_schema_scratch_review_meta_key_next1006'], 'commit' => true],

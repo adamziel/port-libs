@@ -31,7 +31,7 @@ foreach ([
 }
 
 $wal = SQLiteWal::parse($walBytes, null, true);
-$plan = $wal->checkpointReaderPinCurrentNext68(
+$plan = $wal->checkpointReaderPinSlotHandoffCurrentNext(
     $databaseBytes,
     [2, 3, 4],
     [0, 2, null],

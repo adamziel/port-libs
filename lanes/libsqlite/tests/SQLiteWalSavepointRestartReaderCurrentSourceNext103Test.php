@@ -71,7 +71,7 @@ $transactions = [
     ],
 ];
 
-$plan = static fn (string $mode = 'restart', bool $syncWal = true, bool $syncDirectory = true): array => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext103(
+$plan = static fn (string $mode = 'restart', bool $syncWal = true, bool $syncDirectory = true): array => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext(
     $makeStack(),
     'plugin-retry',
     $wal,
@@ -156,27 +156,27 @@ foreach ($cases as $name => [$actual, $expected]) {
 }
 
 $tests['wal savepoint restart reader current source next103 rejects empty database path'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext103($makeStack(), 'plugin-retry', $wal, $walBytes, $databaseBytes, '', $transactions, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext($makeStack(), 'plugin-retry', $wal, $walBytes, $databaseBytes, '', $transactions, [1]));
 };
 
 $tests['wal savepoint restart reader current source next103 rejects empty pages'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $databasePath, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext103($makeStack(), 'plugin-retry', $wal, $walBytes, $databaseBytes, $databasePath, $transactions, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext($makeStack(), 'plugin-retry', $wal, $walBytes, $databaseBytes, $databasePath, $transactions, []));
 };
 
 $tests['wal savepoint restart reader current source next103 rejects invalid mode'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $databasePath, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext103($makeStack(), 'plugin-retry', $wal, $walBytes, $databaseBytes, $databasePath, $transactions, [1], 'passive'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext($makeStack(), 'plugin-retry', $wal, $walBytes, $databaseBytes, $databasePath, $transactions, [1], 'passive'));
 };
 
 $tests['wal savepoint restart reader current source next103 rejects non integer page'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes, $databasePath, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext103($makeStack(), 'plugin-retry', $wal, $walBytes, $databaseBytes, $databasePath, $transactions, ['1']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext($makeStack(), 'plugin-retry', $wal, $walBytes, $databaseBytes, $databasePath, $transactions, ['1']));
 };
 
 $tests['wal savepoint restart reader current source next103 rejects short source'] = static function (TestRunner $t) use ($makeStack, $wal, $shortWalBytes, $databaseBytes, $databasePath, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext103($makeStack(), 'plugin-retry', $wal, $shortWalBytes, $databaseBytes, $databasePath, $transactions, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext($makeStack(), 'plugin-retry', $wal, $shortWalBytes, $databaseBytes, $databasePath, $transactions, [1]));
 };
 
 $tests['wal savepoint restart reader current source next103 rejects mutated source'] = static function (TestRunner $t) use ($makeStack, $wal, $mutatedWalBytes, $databaseBytes, $databasePath, $transactions): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext103($makeStack(), 'plugin-retry', $wal, $mutatedWalBytes, $databaseBytes, $databasePath, $transactions, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalSavepointCheckpointPlan::savepointRestartAppendReaderCurrentSourceNext($makeStack(), 'plugin-retry', $wal, $mutatedWalBytes, $databaseBytes, $databasePath, $transactions, [1]));
 };
 
 return $tests;

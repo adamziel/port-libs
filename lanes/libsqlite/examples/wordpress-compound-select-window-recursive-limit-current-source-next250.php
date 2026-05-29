@@ -64,16 +64,16 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext250($sql, $current, $next);
-$admission = $plan['compoundCurrentSourceNextPageAdmissionNext250'];
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNextPageAdmission($sql, $current, $next);
+$admission = $plan['compoundCurrentSourceNextPageAdmissionNextPageAdmission'];
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-next250-ready');
+    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-next-page-admission-ready');
     assert($admission['recursiveLimitExhausted'] === true);
     assert($admission['currentLabels'] === ['home', 'seed:2:3', 'rewrite_rules', 'seed:2:3:4']);
     assert($admission['nextLabels'] === ['plugin_prime', 'seed:2:3', 'home', 'seed:2:3:4']);
     assert($admission['requiredNextPageAdmissionAckCount'] === 3);
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next250 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-next-page-admission self-test passed\n";
     return;
 }
 

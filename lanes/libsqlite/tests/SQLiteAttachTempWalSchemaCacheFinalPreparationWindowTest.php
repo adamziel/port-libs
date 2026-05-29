@@ -62,7 +62,7 @@ $statements9891004 = [
     ['name' => 'seal-reader', 'sql' => 'SELECT seal_id FROM seal.wp_schema_seal_receipt_next996 INDEXED BY wp_schema_seal_receipt_key_next996 WHERE seal_key = ?'],
 ];
 
-$plan9891004 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext9891004(
+$plan9891004 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::finalSchemaCachePreparationWindow(
     $schemas ?? $schemas9891004,
     $statements ?? $statements9891004,
     $events,
@@ -70,7 +70,7 @@ $plan9891004 = static fn (array $events, ?array $statements = null, ?array $sche
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next989-1004 extends next973-988 handoff'] = static function (TestRunner $t) use ($plan9891004): void {
+$tests['attach temp wal schema cache final preparation window extends predecessor handoff'] = static function (TestRunner $t) use ($plan9891004): void {
     $result = $plan9891004([
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 990, 'table' => 'wp_theme_stage_publish_token_next990', 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'archive', 'from' => 'wp_schema_archive_receipt_key_next966', 'to' => 'wp_schema_archive_receipt_key_next992'],
@@ -82,7 +82,7 @@ $tests['attach temp wal schema cache current source next989-1004 extends next973
         ['op' => 'wal_commit', 'schema' => 'seal', 'schema_cookie' => 989, 'table' => 'wp_schema_seal_uncommitted_next989', 'indexes' => ['wp_schema_seal_uncommitted_key_next989'], 'commit' => false],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next989-1004', $result['operation']);
+    $t->same('attach-wal-temp-schema-cache-final-preparation-window', $result['operation']);
     $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next989', $result['dependencies'][0]);
     $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1004', $result['dependencies'][15]);
     $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next973', $result['dependencies'][16]);
@@ -105,7 +105,7 @@ $tests['attach temp wal schema cache current source next989-1004 extends next973
     $t->same(['handoff-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next989-1004 ignores detached scratch seal'] = static function (TestRunner $t) use ($plan9891004): void {
+$tests['attach temp wal schema cache final preparation window ignores detached scratch seal'] = static function (TestRunner $t) use ($plan9891004): void {
     $result = $plan9891004([
         ['op' => 'attach', 'schema' => 'scratch', 'schema_cookie' => 989, 'tables' => ['wp_schema_scratch_seal_next989'], 'indexes' => ['wp_schema_scratch_seal_key_next989'], 'file' => '/srv/wp/scratch-next989.sqlite'],
         ['op' => 'schema_write', 'schema' => 'scratch', 'schema_cookie' => 990, 'table' => 'wp_schema_scratch_seal_meta_next990', 'indexes' => ['wp_schema_scratch_seal_meta_key_next990'], 'commit' => true],

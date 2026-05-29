@@ -54,7 +54,7 @@ $stack->recordWalFrameWrite(4, 4);
 $stack->recordWalFrameWrite(5, 4, true);
 $stack->recordWalFrameWrite(6, 5, true);
 
-$plan = SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReleaseCurrentSourceNext94(
+$plan = SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointReleaseCurrentSourceNext(
     $stack,
     'reader-visible',
     $wal,

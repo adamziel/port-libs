@@ -20,13 +20,13 @@ The slice covers:
 Focused evidence:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueReturningDistinctSavepointCurrentSourceNext145Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueReturningDistinctSavepointCurrentSourceNextTest.php
 ```
 
 WordPress smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-rowvalue-returning-distinct-savepoint-current-source-next145.php --self-test
+php lanes/libsqlite/examples/wordpress-rowvalue-returning-distinct-savepoint-current-source.php --self-test
 ```
 
 Result:
@@ -34,7 +34,7 @@ Result:
 ```text
 1 test files, 54 assertions, 0 failures
 54 PASS lines
-wordpress-rowvalue-returning-distinct-savepoint-current-source-next145 self-test passed
+wordpress-rowvalue-returning-distinct-savepoint-current-source self-test passed
 ```
 
 Dashboard delta: update `phpPass` by the verified focused PASS-line delta

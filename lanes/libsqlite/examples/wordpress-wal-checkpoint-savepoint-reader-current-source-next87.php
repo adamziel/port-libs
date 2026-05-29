@@ -54,7 +54,7 @@ $stack->recordPageImageWrite(3, $page('autoload index before current source next
 $stack->recordWalFrameWrite(3, 3);
 $stack->recordWalFrameWrite(4, 2, true);
 
-$plan = SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext87(
+$plan = SQLiteWalSavepointCheckpointPlan::readerBoundaryCurrentSourceNext(
     $stack,
     'plugin-import',
     $wal,

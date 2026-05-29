@@ -22,7 +22,7 @@ $statements = [
     "DELETE FROM wp_options WHERE (blog_id, option_name) NOT IN ((2, 'siteurl'), (2, 'network_siteurl'), (2, 'pending_theme')) RETURNING option_id, option_name ORDER BY option_id",
 ];
 
-$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135(
+$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeDistinctReturningSavepoint(
     ['wp_options' => $rows],
     $statements,
     [['option_name']],
@@ -33,11 +33,11 @@ if (($argv[1] ?? null) === '--self-test') {
     $ids = array_column($plan['current_source_tables']['wp_options'], 'option_id');
     $names = array_column($plan['current_source_tables']['wp_options'], 'option_name', 'option_id');
     if ($plan['status'] !== 'released' || $ids !== [5, 6, 7] || $names[5] !== 'siteurl') {
-        fwrite(STDERR, "wordpress-rowvalue-delete-update-savepoint-current-source-next135 self-test failed\n");
+        fwrite(STDERR, "wordpress-rowvalue-delete-update-savepoint-current-source self-test failed\n");
         exit(1);
     }
 
-    fwrite(STDOUT, "wordpress-rowvalue-delete-update-savepoint-current-source-next135 self-test passed\n");
+    fwrite(STDOUT, "wordpress-rowvalue-delete-update-savepoint-current-source self-test passed\n");
     exit(0);
 }
 

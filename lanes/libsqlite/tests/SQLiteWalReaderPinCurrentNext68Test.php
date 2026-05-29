@@ -35,10 +35,10 @@ $wal = SQLiteWal::parse($makeWal([
     [4, 4, $page('wal68-frame-6-plugin-next-commit')],
 ]), null, true);
 
-$restart = static fn (): array => $wal->checkpointReaderPinCurrentNext68($databaseBytes, [2, 3, 4], [0, 2, null, null], null, 'restart');
-$truncate = static fn (): array => $wal->checkpointReaderPinCurrentNext68($databaseBytes, [2, 3, 4], [0, 2, null, null], 2, 'truncate');
-$invalidSlot = static fn (): array => $wal->checkpointReaderPinCurrentNext68($databaseBytes, [2, 3, 4], [0, 2, 99, null], 2, 'restart');
-$extendedSlot = static fn (): array => $wal->checkpointReaderPinCurrentNext68($databaseBytes, [2, 3], [0, 2], 4, 'restart');
+$restart = static fn (): array => $wal->checkpointReaderPinSlotHandoffCurrentNext($databaseBytes, [2, 3, 4], [0, 2, null, null], null, 'restart');
+$truncate = static fn (): array => $wal->checkpointReaderPinSlotHandoffCurrentNext($databaseBytes, [2, 3, 4], [0, 2, null, null], 2, 'truncate');
+$invalidSlot = static fn (): array => $wal->checkpointReaderPinSlotHandoffCurrentNext($databaseBytes, [2, 3, 4], [0, 2, 99, null], 2, 'restart');
+$extendedSlot = static fn (): array => $wal->checkpointReaderPinSlotHandoffCurrentNext($databaseBytes, [2, 3], [0, 2], 4, 'restart');
 
 $cases = [
     'restart status' => [static fn (): mixed => $restart()['status'], 'current-reader-pinned-next-reader-active'],
@@ -104,23 +104,23 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal reader pin current next68 rejects unpinned checkpoint'] = static function (TestRunner $t) use ($wal, $databaseBytes): void {
-    $t->throws(RuntimeException::class, static fn (): mixed => $wal->checkpointReaderPinCurrentNext68($databaseBytes, [2], [0, 6, null]));
+    $t->throws(RuntimeException::class, static fn (): mixed => $wal->checkpointReaderPinSlotHandoffCurrentNext($databaseBytes, [2], [0, 6, null]));
 };
 
 $tests['wal reader pin current next68 rejects active latest slot overwrite'] = static function (TestRunner $t) use ($wal, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderPinCurrentNext68($databaseBytes, [2], [0, 2, 6], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderPinSlotHandoffCurrentNext($databaseBytes, [2], [0, 2, 6], 2));
 };
 
 $tests['wal reader pin current next68 rejects negative slot'] = static function (TestRunner $t) use ($wal, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderPinCurrentNext68($databaseBytes, [2], [0, 2, null], -1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderPinSlotHandoffCurrentNext($databaseBytes, [2], [0, 2, null], -1));
 };
 
 $tests['wal reader pin current next68 rejects out of range slot'] = static function (TestRunner $t) use ($wal, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderPinCurrentNext68($databaseBytes, [2], [0, 2, null], 5));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderPinSlotHandoffCurrentNext($databaseBytes, [2], [0, 2, null], 5));
 };
 
 $tests['wal reader pin current next68 rejects non integer page'] = static function (TestRunner $t) use ($wal, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderPinCurrentNext68($databaseBytes, ['2'], [0, 2, null]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointReaderPinSlotHandoffCurrentNext($databaseBytes, ['2'], [0, 2, null]));
 };
 
 return $tests;

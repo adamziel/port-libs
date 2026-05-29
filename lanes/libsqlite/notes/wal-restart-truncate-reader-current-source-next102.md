@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for a WAL restart/truncate reader current-source boundary.
 
-This slice adds `SQLiteWal::checkpointRestartTruncateReaderCurrentSourceNext102()`. It verifies the raw current WAL sidecar bytes and also checks that the current SHM wal-index salt and `mxFrame` match that same WAL before trusting restart/truncate checkpoint state. The plan reports current, next-reader, and all-released SHM sources plus source-transition rows for current reader, pinned next reader, restarted WAL header, and truncated WAL sidecar outcomes.
+This slice adds `SQLiteWal::checkpointRestartTruncateReaderRecoveryCurrentSourceNext()`. It verifies the raw current WAL sidecar bytes and also checks that the current SHM wal-index salt and `mxFrame` match that same WAL before trusting restart/truncate checkpoint state. The plan reports current, next-reader, and all-released SHM sources plus source-transition rows for current reader, pinned next reader, restarted WAL header, and truncated WAL sidecar outcomes.
 
 Focused evidence:
 

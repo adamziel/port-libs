@@ -31,7 +31,7 @@ $append(2, 0, 'active_plugins value visible to next reader');
 $append(4, 4, 'cron option checkpointed before truncate');
 
 $wal = SQLiteWal::parse($walBytes, null, true);
-$plan = $wal->checkpointTruncateReaderCurrentSourceNext88(
+$plan = $wal->checkpointTruncateReaderCurrentSourceNext(
     $walBytes,
     $databaseBytes,
     [2, 3, 4],

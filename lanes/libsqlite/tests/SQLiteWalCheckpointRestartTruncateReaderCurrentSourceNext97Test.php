@@ -61,7 +61,7 @@ $currentShm = SQLiteShmIndex::parse($makeShm([0, 2, null, null, null], [false, t
 $nextReaderShm = SQLiteShmIndex::parse($makeShm([0, null, 8, null, null], [false, false, true, false, false], 2, 8));
 $allReleasedShm = SQLiteShmIndex::parse($makeShm([0, null, null, null, null], [false, false, false, false, false], 8, 8));
 
-$plan = static fn (): array => $wal->checkpointRestartTruncateReaderCurrentSourceNext97(
+$plan = static fn (): array => $wal->checkpointRestartTruncateReaderPreserveCurrentSourceNext(
     $databaseBytes,
     $walBytes,
     $currentShm,
@@ -138,25 +138,25 @@ foreach ($cases as $name => [$callback, $expected]) {
 
 $tests['wal checkpoint restart truncate reader current source next97 rejects stale checkpoint sequence'] = static function (TestRunner $t) use ($wal, $makeWal, $frames, $databaseBytes, $currentShm, $nextReaderShm, $allReleasedShm): void {
     $staleBytes = $makeWal($frames, 98);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderCurrentSourceNext97($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $allReleasedShm, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderPreserveCurrentSourceNext($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $allReleasedShm, [2]));
 };
 
 $tests['wal checkpoint restart truncate reader current source next97 rejects stale salt'] = static function (TestRunner $t) use ($wal, $makeWal, $frames, $databaseBytes, $currentShm, $nextReaderShm, $allReleasedShm): void {
     $staleBytes = $makeWal($frames, 97, 0x97112234);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderCurrentSourceNext97($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $allReleasedShm, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderPreserveCurrentSourceNext($databaseBytes, $staleBytes, $currentShm, $nextReaderShm, $allReleasedShm, [2]));
 };
 
 $tests['wal checkpoint restart truncate reader current source next97 rejects mutated frame bytes'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $currentShm, $nextReaderShm, $allReleasedShm): void {
     $mutated = substr_replace($walBytes, 'X', 32 + 24 + 15, 1);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderCurrentSourceNext97($databaseBytes, $mutated, $currentShm, $nextReaderShm, $allReleasedShm, [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderPreserveCurrentSourceNext($databaseBytes, $mutated, $currentShm, $nextReaderShm, $allReleasedShm, [2]));
 };
 
 $tests['wal checkpoint restart truncate reader current source next97 rejects empty page list'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $currentShm, $nextReaderShm, $allReleasedShm): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderCurrentSourceNext97($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $allReleasedShm, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderPreserveCurrentSourceNext($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $allReleasedShm, []));
 };
 
 $tests['wal checkpoint restart truncate reader current source next97 rejects non integer page'] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $currentShm, $nextReaderShm, $allReleasedShm): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderCurrentSourceNext97($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $allReleasedShm, ['2']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $wal->checkpointRestartTruncateReaderPreserveCurrentSourceNext($databaseBytes, $walBytes, $currentShm, $nextReaderShm, $allReleasedShm, ['2']));
 };
 
 return $tests;

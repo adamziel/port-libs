@@ -40,7 +40,7 @@ final class SQLitePagerWalSavepointMasterJournalCurrentSourceNextPlan
         }
 
         $journalPath = $databasePath . '-journal';
-        $cachedReplay = SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82(
+        $cachedReplay = SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext(
             $masterJournalPath,
             $cachedMasterJournalBytes,
             $cachedMasterJournalBytes,
@@ -55,7 +55,7 @@ final class SQLitePagerWalSavepointMasterJournalCurrentSourceNextPlan
             $pageNumbers,
             $databaseReservedLock
         );
-        $currentReplay = SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext82(
+        $currentReplay = SQLiteWalHotJournalSavepointReplayPlan::masterJournalCurrentSourceNext(
             $masterJournalPath,
             $currentMasterJournalBytes,
             $nextMasterJournalBytes,

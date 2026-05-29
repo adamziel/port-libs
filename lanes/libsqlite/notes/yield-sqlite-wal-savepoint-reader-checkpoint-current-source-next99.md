@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointCurrentSourceNext99()` for a current-source WAL savepoint rollback/checkpoint timeline.
+Adds `SQLiteWalSavepointCheckpointPlan::checkpointReaderSavepointRecoveryCurrentSourceNext()` for a current-source WAL savepoint rollback/checkpoint timeline.
 
 The slice is narrower than accepted batch90/batch94 coverage. Batch90 verifies exact current WAL bytes for pinned-reader savepoint rollback, and batch94 verifies reader release can unblock restart/truncate checkpoint. This next99 slice combines those into one source timeline with current WAL SHA-256, retained WAL SHA-256, pinned next-source summary, released next-source summary, frame source offsets, source transitions, and current/next reader evidence for WordPress import diagnostics.
 

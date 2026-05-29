@@ -25,7 +25,7 @@ foreach ([
     $walBytes .= $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
 }
 
-$plan = SQLiteWal::parse($walBytes, null, true)->checkpointTruncateCurrentNext72($databaseBytes, [2, 3, 4]);
+$plan = SQLiteWal::parse($walBytes, null, true)->checkpointTruncateCurrentNext($databaseBytes, [2, 3, 4]);
 
 if (($argv[1] ?? '') === '--self-test') {
     foreach ([

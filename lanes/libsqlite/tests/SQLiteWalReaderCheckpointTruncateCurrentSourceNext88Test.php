@@ -41,13 +41,13 @@ $shortWalBytes = substr($currentWalBytes, 0, 32 + (4 * (24 + $pageSize)));
 $currentWal = SQLiteWal::parse($currentWalBytes, null, true);
 $staleWal = SQLiteWal::parse($staleSaltBytes, null, true);
 
-$pinned = static fn (): array => $currentWal->checkpointTruncateReaderCurrentSourceNext88(
+$pinned = static fn (): array => $currentWal->checkpointTruncateReaderCurrentSourceNext(
     $currentWalBytes,
     $databaseBytes,
     [1, 2, 3, 4, 5],
     2
 );
-$unpinned = static fn (): array => $currentWal->checkpointTruncateReaderCurrentSourceNext88(
+$unpinned = static fn (): array => $currentWal->checkpointTruncateReaderCurrentSourceNext(
     $currentWalBytes,
     $databaseBytes,
     [2, 3, 4, 5],
@@ -125,35 +125,35 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['wal reader checkpoint truncate current source next88 rejects stale salt bytes'] = static function (TestRunner $t) use ($currentWal, $staleSaltBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext88($staleSaltBytes, $databaseBytes, [2], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext($staleSaltBytes, $databaseBytes, [2], 2));
 };
 
 $tests['wal reader checkpoint truncate current source next88 rejects stale checkpoint bytes'] = static function (TestRunner $t) use ($currentWal, $staleCheckpointBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext88($staleCheckpointBytes, $databaseBytes, [2], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext($staleCheckpointBytes, $databaseBytes, [2], 2));
 };
 
 $tests['wal reader checkpoint truncate current source next88 rejects short frame count bytes'] = static function (TestRunner $t) use ($currentWal, $shortWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext88($shortWalBytes, $databaseBytes, [2], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext($shortWalBytes, $databaseBytes, [2], 2));
 };
 
 $tests['wal reader checkpoint truncate current source next88 rejects stale parsed wal'] = static function (TestRunner $t) use ($staleWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $staleWal->checkpointTruncateReaderCurrentSourceNext88($currentWalBytes, $databaseBytes, [2], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $staleWal->checkpointTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [2], 2));
 };
 
 $tests['wal reader checkpoint truncate current source next88 rejects empty page list'] = static function (TestRunner $t) use ($currentWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext88($currentWalBytes, $databaseBytes, [], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [], 2));
 };
 
 $tests['wal reader checkpoint truncate current source next88 rejects non integer page'] = static function (TestRunner $t) use ($currentWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext88($currentWalBytes, $databaseBytes, [2, '3'], 2));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [2, '3'], 2));
 };
 
 $tests['wal reader checkpoint truncate current source next88 rejects negative reader frame'] = static function (TestRunner $t) use ($currentWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext88($currentWalBytes, $databaseBytes, [2], -1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [2], -1));
 };
 
 $tests['wal reader checkpoint truncate current source next88 rejects reader beyond wal'] = static function (TestRunner $t) use ($currentWal, $currentWalBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext88($currentWalBytes, $databaseBytes, [2], 6));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => $currentWal->checkpointTruncateReaderCurrentSourceNext($currentWalBytes, $databaseBytes, [2], 6));
 };
 
 return $tests;

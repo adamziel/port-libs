@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Added `SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107()` for journal-mode-specific dirty-page cache spill routing.
+- Added `SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext()` for journal-mode-specific dirty-page cache spill routing.
 - Rollback-journal modes (`DELETE`, `TRUNCATE`, `PERSIST`) keep the accepted journal-sync and exclusive-lock path before writing database pages.
 - `WAL` spills append WAL frames and leaves the database image unchanged until checkpoint.
 - `MEMORY` uses memory-journal evidence for dirty cache pages.

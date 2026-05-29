@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWal::restartTruncateReaderPinCurrentSourceNext119()` for a current
+Adds `SQLiteWal::restartTruncateReaderPinCurrentSourceNext()` for a current
 WAL sidecar whose read marks pin an older committed frame. The plan verifies:
 
 - restart and truncate checkpoint attempts preserve the WAL while the reader

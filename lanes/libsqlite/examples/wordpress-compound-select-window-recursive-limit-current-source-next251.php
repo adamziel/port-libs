@@ -62,35 +62,35 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext251(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareDeltaAudit(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-next251-ready') {
-        throw new RuntimeException('unexpected next251 status');
+    if ($plan['status'] !== 'compound-select-window-recursive-limit-current-source-delta-audit-ready') {
+        throw new RuntimeException('unexpected delta-audit status');
     }
-    if ($plan['compoundNextSourceDeltaAuditFenceNext251']['nextOnlyLabels'] !== ['plugin_prime']) {
+    if ($plan['compoundNextSourceDeltaAuditFenceDeltaAudit']['nextOnlyLabels'] !== ['plugin_prime']) {
         throw new RuntimeException('unexpected next-only audit label');
     }
-    if ($plan['compoundNextSourceDeltaAuditFenceNext251']['currentOnlyLabels'] !== ['rewrite_rules']) {
+    if ($plan['compoundNextSourceDeltaAuditFenceDeltaAudit']['currentOnlyLabels'] !== ['rewrite_rules']) {
         throw new RuntimeException('unexpected current-only audit label');
     }
-    if ($plan['compoundNextSourceDeltaAuditFenceNext251']['requiredDeltaAuditReceiptCount'] !== 11) {
-        throw new RuntimeException('unexpected next251 audit receipt count');
+    if ($plan['compoundNextSourceDeltaAuditFenceDeltaAudit']['requiredDeltaAuditReceiptCount'] !== 11) {
+        throw new RuntimeException('unexpected delta-audit audit receipt count');
     }
 
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next251 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-delta-audit self-test passed\n";
     return;
 }
 
 echo json_encode([
     'status' => $plan['status'],
-    'nextOnlyLabels' => $plan['compoundNextSourceDeltaAuditFenceNext251']['nextOnlyLabels'],
-    'currentOnlyLabels' => $plan['compoundNextSourceDeltaAuditFenceNext251']['currentOnlyLabels'],
-    'operatorTrace' => $plan['compoundNextSourceDeltaAuditFenceNext251']['operatorTrace'],
-    'requiredDeltaAuditReceiptCount' => $plan['compoundNextSourceDeltaAuditFenceNext251']['requiredDeltaAuditReceiptCount'],
-    'nextExposure' => $plan['compoundNextSourceDeltaAuditFenceNext251']['nextExposure'],
+    'nextOnlyLabels' => $plan['compoundNextSourceDeltaAuditFenceDeltaAudit']['nextOnlyLabels'],
+    'currentOnlyLabels' => $plan['compoundNextSourceDeltaAuditFenceDeltaAudit']['currentOnlyLabels'],
+    'operatorTrace' => $plan['compoundNextSourceDeltaAuditFenceDeltaAudit']['operatorTrace'],
+    'requiredDeltaAuditReceiptCount' => $plan['compoundNextSourceDeltaAuditFenceDeltaAudit']['requiredDeltaAuditReceiptCount'],
+    'nextExposure' => $plan['compoundNextSourceDeltaAuditFenceDeltaAudit']['nextExposure'],
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";
