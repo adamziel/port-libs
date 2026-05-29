@@ -1,0 +1,164 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
+
+$tests = [];
+
+$pageSize = 512;
+$database = '/srv/wp-content/database/wp-next462.sqlite';
+$journal = $database . '-journal';
+$master = $database . '-mj';
+$masterBytes = $journal . "\n";
+$page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
+$formatPage = static function (string $label) use ($pageSize): string {
+    $page = str_pad('SQLite format 3' . "\0", 100, "\0", STR_PAD_RIGHT) . str_repeat('.', $pageSize - 100);
+    $page = substr_replace($page, pack('n', 512), 16, 2);
+    $page = substr_replace($page, chr(4), 20, 1);
+    $page = substr_replace($page, pack('N', 2), 56, 4);
+    $page = substr_replace($page, pack('N', 462), 60, 4);
+
+    return substr_replace($page, $label, 100, strlen($label));
+};
+$mapDigest = static function (array $map): string {
+    ksort($map, SORT_STRING);
+
+    return hash('sha256', implode('|', array_map(static fn (string $key, string $value): string => $key . '=' . $value, array_keys($map), $map)));
+};
+$recoveredDigest = static function (array $pages): string {
+    ksort($pages, SORT_NUMERIC);
+
+    return hash('sha256', implode('|', array_map(static fn (int $pageNumber, string $image): string => $pageNumber . ':' . hash('sha256', $image), array_keys($pages), $pages)));
+};
+$tokenFields = [
+    'master_journal_file_token', 'database_file_token', 'master_journal_cleanup_token', 'reader_lease_token', 'pager_cache_source_token', 'read_transaction_token',
+    'schema_reparse_token', 'statement_schema_root_token', 'current_source_provenance_token', 'pager_reader_cache_generation_token', 'reader_snapshot_token',
+    'master_journal_recovery_receipt_token', 'pager_spill_drain_token', 'rollback_journal_reader_source_token', 'pager_hot_journal_header_token',
+    'master_journal_member_epoch_token', 'reader_cache_schema_cookie_token', 'reader_cache_vacuum_root_token', 'pager_reserved_lock_token',
+    'reader_cache_page_count_token', 'reader_cache_schema_version_token', 'reader_cache_change_counter_token', 'reader_cache_freelist_trunk_token',
+    'reader_cache_auto_vacuum_token', 'reader_cache_encoding_token', 'reader_cache_text_schema_token', 'reader_cache_index_schema_token',
+    'reader_cache_trigger_schema_token', 'reader_cache_view_schema_token', 'reader_cache_virtual_table_schema_token', 'reader_cache_module_schema_token',
+    'reader_cache_pragma_schema_token', 'reader_cache_collation_schema_token', 'reader_cache_authorizer_schema_token', 'reader_cache_transaction_state_token',
+    'reader_cache_commit_phase_token', 'reader_cache_busy_handler_token', 'reader_cache_savepoint_stack_token', 'reader_cache_statement_journal_token',
+    'reader_cache_temp_page_token', 'reader_cache_dirty_list_token', 'reader_cache_spill_epoch_token', 'reader_cache_locking_mode_token',
+    'reader_cache_journal_mode_token', 'reader_cache_synchronous_token', 'reader_cache_mmap_size_token', 'reader_cache_cache_size_token',
+    'reader_cache_wal_autocheckpoint_token', 'reader_cache_query_only_token', 'reader_cache_foreign_key_token', 'reader_cache_defer_foreign_key_token',
+    'reader_cache_recursive_trigger_token', 'reader_cache_trusted_schema_token', 'reader_cache_ignore_check_constraints_token', 'reader_cache_application_id_token',
+    'reader_cache_user_version_token', 'reader_cache_data_version_token', 'reader_cache_schema_lock_token', 'reader_cache_secure_delete_token',
+    'reader_cache_temp_store_token', 'reader_cache_cache_spill_token', 'reader_cache_cell_size_check_token', 'reader_cache_reverse_unordered_selects_token',
+    'reader_cache_automatic_index_token', 'reader_cache_case_sensitive_like_token', 'reader_cache_count_changes_token', 'reader_cache_checkpoint_fullfsync_token',
+    'reader_cache_fullfsync_token', 'reader_cache_legacy_file_format_token', 'reader_cache_read_uncommitted_token', 'reader_cache_reverse_scan_order_token',
+    'reader_cache_defensive_token', 'reader_cache_writable_schema_token', 'reader_cache_journal_size_limit_token', 'reader_cache_threads_token',
+    'reader_cache_optimize_token', 'reader_cache_analysis_limit_token', 'reader_cache_hard_heap_limit_token', 'reader_cache_soft_heap_limit_token',
+    'reader_cache_page_size_token', 'reader_cache_max_page_count_token', 'reader_cache_locking_proxy_file_token', 'reader_cache_page_cache_overflow_token',
+    'reader_cache_scratch_allocator_token', 'reader_cache_lookaside_token', 'reader_cache_pcache_dirty_limit_token', 'reader_cache_mmap_read_limit_token',
+    'reader_cache_sorter_reference_token', 'reader_cache_worker_thread_token', 'reader_cache_memory_alarm_token', 'reader_cache_status_counter_token',
+    'reader_cache_pagecache_size_token', 'reader_cache_pagecache_recycle_token', 'reader_cache_scratch_spill_token', 'reader_cache_lookaside_hit_token',
+    'reader_cache_lookaside_miss_size_token', 'reader_cache_pcache_refcount_token', 'reader_cache_memory_used_token', 'reader_cache_memory_highwater_token',
+    'reader_cache_pagecache_used_token', 'reader_cache_pagecache_overflow_token', 'reader_cache_scratch_used_token', 'reader_cache_scratch_overflow_token',
+    'reader_cache_malloc_size_token', 'reader_cache_malloc_count_token', 'reader_cache_stmt_used_token', 'reader_cache_stmt_busy_token',
+    'reader_cache_stmt_memused_token', 'reader_cache_stmt_scanstatus_token', 'reader_cache_stmt_reprepare_token', 'reader_cache_stmt_run_token',
+    'reader_cache_stmt_sort_token', 'reader_cache_stmt_autoindex_token', 'reader_cache_stmt_fullscan_token', 'reader_cache_stmt_vmstep_token',
+    'reader_cache_stmt_filter_hit_token', 'reader_cache_stmt_filter_miss_token', 'reader_cache_stmt_nsort_token', 'reader_cache_stmt_nautoindex_token',
+    'reader_cache_stmt_nfullscan_token', 'reader_cache_stmt_expired_token', 'reader_cache_stmt_readonly_token', 'reader_cache_stmt_scanstatus_nloop_token',
+    'reader_cache_stmt_scanstatus_nvisit_token', 'reader_cache_stmt_scanstatus_est_token', 'reader_cache_stmt_scanstatus_name_token',
+    'reader_cache_stmt_scanstatus_explain_token', 'reader_cache_stmt_scanstatus_selectid_token', 'reader_cache_stmt_scanstatus_parentid_token',
+    'reader_cache_stmt_scanstatus_ncycle_token', 'reader_cache_stmt_vm_halt_token', 'reader_cache_stmt_vm_reset_token', 'reader_cache_stmt_bind_parameter_token',
+    'reader_cache_stmt_expanded_sql_token', 'reader_cache_stmt_normalized_sql_token', 'reader_cache_stmt_sql_text_token', 'reader_cache_stmt_readonly_schema_token',
+    'reader_cache_stmt_busy_state_token', 'reader_cache_stmt_isexplain_token', 'reader_cache_stmt_explain_mode_token', 'reader_cache_stmt_vdbe_debug_token',
+    'reader_cache_stmt_vdbe_listing_token', 'reader_cache_stmt_vdbe_trace_token', 'reader_cache_stmt_vdbe_addoptrace_token', 'reader_cache_stmt_vdbe_eqptrace_token',
+    'reader_cache_stmt_vdbe_coverage_token', 'reader_cache_stmt_vdbe_comment_token', 'reader_cache_stmt_vdbe_profile_token', 'reader_cache_stmt_vdbe_scanstatus_token',
+    'reader_cache_stmt_vdbe_reprep_token', 'reader_cache_stmt_vdbe_run_token', 'reader_cache_stmt_vdbe_yield_token', 'reader_cache_stmt_vdbe_pause_token',
+    'reader_cache_stmt_vdbe_reset_token', 'reader_cache_stmt_vdbe_finalize_token', 'reader_cache_stmt_vdbe_transfer_token', 'reader_cache_stmt_vdbe_cursor_token',
+    'reader_cache_stmt_vdbe_sorter_token', 'reader_cache_stmt_vdbe_auxdata_token', 'reader_cache_stmt_vdbe_mem_token', 'reader_cache_stmt_vdbe_memtype_token',
+    'reader_cache_stmt_vdbe_column_token', 'reader_cache_stmt_vdbe_rowid_token', 'reader_cache_stmt_vdbe_seek_token', 'reader_cache_stmt_vdbe_btree_cursor_token',
+    'reader_cache_stmt_vdbe_index_cursor_token', 'reader_cache_stmt_vdbe_ephemeral_cursor_token', 'reader_cache_stmt_vdbe_open_cursor_token',
+    'reader_cache_stmt_vdbe_close_cursor_token', 'reader_cache_stmt_vdbe_rewind_token', 'reader_cache_stmt_vdbe_next_token',
+    'reader_cache_stmt_vdbe_prev_token', 'reader_cache_stmt_vdbe_nextifopen_token', 'reader_cache_stmt_vdbe_previfopen_token',
+    'reader_cache_stmt_vdbe_sorter_next_token', 'reader_cache_stmt_vdbe_seeklt_token', 'reader_cache_stmt_vdbe_seekle_token',
+    'reader_cache_stmt_vdbe_seekge_token', 'reader_cache_stmt_vdbe_seekgt_token', 'reader_cache_stmt_vdbe_seekscan_token',
+    'reader_cache_stmt_vdbe_notfound_token', 'reader_cache_stmt_vdbe_found_token', 'reader_cache_stmt_vdbe_notexists_token',
+    'reader_cache_stmt_vdbe_last_token', 'reader_cache_stmt_vdbe_ifnosuchrow_token', 'reader_cache_stmt_vdbe_deferred_seek_token',
+    'reader_cache_stmt_vdbe_moveto_token', 'reader_cache_stmt_vdbe_index_rowid_token', 'reader_cache_stmt_vdbe_rowset_read_token',
+    'reader_cache_stmt_vdbe_rowset_test_token', 'reader_cache_stmt_vdbe_rowset_add_token', 'reader_cache_stmt_vdbe_idx_insert_token',
+    'reader_cache_stmt_vdbe_idx_delete_token', 'reader_cache_stmt_vdbe_idx_rowid_token', 'reader_cache_stmt_vdbe_idx_ge_token',
+    'reader_cache_stmt_vdbe_idx_gt_token', 'reader_cache_stmt_vdbe_idx_le_token', 'reader_cache_stmt_vdbe_idx_lt_token',
+    'reader_cache_stmt_vdbe_idx_keyinfo_token', 'reader_cache_stmt_vdbe_open_read_token', 'reader_cache_stmt_vdbe_open_write_token',
+    'reader_cache_stmt_vdbe_open_dup_token',
+];
+$before = [1 => $formatPage('stale schema'), 2 => $page('stale options')];
+$recovered = [1 => $formatPage('current schema'), 2 => $page('current options')];
+$tokens = [$journal => 'member-main-current-462'];
+$headers = [$journal => hash('sha256', 'main header next462')];
+$base = [
+    'source_id' => 'pager-reader-cache-current-source-next462',
+    'epoch' => 462,
+    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 462, 0])),
+    'publication_generation' => 462,
+    'master_source_digest' => hash('sha256', 'master-next462'),
+    'recovery_sequence' => 462,
+    'recovered_page_set_digest' => $recoveredDigest($recovered),
+    'member_journal_tokens' => $tokens,
+    'member_journal_header_digests' => $headers,
+    'master_member_order_digest' => hash('sha256', $journal),
+    'master_journal_bytes_digest' => hash('sha256', $masterBytes),
+];
+foreach ($tokenFields as $field) {
+    $base[$field] = str_replace('_', '-', preg_replace('/_token$/', '', $field)) . '-current-462';
+}
+$cacheEntry = static fn (array $extra = []): array => array_merge($base, ['reader_id' => 'wp-options-reader', 'image' => $recovered[1]], $extra);
+$read = static fn (array $extra = []): array => array_merge($base, [
+    'reader_id' => 'read-options',
+    'page_number' => 1,
+    'member_journal_token_digest' => $mapDigest($tokens),
+    'member_journal_header_digest' => $mapDigest($headers),
+], $extra);
+$plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext462(
+    $database,
+    $master,
+    $masterBytes,
+    implode('', $before),
+    $pageSize,
+    $recovered,
+    [1 => $cacheEntry($cacheExtra)],
+    [$read($readExtra)],
+    $base['source_id'],
+    462,
+    462,
+    $base['master_source_digest'],
+    462,
+    $tokens,
+    $headers,
+    ...array_map(static fn (string $field): string => $base[$field], $tokenFields),
+);
+$opCount = static fn (array $plan, string $op): int => count(array_filter($plan['operations'], static fn (array $operation): bool => ($operation['op'] ?? '') === $op));
+
+$tests['pager master journal reader cache current source next462 admits current VDBE lifecycle fences'] = static function (TestRunner $t) use ($plan): void {
+    $result = $plan();
+    $t->same('pager-master-journal-reader-cache-current-source-next462', $result['status']);
+    $t->same([], $result['invalidated_cache_page_numbers']);
+    $t->same(['read-options' => true], $result['read_cache_hits']);
+    $t->same('reader-cache-stmt-vdbe-open-dup-current-462', $result['current_reader_cache_stmt_vdbe_open_dup_token']);
+};
+
+$tests['pager master journal reader cache current source next462 invalidates stale open-dup cache'] = static function (TestRunner $t) use ($plan, $opCount): void {
+    $result = $plan(['reader_cache_stmt_vdbe_open_dup_token' => 'stmt-vdbe-open-dup-old']);
+    $t->same([1], $result['reader_cache_stmt_vdbe_open_dup_invalidated_cache_page_numbers']);
+    $t->same([1], $result['invalidated_cache_page_numbers']);
+    $t->same(1, $opCount($result, 'invalidate_reader_cache_reader_cache_stmt_vdbe_open_dup_current_source_next462'));
+};
+
+$tests['pager master journal reader cache current source next462 reopens stale open-dup read ticket'] = static function (TestRunner $t) use ($plan, $opCount): void {
+    $result = $plan([], ['reader_cache_stmt_vdbe_open_dup_token' => 'stmt-vdbe-open-dup-old']);
+    $t->same(['read-options'], $result['reopen_reader_ids']);
+    $t->same(false, $result['next_reads'][0]['cache_hit']);
+    $t->same('reader_ticket_reader_cache_stmt_vdbe_open_dup_predates_current_source', $result['next_reads'][0]['reader_cache_stmt_vdbe_open_dup_token_reason']);
+    $t->same(1, $opCount($result, 'reopen_reader_for_reader_cache_stmt_vdbe_open_dup_current_source_next462'));
+};
+
+$tests['pager master journal reader cache current source next462 missing open-dup token rejects'] = static function (TestRunner $t) use ($plan): void {
+    $t->throws(Throwable::class, static fn () => $plan(['reader_cache_stmt_vdbe_open_dup_token' => null]));
+};
+
+return $tests;
