@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext155Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $sectorSize = 512;
@@ -61,7 +61,7 @@ $checkpointDatabase = $page('wp next155 schema draft before savepoint')
     . $page('wp next155 clean autoload index')
     . $page('wp next155 clean rewrite rules');
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext155Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next155Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

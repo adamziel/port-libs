@@ -11,7 +11,7 @@ require_once __DIR__ . '/../src/SQLiteWalAppendPlan.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalHotJournalCheckpointRestartCurrentSourceNext129Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteWalSavepointCheckpointPlan.php';
 
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
@@ -19,7 +19,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $sectorSize = 512;
@@ -79,7 +79,7 @@ $savepoints->recordWalFrameWrite(4, 5, true);
 $savepoints->recordWalFrameWrite(5, 2, true);
 $savepoints->recordWalFrameWrite(6, 6, true);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

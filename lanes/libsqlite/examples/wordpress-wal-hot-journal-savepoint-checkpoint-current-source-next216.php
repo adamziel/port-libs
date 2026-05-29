@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $digest('wordpress next216 copied database after hot journal checkpoint');
@@ -64,7 +64,7 @@ $readerTransitions = [
     ],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain(
     $passivePlan,
     $readerTransitions,
     'TRUNCATE'

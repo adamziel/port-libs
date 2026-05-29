@@ -3,10 +3,8 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan;
 
 require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan.php';
 
 $tests = [];
 
@@ -78,14 +76,14 @@ $drainedPassive = static function () use ($pinnedPassive): array {
     return $plan;
 };
 
-$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), $reopenRows, 'restart');
-$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), $reopenRows, 'truncate');
-$stillPinned = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($pinnedPassive(), $reopenRows, 'restart');
-$missingReopen = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), [], 'restart');
-$notReopened = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['reopened' => false])], 'restart');
-$wrongDigest = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['observed_wal_digest' => $oldWalDigest])], 'restart');
-$futureFrame = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['reader_end_frame' => 216])], 'restart');
-$unexpectedReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['name' => 'unexpected-reader'])], 'restart');
+$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), $reopenRows, 'restart');
+$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), $reopenRows, 'truncate');
+$stillPinned = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($pinnedPassive(), $reopenRows, 'restart');
+$missingReopen = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), [], 'restart');
+$notReopened = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['reopened' => false])], 'restart');
+$wrongDigest = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['observed_wal_digest' => $oldWalDigest])], 'restart');
+$futureFrame = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['reader_end_frame' => 216])], 'restart');
+$unexpectedReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['name' => 'unexpected-reader'])], 'restart');
 $completeWithoutPassivePin = static function () use ($drainedPassive, $reopenRows): array {
     $plan = $drainedPassive();
     $plan['busy'] = false;
@@ -95,7 +93,7 @@ $completeWithoutPassivePin = static function () use ($drainedPassive, $reopenRow
         static fn (string $name): bool => $name !== 'preserve_wal_for_pinned_reader_next212'
     ));
 
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($plan, $reopenRows, 'restart');
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($plan, $reopenRows, 'restart');
 };
 
 $cases = [
@@ -169,15 +167,15 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint(['status' => 'bad'], $reopenRows),
-    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), $reopenRows, 'passive'),
+    'bad base status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint(['status' => 'bad'], $reopenRows),
+    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), $reopenRows, 'passive'),
     'empty reopen rows rejected' => $missingReopen,
-    'bad requested frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint(array_merge($drainedPassive(), ['requested_checkpoint_frame' => 0]), $reopenRows),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint(array_merge($drainedPassive(), ['database_digest' => 'short']), $reopenRows),
-    'bad active names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint(array_merge($drainedPassive(), ['active_reader_names' => [null]]), $reopenRows),
-    'missing reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['name' => ''])]),
-    'bad reader frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['reader_end_frame' => 0])]),
-    'bad reader digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['observed_database_digest' => 'short'])]),
+    'bad requested frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint(array_merge($drainedPassive(), ['requested_checkpoint_frame' => 0]), $reopenRows),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint(array_merge($drainedPassive(), ['database_digest' => 'short']), $reopenRows),
+    'bad active names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint(array_merge($drainedPassive(), ['active_reader_names' => [null]]), $reopenRows),
+    'missing reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['name' => ''])]),
+    'bad reader frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['reader_end_frame' => 0])]),
+    'bad reader digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint($drainedPassive(), [array_merge($reopenRows[0], ['observed_database_digest' => 'short'])]),
 ];
 
 foreach ($throws as $name => $callback) {

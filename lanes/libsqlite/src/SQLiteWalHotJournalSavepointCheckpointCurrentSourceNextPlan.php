@@ -32951,4 +32951,2303 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
 
         return array_keys($duplicates);
     }
+
+    public static function next152Plan(
+        string $databasePath,
+        string $databaseBytes,
+        string $journalBytes,
+        SQLiteWal $wal,
+        string $walBytes,
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $readerEndFrame = null,
+        bool $reservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null
+    ): array
+    {
+        return (new class {
+    /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public static function plan(
+        string $databasePath,
+        string $databaseBytes,
+        string $journalBytes,
+        SQLiteWal $wal,
+        string $walBytes,
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $readerEndFrame = null,
+        bool $reservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 requires a database path');
+        }
+        if ($databaseBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 requires database bytes');
+        }
+        if ($journalBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 requires rollback journal bytes');
+        }
+        if ($walBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 requires WAL bytes');
+        }
+        if ($savepoint === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 requires a savepoint name');
+        }
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 requires page numbers');
+        }
+        if ($wal->toBytes() !== $walBytes) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 parsed WAL does not match current bytes');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['passive', 'full', 'restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite WAL hot-journal savepoint checkpoint next152 mode: {$mode}");
+        }
+
+        $pageSize = $wal->header->pageSize;
+        self::assertPageAligned($databaseBytes, $pageSize, 'database');
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 pages must be one-based integers');
+            }
+        }
+
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+        if ($journal->header->pageSize !== $pageSize) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 journal page size does not match WAL page size');
+        }
+
+        $hot = $journal->hotJournalRecoveryResult(
+            $databaseBytes,
+            $journalBytes,
+            $reservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+        if (!$hot['recovered']) {
+            return [
+                'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next152',
+                'reason' => $hot['reason'],
+                'database_path' => $databasePath,
+                'journal_path' => $databasePath . '-journal',
+                'wal_path' => $databasePath . '-wal',
+                'page_size' => $pageSize,
+                'savepoint' => $savepoint,
+                'mode' => $mode,
+                'hot_recovered' => false,
+                'journal_action' => $hot['journal_action'],
+                'checkpoint_allowed' => false,
+                'reader_end_frame' => $readerEndFrame,
+                'hot_journal' => $hot,
+                'dependencies' => [
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next152',
+                    'sqlite-hot-journal-recovery',
+                ],
+            ];
+        }
+
+        $hotDatabaseBytes = (string) $hot['database_bytes'];
+        $checkpoint = SQLiteWalSavepointCheckpointPlan::afterRollbackTo(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $hotDatabaseBytes,
+            $mode,
+            $readerEndFrame
+        );
+        $retainedWal = SQLiteWal::parse((string) $checkpoint['current_wal_bytes'], $pageSize, true);
+        $durable = $checkpoint['current_durable'];
+        $nextWal = $durable['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse((string) $durable['wal_bytes'], $pageSize, true);
+        $readerEndFrame ??= $retainedWal->frameCount();
+        if ($readerEndFrame < 0 || $readerEndFrame > $retainedWal->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 reader frame is outside retained WAL range');
+        }
+
+        $rows = [];
+        foreach ($pageNumbers as $pageNumber) {
+            $dirty = self::databasePageVisibility($databaseBytes, $pageSize, $pageNumber);
+            $recovered = self::databasePageVisibility($hotDatabaseBytes, $pageSize, $pageNumber);
+            $current = $retainedWal->readerSnapshotPageImage($hotDatabaseBytes, $pageNumber, $readerEndFrame);
+            $next = $nextWal === null
+                ? self::databasePageVisibility((string) $durable['database_bytes'], $pageSize, $pageNumber)
+                : $nextWal->readerSnapshotPageImage((string) $durable['database_bytes'], $pageNumber, $nextWal->frameCount());
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'dirty_source' => $dirty['source'],
+                'hot_source' => $recovered['source'],
+                'current_source' => $current['source'],
+                'next_source' => $next['source'],
+                'current_frame' => $current['frame_index'],
+                'next_frame' => $next['frame_index'],
+                'dirty_label' => self::label((string) $dirty['image']),
+                'hot_label' => self::label((string) $recovered['image']),
+                'current_label' => self::label((string) $current['image']),
+                'next_label' => self::label((string) $next['image']),
+                'hot_restored_dirty_page' => $dirty['image'] !== $recovered['image'],
+                'savepoint_changed_current' => $recovered['image'] !== $current['image'],
+                'checkpoint_changed_next' => $current['image'] !== $next['image'],
+                'source_transition' => $dirty['source'] . '>' . $recovered['source'] . '>' . $current['source'] . '>' . $next['source'],
+            ];
+        }
+
+        return [
+            'status' => $checkpoint['busy']
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source-busy-next152'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-next152',
+            'reason' => $checkpoint['busy']
+                ? $checkpoint['reason']
+                : 'hot_journal_recovery_precedes_savepoint_wal_checkpoint_current_source',
+            'database_path' => $databasePath,
+            'journal_path' => $databasePath . '-journal',
+            'wal_path' => $databasePath . '-wal',
+            'page_size' => $pageSize,
+            'savepoint' => $savepoint,
+            'mode' => $mode,
+            'reader_end_frame' => $readerEndFrame,
+            'hot_recovered' => true,
+            'journal_action' => $hot['journal_action'],
+            'checkpoint_allowed' => !$checkpoint['busy'],
+            'wal_action' => $durable['wal_action'],
+            'checkpoint_reason' => $checkpoint['reason'],
+            'original_frame_count' => $checkpoint['original_frame_count'],
+            'retained_frame_count' => $checkpoint['retained_frame_count'],
+            'discarded_frame_count' => $checkpoint['discarded_frame_count'],
+            'truncate_to_bytes' => $checkpoint['truncate_to_bytes'],
+            'current_wal_bytes_length' => $checkpoint['current_wal_bytes_length'],
+            'durable_wal_bytes_length' => $durable['wal_bytes_length'],
+            'hot_database_sha256' => hash('sha256', $hotDatabaseBytes),
+            'durable_database_sha256' => hash('sha256', (string) $durable['database_bytes']),
+            'current_sources' => array_column($rows, 'current_source'),
+            'next_sources' => array_column($rows, 'next_source'),
+            'current_frame_indexes' => array_column($rows, 'current_frame'),
+            'next_frame_indexes' => array_column($rows, 'next_frame'),
+            'source_transitions' => array_column($rows, 'source_transition'),
+            'hot_restored_page_numbers' => self::pageColumn($rows, 'hot_restored_dirty_page'),
+            'savepoint_restored_page_numbers' => self::pageColumn($rows, 'savepoint_changed_current'),
+            'checkpoint_changed_page_numbers' => self::pageColumn($rows, 'checkpoint_changed_next'),
+            'rows' => $rows,
+            'hot_journal' => $hot,
+            'checkpoint' => $checkpoint,
+            'source_digest' => hash('sha256', implode('|', array_column($rows, 'source_transition'))),
+            'dependencies' => array_values(array_unique(array_merge(
+                $checkpoint['dependencies'],
+                [
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next152',
+                    'sqlite-hot-journal-recovery',
+                    'sqlite-savepoint-wal-current-prefix',
+                ]
+            ))),
+            'dependency_closure' => 'no new support component needed; reuses native rollback-journal recovery, WAL savepoint byte truncation, and checkpoint durability helpers',
+            'non_overlap' => 'avoids accepted next145/next146 reader restart/truncate work by requiring hot rollback-journal recovery to establish the current database source before savepoint WAL rollback and checkpoint',
+        ];
+    }
+
+    private static function assertPageAligned(string $bytes, int $pageSize, string $label): void
+    {
+        if (strlen($bytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint next152 {$label} bytes must be page-size aligned");
+        }
+    }
+
+    /**
+     * @return array{page_number:int,source:string,frame_index:null,database_offset:int,image:string}
+     */
+    private static function databasePageVisibility(string $databaseBytes, int $pageSize, int $pageNumber): array
+    {
+        $offset = ($pageNumber - 1) * $pageSize;
+        if ($pageNumber < 1 || $offset + $pageSize > strlen($databaseBytes)) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next152 page is outside database image');
+        }
+
+        return [
+            'page_number' => $pageNumber,
+            'source' => 'database',
+            'frame_index' => null,
+            'database_offset' => $offset,
+            'image' => substr($databaseBytes, $offset, $pageSize),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<int>
+     */
+    private static function pageColumn(array $rows, string $flag): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($rows, static fn (array $row): bool => $row[$flag] === true)
+        ));
+    }
+
+    private static function label(string $image): string
+    {
+        return rtrim(substr($image, 0, 96), ".\0");
+    }
+
+        })::plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, $savepoints, $savepoint, $pageNumbers, $mode, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
+    }
+
+    public static function next153Plan(
+        string $databasePath,
+        string $dirtyDatabaseBytes,
+        string $journalBytes,
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        array $pageNumbers,
+        array $nextTransactions,
+        int $currentReaderEndFrame,
+        string $mode = 'restart',
+        bool $reservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null
+    ): array
+    {
+        return (new class {
+    /**
+     * @param list<int> $pageNumbers
+     * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $nextTransactions
+     * @return array<string,mixed>
+     */
+    public static function plan(
+        string $databasePath,
+        string $dirtyDatabaseBytes,
+        string $journalBytes,
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        array $pageNumbers,
+        array $nextTransactions,
+        int $currentReaderEndFrame,
+        string $mode = 'restart',
+        bool $reservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null
+    ): array {
+        if ($savepoint === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 requires a savepoint name');
+        }
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 requires page numbers');
+        }
+        if ($nextTransactions === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 requires next transactions');
+        }
+        if ($currentReaderEndFrame < 0 || $currentReaderEndFrame > $wal->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 reader frame is outside the WAL frame range');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 requires restart or truncate mode');
+        }
+
+        $hot = SQLiteWalHotJournalCheckpointRestartCurrentSourceNext129Plan::plan(
+            $databasePath,
+            $dirtyDatabaseBytes,
+            $journalBytes,
+            $wal,
+            $walBytes,
+            $pageNumbers,
+            $currentReaderEndFrame,
+            $reservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+        $hotDatabaseBytes = (string) ($hot['hot_journal']['database_bytes'] ?? '');
+        if ($hotDatabaseBytes === '') {
+            throw new \UnexpectedValueException('SQLite WAL hot-journal savepoint checkpoint next153 requires recovered hot-journal database bytes');
+        }
+
+        $rollback = SQLiteWalSavepointCheckpointPlan::afterRollbackTo(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $hotDatabaseBytes,
+            $mode,
+            $currentReaderEndFrame
+        );
+        $currentWalBytes = (string) $rollback['current_wal_bytes'];
+        $currentWal = SQLiteWal::parse($currentWalBytes, $wal->header->pageSize, true);
+        $releasedCheckpoint = $currentWal->durableCheckpointResult($hotDatabaseBytes, $mode, null);
+        $nextWal = self::nextWalAfterCheckpoint($currentWal, $releasedCheckpoint);
+        $append = SQLiteWalAppendPlan::appendTransactions($nextWal, $databasePath, $nextTransactions);
+        $nextWalAfterAppend = SQLiteWal::parse((string) $append['wal_bytes'], $wal->header->pageSize, true);
+
+        $rows = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 pages must be one-based integers');
+            }
+
+            $hotRow = self::databasePage($hotDatabaseBytes, $wal->header->pageSize, $pageNumber, 'hot-journal-database');
+            $currentRow = $currentWal->readerSnapshotPageImage($hotDatabaseBytes, $pageNumber, min($currentReaderEndFrame, $currentWal->frameCount()));
+            $nextRow = $nextWalAfterAppend->readerSnapshotPageImage((string) $releasedCheckpoint['database_bytes'], $pageNumber, $nextWalAfterAppend->frameCount());
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'hot_source' => $hotRow['source'],
+                'current_source' => $currentRow['source'],
+                'next_source' => $nextRow['source'],
+                'current_frame' => $currentRow['frame_index'],
+                'next_frame' => $nextRow['frame_index'],
+                'hot_label' => self::label((string) $hotRow['image']),
+                'current_label' => self::label((string) $currentRow['image']),
+                'next_label' => self::label((string) $nextRow['image']),
+                'current_kept_rolled_back_source' => $currentRow['image'] !== $hotRow['image'] || $currentRow['source'] === 'wal',
+                'next_separated_from_current' => $nextRow['image'] !== $currentRow['image'] || $nextRow['source'] !== $currentRow['source'],
+                'source_transition' => $hotRow['source'] . '>' . $currentRow['source'] . '>' . $nextRow['source'],
+            ];
+        }
+
+        $currentSources = array_column($rows, 'current_source');
+        $nextSources = array_column($rows, 'next_source');
+        $status = (bool) $hot['hot_recovered']
+            && (bool) $rollback['busy']
+            && $rollback['reason'] === 'reader_blocks_wal_reset'
+            && (bool) $rollback['discarded_frame_count']
+            && !(bool) $releasedCheckpoint['busy']
+            && in_array($releasedCheckpoint['wal_action'], ['restart_wal', 'truncate_wal'], true)
+            ? 'wal-hot-journal-savepoint-checkpoint-current-source-next153'
+            : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next153';
+
+        return [
+            'status' => $status,
+            'reason' => $status === 'wal-hot-journal-savepoint-checkpoint-current-source-next153'
+                ? 'hot_journal_recovered_before_savepoint_rollback_current_wal_prefix_pins_checkpoint_until_reader_release'
+                : 'hot_journal_savepoint_checkpoint_current_source_blocked',
+            'database_path' => $databasePath,
+            'journal_path' => $hot['journal_path'],
+            'wal_path' => $databasePath . '-wal',
+            'savepoint' => $savepoint,
+            'mode' => $mode,
+            'page_size' => $wal->header->pageSize,
+            'reader_end_frame' => $currentReaderEndFrame,
+            'hot_recovered' => (bool) $hot['hot_recovered'],
+            'retained_frame_count' => $rollback['retained_frame_count'],
+            'discarded_frame_count' => $rollback['discarded_frame_count'],
+            'current_checkpoint_busy' => $rollback['busy'],
+            'current_checkpoint_reason' => $rollback['reason'],
+            'released_checkpoint_busy' => (bool) $releasedCheckpoint['busy'],
+            'released_checkpoint_reason' => $releasedCheckpoint['reason'],
+            'released_wal_action' => $releasedCheckpoint['wal_action'],
+            'current_wal_bytes_length' => strlen($currentWalBytes),
+            'next_append_frame_count' => $append['appended_frame_count'],
+            'next_append_last_commit_frame' => $append['last_commit_frame'],
+            'current_sources' => $currentSources,
+            'next_sources' => $nextSources,
+            'current_frame_indexes' => array_column($rows, 'current_frame'),
+            'next_frame_indexes' => array_column($rows, 'next_frame'),
+            'source_transitions' => array_column($rows, 'source_transition'),
+            'current_reader_pins_checkpoint' => (bool) $rollback['busy'],
+            'reader_release_unblocks_checkpoint' => !(bool) $releasedCheckpoint['busy'],
+            'next_reader_uses_new_generation' => in_array('wal', $nextSources, true),
+            'rows' => $rows,
+            'hot_journal' => $hot['hot_journal'],
+            'rollback_checkpoint' => $rollback,
+            'released_checkpoint' => $releasedCheckpoint,
+            'append' => $append,
+            'source_digest' => hash('sha256', implode('|', array_column($rows, 'source_transition'))),
+            'dependencies' => array_values(array_unique(array_merge(
+                $hot['dependencies'],
+                $rollback['dependencies'],
+                $releasedCheckpoint['dependencies'],
+                $append['dependencies'],
+                [
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next153',
+                    'sqlite-wal-hot-journal-checkpoint-restart-current-source-next129',
+                    'sqlite-wal-savepoint-checkpoint-current',
+                    'sqlite-wal-append-transaction',
+                ]
+            ))),
+            'dependency_closure' => 'no new support component needed; reuses native hot rollback-journal recovery, WAL savepoint truncation, checkpoint, and append transaction primitives',
+            'non_overlap' => 'does not repeat accepted hot-journal restart, savepoint byte truncation, rollback-journal apply, or checkpoint transaction slices; this combines hot recovered database pages with a rolled-back current WAL prefix before a released-reader checkpoint opens the next generation',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $checkpoint
+     */
+    private static function nextWalAfterCheckpoint(SQLiteWal $wal, array $checkpoint): SQLiteWal
+    {
+        if (($checkpoint['wal_action'] ?? null) === 'preserve_wal') {
+            return SQLiteWal::parse((string) $checkpoint['wal_bytes'], $wal->header->pageSize, true);
+        }
+
+        $salt = $checkpoint['next_wal_header_salt'];
+        $headerBytes = pack(
+            'N*',
+            $wal->header->magic,
+            $wal->header->formatVersion,
+            $wal->header->pageSize,
+            ($wal->header->checkpointSequence + 1) & 0xffffffff,
+            $salt[0],
+            $salt[1]
+        );
+        $checksum = SQLiteWal::checksumPair($headerBytes, $wal->header->usesLittleEndianChecksums());
+
+        return SQLiteWal::parse($headerBytes . pack('N*', $checksum[0], $checksum[1]), $wal->header->pageSize, true);
+    }
+
+    /**
+     * @return array{page_number:int,source:string,frame_index:null,database_offset:int,image:string,snapshot_end_frame:int,snapshot_commit_frame:null,database_page_count:int}
+     */
+    private static function databasePage(string $databaseBytes, int $pageSize, int $pageNumber, string $source): array
+    {
+        if (strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint next153 database bytes must be page aligned');
+        }
+        $pageCount = intdiv(strlen($databaseBytes), $pageSize);
+        if ($pageNumber > $pageCount) {
+            throw new \OutOfBoundsException("SQLite WAL hot-journal savepoint checkpoint next153 page {$pageNumber} is outside the database image");
+        }
+
+        return [
+            'page_number' => $pageNumber,
+            'source' => $source,
+            'frame_index' => null,
+            'database_offset' => ($pageNumber - 1) * $pageSize,
+            'image' => substr($databaseBytes, ($pageNumber - 1) * $pageSize, $pageSize),
+            'snapshot_end_frame' => 0,
+            'snapshot_commit_frame' => null,
+            'database_page_count' => $pageCount,
+        ];
+    }
+
+    private static function label(string $image): string
+    {
+        return rtrim(substr($image, 0, 96), ".\0");
+    }
+
+        })::plan($databasePath, $dirtyDatabaseBytes, $journalBytes, $savepoints, $savepoint, $wal, $walBytes, $pageNumbers, $nextTransactions, $currentReaderEndFrame, $mode, $reservedLock, $requiresSuperJournal, $superJournalExists);
+    }
+
+    public static function next154Plan(
+        string $databasePath,
+        string $dirtyDatabaseBytes,
+        string $journalBytes,
+        SQLiteWal $currentWal,
+        string $currentWalBytes,
+        string $readerDatabaseBytes,
+        string $readerWalBytes,
+        string $checkpointDatabaseBytes,
+        string $savepointName,
+        int $savepointEndFrame,
+        array $pageNumbers,
+        ?int $readerEndFrame = null,
+        bool $reservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null
+    ): array
+    {
+        return (new class {
+    /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public static function plan(
+        string $databasePath,
+        string $dirtyDatabaseBytes,
+        string $journalBytes,
+        SQLiteWal $currentWal,
+        string $currentWalBytes,
+        string $readerDatabaseBytes,
+        string $readerWalBytes,
+        string $checkpointDatabaseBytes,
+        string $savepointName,
+        int $savepointEndFrame,
+        array $pageNumbers,
+        ?int $readerEndFrame = null,
+        bool $reservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null
+    ): array {
+        if ($checkpointDatabaseBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next154 requires checkpoint database bytes');
+        }
+        if ($savepointName === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next154 requires a savepoint name');
+        }
+        if ($savepointEndFrame < 0 || $savepointEndFrame > $currentWal->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next154 savepoint frame is outside the current WAL range');
+        }
+
+        $base = SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan::plan(
+            $databasePath,
+            $dirtyDatabaseBytes,
+            $journalBytes,
+            $currentWal,
+            $currentWalBytes,
+            $readerDatabaseBytes,
+            $readerWalBytes,
+            $pageNumbers,
+            $readerEndFrame,
+            $reservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+
+        $pageSize = (int) $base['page_size'];
+        self::assertPageAligned($checkpointDatabaseBytes, $pageSize);
+        $hotDatabaseBytes = (string) ($base['hot_journal']['database_bytes'] ?? '');
+        if ($hotDatabaseBytes === '') {
+            throw new \UnexpectedValueException('SQLite WAL hot-journal savepoint checkpoint current-source next154 requires recovered hot-journal database bytes');
+        }
+        self::assertPageAligned($hotDatabaseBytes, $pageSize);
+
+        $readerWal = SQLiteWal::parse($readerWalBytes, $pageSize, true);
+        $readerEndFrame = (int) $base['reader_end_frame'];
+        $currentEndFrame = $currentWal->frameCount();
+
+        $readerRows = [];
+        $savepointRows = [];
+        $tailRows = [];
+        $checkpointRows = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next154 pages must be one-based integers');
+            }
+
+            $readerRows[] = $readerWal->readerSnapshotPageImage($readerDatabaseBytes, $pageNumber, $readerEndFrame);
+            $savepointRows[] = $currentWal->readerSnapshotPageImage($hotDatabaseBytes, $pageNumber, $savepointEndFrame);
+            $tailRows[] = $currentWal->readerSnapshotPageImage($hotDatabaseBytes, $pageNumber, $currentEndFrame);
+            $checkpointRows[] = self::databaseRow($checkpointDatabaseBytes, $pageSize, $pageNumber);
+        }
+
+        $rows = [];
+        foreach ($pageNumbers as $index => $pageNumber) {
+            $readerImage = (string) $readerRows[$index]['image'];
+            $savepointImage = (string) $savepointRows[$index]['image'];
+            $tailImage = (string) $tailRows[$index]['image'];
+            $checkpointImage = (string) $checkpointRows[$index]['image'];
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'reader_source' => $readerRows[$index]['source'],
+                'reader_frame' => $readerRows[$index]['frame_index'],
+                'savepoint_source' => $savepointRows[$index]['source'],
+                'savepoint_frame' => $savepointRows[$index]['frame_index'],
+                'tail_source' => $tailRows[$index]['source'],
+                'tail_frame' => $tailRows[$index]['frame_index'],
+                'checkpoint_source' => $checkpointRows[$index]['source'],
+                'reader_label' => self::label($readerImage),
+                'savepoint_label' => self::label($savepointImage),
+                'tail_label' => self::label($tailImage),
+                'checkpoint_label' => self::label($checkpointImage),
+                'checkpoint_matches_savepoint' => $checkpointImage === $savepointImage,
+                'tail_differs_from_savepoint' => $tailImage !== $savepointImage || $tailRows[$index]['source'] !== $savepointRows[$index]['source'],
+                'reader_preserved' => $readerImage === $savepointImage && $readerRows[$index]['source'] === $savepointRows[$index]['source'],
+                'source_transition' => $readerRows[$index]['source'] . '>savepoint-' . $savepointRows[$index]['source'] . '>tail-' . $tailRows[$index]['source'] . '>checkpoint-db',
+            ];
+        }
+
+        $mismatchedCheckpointPages = self::pageColumn(array_filter(
+            $rows,
+            static fn (array $row): bool => $row['checkpoint_matches_savepoint'] === false
+        ));
+        $tailDiscardedPages = self::pageColumn(array_filter(
+            $rows,
+            static fn (array $row): bool => $row['tail_differs_from_savepoint'] === true
+        ));
+        $readerPreserved = !in_array(false, array_column($rows, 'reader_preserved'), true);
+        $checkpointMatchesSavepoint = $mismatchedCheckpointPages === [];
+        $tailFramesDiscarded = $tailDiscardedPages !== [];
+        $checkpointAllowed = (bool) $base['hot_recovered']
+            && $checkpointMatchesSavepoint
+            && $readerPreserved
+            && $savepointEndFrame <= $readerEndFrame;
+        $status = !(bool) $base['hot_recovered']
+            ? 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next154'
+            : ($checkpointAllowed
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source-next154'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-deferred-next154');
+
+        return [
+            'status' => $status,
+            'reason' => !(bool) $base['hot_recovered']
+                ? (string) $base['reason']
+                : ($checkpointAllowed
+                    ? 'checkpoint_database_matches_savepoint_visible_current_source_after_hot_journal_recovery'
+                    : 'checkpoint_database_or_reader_frame_does_not_match_savepoint_visible_current_source'),
+            'database_path' => $databasePath,
+            'journal_path' => $base['journal_path'],
+            'wal_path' => $base['wal_path'],
+            'page_size' => $pageSize,
+            'savepoint' => $savepointName,
+            'savepoint_end_frame' => $savepointEndFrame,
+            'reader_end_frame' => $readerEndFrame,
+            'current_end_frame' => $currentEndFrame,
+            'hot_recovered' => (bool) $base['hot_recovered'],
+            'base_checkpoint_allowed' => (bool) $base['checkpoint_allowed'],
+            'checkpoint_allowed' => $checkpointAllowed,
+            'checkpoint_matches_savepoint' => $checkpointMatchesSavepoint,
+            'reader_preserved_at_savepoint' => $readerPreserved,
+            'tail_frames_discarded_by_savepoint' => $tailFramesDiscarded,
+            'checkpoint_mismatched_page_numbers' => $mismatchedCheckpointPages,
+            'tail_discarded_page_numbers' => $tailDiscardedPages,
+            'tail_discarded_page_count' => count($tailDiscardedPages),
+            'reader_sources' => self::column($readerRows, 'source'),
+            'reader_frame_indexes' => self::column($readerRows, 'frame_index'),
+            'savepoint_sources' => self::column($savepointRows, 'source'),
+            'savepoint_frame_indexes' => self::column($savepointRows, 'frame_index'),
+            'tail_sources' => self::column($tailRows, 'source'),
+            'tail_frame_indexes' => self::column($tailRows, 'frame_index'),
+            'checkpoint_sources' => self::column($checkpointRows, 'source'),
+            'reader_labels' => array_column($rows, 'reader_label'),
+            'savepoint_labels' => array_column($rows, 'savepoint_label'),
+            'tail_labels' => array_column($rows, 'tail_label'),
+            'checkpoint_labels' => array_column($rows, 'checkpoint_label'),
+            'checkpoint_database_source' => self::databaseSource($checkpointDatabaseBytes, $pageSize),
+            'hot_database_source' => $base['current_database_source'],
+            'current_wal_source' => $base['current_wal_source'],
+            'reader_wal_source' => $base['reader_wal_source'],
+            'rows' => $rows,
+            'source_transitions' => array_column($rows, 'source_transition'),
+            'source_digest' => hash('sha256', implode('|', array_column($rows, 'source_transition'))),
+            'operation_reasons' => array_merge($base['operation_reasons'], $checkpointAllowed ? [
+                'apply_checkpoint_at_savepoint_visible_frame_next154',
+                'discard_wal_tail_after_savepoint_before_reset_next154',
+            ] : [
+                'defer_checkpoint_until_savepoint_visible_source_matches_next154',
+            ]),
+            'base_plan' => $base,
+            'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
+                'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next154',
+                'sqlite-wal-checkpoint-hot-journal-reader-current-source-next144',
+                'sqlite-savepoint-visible-wal-frame-boundary',
+            ]))),
+            'dependency_closure' => 'no new support component needed; reuses native hot-journal recovery, WAL reader snapshots, and savepoint-visible frame-boundary comparison',
+            'non_overlap' => 'avoids accepted next148 end-of-WAL checkpoint matching, WAL byte truncation, and VFS writer application by validating checkpoint database bytes against the savepoint-visible WAL frame boundary after hot-journal recovery',
+        ];
+    }
+
+    private static function assertPageAligned(string $bytes, int $pageSize): void
+    {
+        if (strlen($bytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next154 checkpoint database bytes must be page-size aligned');
+        }
+    }
+
+    /**
+     * @return array{page_number:int,source:string,frame_index:null,database_offset:int,image:string,snapshot_end_frame:int,snapshot_commit_frame:null,database_page_count:int}
+     */
+    private static function databaseRow(string $databaseBytes, int $pageSize, int $pageNumber): array
+    {
+        $pageCount = intdiv(strlen($databaseBytes), $pageSize);
+        if ($pageNumber > $pageCount) {
+            throw new \OutOfBoundsException("SQLite WAL hot-journal savepoint checkpoint current-source next154 page {$pageNumber} is outside the checkpoint database image");
+        }
+
+        return [
+            'page_number' => $pageNumber,
+            'source' => 'checkpoint-database',
+            'frame_index' => null,
+            'database_offset' => ($pageNumber - 1) * $pageSize,
+            'image' => substr($databaseBytes, ($pageNumber - 1) * $pageSize, $pageSize),
+            'snapshot_end_frame' => 0,
+            'snapshot_commit_frame' => null,
+            'database_page_count' => $pageCount,
+        ];
+    }
+
+    /**
+     * @return array{bytes:int,page_size:int,page_count:int,sha256:string}
+     */
+    private static function databaseSource(string $databaseBytes, int $pageSize): array
+    {
+        return [
+            'bytes' => strlen($databaseBytes),
+            'page_size' => $pageSize,
+            'page_count' => intdiv(strlen($databaseBytes), $pageSize),
+            'sha256' => hash('sha256', $databaseBytes),
+        ];
+    }
+
+    /**
+     * @param iterable<array<string,mixed>> $rows
+     * @return list<int>
+     */
+    private static function pageColumn(iterable $rows): array
+    {
+        $pages = [];
+        foreach ($rows as $row) {
+            $pages[] = (int) $row['page_number'];
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<mixed>
+     */
+    private static function column(array $rows, string $column): array
+    {
+        return array_map(static fn (array $row): mixed => $row[$column] ?? null, $rows);
+    }
+
+    private static function label(string $image): string
+    {
+        return rtrim(substr($image, 0, 96), ".\0");
+    }
+
+        })::plan($databasePath, $dirtyDatabaseBytes, $journalBytes, $currentWal, $currentWalBytes, $readerDatabaseBytes, $readerWalBytes, $checkpointDatabaseBytes, $savepointName, $savepointEndFrame, $pageNumbers, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
+    }
+
+    public static function next155Plan(
+        string $databasePath,
+        string $dirtyDatabaseBytes,
+        string $journalBytes,
+        SQLiteWal $currentWal,
+        string $currentWalBytes,
+        string $readerDatabaseBytes,
+        string $readerWalBytes,
+        string $checkpointDatabaseBytes,
+        array $pageNumbers,
+        int $savepointRollbackFrame,
+        ?int $readerEndFrame = null,
+        bool $reservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null
+    ): array
+    {
+        return (new class {
+    /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public static function plan(
+        string $databasePath,
+        string $dirtyDatabaseBytes,
+        string $journalBytes,
+        SQLiteWal $currentWal,
+        string $currentWalBytes,
+        string $readerDatabaseBytes,
+        string $readerWalBytes,
+        string $checkpointDatabaseBytes,
+        array $pageNumbers,
+        int $savepointRollbackFrame,
+        ?int $readerEndFrame = null,
+        bool $reservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null
+    ): array {
+        if ($savepointRollbackFrame < 0 || $savepointRollbackFrame > $currentWal->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next155 rollback frame is outside the current WAL range');
+        }
+        if ($readerEndFrame !== null && $readerEndFrame < $savepointRollbackFrame) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next155 reader frame must not precede the rollback frame');
+        }
+
+        $base = SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan::plan(
+            $databasePath,
+            $dirtyDatabaseBytes,
+            $journalBytes,
+            $currentWal,
+            $currentWalBytes,
+            $readerDatabaseBytes,
+            $readerWalBytes,
+            $pageNumbers,
+            $readerEndFrame,
+            $reservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+
+        if ($checkpointDatabaseBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next155 requires checkpoint database bytes');
+        }
+
+        $pageSize = (int) $base['page_size'];
+        self::assertPageAligned($checkpointDatabaseBytes, $pageSize);
+        $hotDatabaseBytes = (string) ($base['hot_journal']['database_bytes'] ?? '');
+        if ($hotDatabaseBytes === '') {
+            throw new \UnexpectedValueException('SQLite WAL hot-journal savepoint checkpoint current-source next155 requires recovered hot-journal database bytes');
+        }
+        self::assertPageAligned($hotDatabaseBytes, $pageSize);
+
+        $readerWal = SQLiteWal::parse($readerWalBytes, $pageSize, true);
+        $readerEndFrame = (int) $base['reader_end_frame'];
+        $rows = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next155 pages must be one-based integers');
+            }
+
+            $reader = $readerWal->readerSnapshotPageImage($readerDatabaseBytes, $pageNumber, $readerEndFrame);
+            $rollbackExpected = $currentWal->readerSnapshotPageImage($hotDatabaseBytes, $pageNumber, $savepointRollbackFrame);
+            $fullCurrent = $currentWal->readerSnapshotPageImage($hotDatabaseBytes, $pageNumber, $currentWal->frameCount());
+            $checkpoint = self::databaseRow($checkpointDatabaseBytes, $pageSize, $pageNumber);
+            $readerLabel = self::label((string) $reader['image']);
+            $rollbackLabel = self::label((string) $rollbackExpected['image']);
+            $fullLabel = self::label((string) $fullCurrent['image']);
+            $checkpointLabel = self::label((string) $checkpoint['image']);
+
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'reader_source' => $reader['source'],
+                'reader_frame' => $reader['frame_index'],
+                'reader_label' => $readerLabel,
+                'rollback_expected_source' => $rollbackExpected['source'],
+                'rollback_expected_frame' => $rollbackExpected['frame_index'],
+                'rollback_expected_label' => $rollbackLabel,
+                'full_current_source' => $fullCurrent['source'],
+                'full_current_frame' => $fullCurrent['frame_index'],
+                'full_current_label' => $fullLabel,
+                'checkpoint_source' => $checkpoint['source'],
+                'checkpoint_label' => $checkpointLabel,
+                'checkpoint_matches_rollback_source' => (string) $checkpoint['image'] === (string) $rollbackExpected['image'],
+                'reader_kept_post_rollback_frame' => $readerLabel !== $rollbackLabel || $reader['source'] !== $rollbackExpected['source'],
+                'full_current_differs_from_rollback' => $fullLabel !== $rollbackLabel || $fullCurrent['source'] !== $rollbackExpected['source'],
+                'source_transition' => $reader['source'] . '>savepoint-rollback>' . $rollbackExpected['source'] . '>checkpoint-db',
+            ];
+        }
+
+        $mismatchPages = array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($rows, static fn (array $row): bool => $row['checkpoint_matches_rollback_source'] === false)
+        ));
+        $postRollbackPages = array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($rows, static fn (array $row): bool => $row['reader_kept_post_rollback_frame'] === true)
+        ));
+        $discardedCurrentPages = array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($rows, static fn (array $row): bool => $row['full_current_differs_from_rollback'] === true)
+        ));
+
+        $checkpointMatchesRollback = $mismatchPages === [];
+        $checkpointAllowed = (bool) $base['checkpoint_allowed'] && $checkpointMatchesRollback;
+        $status = !(bool) $base['hot_recovered']
+            ? 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next155'
+            : ($checkpointAllowed
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source-next155'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-deferred-next155');
+
+        return [
+            'status' => $status,
+            'reason' => !(bool) $base['hot_recovered']
+                ? (string) $base['reason']
+                : ($checkpointAllowed
+                    ? 'checkpoint_uses_hot_journal_current_source_with_savepoint_rollback_wal_prefix_next155'
+                    : 'checkpoint_database_does_not_match_savepoint_rollback_current_source_next155'),
+            'database_path' => $databasePath,
+            'journal_path' => $base['journal_path'],
+            'wal_path' => $base['wal_path'],
+            'page_size' => $pageSize,
+            'reader_end_frame' => $readerEndFrame,
+            'savepoint_rollback_frame' => $savepointRollbackFrame,
+            'current_wal_frame_count' => $currentWal->frameCount(),
+            'hot_recovered' => (bool) $base['hot_recovered'],
+            'base_checkpoint_allowed' => (bool) $base['checkpoint_allowed'],
+            'checkpoint_allowed' => $checkpointAllowed,
+            'checkpoint_matches_savepoint_rollback_source' => $checkpointMatchesRollback,
+            'checkpoint_mismatched_page_numbers' => $mismatchPages,
+            'reader_post_rollback_page_numbers' => $postRollbackPages,
+            'reader_post_rollback_page_count' => count($postRollbackPages),
+            'discarded_current_page_numbers' => $discardedCurrentPages,
+            'discarded_current_page_count' => count($discardedCurrentPages),
+            'reader_reopen_required' => (bool) $base['reader_reopen_required'] || $postRollbackPages !== [] || !$checkpointMatchesRollback,
+            'reader_sources' => array_column($rows, 'reader_source'),
+            'reader_frame_indexes' => array_column($rows, 'reader_frame'),
+            'rollback_expected_sources' => array_column($rows, 'rollback_expected_source'),
+            'rollback_expected_frame_indexes' => array_column($rows, 'rollback_expected_frame'),
+            'full_current_sources' => array_column($rows, 'full_current_source'),
+            'full_current_frame_indexes' => array_column($rows, 'full_current_frame'),
+            'checkpoint_sources' => array_column($rows, 'checkpoint_source'),
+            'reader_labels' => array_column($rows, 'reader_label'),
+            'rollback_expected_labels' => array_column($rows, 'rollback_expected_label'),
+            'full_current_labels' => array_column($rows, 'full_current_label'),
+            'checkpoint_labels' => array_column($rows, 'checkpoint_label'),
+            'source_transitions' => array_column($rows, 'source_transition'),
+            'source_digest' => hash('sha256', implode('|', array_column($rows, 'source_transition'))),
+            'checkpoint_database_source' => self::databaseSource($checkpointDatabaseBytes, $pageSize),
+            'base_plan' => $base,
+            'rows' => $rows,
+            'operation_reasons' => array_merge($base['operation_reasons'], $checkpointAllowed ? [
+                'apply_checkpoint_from_savepoint_rollback_wal_prefix_next155',
+                'require_reader_reopen_for_post_rollback_frames_next155',
+            ] : [
+                'defer_checkpoint_until_savepoint_rollback_source_matches_next155',
+            ]),
+            'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
+                'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next155',
+                'sqlite-wal-checkpoint-hot-journal-reader-current-source-next144',
+                'sqlite-savepoint-rollback-wal-prefix-current-source',
+            ]))),
+            'dependency_closure' => 'no new support component needed; reuses native hot-journal recovery, WAL reader snapshots, and savepoint rollback frame-boundary selection',
+            'non_overlap' => 'avoids accepted next148 full-current-WAL checkpoint comparison by requiring checkpoint bytes to match the savepoint rollback WAL prefix while preserving reader visibility of post-rollback frames until reopen',
+        ];
+    }
+
+    private static function assertPageAligned(string $bytes, int $pageSize): void
+    {
+        if (strlen($bytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next155 database bytes must be page-size aligned');
+        }
+    }
+
+    /**
+     * @return array{page_number:int,source:string,frame_index:null,database_offset:int,image:string}
+     */
+    private static function databaseRow(string $databaseBytes, int $pageSize, int $pageNumber): array
+    {
+        $pageCount = intdiv(strlen($databaseBytes), $pageSize);
+        if ($pageNumber > $pageCount) {
+            throw new \OutOfBoundsException("SQLite WAL hot-journal savepoint checkpoint current-source next155 page {$pageNumber} is outside the checkpoint database image");
+        }
+
+        return [
+            'page_number' => $pageNumber,
+            'source' => 'checkpoint-database',
+            'frame_index' => null,
+            'database_offset' => ($pageNumber - 1) * $pageSize,
+            'image' => substr($databaseBytes, ($pageNumber - 1) * $pageSize, $pageSize),
+        ];
+    }
+
+    /**
+     * @return array{bytes:int,page_size:int,page_count:int,sha256:string}
+     */
+    private static function databaseSource(string $databaseBytes, int $pageSize): array
+    {
+        return [
+            'bytes' => strlen($databaseBytes),
+            'page_size' => $pageSize,
+            'page_count' => intdiv(strlen($databaseBytes), $pageSize),
+            'sha256' => hash('sha256', $databaseBytes),
+        ];
+    }
+
+    private static function label(string $image): string
+    {
+        return rtrim(substr($image, 0, 96), ".\0");
+    }
+
+        })::plan($databasePath, $dirtyDatabaseBytes, $journalBytes, $currentWal, $currentWalBytes, $readerDatabaseBytes, $readerWalBytes, $checkpointDatabaseBytes, $pageNumbers, $savepointRollbackFrame, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
+    }
+
+    public static function next201PublishCurrentSources(
+        array $admission,
+        array $sourceRows,
+        string $expectedCheckpointDigest,
+        string $expectedWalDigest,
+        ?string $hotJournalBytes
+    ): array
+    {
+        return (new class {
+    /**
+     * @param array<string,mixed> $admission
+     * @param list<array<string,mixed>> $sourceRows
+     * @return array<string,mixed>
+     */
+    public static function publishCurrentSources(
+        array $admission,
+        array $sourceRows,
+        string $expectedCheckpointDigest,
+        string $expectedWalDigest,
+        ?string $hotJournalBytes
+    ): array {
+        self::assertAdmission($admission);
+        if ($sourceRows === []) {
+            throw new \InvalidArgumentException('SQLite WAL current-source next201 requires current-source rows');
+        }
+        if ($expectedCheckpointDigest === '' || $expectedWalDigest === '') {
+            throw new \InvalidArgumentException('SQLite WAL current-source next201 expected digests must be non-empty strings');
+        }
+
+        $blocked = [];
+        if (($admission['status'] ?? '') !== 'wal-hot-journal-savepoint-checkpoint-current-source-next200') {
+            $blocked[] = 'next200_durable_reader_admission_required';
+        }
+        if (($admission['can_admit_durable_readers'] ?? false) !== true) {
+            $blocked[] = 'next200_durable_reader_admission_not_publishable';
+        }
+        if ($hotJournalBytes !== null) {
+            $blocked[] = 'hot_journal_still_present_after_current_source_publication';
+        }
+
+        $allowedTickets = self::stringSet($admission['receipt_ticket_ids']);
+        $allowedPages = self::intSet($admission['receipt_pages']);
+        $expectedPublicationToken = (string) $admission['publication_token'];
+        $previousEpoch = (int) $admission['previous_reader_epoch'];
+        $sealedEpoch = (int) $admission['sealed_reader_epoch'];
+        $expectedSavepointGeneration = (int) $admission['expected_savepoint_generation'];
+        $publishedRows = [];
+        $seenTickets = [];
+
+        foreach ($sourceRows as $index => $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite WAL current-source next201 source rows must be arrays');
+            }
+
+            $ticketId = self::stringField($row, 'ticket_id', $index);
+            $pageNumber = self::intField($row, 'page_number', $index);
+            $readerEpoch = self::intField($row, 'reader_epoch', $index);
+            $publicationToken = self::stringField($row, 'publication_token', $index);
+            $source = self::stringField($row, 'source', $index);
+            $sourceDigest = self::stringField($row, 'source_digest', $index);
+            $cacheEpoch = self::intField($row, 'cache_epoch', $index);
+            $savepointGeneration = self::intField($row, 'savepoint_generation', $index);
+            $checkpointVisible = (bool) ($row['checkpoint_visible'] ?? false);
+            $readerCacheRebased = (bool) ($row['reader_cache_rebased'] ?? false);
+
+            $rowBlocked = [];
+            if (isset($seenTickets[$ticketId])) {
+                $rowBlocked[] = 'duplicate_current_source_ticket';
+            }
+            $seenTickets[$ticketId] = true;
+            if (!isset($allowedTickets[$ticketId])) {
+                $rowBlocked[] = 'current_source_ticket_not_durably_admitted';
+            }
+            if (!isset($allowedPages[$pageNumber])) {
+                $rowBlocked[] = 'current_source_page_not_durably_admitted';
+            }
+            if ($readerEpoch <= $previousEpoch || $readerEpoch > $sealedEpoch) {
+                $rowBlocked[] = 'current_source_epoch_outside_sealed_generation';
+            }
+            if (!hash_equals($expectedPublicationToken, $publicationToken)) {
+                $rowBlocked[] = 'current_source_publication_token_mismatch';
+            }
+            if (!in_array($source, ['checkpoint-database', 'next-wal'], true)) {
+                $rowBlocked[] = 'current_source_kind_unknown';
+            }
+
+            $expectedDigest = $source === 'checkpoint-database' ? $expectedCheckpointDigest : $expectedWalDigest;
+            $digestMatches = hash_equals($expectedDigest, $sourceDigest);
+            if (!$digestMatches) {
+                $rowBlocked[] = 'current_source_digest_mismatch';
+            }
+            if ($cacheEpoch < $readerEpoch) {
+                $rowBlocked[] = 'current_source_cache_epoch_stale';
+            }
+            if ($savepointGeneration !== $expectedSavepointGeneration) {
+                $rowBlocked[] = 'current_source_savepoint_generation_mismatch';
+            }
+            if (!$checkpointVisible) {
+                $rowBlocked[] = 'current_source_checkpoint_not_visible';
+            }
+            if (!$readerCacheRebased) {
+                $rowBlocked[] = 'current_source_reader_cache_not_rebased';
+            }
+
+            foreach ($rowBlocked as $reason) {
+                $blocked[] = $reason;
+            }
+            $publishedRows[] = [
+                'ticket_id' => $ticketId,
+                'page_number' => $pageNumber,
+                'reader_epoch' => $readerEpoch,
+                'source' => $source,
+                'source_digest_matches' => $digestMatches,
+                'cache_epoch' => $cacheEpoch,
+                'savepoint_generation' => $savepointGeneration,
+                'checkpoint_visible' => $checkpointVisible,
+                'reader_cache_rebased' => $readerCacheRebased,
+                'blocked_reasons' => $rowBlocked,
+            ];
+        }
+
+        foreach (array_keys($allowedTickets) as $ticketId) {
+            if (!isset($seenTickets[$ticketId])) {
+                $blocked[] = 'missing_current_source_for_durable_reader_ticket';
+                break;
+            }
+        }
+
+        $blocked = array_values(array_unique($blocked));
+        $ready = $blocked === [];
+
+        return [
+            'status' => $ready
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source-next201'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next201',
+            'reason' => $ready
+                ? 'durable_reader_current_sources_rebased_after_hot_journal_savepoint_checkpoint'
+                : 'durable_reader_current_sources_wait_for_rebased_checkpoint_visibility',
+            'database_path' => $admission['database_path'],
+            'wal_path' => $admission['wal_path'],
+            'journal_path' => $admission['journal_path'],
+            'publication_token' => $expectedPublicationToken,
+            'previous_reader_epoch' => $previousEpoch,
+            'sealed_reader_epoch' => $sealedEpoch,
+            'source_count' => count($publishedRows),
+            'source_ticket_ids' => array_column($publishedRows, 'ticket_id'),
+            'source_pages' => array_column($publishedRows, 'page_number'),
+            'source_kinds' => array_values(array_unique(array_column($publishedRows, 'source'))),
+            'checkpoint_source_count' => count(array_filter($publishedRows, static fn (array $row): bool => $row['source'] === 'checkpoint-database')),
+            'wal_source_count' => count(array_filter($publishedRows, static fn (array $row): bool => $row['source'] === 'next-wal')),
+            'expected_checkpoint_database_digest' => $expectedCheckpointDigest,
+            'expected_wal_digest' => $expectedWalDigest,
+            'hot_journal_absent' => $hotJournalBytes === null,
+            'published_rows' => $publishedRows,
+            'can_publish_current_sources' => $ready,
+            'blocked_reasons' => $blocked,
+            'publication_digest' => hash('sha256', implode('|', array_merge(
+                [$expectedPublicationToken, $expectedCheckpointDigest, $expectedWalDigest, $hotJournalBytes === null ? 'journal-absent' : hash('sha256', $hotJournalBytes)],
+                array_map(
+                    static fn (array $row): string => implode(':', [
+                        (string) $row['ticket_id'],
+                        (string) $row['page_number'],
+                        (string) $row['reader_epoch'],
+                        (string) $row['source'],
+                        $row['source_digest_matches'] ? 'digest-ok' : 'digest-stale',
+                        $row['checkpoint_visible'] ? 'visible' : 'hidden',
+                        $row['reader_cache_rebased'] ? 'rebased' : 'stale-cache',
+                    ]),
+                    $publishedRows
+                )
+            ))),
+            'dependencies' => array_values(array_unique(array_merge(
+                $admission['dependencies'],
+                [
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next201',
+                    'sqlite-hot-journal-savepoint-checkpoint-current-source-publication',
+                    'wordpress-import-retry-current-source-reader-cache-rebase',
+                ]
+            ))),
+            'dependency_closure' => 'no new support component needed; reuses next200 durable reader admission plus existing WAL/checkpoint/source digest receipts',
+            'non_overlap' => 'next201 admits rebased current-source rows after next200 durability receipts; it does not repeat WAL byte truncation, VFS writer/sync application, rollback-journal apply, checkpoint transaction planning, next194 reader sealing, or next200 durability receipt validation',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $admission
+     */
+    private static function assertAdmission(array $admission): void
+    {
+        foreach (['database_path', 'wal_path', 'journal_path', 'publication_token', 'previous_reader_epoch', 'sealed_reader_epoch', 'receipt_ticket_ids', 'receipt_pages', 'expected_savepoint_generation', 'dependencies'] as $key) {
+            if (!array_key_exists($key, $admission)) {
+                throw new \InvalidArgumentException("SQLite WAL current-source next201 admission missing {$key}");
+            }
+        }
+        foreach (['database_path', 'wal_path', 'journal_path', 'publication_token'] as $key) {
+            if (!is_string($admission[$key]) || $admission[$key] === '') {
+                throw new \InvalidArgumentException("SQLite WAL current-source next201 admission {$key} must be a non-empty string");
+            }
+        }
+        if (!is_int($admission['previous_reader_epoch']) || !is_int($admission['sealed_reader_epoch']) || !is_int($admission['expected_savepoint_generation'])) {
+            throw new \InvalidArgumentException('SQLite WAL current-source next201 admission epochs and savepoint generation must be integers');
+        }
+        if (!is_array($admission['receipt_ticket_ids']) || $admission['receipt_ticket_ids'] === [] || !is_array($admission['receipt_pages']) || $admission['receipt_pages'] === [] || !is_array($admission['dependencies'])) {
+            throw new \InvalidArgumentException('SQLite WAL current-source next201 admission arrays are malformed');
+        }
+        foreach ($admission['receipt_ticket_ids'] as $ticketId) {
+            if (!is_string($ticketId) || $ticketId === '') {
+                throw new \InvalidArgumentException('SQLite WAL current-source next201 admission ticket ids must be non-empty strings');
+            }
+        }
+        foreach ($admission['receipt_pages'] as $pageNumber) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite WAL current-source next201 admission pages must be one-based integers');
+            }
+        }
+    }
+
+    /**
+     * @param list<int> $values
+     * @return array<int,true>
+     */
+    private static function intSet(array $values): array
+    {
+        $set = [];
+        foreach ($values as $value) {
+            $set[$value] = true;
+        }
+
+        return $set;
+    }
+
+    /**
+     * @param list<string> $values
+     * @return array<string,true>
+     */
+    private static function stringSet(array $values): array
+    {
+        $set = [];
+        foreach ($values as $value) {
+            $set[$value] = true;
+        }
+
+        return $set;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function stringField(array $row, string $key, int $index): string
+    {
+        if (!isset($row[$key]) || !is_string($row[$key]) || $row[$key] === '') {
+            throw new \InvalidArgumentException("SQLite WAL current-source next201 row {$index} {$key} must be a non-empty string");
+        }
+
+        return $row[$key];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function intField(array $row, string $key, int $index): int
+    {
+        if (!isset($row[$key]) || !is_int($row[$key])) {
+            throw new \InvalidArgumentException("SQLite WAL current-source next201 row {$index} {$key} must be an integer");
+        }
+
+        return $row[$key];
+    }
+
+        })::publishCurrentSources($admission, $sourceRows, $expectedCheckpointDigest, $expectedWalDigest, $hotJournalBytes);
+    }
+
+    public static function next204Plan(array $basePlan, array $leases): array
+    {
+        return (new class {
+    /**
+     * @param array<string,mixed> $basePlan
+     * @param list<array{name:string,observed_checkpoint_generation:int,observed_schema_cookie:int,observed_page_count:int,observed_database_digest:string,reader_epoch?:int,closed?:bool,dirty?:bool}> $leases
+     * @return array<string,mixed>
+     */
+    public static function plan(array $basePlan, array $leases): array
+    {
+        if (($basePlan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next203') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next204 requires an admitted next203 lease plan');
+        }
+        if ($leases === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next204 requires generation lease rows');
+        }
+
+        $checkpointGeneration = self::positiveInt($basePlan, 'checkpoint_generation');
+        $schemaCookie = self::positiveInt($basePlan, 'schema_cookie');
+        $pageCount = self::positiveInt($basePlan, 'checkpointed_page_count');
+        $databaseDigest = $basePlan['checkpointed_database_digest'] ?? null;
+        if (!is_string($databaseDigest) || strlen($databaseDigest) !== 64) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next204 requires checkpointed database digest');
+        }
+
+        $rows = [];
+        $admitted = [];
+        $reopen = [];
+        foreach ($leases as $lease) {
+            $row = self::leaseRow($lease, $checkpointGeneration, $schemaCookie, $pageCount, $databaseDigest);
+            $rows[] = $row;
+            if ($row['admitted']) {
+                $admitted[] = $row['name'];
+            } else {
+                $reopen[] = $row['name'];
+            }
+        }
+
+        $guards = [
+            [
+                'name' => 'next203_page_digest_leases',
+                'matched' => in_array('sqlite-checkpoint-page-cache-lease-fence', $basePlan['dependencies'] ?? [], true),
+                'reason' => 'page-cache leases must already be digest-fenced by next203 before generation tickets are reused',
+            ],
+            [
+                'name' => 'checkpoint_generation_ticket',
+                'matched' => $checkpointGeneration > 0,
+                'reason' => 'checkpoint publication generation must be positive',
+            ],
+            [
+                'name' => 'generation_reuse_mix',
+                'matched' => $admitted !== [] && $reopen !== [],
+                'reason' => 'current generation tickets are retained while stale tickets are reopened',
+            ],
+        ];
+        $blocked = array_values(array_column(
+            array_filter($guards, static fn (array $row): bool => !$row['matched']),
+            'name'
+        ));
+        $status = $blocked === []
+            ? 'wal-hot-journal-savepoint-checkpoint-current-source-next204'
+            : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next204';
+
+        return [
+            'status' => $status,
+            'reason' => $status === 'wal-hot-journal-savepoint-checkpoint-current-source-next204'
+                ? 'checkpoint_generation_tickets_admit_current_source_page_cache'
+                : 'checkpoint_generation_tickets_block_current_source_page_cache',
+            'base_status' => $basePlan['status'],
+            'database_path' => $basePlan['database_path'] ?? null,
+            'journal_path' => $basePlan['journal_path'] ?? null,
+            'wal_path' => $basePlan['wal_path'] ?? null,
+            'checkpoint_generation' => $checkpointGeneration,
+            'schema_cookie' => $schemaCookie,
+            'checkpointed_page_count' => $pageCount,
+            'checkpointed_database_digest' => $databaseDigest,
+            'lease_rows' => $rows,
+            'admitted_lease_names' => $admitted,
+            'reopen_lease_names' => $reopen,
+            'guard_rows' => $guards,
+            'guard_names' => array_column($guards, 'name'),
+            'guard_matches' => array_column($guards, 'matched'),
+            'blocked_guard_names' => $blocked,
+            'operation_names' => array_values(array_merge(
+                is_array($basePlan['operation_names'] ?? null) ? $basePlan['operation_names'] : [],
+                ['verify_checkpoint_generation_tickets_current_source_next204'],
+                array_map(
+                    static fn (array $row): string => $row['admitted']
+                        ? 'retain_checkpoint_generation_lease_next204'
+                        : 'reopen_checkpoint_generation_lease_next204',
+                    $rows
+                )
+            )),
+            'generation_ticket_digest' => hash('sha256', json_encode([
+                'generation' => $checkpointGeneration,
+                'schema_cookie' => $schemaCookie,
+                'page_count' => $pageCount,
+                'database_digest' => $databaseDigest,
+                'rows' => array_column($rows, 'transition'),
+            ], JSON_THROW_ON_ERROR)),
+            'dependencies' => array_values(array_unique(array_merge(
+                is_array($basePlan['dependencies'] ?? null) ? $basePlan['dependencies'] : [],
+                [
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next204',
+                    'sqlite-checkpoint-generation-ticket-fence',
+                ]
+            ))),
+            'dependency_closure' => 'no new support component needed; reuses next203 checkpoint page-cache lease metadata plus lane-local checkpoint generation, schema-cookie, page-count, and database-digest receipts',
+            'non_overlap' => 'next204 fences current-source page-cache reuse with checkpoint generation tickets after next203 page-digest leases; it does not repeat next203 WAL/page digest lease checks, next202 file-handle receipts, next196 sidecar publication, VFS savepoint rollback, rollback-journal apply, or WAL byte truncation planning',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function positiveInt(array $row, string $key): int
+    {
+        $value = $row[$key] ?? null;
+        if (!is_int($value) || $value <= 0) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next204 {$key} must be a positive integer");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $lease
+     * @return array<string,mixed>
+     */
+    private static function leaseRow(array $lease, int $checkpointGeneration, int $schemaCookie, int $pageCount, string $databaseDigest): array
+    {
+        $name = $lease['name'] ?? null;
+        if (!is_string($name) || $name === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next204 lease name is required');
+        }
+
+        $observedDatabaseDigest = $lease['observed_database_digest'] ?? null;
+        if (!is_string($observedDatabaseDigest) || strlen($observedDatabaseDigest) !== 64) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next204 {$name} observed database digest is required");
+        }
+
+        $checks = [
+            'checkpoint_generation' => self::positiveInt($lease, 'observed_checkpoint_generation') === $checkpointGeneration,
+            'schema_cookie' => self::positiveInt($lease, 'observed_schema_cookie') === $schemaCookie,
+            'page_count' => self::positiveInt($lease, 'observed_page_count') === $pageCount,
+            'database_digest' => hash_equals($databaseDigest, $observedDatabaseDigest),
+            'not_dirty' => ($lease['dirty'] ?? false) !== true,
+            'not_closed' => ($lease['closed'] ?? false) !== true,
+        ];
+
+        if (array_key_exists('reader_epoch', $lease)) {
+            $checks['reader_epoch_current'] = self::positiveInt($lease, 'reader_epoch') >= $checkpointGeneration;
+        }
+
+        $failed = array_keys(array_filter($checks, static fn (bool $matched): bool => !$matched));
+        $admitted = $failed === [];
+
+        return array_merge($lease, [
+            'name' => $name,
+            'admitted' => $admitted,
+            'requires_reopen' => !$admitted,
+            'failed_checks' => $failed,
+            'lease_reason' => $admitted
+                ? 'lease_generation_ticket_matches_checkpoint_current_source'
+                : 'lease_generation_ticket_requires_reopen',
+            'expected_checkpoint_generation' => $checkpointGeneration,
+            'expected_schema_cookie' => $schemaCookie,
+            'expected_page_count' => $pageCount,
+            'expected_database_digest' => $databaseDigest,
+            'transition' => $name . '>' . ($admitted ? 'retain-checkpoint-generation-ticket' : 'reopen-checkpoint-generation-ticket') . ':next204',
+        ]);
+    }
+
+        })::plan($basePlan, $leases);
+    }
+
+    public static function next214RestartCheckpoint(array $passivePlan, array $readers, array $options = []): array
+    {
+        return (new class {
+    /**
+     * @param array<string,mixed> $passivePlan
+     * @param list<array<string,mixed>> $readers
+     * @return array<string,mixed>
+     */
+    public static function restartCheckpoint(array $passivePlan, array $readers, array $options = []): array
+    {
+        if (($passivePlan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next212') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next214 requires an admitted next212 passive checkpoint plan');
+        }
+        if ($readers === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next214 requires reader rows');
+        }
+
+        $requestedFrame = self::positiveInt($passivePlan, 'requested_checkpoint_frame');
+        $checkpointedFrame = self::positiveInt($passivePlan, 'checkpointed_frame');
+        $databaseDigest = self::digestField($passivePlan, 'database_digest');
+        $walDigest = self::digestField($passivePlan, 'wal_digest');
+        $writerDigest = self::digestField($passivePlan, 'writer_digest');
+        $writerGeneration = self::positiveInt($passivePlan, 'next_writer_generation');
+        $saltBefore = self::digestOption($options, 'wal_salt_before');
+        $saltAfter = self::digestOption($options, 'wal_salt_after');
+        $hotJournalDigest = self::digestOption($options, 'hot_journal_digest');
+        $savepointClosed = ($options['savepoint_closed'] ?? false) === true;
+        $exclusiveLock = ($options['exclusive_checkpoint_lock'] ?? false) === true;
+        $databaseSynced = ($options['database_synced'] ?? false) === true;
+        $walHeaderSynced = ($options['wal_header_synced'] ?? false) === true;
+        $directorySynced = ($options['directory_synced'] ?? false) === true;
+        $deleteHotJournal = ($options['delete_hot_journal_after_reset'] ?? false) === true;
+
+        $readerRows = [];
+        foreach ($readers as $reader) {
+            $readerRows[] = self::readerRow(
+                $reader,
+                $requestedFrame,
+                $databaseDigest,
+                $walDigest,
+                $writerDigest,
+                $writerGeneration
+            );
+        }
+
+        $currentReaders = array_values(array_filter($readerRows, static fn (array $row): bool => $row['pins_current_source']));
+        $staleReaders = array_values(array_filter($readerRows, static fn (array $row): bool => !$row['admitted'] && !$row['pins_current_source']));
+        $blockedReasons = [];
+        foreach ($readerRows as $row) {
+            foreach ($row['blocked_reasons'] as $reason) {
+                $blockedReasons[] = $reason;
+            }
+        }
+
+        $guards = [
+            'passive_checkpoint_complete' => $checkpointedFrame === $requestedFrame && ($passivePlan['busy'] ?? true) === false,
+            'all_current_readers_released' => $currentReaders === [],
+            'stale_readers_reopened' => $staleReaders !== [],
+            'savepoint_closed' => $savepointClosed,
+            'exclusive_checkpoint_lock' => $exclusiveLock,
+            'database_synced' => $databaseSynced,
+            'wal_header_synced' => $walHeaderSynced,
+            'directory_synced' => $directorySynced,
+            'wal_salt_rotated' => !hash_equals($saltBefore, $saltAfter),
+            'hot_journal_digest_verified' => !hash_equals($hotJournalDigest, str_repeat('0', 64)),
+            'delete_hot_journal_after_reset' => $deleteHotJournal,
+        ];
+        $blockedGuards = array_keys(array_filter($guards, static fn (bool $matched): bool => !$matched));
+        $ready = $blockedGuards === [];
+
+        return [
+            'status' => $ready
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source-next214'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next214',
+            'reason' => $ready
+                ? 'restart_checkpoint_resets_wal_after_current_source_readers_release'
+                : 'restart_checkpoint_waits_for_reader_release_and_durable_reset',
+            'base_status' => $passivePlan['status'],
+            'database_path' => $passivePlan['database_path'] ?? null,
+            'journal_path' => $passivePlan['journal_path'] ?? null,
+            'wal_path' => $passivePlan['wal_path'] ?? null,
+            'page_size' => $passivePlan['page_size'] ?? null,
+            'requested_checkpoint_frame' => $requestedFrame,
+            'checkpointed_frame' => $checkpointedFrame,
+            'restart_allowed' => $ready,
+            'reset_allowed' => $ready,
+            'truncate_allowed' => false,
+            'wal_action' => $ready ? 'restart_wal_header_with_rotated_salt' : 'preserve_wal',
+            'database_action' => 'write_frames_through_' . $checkpointedFrame,
+            'journal_action' => $ready ? 'delete_hot_journal_after_wal_restart_sync' : 'preserve_hot_journal',
+            'database_digest' => $databaseDigest,
+            'wal_digest_before' => $walDigest,
+            'writer_digest' => $writerDigest,
+            'writer_generation' => $writerGeneration,
+            'wal_salt_before' => $saltBefore,
+            'wal_salt_after' => $saltAfter,
+            'hot_journal_digest' => $hotJournalDigest,
+            'reader_rows' => $readerRows,
+            'current_reader_names' => array_values(array_column($currentReaders, 'name')),
+            'reopen_reader_names' => array_values(array_column($staleReaders, 'name')),
+            'blocked_reader_reasons' => array_values(array_unique($blockedReasons)),
+            'guard_names' => array_keys($guards),
+            'guard_matches' => array_values($guards),
+            'blocked_guard_names' => $blockedGuards,
+            'sync_sequence' => $ready
+                ? ['database', 'wal-header', 'directory', 'hot-journal-delete']
+                : ['database', 'wal-header-pending'],
+            'operation_names' => array_values(array_unique(array_merge(
+                is_array($passivePlan['operation_names'] ?? null) ? $passivePlan['operation_names'] : [],
+                [
+                    'verify_restart_checkpoint_reader_release_current_source_next214',
+                    $ready ? 'restart_wal_after_hot_journal_savepoint_checkpoint_next214' : 'preserve_wal_until_restart_checkpoint_safe_next214',
+                ]
+            ))),
+            'restart_digest' => hash('sha256', json_encode([$readerRows, $guards, $saltBefore, $saltAfter], JSON_THROW_ON_ERROR)),
+            'dependencies' => array_values(array_unique(array_merge(
+                is_array($passivePlan['dependencies'] ?? null) ? $passivePlan['dependencies'] : [],
+                [
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next214',
+                    'sqlite-restart-checkpoint-current-source-reader-release',
+                    'wordpress-import-restart-checkpoint-deletes-hot-journal-after-wal-reset',
+                ]
+            ))),
+            'dependency_closure' => 'no new support component needed; reuses next212 passive checkpoint current-source metadata, WAL salt digests, and lane-local VFS sync/delete receipts',
+            'non_overlap' => 'next214 models RESTART checkpoint admission after reader release and durable WAL-header salt rotation; it does not repeat next212 PASSIVE reader pins, next209 writer fences, next206 statement consumers, checkpoint transaction planning, VFS savepoint rollback, rollback-journal commit/apply, WAL byte truncation, or WAL file writer wrappers',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function digestField(array $values, string $key): string
+    {
+        $value = $values[$key] ?? null;
+        if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next214 requires {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function positiveInt(array $values, string $key): int
+    {
+        $value = $values[$key] ?? null;
+        if (!is_int($value) || $value <= 0) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next214 requires positive {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function digestOption(array $values, string $key): string
+    {
+        $value = $values[$key] ?? null;
+        if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next214 requires {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $reader
+     * @return array<string,mixed>
+     */
+    private static function readerRow(
+        array $reader,
+        int $requestedFrame,
+        string $databaseDigest,
+        string $walDigest,
+        string $writerDigest,
+        int $writerGeneration
+    ): array {
+        $name = $reader['name'] ?? null;
+        if (!is_string($name) || $name === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next214 reader name is required');
+        }
+        $released = $reader['released'] ?? null;
+        $endFrame = $reader['reader_end_frame'] ?? null;
+        $generation = $reader['reader_generation'] ?? null;
+        if (!is_bool($released) || !is_int($endFrame) || $endFrame <= 0 || !is_int($generation) || $generation < 0) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next214 {$name} reader release/frame/generation is invalid");
+        }
+        foreach (['observed_database_digest', 'observed_wal_digest', 'observed_writer_digest'] as $key) {
+            if (!is_string($reader[$key] ?? null) || !preg_match('/^[a-f0-9]{64}$/', (string) $reader[$key])) {
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next214 {$name} {$key} is required");
+            }
+        }
+
+        $reasons = [];
+        if ($generation !== $writerGeneration) {
+            $reasons[] = 'reader_generation_mismatch';
+        }
+        if ($endFrame > $requestedFrame) {
+            $reasons[] = 'reader_end_frame_after_requested_checkpoint';
+        }
+        if (!hash_equals($databaseDigest, (string) $reader['observed_database_digest'])) {
+            $reasons[] = 'reader_database_digest_mismatch';
+        }
+        if (!hash_equals($walDigest, (string) $reader['observed_wal_digest'])) {
+            $reasons[] = 'reader_wal_digest_mismatch';
+        }
+        if (!hash_equals($writerDigest, (string) $reader['observed_writer_digest'])) {
+            $reasons[] = 'reader_writer_digest_mismatch';
+        }
+        if (($reader['dirty'] ?? false) === true) {
+            $reasons[] = 'reader_cache_dirty';
+        }
+        if (!$released && $reasons === []) {
+            $reasons[] = 'current_reader_not_released';
+        }
+
+        $pinsCurrentSource = in_array('current_reader_not_released', $reasons, true);
+        $admitted = $released && $reasons === [];
+
+        return [
+            'name' => $name,
+            'released' => $released,
+            'reader_end_frame' => $endFrame,
+            'reader_generation' => $generation,
+            'expected_generation' => $writerGeneration,
+            'admitted' => $admitted,
+            'pins_current_source' => $pinsCurrentSource,
+            'reader_action' => $admitted ? 'released_before_restart_checkpoint' : ($pinsCurrentSource ? 'preserve_wal_for_reader' : 'reopen_reader_before_restart_checkpoint'),
+            'blocked_reasons' => $reasons,
+            'dirty' => ($reader['dirty'] ?? false) === true,
+        ];
+    }
+
+        })::restartCheckpoint($passivePlan, $readers, $options);
+    }
+
+    public static function next215RestartCheckpoint(array $passivePlan, array $reopenRows, string $mode = 'restart'): array
+    {
+        return (new class {
+    /**
+     * @param array<string,mixed> $passivePlan
+     * @param list<array<string,mixed>> $reopenRows
+     * @return array<string,mixed>
+     */
+    public static function restartCheckpoint(array $passivePlan, array $reopenRows, string $mode = 'restart'): array
+    {
+        if (($passivePlan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next212') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next215 requires an admitted next212 passive checkpoint plan');
+        }
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next215 mode must be restart or truncate');
+        }
+        if ($reopenRows === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next215 requires reopened reader rows');
+        }
+
+        $requestedFrame = self::positiveInt($passivePlan, 'requested_checkpoint_frame');
+        $checkpointedFrame = self::positiveInt($passivePlan, 'checkpointed_frame');
+        $nextWriterGeneration = self::positiveInt($passivePlan, 'next_writer_generation');
+        $minimumStatementGeneration = self::nonNegativeInt($passivePlan, 'minimum_statement_generation');
+        $databaseDigest = self::digestField($passivePlan, 'database_digest');
+        $walDigest = self::digestField($passivePlan, 'wal_digest');
+        $writerDigest = self::digestField($passivePlan, 'writer_digest');
+        $reopenReaderNames = self::stringList($passivePlan, 'reopen_reader_names');
+        $activeReaderNames = self::stringList($passivePlan, 'active_reader_names');
+
+        $readerRows = [];
+        foreach ($reopenRows as $row) {
+            $readerRows[] = self::reopenRow(
+                $row,
+                $databaseDigest,
+                $walDigest,
+                $writerDigest,
+                $nextWriterGeneration,
+                $minimumStatementGeneration,
+                $requestedFrame
+            );
+        }
+
+        $admitted = array_values(array_column(array_filter($readerRows, static fn (array $row): bool => $row['admitted']), 'name'));
+        $blocked = array_values(array_filter($readerRows, static fn (array $row): bool => !$row['admitted']));
+        $blockedReasons = [];
+        foreach ($blocked as $row) {
+            foreach ($row['blocked_reasons'] as $reason) {
+                $blockedReasons[] = $reason;
+            }
+        }
+
+        $missingReopens = array_values(array_diff($reopenReaderNames, $admitted));
+        $unexpectedReopens = array_values(array_diff($admitted, $reopenReaderNames));
+        $checkpointComplete = $checkpointedFrame === $requestedFrame || (($passivePlan['busy'] ?? null) === false);
+        $noPins = $activeReaderNames === [];
+        $operationNames = is_array($passivePlan['operation_names'] ?? null) ? $passivePlan['operation_names'] : [];
+        $hasPriorBusyPin = in_array('preserve_wal_for_pinned_reader_next212', $operationNames, true);
+
+        $guardRows = [
+            [
+                'name' => 'prior_passive_checkpoint_reported_reader_pin',
+                'matched' => $hasPriorBusyPin,
+                'reason' => 'restart/truncate completion must follow a passive checkpoint that stopped at a current reader pin',
+            ],
+            [
+                'name' => 'all_stale_readers_reopened',
+                'matched' => $missingReopens === [] && $unexpectedReopens === [],
+                'reason' => 'stale readers must be reopened before checkpoint reset/truncate can publish a new current source',
+            ],
+            [
+                'name' => 'reopened_readers_match_current_source',
+                'matched' => $blocked === [],
+                'reason' => 'reopened readers must observe the post-hot-journal database, WAL, and writer digests',
+            ],
+            [
+                'name' => 'no_active_reader_pin_remaining',
+                'matched' => $noPins,
+                'reason' => 'restart/truncate checkpoint reset waits until current reader pins drain',
+            ],
+            [
+                'name' => 'checkpoint_covers_requested_frame',
+                'matched' => $checkpointComplete,
+                'reason' => 'database image must contain all frames through the requested checkpoint frame',
+            ],
+        ];
+        $blockedGuards = array_values(array_column(
+            array_filter($guardRows, static fn (array $row): bool => !$row['matched']),
+            'name'
+        ));
+        $ready = $blockedGuards === [];
+
+        return [
+            'status' => $ready
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source-next215'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next215',
+            'reason' => $ready
+                ? 'restart_checkpoint_resets_wal_after_current_source_readers_reopen'
+                : 'restart_checkpoint_waits_for_reader_reopen_and_pin_drain',
+            'base_status' => $passivePlan['status'],
+            'database_path' => $passivePlan['database_path'] ?? null,
+            'journal_path' => $passivePlan['journal_path'] ?? null,
+            'wal_path' => $passivePlan['wal_path'] ?? null,
+            'page_size' => $passivePlan['page_size'] ?? null,
+            'mode' => $mode,
+            'requested_checkpoint_frame' => $requestedFrame,
+            'passive_checkpointed_frame' => $checkpointedFrame,
+            'checkpointed_frame' => $ready ? $requestedFrame : $checkpointedFrame,
+            'busy' => !$ready,
+            'reset_allowed' => $ready,
+            'truncate_allowed' => $ready && $mode === 'truncate',
+            'wal_action' => $ready ? ($mode === 'truncate' ? 'truncate_wal_after_restart_checkpoint' : 'reset_wal_header_after_restart_checkpoint') : 'preserve_wal',
+            'database_action' => $ready ? 'write_frames_through_' . $requestedFrame : 'write_frames_through_' . $checkpointedFrame,
+            'journal_action' => $ready ? 'hot_journal_removed_before_wal_reset' : 'retain_hot_journal_fence',
+            'new_current_source_epoch' => $nextWriterGeneration + 1,
+            'minimum_statement_generation' => $minimumStatementGeneration,
+            'next_writer_generation' => $nextWriterGeneration,
+            'database_digest' => $databaseDigest,
+            'wal_digest' => $walDigest,
+            'writer_digest' => $writerDigest,
+            'required_reopen_reader_names' => $reopenReaderNames,
+            'active_reader_names' => $activeReaderNames,
+            'admitted_reopen_reader_names' => $admitted,
+            'missing_reopen_reader_names' => $missingReopens,
+            'unexpected_reopen_reader_names' => $unexpectedReopens,
+            'blocked_reader_reasons' => array_values(array_unique($blockedReasons)),
+            'reader_rows' => $readerRows,
+            'guard_rows' => $guardRows,
+            'guard_names' => array_column($guardRows, 'name'),
+            'guard_matches' => array_column($guardRows, 'matched'),
+            'blocked_guard_names' => $blockedGuards,
+            'operation_names' => array_values(array_unique(array_merge(
+                $operationNames,
+                [
+                    'verify_restart_checkpoint_reopen_current_source_next215',
+                    $ready ? 'publish_restart_checkpoint_current_source_next215' : 'preserve_wal_until_reader_pin_drains_next215',
+                ]
+            ))),
+            'checkpoint_digest' => hash('sha256', json_encode([$mode, $requestedFrame, $ready, $readerRows], JSON_THROW_ON_ERROR)),
+            'dependencies' => array_values(array_unique(array_merge(
+                is_array($passivePlan['dependencies'] ?? null) ? $passivePlan['dependencies'] : [],
+                [
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next215',
+                    'sqlite-restart-checkpoint-reader-reopen-after-hot-journal',
+                    'wordpress-import-restart-checkpoint-reset-after-reader-reopen',
+                ]
+            ))),
+            'dependency_closure' => 'no new support component needed; reuses next212 passive checkpoint reader-pin metadata and current-source digest fences',
+            'non_overlap' => 'next215 models RESTART/TRUNCATE completion after next212 PASSIVE reader-pin discovery; it does not repeat next212 passive progress, next209 writer fences, WAL byte truncation, VFS savepoint rollback, rollback-journal commit/apply, sync plans, or checkpoint transaction planning',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function digestField(array $values, string $key): string
+    {
+        $value = $values[$key] ?? null;
+        if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 requires {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function positiveInt(array $values, string $key): int
+    {
+        $value = $values[$key] ?? null;
+        if (!is_int($value) || $value <= 0) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 requires positive {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function nonNegativeInt(array $values, string $key): int
+    {
+        $value = $values[$key] ?? null;
+        if (!is_int($value) || $value < 0) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 requires non-negative {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     * @return list<string>
+     */
+    private static function stringList(array $values, string $key): array
+    {
+        $list = $values[$key] ?? null;
+        if (!is_array($list)) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 requires {$key}");
+        }
+        foreach ($list as $value) {
+            if (!is_string($value) || $value === '') {
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 {$key} must contain non-empty strings");
+            }
+        }
+
+        return array_values($list);
+    }
+
+    /**
+     * @param array<string,mixed> $reader
+     * @return array<string,mixed>
+     */
+    private static function reopenRow(
+        array $reader,
+        string $databaseDigest,
+        string $walDigest,
+        string $writerDigest,
+        int $nextWriterGeneration,
+        int $minimumStatementGeneration,
+        int $requestedFrame
+    ): array {
+        $name = $reader['name'] ?? null;
+        if (!is_string($name) || $name === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next215 reader name is required');
+        }
+        $endFrame = $reader['reader_end_frame'] ?? null;
+        $generation = $reader['reader_generation'] ?? null;
+        if (!is_int($endFrame) || $endFrame <= 0 || !is_int($generation) || $generation < 0) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 {$name} reader frame/generation is invalid");
+        }
+        foreach (['observed_database_digest', 'observed_wal_digest', 'observed_writer_digest'] as $key) {
+            if (!is_string($reader[$key] ?? null) || !preg_match('/^[a-f0-9]{64}$/', (string) $reader[$key])) {
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next215 {$name} {$key} is required");
+            }
+        }
+
+        $reasons = [];
+        if (($reader['reopened'] ?? false) !== true) {
+            $reasons[] = 'reader_not_reopened';
+        }
+        if ($generation !== $nextWriterGeneration) {
+            $reasons[] = 'reader_generation_mismatch';
+        }
+        if ($endFrame < $minimumStatementGeneration || $endFrame > $requestedFrame) {
+            $reasons[] = 'reader_end_frame_outside_checkpoint_window';
+        }
+        if (!hash_equals($databaseDigest, (string) $reader['observed_database_digest'])) {
+            $reasons[] = 'reader_database_digest_mismatch';
+        }
+        if (!hash_equals($walDigest, (string) $reader['observed_wal_digest'])) {
+            $reasons[] = 'reader_wal_digest_mismatch';
+        }
+        if (!hash_equals($writerDigest, (string) $reader['observed_writer_digest'])) {
+            $reasons[] = 'reader_writer_digest_mismatch';
+        }
+        if (($reader['dirty'] ?? false) === true) {
+            $reasons[] = 'reader_cache_dirty';
+        }
+        if (($reader['closed'] ?? false) === true) {
+            $reasons[] = 'reader_handle_closed';
+        }
+
+        $admitted = $reasons === [];
+
+        return [
+            'name' => $name,
+            'reader_end_frame' => $endFrame,
+            'reader_generation' => $generation,
+            'reopened' => ($reader['reopened'] ?? false) === true,
+            'admitted' => $admitted,
+            'reader_reason' => $admitted ? 'reader_reopened_on_current_source_for_restart_checkpoint' : implode('|', $reasons),
+            'blocked_reasons' => $reasons,
+            'transition' => $name . '>' . ($admitted ? 'reopened-current-source' : 'preserve-old-source') . ':next215',
+        ];
+    }
+
+        })::restartCheckpoint($passivePlan, $reopenRows, $mode);
+    }
+
+    public static function next216RestartOrTruncateAfterReaderDrain(array $passivePlan, array $readerTransitions, string $mode): array
+    {
+        return (new class {
+    /**
+     * @param array<string,mixed> $passivePlan
+     * @param list<array<string,mixed>> $readerTransitions
+     * @return array<string,mixed>
+     */
+    public static function restartOrTruncateAfterReaderDrain(array $passivePlan, array $readerTransitions, string $mode): array
+    {
+        if (($passivePlan['status'] ?? null) !== 'wal-hot-journal-savepoint-checkpoint-current-source-next212') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next216 requires an admitted next212 passive checkpoint plan');
+        }
+        if (!in_array($mode, ['RESTART', 'TRUNCATE'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next216 mode must be RESTART or TRUNCATE');
+        }
+        if ($readerTransitions === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next216 requires reader transition rows');
+        }
+
+        $requestedFrame = self::positiveInt($passivePlan, 'requested_checkpoint_frame');
+        $checkpointedFrame = self::positiveInt($passivePlan, 'checkpointed_frame');
+        $databaseDigest = self::digestField($passivePlan, 'database_digest');
+        $walDigest = self::digestField($passivePlan, 'wal_digest');
+        $writerDigest = self::digestField($passivePlan, 'writer_digest');
+        $nextWriterGeneration = self::positiveInt($passivePlan, 'next_writer_generation');
+        $minimumStatementGeneration = self::nonNegativeInt($passivePlan, 'minimum_statement_generation');
+        $activeReaders = self::stringList($passivePlan, 'active_reader_names');
+        $reopenReaders = self::stringList($passivePlan, 'reopen_reader_names');
+        if ($activeReaders === [] || $reopenReaders === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next216 requires active and reopened reader names from next212');
+        }
+
+        $transitionRows = [];
+        foreach ($readerTransitions as $transition) {
+            $transitionRows[] = self::transitionRow(
+                $transition,
+                $activeReaders,
+                $reopenReaders,
+                $databaseDigest,
+                $walDigest,
+                $writerDigest,
+                $nextWriterGeneration,
+                $minimumStatementGeneration,
+                $requestedFrame
+            );
+        }
+
+        $releasedActive = self::namesByRoleAndState($transitionRows, 'active', true);
+        $blockedActive = self::namesByRoleAndState($transitionRows, 'active', false);
+        $reopenedStale = self::namesByRoleAndState($transitionRows, 'stale', true);
+        $blockedStale = self::namesByRoleAndState($transitionRows, 'stale', false);
+        $unknownReaders = array_values(array_column(
+            array_filter($transitionRows, static fn (array $row): bool => $row['role'] === 'unknown'),
+            'name'
+        ));
+
+        $guardRows = [
+            [
+                'name' => 'passive_checkpoint_was_busy',
+                'matched' => ($passivePlan['busy'] ?? null) === true && $checkpointedFrame < $requestedFrame,
+                'reason' => 'next216 only follows the current-reader pin boundary from next212',
+            ],
+            [
+                'name' => 'all_current_readers_released',
+                'matched' => self::sameSet($activeReaders, $releasedActive),
+                'reason' => 'RESTART/TRUNCATE may not reset the WAL until every current reader pin is gone',
+            ],
+            [
+                'name' => 'all_stale_readers_reopened',
+                'matched' => self::sameSet($reopenReaders, $reopenedStale),
+                'reason' => 'stale reader handles must reopen before the post-checkpoint source is published',
+            ],
+            [
+                'name' => 'no_unknown_reader_transitions',
+                'matched' => $unknownReaders === [],
+                'reason' => 'untracked reader handles cannot participate in the reset/truncate decision',
+            ],
+            [
+                'name' => 'checkpoint_reaches_requested_frame',
+                'matched' => $requestedFrame >= $minimumStatementGeneration,
+                'reason' => 'the final checkpoint frame must still cover the current statement generation',
+            ],
+        ];
+        $blockedGuards = array_values(array_column(
+            array_filter($guardRows, static fn (array $row): bool => !$row['matched']),
+            'name'
+        ));
+        $ready = $blockedGuards === [];
+        $nextReaderGeneration = $nextWriterGeneration + 1;
+        $resetSalt = substr(hash('sha256', implode('|', [
+            $databaseDigest,
+            $walDigest,
+            $writerDigest,
+            (string) $requestedFrame,
+            $mode,
+            (string) $nextReaderGeneration,
+        ])), 0, 16);
+
+        return [
+            'status' => $ready
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source-next216'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next216',
+            'reason' => $ready
+                ? 'restart_or_truncate_checkpoint_publishes_next_source_after_reader_drain'
+                : 'restart_or_truncate_checkpoint_waits_for_reader_drain',
+            'base_status' => $passivePlan['status'],
+            'database_path' => $passivePlan['database_path'] ?? null,
+            'journal_path' => $passivePlan['journal_path'] ?? null,
+            'wal_path' => $passivePlan['wal_path'] ?? null,
+            'page_size' => $passivePlan['page_size'] ?? null,
+            'mode' => $mode,
+            'requested_checkpoint_frame' => $requestedFrame,
+            'previous_checkpointed_frame' => $checkpointedFrame,
+            'checkpointed_frame' => $ready ? $requestedFrame : $checkpointedFrame,
+            'busy' => !$ready,
+            'reset_allowed' => $ready,
+            'truncate_allowed' => $ready && $mode === 'TRUNCATE',
+            'wal_action' => $ready
+                ? ($mode === 'TRUNCATE' ? 'truncate_wal_after_reader_drain' : 'restart_wal_header_after_reader_drain')
+                : 'preserve_wal_until_reader_drain',
+            'database_action' => $ready ? 'write_frames_through_' . $requestedFrame : 'keep_frames_through_' . $checkpointedFrame,
+            'next_reader_generation' => $nextReaderGeneration,
+            'reset_salt' => $ready ? $resetSalt : null,
+            'database_digest' => $databaseDigest,
+            'wal_digest_before_reset' => $walDigest,
+            'writer_digest' => $writerDigest,
+            'next_writer_generation' => $nextWriterGeneration,
+            'minimum_statement_generation' => $minimumStatementGeneration,
+            'active_reader_names' => $activeReaders,
+            'reopen_reader_names' => $reopenReaders,
+            'released_active_reader_names' => $releasedActive,
+            'blocked_active_reader_names' => $blockedActive,
+            'reopened_stale_reader_names' => $reopenedStale,
+            'blocked_stale_reader_names' => $blockedStale,
+            'unknown_reader_names' => $unknownReaders,
+            'reader_transition_rows' => $transitionRows,
+            'guard_rows' => $guardRows,
+            'guard_names' => array_column($guardRows, 'name'),
+            'guard_matches' => array_column($guardRows, 'matched'),
+            'blocked_guard_names' => $blockedGuards,
+            'operation_names' => array_values(array_unique(array_merge(
+                is_array($passivePlan['operation_names'] ?? null) ? $passivePlan['operation_names'] : [],
+                [
+                    'verify_reader_drain_before_restart_truncate_current_source_next216',
+                    $ready && $mode === 'TRUNCATE'
+                        ? 'truncate_wal_after_reader_drain_next216'
+                        : ($ready ? 'restart_wal_after_reader_drain_next216' : 'preserve_wal_until_reader_drain_next216'),
+                ]
+            ))),
+            'checkpoint_digest' => hash('sha256', json_encode([$mode, $ready, $requestedFrame, $transitionRows], JSON_THROW_ON_ERROR)),
+            'dependencies' => array_values(array_unique(array_merge(
+                is_array($passivePlan['dependencies'] ?? null) ? $passivePlan['dependencies'] : [],
+                [
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next216',
+                    'sqlite-restart-truncate-after-hot-journal-reader-drain',
+                    'wordpress-import-checkpoint-reset-after-reader-drain',
+                ]
+            ))),
+            'dependency_closure' => 'no new support component needed; reuses next212 passive checkpoint pins, writer generation digests, and reader reopen metadata',
+            'non_overlap' => 'next216 only models RESTART/TRUNCATE admission after next212 reader drain; it does not repeat WAL byte truncation, checkpoint transaction planning, VFS savepoint rollback, rollback-journal apply/commit, hot-journal recovery, or passive checkpoint pin detection',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function digestField(array $values, string $key): string
+    {
+        $value = $values[$key] ?? null;
+        if (!is_string($value) || !preg_match('/^[a-f0-9]{64}$/', $value)) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 requires {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function positiveInt(array $values, string $key): int
+    {
+        $value = $values[$key] ?? null;
+        if (!is_int($value) || $value <= 0) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 requires positive {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function nonNegativeInt(array $values, string $key): int
+    {
+        $value = $values[$key] ?? null;
+        if (!is_int($value) || $value < 0) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 requires non-negative {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     * @return list<string>
+     */
+    private static function stringList(array $values, string $key): array
+    {
+        $list = $values[$key] ?? null;
+        if (!is_array($list)) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 requires {$key}");
+        }
+        foreach ($list as $value) {
+            if (!is_string($value) || $value === '') {
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 {$key} must contain non-empty strings");
+            }
+        }
+
+        return array_values($list);
+    }
+
+    /**
+     * @param array<string,mixed> $transition
+     * @param list<string> $activeReaders
+     * @param list<string> $reopenReaders
+     * @return array<string,mixed>
+     */
+    private static function transitionRow(
+        array $transition,
+        array $activeReaders,
+        array $reopenReaders,
+        string $databaseDigest,
+        string $walDigest,
+        string $writerDigest,
+        int $nextWriterGeneration,
+        int $minimumStatementGeneration,
+        int $requestedFrame
+    ): array {
+        $name = $transition['name'] ?? null;
+        if (!is_string($name) || $name === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next216 reader transition name is required');
+        }
+        $role = in_array($name, $activeReaders, true)
+            ? 'active'
+            : (in_array($name, $reopenReaders, true) ? 'stale' : 'unknown');
+        $generation = $transition['reader_generation'] ?? null;
+        $endFrame = $transition['reader_end_frame'] ?? null;
+        if (!is_int($generation) || $generation < 0 || !is_int($endFrame) || $endFrame < 0) {
+            throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 {$name} generation/frame is invalid");
+        }
+        foreach (['observed_database_digest', 'observed_wal_digest', 'observed_writer_digest'] as $key) {
+            if (!is_string($transition[$key] ?? null) || !preg_match('/^[a-f0-9]{64}$/', (string) $transition[$key])) {
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next216 {$name} {$key} is required");
+            }
+        }
+
+        $reasons = [];
+        if ($role === 'active' && ($transition['released'] ?? false) !== true) {
+            $reasons[] = 'current_reader_not_released';
+        }
+        if ($role === 'stale' && ($transition['reopened'] ?? false) !== true) {
+            $reasons[] = 'stale_reader_not_reopened';
+        }
+        if ($role === 'unknown') {
+            $reasons[] = 'reader_not_tracked_by_passive_checkpoint';
+        }
+        if ($generation !== $nextWriterGeneration) {
+            $reasons[] = 'reader_generation_mismatch';
+        }
+        if ($endFrame < $minimumStatementGeneration) {
+            $reasons[] = 'reader_end_frame_before_current_statement';
+        }
+        if ($endFrame > $requestedFrame) {
+            $reasons[] = 'reader_end_frame_after_requested_checkpoint';
+        }
+        if (!hash_equals($databaseDigest, (string) $transition['observed_database_digest'])) {
+            $reasons[] = 'reader_database_digest_mismatch';
+        }
+        if (!hash_equals($walDigest, (string) $transition['observed_wal_digest'])) {
+            $reasons[] = 'reader_wal_digest_mismatch';
+        }
+        if (!hash_equals($writerDigest, (string) $transition['observed_writer_digest'])) {
+            $reasons[] = 'reader_writer_digest_mismatch';
+        }
+        if (($transition['dirty'] ?? false) === true) {
+            $reasons[] = 'reader_cache_dirty';
+        }
+        if (($transition['closed'] ?? false) !== true) {
+            $reasons[] = 'reader_handle_not_closed_for_reset';
+        }
+
+        return [
+            'name' => $name,
+            'role' => $role,
+            'released' => ($transition['released'] ?? false) === true,
+            'reopened' => ($transition['reopened'] ?? false) === true,
+            'closed' => ($transition['closed'] ?? false) === true,
+            'dirty' => ($transition['dirty'] ?? false) === true,
+            'reader_generation' => $generation,
+            'reader_end_frame' => $endFrame,
+            'expected_generation' => $nextWriterGeneration,
+            'expected_database_digest' => $databaseDigest,
+            'expected_wal_digest' => $walDigest,
+            'expected_writer_digest' => $writerDigest,
+            'blocked_reasons' => $reasons,
+            'admitted_for_reset' => $reasons === [],
+            'transition' => $reasons === []
+                ? ($role === 'active' ? 'released_current_reader_pin' : 'reopened_stale_reader_handle')
+                : implode('|', $reasons),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function namesByRoleAndState(array $rows, string $role, bool $admitted): array
+    {
+        return array_values(array_column(array_filter(
+            $rows,
+            static fn (array $row): bool => $row['role'] === $role && $row['admitted_for_reset'] === $admitted
+        ), 'name'));
+    }
+
+    /**
+     * @param list<string> $left
+     * @param list<string> $right
+     */
+    private static function sameSet(array $left, array $right): bool
+    {
+        sort($left);
+        sort($right);
+
+        return $left === $right;
+    }
+
+        })::restartOrTruncateAfterReaderDrain($passivePlan, $readerTransitions, $mode);
+    }
+
 }

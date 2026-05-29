@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext204Plan`, a
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a
 generation-ticket fence for the WAL/hot-journal/savepoint/checkpoint path. It
 runs after the accepted next203 WAL/page-digest lease check and retains a
 page-cache lease only when the lease also carries the current checkpoint
@@ -27,7 +27,7 @@ Focused test run: 1 selected test files (root lock skipped)
 PHP lint:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext204Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext204Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next204.php
 ```

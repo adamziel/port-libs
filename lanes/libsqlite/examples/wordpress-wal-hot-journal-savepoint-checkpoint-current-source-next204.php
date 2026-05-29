@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext204Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext204Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $digest = static fn (string $bytes): string => hash('sha256', $bytes);
 $databaseDigest = $digest('wp next204 checkpointed database image');
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext204Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next204Plan(
     [
         'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next203',
         'database_path' => '/srv/www/wp-content/database/wp-next204.sqlite',

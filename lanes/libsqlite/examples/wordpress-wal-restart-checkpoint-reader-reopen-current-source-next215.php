@@ -3,10 +3,8 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan;
 
 require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 
@@ -55,7 +53,7 @@ $drained['active_reader_names'] = [];
 $drained['checkpointed_frame'] = 215;
 $drained['busy'] = false;
 
-$restart = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan::restartCheckpoint(
+$restart = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next215RestartCheckpoint(
     $drained,
     [
         [

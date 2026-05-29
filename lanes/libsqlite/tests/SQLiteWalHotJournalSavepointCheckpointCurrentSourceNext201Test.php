@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext201Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -74,7 +74,7 @@ $plan = static fn (
     ?string $expectedCheckpoint = null,
     ?string $expectedWal = null,
     ?string $hotJournal = null,
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext201Plan::publishCurrentSources(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next201PublishCurrentSources(
     $input ?? $admission,
     $sourceRows ?? $rows,
     $expectedCheckpoint ?? $checkpointDigest,

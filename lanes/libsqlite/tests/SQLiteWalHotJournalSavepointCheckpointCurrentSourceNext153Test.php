@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -95,7 +95,7 @@ $plan = static fn (
     array $pages = [1, 2, 3, 4, 5, 6],
     bool $reservedLock = false,
     ?array $transactions = null
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -181,17 +181,17 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty savepoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), '', $wal, $walBytes, [1], $nextTransactions(), 2),
-    'empty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [], $nextTransactions(), 2),
-    'empty transactions rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], [], 2),
-    'negative reader rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), -1),
-    'reader past wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), 7),
-    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), 2, 'passive'),
-    'empty path rejected by hot plan' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan('', $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), 2),
-    'empty database rejected by hot plan' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan($databasePath, '', $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), 2),
-    'empty journal rejected by hot plan' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan($databasePath, $dirtyDatabase, '', $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), 2),
-    'zero page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [0], $nextTransactions(), 2),
-    'string page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext153Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, ['1'], $nextTransactions(), 2),
+    'empty savepoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), '', $wal, $walBytes, [1], $nextTransactions(), 2),
+    'empty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [], $nextTransactions(), 2),
+    'empty transactions rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], [], 2),
+    'negative reader rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), -1),
+    'reader past wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), 7),
+    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), 2, 'passive'),
+    'empty path rejected by hot plan' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan('', $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), 2),
+    'empty database rejected by hot plan' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan($databasePath, '', $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), 2),
+    'empty journal rejected by hot plan' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan($databasePath, $dirtyDatabase, '', $stack(), 'plugin-settings-next153', $wal, $walBytes, [1], $nextTransactions(), 2),
+    'zero page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, [0], $nextTransactions(), 2),
+    'string page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next153Plan($databasePath, $dirtyDatabase, $journalBytes, $stack(), 'plugin-settings-next153', $wal, $walBytes, ['1'], $nextTransactions(), 2),
 ];
 
 foreach ($throws as $name => $callback) {

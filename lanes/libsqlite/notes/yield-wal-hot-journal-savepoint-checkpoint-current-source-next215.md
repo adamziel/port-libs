@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan`.
+- Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`.
 - Models `RESTART` / `TRUNCATE` checkpoint completion after next212 `PASSIVE`
   checkpoint reader-pin discovery.
 - Requires stale readers to reopen on the current database/WAL/writer digests,

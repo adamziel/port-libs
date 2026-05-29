@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext152Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -62,7 +62,7 @@ $savepoints->savepoint('plugin-batch-next152');
 $savepoints->recordWalFrameWrite(3, 3);
 $savepoints->recordWalFrameWrite(4, 4, true);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext152Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next152Plan(
     $databasePath,
     $databaseBytes,
     $journalBytes,

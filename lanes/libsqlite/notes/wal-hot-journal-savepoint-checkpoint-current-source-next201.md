@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-current-source-next201`.
 
-Behavior: adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext201Plan::publishCurrentSources()` to admit reopened reader current-source rows only after next200 durable reader admission has succeeded, the hot journal is absent, every durable reader ticket has a matching current-source row, checkpoint/WAL source digests match, savepoint generation matches, checkpoint visibility is true, and reader cache epochs have been rebased.
+Behavior: adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next201PublishCurrentSources()` to admit reopened reader current-source rows only after next200 durable reader admission has succeeded, the hot journal is absent, every durable reader ticket has a matching current-source row, checkpoint/WAL source digests match, savepoint generation matches, checkpoint visibility is true, and reader cache epochs have been rebased.
 
 WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next201.php` covers a copied `wp_options` import retry where checkpoint-database and next-WAL reader sources are exposed only after hot-journal recovery and savepoint checkpoint publication agree.
 
 Focused evidence:
 
-- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext201Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext201Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next201.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext201Test.php`

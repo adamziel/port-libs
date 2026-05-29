@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext155Plan`, a bounded current-source planner for the WAL path where:
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded current-source planner for the WAL path where:
 
 - a hot rollback journal is recovered before checkpointing;
 - a savepoint rollback truncates the usable current WAL source to a retained frame prefix;

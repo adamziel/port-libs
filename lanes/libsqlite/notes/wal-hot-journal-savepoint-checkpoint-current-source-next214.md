@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext214Plan`, a bounded model for SQLite RESTART checkpoint admission after a hot-journal recovery and savepoint checkpoint sequence. The plan admits WAL restart only when:
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded model for SQLite RESTART checkpoint admission after a hot-journal recovery and savepoint checkpoint sequence. The plan admits WAL restart only when:
 
 - the inherited next212 PASSIVE checkpoint completed through the requested frame;
 - all current-source readers are released;

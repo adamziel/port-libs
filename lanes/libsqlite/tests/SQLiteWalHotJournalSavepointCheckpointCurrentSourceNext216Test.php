@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -77,19 +77,19 @@ $transitions = [
     ],
 ];
 
-$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, $transitions, 'RESTART');
-$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, $transitions, 'TRUNCATE');
+$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, $transitions, 'RESTART');
+$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, $transitions, 'TRUNCATE');
 $blockedActive = static function () use ($base, $transitions): array {
     $rows = $transitions;
     $rows[0]['released'] = false;
 
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, $rows, 'RESTART');
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, $rows, 'RESTART');
 };
 $blockedStale = static function () use ($base, $transitions): array {
     $rows = $transitions;
     $rows[2]['reopened'] = false;
 
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, $rows, 'TRUNCATE');
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, $rows, 'TRUNCATE');
 };
 $unknownReader = static function () use ($base, $transitions, $databaseDigest, $walDigest, $writerDigest): array {
     $rows = $transitions;
@@ -103,15 +103,15 @@ $unknownReader = static function () use ($base, $transitions, $databaseDigest, $
         'observed_writer_digest' => $writerDigest,
     ];
 
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, $rows, 'RESTART');
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, $rows, 'RESTART');
 };
 $badDigest = static function () use ($base, $transitions, $oldDigest): array {
     $rows = $transitions;
     $rows[1]['observed_wal_digest'] = $oldDigest;
 
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, $rows, 'RESTART');
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, $rows, 'RESTART');
 };
-$notBusy = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain(array_merge($base, ['busy' => false]), $transitions, 'RESTART');
+$notBusy = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain(array_merge($base, ['busy' => false]), $transitions, 'RESTART');
 
 $cases = [
     'status' => [static fn (): mixed => $restart()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next216'],
@@ -194,16 +194,16 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain(['status' => 'bad'], $transitions, 'RESTART'),
-    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, $transitions, 'PASSIVE'),
-    'empty transitions rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, [], 'RESTART'),
-    'bad digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain(array_merge($base, ['database_digest' => 'short']), $transitions, 'RESTART'),
-    'bad frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain(array_merge($base, ['requested_checkpoint_frame' => 0]), $transitions, 'RESTART'),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain(array_merge($base, ['next_writer_generation' => 0]), $transitions, 'RESTART'),
-    'bad active names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain(array_merge($base, ['active_reader_names' => []]), $transitions, 'RESTART'),
-    'bad transition name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, [array_merge($transitions[0], ['name' => ''])], 'RESTART'),
-    'bad transition frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, [array_merge($transitions[0], ['reader_end_frame' => -1])], 'RESTART'),
-    'bad transition digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext216Plan::restartOrTruncateAfterReaderDrain($base, [array_merge($transitions[0], ['observed_writer_digest' => 'short'])], 'RESTART'),
+    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain(['status' => 'bad'], $transitions, 'RESTART'),
+    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, $transitions, 'PASSIVE'),
+    'empty transitions rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, [], 'RESTART'),
+    'bad digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain(array_merge($base, ['database_digest' => 'short']), $transitions, 'RESTART'),
+    'bad frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain(array_merge($base, ['requested_checkpoint_frame' => 0]), $transitions, 'RESTART'),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain(array_merge($base, ['next_writer_generation' => 0]), $transitions, 'RESTART'),
+    'bad active names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain(array_merge($base, ['active_reader_names' => []]), $transitions, 'RESTART'),
+    'bad transition name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, [array_merge($transitions[0], ['name' => ''])], 'RESTART'),
+    'bad transition frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, [array_merge($transitions[0], ['reader_end_frame' => -1])], 'RESTART'),
+    'bad transition digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next216RestartOrTruncateAfterReaderDrain($base, [array_merge($transitions[0], ['observed_writer_digest' => 'short'])], 'RESTART'),
 ];
 
 foreach ($throws as $name => $callback) {
