@@ -24,7 +24,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
             array $orderBy,
             array $neededColumns
         ): array {
-            $base = SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan::materializeNext119(
+            $base = SQLitePlannerCoveringRangeOrderCurrentSourceNextPlan::materializeCoveringRangeOrderCurrentSource(
                 $preparedSource,
                 $currentSource,
                 $predicate,

@@ -951,13 +951,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeRollbackStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry next161 needs pre-rollback statements');
+            throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry needs pre-rollback statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry next161 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry next161 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry needs unique constraints');
         }
 
         $savepointImage = self::normalizeTablesConflictRetrySavepointBatch($tables);
@@ -1003,7 +1003,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'dependencies' => [
                 'sqlite-update-or-fail-preserves-prior-rowvalue-returning-until-rollback-to',
                 'sqlite-rollback-to-savepoint-discards-fail-returning-stream',
-                'sqlite-rowvalue-update-delete-retry-reads-restored-current-source-next161',
+                'sqlite-rowvalue-update-delete-retry-reads-restored-current-source',
             ],
         ];
     }
@@ -1105,11 +1105,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry next161 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry next161 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value FAIL rollback retry rows must be arrays');
                 }
             }
         }
@@ -1132,11 +1132,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value FAIL rollback retry next161 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value FAIL rollback retry rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value FAIL rollback retry next161 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value FAIL rollback retry rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;

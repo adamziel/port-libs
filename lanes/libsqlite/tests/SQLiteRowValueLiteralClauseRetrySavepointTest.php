@@ -39,14 +39,14 @@ $plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan:
     [$literalUpdateSql, $literalDeleteSql],
     [$retrySql, $retryDeleteSql],
     $unique,
-    'wp_options_rowvalue_literal_clause_retry_next167',
+    'wp_options_rowvalue_literal_clause_retry',
 );
 $failPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeConflictRetrySavepointBatch(
     $tables,
     [$failSql, $literalDeleteSql],
     [$retrySql],
     $unique,
-    'wp_options_rowvalue_literal_fail_retry_next167',
+    'wp_options_rowvalue_literal_fail_retry',
 );
 
 $cases = [
@@ -78,7 +78,7 @@ $cases = [
     'literal delete leaves timeout transient' => [static fn (): mixed => array_column($literalDeleteAfterUpdate()['tables']['wp_options'], 'option_name', 'option_id')[4], '_transient_timeout_feed'],
 
     'plan status clean retry' => [static fn (): mixed => $plan()['status'], 'released-after-clean-retry'],
-    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_literal_clause_retry_next167'],
+    'plan savepoint name' => [static fn (): mixed => $plan()['savepoint'], 'wp_options_rowvalue_literal_clause_retry'],
     'plan pre rollback actions update delete' => [static fn (): mixed => array_column($plan()['pre_rollback_statements'], 'action'), ['update', 'delete']],
     'plan pre update returning markers keep literal clauses' => [static fn (): mixed => array_column($plan()['discarded_returning'][0]['rows'], 'marker'), ['theme RETURNING literal ORDER BY literal', 'rules RETURNING literal ORDER BY literal']],
     'plan pre delete returning marker keeps literal limit' => [static fn (): mixed => $plan()['discarded_returning'][1]['rows'][0]['marker'], '_transient_feed LIMIT literal'],
@@ -93,7 +93,7 @@ $cases = [
     'plan final row eight retry status has limit word' => [static fn (): mixed => array_column($plan()['current_source_tables']['wp_options'], 'status', 'option_id')[8], 'retry LIMIT literal'],
     'plan final row nine retry value has where word' => [static fn (): mixed => array_column($plan()['current_source_tables']['wp_options'], 'option_value', 'option_id')[9], 'plugin WHERE retry'],
     'plan next source equals current source' => [static fn (): mixed => $plan()['next_source_tables'], $plan()['current_source_tables']],
-    'plan dependency retry restored source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-retry-reads-restored-current-source-next161', $plan()['dependencies'], true), true],
+    'plan dependency retry restored source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-retry-reads-restored-current-source', $plan()['dependencies'], true), true],
 
     'fail plan status rollback retry' => [static fn (): mixed => $failPlan()['status'], 'failed-rolled-back-to-savepoint-retried'],
     'fail plan stops before delete' => [static fn (): mixed => array_column($failPlan()['pre_rollback_statements'], 'action'), ['update']],
@@ -119,7 +119,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next167 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue update delete returning savepoint literal clause retry ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

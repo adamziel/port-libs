@@ -100,7 +100,7 @@ $cases = [
     'plan changed table wp options' => [static fn (): mixed => $plan()['changed_tables_after_retry'], ['wp_options']],
     'plan dependency fail preserved until rollback' => [static fn (): mixed => in_array('sqlite-update-or-fail-preserves-prior-rowvalue-returning-until-rollback-to', $plan()['dependencies'], true), true],
     'plan dependency rollback discards fail returning' => [static fn (): mixed => in_array('sqlite-rollback-to-savepoint-discards-fail-returning-stream', $plan()['dependencies'], true), true],
-    'plan dependency retry restored source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-retry-reads-restored-current-source-next161', $plan()['dependencies'], true), true],
+    'plan dependency retry restored source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-retry-reads-restored-current-source', $plan()['dependencies'], true), true],
 
     'clean plan status released clean retry' => [static fn (): mixed => $cleanPlan()['status'], 'released-after-clean-retry'],
     'clean plan no failed conflict' => [static fn (): mixed => $cleanPlan()['failed_conflict'], null],
@@ -118,7 +118,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next161 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue update delete returning savepoint conflict retry ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;
