@@ -153,7 +153,7 @@ $read = array_merge($base, [
     'member_journal_header_digest' => $mapDigest($headers),
     'reader_cache_stmt_vdbe_transaction_branch_token' => 'stmt-vdbe-transaction-branch-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext590(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeStatementBranchFence(
     $database,
     $master,
     $masterBytes,

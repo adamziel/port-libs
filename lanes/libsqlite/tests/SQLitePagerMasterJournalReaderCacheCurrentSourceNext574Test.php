@@ -147,7 +147,7 @@ $read = static fn (array $extra = []): array => array_merge($base, [
     'member_journal_token_digest' => $mapDigest($tokens),
     'member_journal_header_digest' => $mapDigest($headers),
 ], $extra);
-$plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext574(
+$plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeIfBranchFence(
     $database,
     $master,
     $masterBytes,
@@ -175,7 +175,7 @@ $tests['pager master journal reader cache current source next574 admits current 
     $t->same('reader-cache-stmt-vdbe-if-branch-current-574', $result['current_reader_cache_stmt_vdbe_if_branch_token']);
 };
 
-$tests['pager master journal reader cache current source plan dispatches full width calls to next574'] = static function (TestRunner $t) use ($database, $master, $masterBytes, $before, $pageSize, $recovered, $cacheEntry, $read, $base, $tokens, $headers, $tokenFields): void {
+$tests['pager master journal reader cache current source plan dispatches full width calls to VDBE if branch fence'] = static function (TestRunner $t) use ($database, $master, $masterBytes, $before, $pageSize, $recovered, $cacheEntry, $read, $base, $tokens, $headers, $tokenFields): void {
     $result = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::plan(
         $database,
         $master,

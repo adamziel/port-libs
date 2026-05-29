@@ -128,7 +128,7 @@ $read = static fn (int $pageNumber, string $sourceToken = null, string $snapshot
     'database_header_change_counter_token' => $snapshotToken ?? $currentDatabaseHeaderChangeCounterToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext253(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::sourceProvenanceChangeCounterFence(
     $database,
     $master,
     $masterBytes,

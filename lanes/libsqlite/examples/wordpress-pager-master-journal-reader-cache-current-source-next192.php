@@ -61,7 +61,7 @@ $tokenDigest = static function (array $tokens): string {
     return hash('sha256', implode('|', $parts));
 };
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext192(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::attachedMemberJournalTokenFence(
     $database,
     $masterJournal,
     $mainJournal . "\n" . $usersJournal . "\n",
