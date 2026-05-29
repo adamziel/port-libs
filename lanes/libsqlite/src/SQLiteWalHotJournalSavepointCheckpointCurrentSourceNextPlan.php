@@ -3524,6 +3524,186 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $dirtyDatabaseBytes, $journalBytes, $savepoints, $savepoint, $wal, $walBytes, $pageNumbers, $completedOperationReasons, $files, $mode, $readerEndFrame, $reservedLock, $requiresSuperJournal, $superJournalExists);
     }
 
+    public static function next175Plan(
+        string $databasePath,
+        string $databaseBytes,
+        int $pageSize,
+        string $innerSavepoint,
+        string $outerSavepoint,
+        array $hotJournalPages,
+        array $savepointBeforePages,
+        SQLiteWal $currentWal,
+        string $currentWalBytes,
+        SQLiteWal $nextWal,
+        string $nextWalBytes,
+        array $readerCachePages,
+        array $checkpointPages,
+        array $releasedSavepointPages,
+        array $databaseWriteReceipts,
+        array $walSyncReceipt,
+        array $pageCacheSealReceipts,
+        string $mode = 'restart',
+        int $readerEndFrame = 0,
+        int $currentSourceEpoch = 1,
+    ): array
+    {
+        $impl = new class {
+                /**
+                 * @param list<array{page_number:int,source_id:string,epoch:int,checkpoint_digest:string,sealed?:bool,dirty?:bool,label?:string}> $pageCacheSealReceipts
+                 * @return array<string,mixed>
+                 */
+                public static function plan(
+                    string $databasePath,
+                    string $databaseBytes,
+                    int $pageSize,
+                    string $innerSavepoint,
+                    string $outerSavepoint,
+                    array $hotJournalPages,
+                    array $savepointBeforePages,
+                    SQLiteWal $currentWal,
+                    string $currentWalBytes,
+                    SQLiteWal $nextWal,
+                    string $nextWalBytes,
+                    array $readerCachePages,
+                    array $checkpointPages,
+                    array $releasedSavepointPages,
+                    array $databaseWriteReceipts,
+                    array $walSyncReceipt,
+                    array $pageCacheSealReceipts,
+                    string $mode = 'restart',
+                    int $readerEndFrame = 0,
+                    int $currentSourceEpoch = 1,
+                ): array {
+                    self::assertSealReceipts($pageCacheSealReceipts);
+
+                    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next172Plan(
+                        $databasePath,
+                        $databaseBytes,
+                        $pageSize,
+                        $innerSavepoint,
+                        $outerSavepoint,
+                        $hotJournalPages,
+                        $savepointBeforePages,
+                        $currentWal,
+                        $currentWalBytes,
+                        $nextWal,
+                        $nextWalBytes,
+                        $readerCachePages,
+                        $checkpointPages,
+                        $releasedSavepointPages,
+                        $databaseWriteReceipts,
+                        $walSyncReceipt,
+                        $mode,
+                        $readerEndFrame,
+                        $currentSourceEpoch,
+                    );
+
+                    $expectedSourceId = (string) $base['current_source_token']['id'];
+                    $expectedEpoch = (int) $base['current_source_token']['epoch'];
+                    $checkpointDigests = [];
+                    foreach ($base['rows'] as $row) {
+                        $checkpointDigests[(int) $row['page_number']] = hash('sha256', (string) $row['checkpoint_label']);
+                    }
+
+                    $rows = [];
+                    $sealedPages = [];
+                    foreach ($pageCacheSealReceipts as $receipt) {
+                        $pageNumber = (int) $receipt['page_number'];
+                        $expectedDigest = $checkpointDigests[$pageNumber] ?? null;
+                        $sourceMatches = $receipt['source_id'] === $expectedSourceId && $receipt['epoch'] === $expectedEpoch;
+                        $digestMatches = $expectedDigest !== null && $receipt['checkpoint_digest'] === $expectedDigest;
+                        $sealed = (bool) ($receipt['sealed'] ?? false);
+                        $clean = !((bool) ($receipt['dirty'] ?? false));
+                        $admitted = $sealed && $clean && $sourceMatches && $digestMatches;
+                        $sealedPages[] = $pageNumber;
+                        $rows[] = [
+                            'page_number' => $pageNumber,
+                            'expected_digest' => $expectedDigest,
+                            'receipt_digest' => $receipt['checkpoint_digest'],
+                            'source_matches' => $sourceMatches,
+                            'digest_matches' => $digestMatches,
+                            'sealed' => $sealed,
+                            'clean' => $clean,
+                            'admitted' => $admitted,
+                            'label' => $receipt['label'] ?? null,
+                        ];
+                    }
+
+                    $requiredPages = $base['checkpoint_page_numbers'];
+                    $missingPages = array_values(array_diff($requiredPages, $sealedPages));
+                    sort($missingPages, SORT_NUMERIC);
+                    $blockedPages = array_values(array_map(
+                        static fn (array $row): int => (int) $row['page_number'],
+                        array_filter($rows, static fn (array $row): bool => ! (bool) $row['admitted'])
+                    ));
+                    $ready = $base['publish_ready_next172'] === true && $missingPages === [] && $blockedPages === [];
+
+                    $operations = [
+                        [
+                            'op' => 'validate_checkpoint_page_cache_seals_before_reader_reuse_next175',
+                            'required_pages' => $requiredPages,
+                            'missing_pages' => $missingPages,
+                            'blocked_pages' => $blockedPages,
+                        ],
+                        [
+                            'op' => 'admit_reopened_reader_cache_after_checkpoint_publish_next175',
+                            'publish_ready' => $ready,
+                            'current_source_id' => $expectedSourceId,
+                            'current_epoch' => $expectedEpoch,
+                        ],
+                    ];
+
+                    return array_merge($base, [
+                        'status' => $ready
+                            ? 'wal-hot-journal-savepoint-checkpoint-current-source-cache-sealed-next175'
+                            : 'wal-hot-journal-savepoint-checkpoint-current-source-cache-blocked-next175',
+                        'reason' => $ready
+                            ? 'checkpoint_page_cache_seals_admit_reader_cache_reuse_after_publish'
+                            : 'checkpoint_page_cache_seals_block_reader_cache_reuse_after_publish',
+                        'page_cache_seal_rows_next175' => $rows,
+                        'page_cache_sealed_page_numbers_next175' => array_values($sealedPages),
+                        'missing_page_cache_seals_next175' => $missingPages,
+                        'blocked_page_cache_seals_next175' => $blockedPages,
+                        'page_cache_seals_admitted_next175' => $missingPages === [] && $blockedPages === [],
+                        'reader_cache_reuse_ready_next175' => $ready,
+                        'operations_next175' => $operations,
+                        'operation_names_next175' => array_merge($base['operation_names_next172'], array_column($operations, 'op')),
+                        'source_digest_next175' => hash('sha256', $base['source_digest_next172'] . '|' . implode(',', $sealedPages) . '|' . implode(',', $blockedPages)),
+                        'dependencies_next175' => [
+                            'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next175',
+                            'sqlite-checkpoint-page-cache-seal-before-reader-reuse',
+                            'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next172',
+                        ],
+                        'dependency_closure_next175' => 'no new support component needed; reuses next172 checkpoint publish receipts and lane-local page-cache source sealing',
+                        'non_overlap_next175' => 'does not repeat next172 database/WAL sync receipt admission or next176 hot-journal delete reader tickets; this slice gates reopened reader-cache reuse on clean page-cache seal receipts',
+                    ]);
+                }
+
+                /**
+                 * @param list<array{page_number:int,source_id:string,epoch:int,checkpoint_digest:string}> $receipts
+                 */
+                private static function assertSealReceipts(array $receipts): void
+                {
+                    if ($receipts === []) {
+                        throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next175 requires page-cache seal receipts');
+                    }
+                    foreach ($receipts as $receipt) {
+                        if (!isset($receipt['page_number'], $receipt['source_id'], $receipt['epoch'], $receipt['checkpoint_digest'])) {
+                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next175 page-cache seals require page_number, source_id, epoch, and checkpoint_digest');
+                        }
+                        if (!is_int($receipt['page_number']) || $receipt['page_number'] < 1 || !is_int($receipt['epoch'])) {
+                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next175 page-cache seal page and epoch must be positive integers');
+                        }
+                        if (!is_string($receipt['source_id']) || $receipt['source_id'] === '' || !is_string($receipt['checkpoint_digest']) || $receipt['checkpoint_digest'] === '') {
+                            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next175 page-cache seal source and digest must be non-empty strings');
+                        }
+                    }
+                }
+        };
+
+        return $impl::plan($databasePath, $databaseBytes, $pageSize, $innerSavepoint, $outerSavepoint, $hotJournalPages, $savepointBeforePages, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $readerCachePages, $checkpointPages, $releasedSavepointPages, $databaseWriteReceipts, $walSyncReceipt, $pageCacheSealReceipts, $mode, $readerEndFrame, $currentSourceEpoch);
+    }
+
     public static function next176Plan(
         string $databasePath,
         string $databaseBytes,
