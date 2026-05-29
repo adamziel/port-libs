@@ -97,11 +97,11 @@ $baseOptions239 = [
     'current_view_source_next222' => 'main@view-cookie-239-current',
     'current_trigger_source_next222' => 'main@trigger-cookie-239-current',
     'auto_ack_current_source_tickets_next222' => true,
-    'current_source_cursor_next231' => 'wp.returning.current.cursor.239',
-    'current_source_close_token_next231' => 'wp.current.source.close.239',
-    'current_view_cookie_next231' => 'main@view-cookie-239-current',
-    'current_trigger_cookie_next231' => 'main@trigger-cookie-239-current',
-    'auto_ack_current_source_closures_next231' => true,
+    'current_source_cursor_source_close' => 'wp.returning.current.cursor.239',
+    'current_source_close_token_source_close' => 'wp.current.source.close.239',
+    'current_view_cookie_source_close' => 'main@view-cookie-239-current',
+    'current_trigger_cookie_source_close' => 'main@trigger-cookie-239-current',
+    'auto_ack_current_source_closures_source_close' => true,
     'current_source_upsert_target_next239' => 'option_name',
     'current_source_upsert_policy_next239' => 'do-update-returning',
     'current_source_upsert_cursor_next239' => 'wp.returning.upsert.cursor.239',
@@ -125,7 +125,7 @@ $unexpected239 = static fn (): array => $plan239(['acknowledged_current_source_u
 $reversed239 = static fn (): array => $plan239(['acknowledged_current_source_upsert_targets_next239' => array_reverse($targets239())]);
 $unordered239 = static fn (): array => $plan239(['require_current_source_upsert_order_next239' => false, 'acknowledged_current_source_upsert_targets_next239' => array_reverse($targets239())]);
 $generationHeld239 = static fn (): array => $plan239(['auto_ack_current_source_upsert_targets_next239' => true, 'expected_current_source_upsert_generation_next239' => 'wp.current.source.upsert.generation.stale.239']);
-$baseHeld239 = static fn (): array => $plan239(['auto_ack_current_source_upsert_targets_next239' => true, 'auto_ack_current_source_closures_next231' => false]);
+$baseHeld239 = static fn (): array => $plan239(['auto_ack_current_source_upsert_targets_next239' => true, 'auto_ack_current_source_closures_source_close' => false]);
 $custom239 = static fn (): array => $plan239([
     'auto_ack_current_source_upsert_targets_next239' => true,
     'current_source_upsert_target_next239' => 'option_name_autoload',
@@ -143,8 +143,8 @@ $cases239 = [
     'generation mismatch status' => [static fn (): mixed => $generationHeld239()['status_next239'], 'trigger-recursive-view-upsert-current-source-next239-generation-held'],
     'base held status' => [static fn (): mixed => $baseHeld239()['status_next239'], 'trigger-recursive-view-upsert-current-source-next239-base-held'],
     'savepoint retained' => [static fn (): mixed => $released239()['savepoint'], 'wp_recursive_view_239'],
-    'base next231 released' => [static fn (): mixed => $released239()['base']['status_next231'], 'trigger-recursive-view-returning-current-source-next231-cursor-close-released'],
-    'base next231 held' => [static fn (): mixed => $baseHeld239()['base']['status_next231'], 'trigger-recursive-view-returning-current-source-next231-cursor-close-held'],
+    'base next231 released' => [static fn (): mixed => $released239()['base']['status_source_close'], 'trigger-recursive-view-returning-current-source-source_close-cursor-close-released'],
+    'base next231 held' => [static fn (): mixed => $baseHeld239()['base']['status_source_close'], 'trigger-recursive-view-returning-current-source-source_close-cursor-close-held'],
     'base visible released' => [static fn (): mixed => $released239()['base_next_source_visible_next239'], true],
     'base visible held' => [static fn (): mixed => $baseHeld239()['base_next_source_visible_next239'], false],
     'target retained' => [static fn (): mixed => $released239()['current_source_upsert_target_next239'], 'option_name'],
@@ -202,11 +202,11 @@ $cases239 = [
     'plan required echoed' => [static fn (): mixed => $released239()['current_source_upsert_plan_next239']['required_targets'], $targets239()],
     'yield boundary released' => [static fn (): mixed => $released239()['yield_boundary_next239'], 'recursive-view-upsert-next239-current-targets-then-next'],
     'yield boundary held' => [static fn (): mixed => $missing239()['yield_boundary_next239'], 'recursive-view-upsert-next239-current-targets-fence-next'],
-    'dependency closure marker' => [static fn (): mixed => $released239()['dependency_closure_next239'], 'no-new-support-component-reuses-native-recursive-view-returning-next231-and-adds-current-source-upsert-target-admission'],
+    'dependency closure marker' => [static fn (): mixed => $released239()['dependency_closure_next239'], 'no-new-support-component-reuses-native-recursive-view-returning-source_close-and-adds-current-source-upsert-target-admission'],
     'dependency includes next239' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-upsert-current-source-next239', $released239()['dependencies_next239'], true), true],
     'dependency includes upsert receipts' => [static fn (): mixed => in_array('sqlite-upsert-current-source-target-receipts', $released239()['dependencies_next239'], true), true],
-    'dependency includes next231' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next231', $released239()['dependencies_next239'], true), true],
-    'non overlap mentions next231' => [static fn (): mixed => str_contains($released239()['non_overlap_next239'], 'next231 cursor close'), true],
+    'dependency includes next231' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-source_close', $released239()['dependencies_next239'], true), true],
+    'non overlap mentions next231' => [static fn (): mixed => str_contains($released239()['non_overlap_next239'], 'source_close cursor close'), true],
     'bad target rejected' => [static fn (): mixed => $plan239(['current_source_upsert_target_next239' => 'bad target']), InvalidArgumentException::class],
     'bad policy rejected' => [static fn (): mixed => $plan239(['current_source_upsert_policy_next239' => 'bad policy']), InvalidArgumentException::class],
     'bad cursor rejected' => [static fn (): mixed => $plan239(['current_source_upsert_cursor_next239' => 'bad cursor']), InvalidArgumentException::class],

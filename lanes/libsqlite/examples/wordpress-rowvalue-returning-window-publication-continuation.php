@@ -21,14 +21,14 @@ $retryStatements = [
 ];
 
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
-$next350 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext350(...$args);
-$next351 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext351(...$args);
-$next352 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext352(...$args);
-$next353 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext353(...$args);
-$next354 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext354(...$args);
-$next355 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext355(...$args);
-$next356 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext356(...$args);
-$next357 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext357(...$args);
+$next350 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterCurrentSealHandoff(...$args);
+$next351 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterCurrentSealSourceAudit(...$args);
+$next352 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterCurrentSealThroughputPreflight(...$args);
+$next353 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterCurrentSealReadySeal(...$args);
+$next354 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationHandoff(...$args);
+$next355 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationSourceAudit(...$args);
+$next356 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationThroughputPreflight(...$args);
+$next357 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationSeal(...$args);
 
 $statuses = [
     $next350['status'],
@@ -54,7 +54,7 @@ assert($next353['next353_ready'] === true);
 assert($next357['next357_ready'] === true);
 
 $summary = [
-    'status' => 'rowvalue-update-delete-returning-window-current-source-next350-357',
+    'status' => 'rowvalue-update-delete-returning-window-publication-continuation',
     'candidateStatuses' => $statuses,
     'next350Handoff' => $next350['next350_handoff']['next350_handoff'],
     'next350AfterReadyRange' => $next350['next350_handoff']['after_ready_range'],
@@ -76,7 +76,7 @@ $summary = [
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
-    echo "wordpress-rowvalue-returning-window-current-source-next350-357 self-test passed\n";
+    echo "wordpress-rowvalue-returning-window-publication-continuation self-test passed\n";
     return;
 }
 

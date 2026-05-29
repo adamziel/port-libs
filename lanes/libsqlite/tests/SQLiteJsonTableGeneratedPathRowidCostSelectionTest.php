@@ -68,7 +68,7 @@ $tests = [
         $t->same(22, count($selectionPlan()['generatedPathRowidCurrentSourceCostSelectionTransitions']));
     },
     'json table generated path rowid cost selection exposes canonical reasons' => static function (TestRunner $t) use ($selectionPlan): void {
-        $t->true(in_array('json-table-generated-path-rowid-cost-selection-source-changed-current-source-selection', $selectionPlan()['replanReasons'], true));
+        $t->true(in_array('json-table-generated-path-rowid-cost-selection-source-changed', $selectionPlan()['replanReasons'], true));
     },
     'json table generated path rowid cost selection preserves point cost' => static function (TestRunner $t) use ($selectionPlan): void {
         $t->same(1, $selectionPlan()['currentGeneratedPathRowidCurrentSourceCostSelection']['estimatedCost']);
@@ -77,10 +77,10 @@ $tests = [
         $t->same(1000000, $selectionPlan()['nextGeneratedPathRowidCurrentSourceCostSelection']['estimatedCost']);
     },
     'json table generated path rowid cost selection canonical current cost class' => static function (TestRunner $t) use ($selectionPlan): void {
-        $t->same('json-table-generated-path-rowid-current-source-cost-covering-point-current-source-selection', $selectionPlan()['currentGeneratedPathRowidCurrentSourceCostSelection']['costClass']);
+        $t->same('json-table-generated-path-rowid-current-source-cost-covering-point', $selectionPlan()['currentGeneratedPathRowidCurrentSourceCostSelection']['costClass']);
     },
     'json table generated path rowid cost selection canonical next cost class' => static function (TestRunner $t) use ($selectionPlan): void {
-        $t->same('json-table-generated-path-rowid-current-source-cost-eof-current-source-selection', $selectionPlan()['nextGeneratedPathRowidCurrentSourceCostSelection']['costClass']);
+        $t->same('json-table-generated-path-rowid-current-source-cost-eof', $selectionPlan()['nextGeneratedPathRowidCurrentSourceCostSelection']['costClass']);
     },
     'json table generated path rowid cost selection stable reasons empty' => static function (TestRunner $t) use ($selectionPlan, $currentSelection): void {
         $t->same([], $selectionPlan($currentSelection, $currentSelection)['replanReasons']);

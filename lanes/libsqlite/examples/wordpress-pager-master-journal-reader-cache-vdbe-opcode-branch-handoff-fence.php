@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-$tests = [];
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
-$database = '/srv/wp-content/database/wp-next702.sqlite';
+$database = '/srv/wp-content/database/wp-vdbe-opcode-branch-handoff.sqlite';
 $journal = $database . '-journal';
 $master = $database . '-mj';
 $masterBytes = $journal . "\n";
@@ -176,13 +176,13 @@ $variantFields = array_merge($tokenFields, $next639654Fields, $next655670Fields,
 $before = [1 => $formatPage('stale schema'), 2 => $page('stale options')];
 $recovered = [1 => $formatPage('current schema'), 2 => $page('current options')];
 $tokens = [$journal => 'member-main-current-702'];
-$headers = [$journal => hash('sha256', 'main header next702')];
+$headers = [$journal => hash('sha256', 'main header vdbe-opcode-branch-handoff')];
 $base = [
-    'source_id' => 'pager-reader-cache-current-source-next702',
+    'source_id' => 'wordpress-pager-reader-cache-vdbe-opcode-branch-handoff',
     'epoch' => 702,
     'format_signature' => hash('sha256', implode('|', [512, 4, 2, 702, 0])),
     'publication_generation' => 702,
-    'master_source_digest' => hash('sha256', 'master-next702'),
+    'master_source_digest' => hash('sha256', 'wordpress vdbe-opcode-branch-handoff master source'),
     'recovery_sequence' => 702,
     'recovered_page_set_digest' => $recoveredDigest($recovered),
     'member_journal_tokens' => $tokens,
@@ -193,22 +193,23 @@ $base = [
 foreach ($variantFields as $field) {
     $base[$field] = str_replace('_', '-', preg_replace('/_token$/', '', $field)) . '-current-702';
 }
-$cacheEntry = static fn (array $extra = []): array => array_merge($base, ['reader_id' => 'wp-options-reader', 'image' => $recovered[1]], $extra);
-$read = static fn (array $extra = []): array => array_merge($base, [
+$cache = [1 => array_merge($base, ['reader_id' => 'wp-options-reader', 'image' => $recovered[1], 'reader_cache_stmt_vdbe_int64_branch_handoff_token' => 'stmt-vdbe-int64-branch-handoff-old'])];
+$read = array_merge($base, [
     'reader_id' => 'read-options',
     'page_number' => 1,
     'member_journal_token_digest' => $mapDigest($tokens),
     'member_journal_header_digest' => $mapDigest($headers),
-], $extra);
-$plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext702(
+    'reader_cache_stmt_vdbe_int64_branch_handoff_token' => 'stmt-vdbe-int64-branch-handoff-old',
+]);
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeOpcodeBranchHandoffFence(
     $database,
     $master,
     $masterBytes,
     implode('', $before),
     $pageSize,
     $recovered,
-    [1 => $cacheEntry($cacheExtra)],
-    [$read($readExtra)],
+    $cache,
+    [$read],
     $base['source_id'],
     702,
     702,
@@ -218,59 +219,9 @@ $plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLi
     $headers,
     ...array_map(static fn (string $field): string => $base[$field], $variantFields),
 );
-$opCount = static fn (array $plan, string $op): int => count(array_filter($plan['operations'], static fn (array $operation): bool => ($operation['op'] ?? '') === $op));
 
-$tests['pager master journal reader cache current source next702 admits current VDBE literal and arithmetic opcode fences'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan();
-    $t->same('pager-master-journal-reader-cache-current-source-next702', $result['status']);
-    $t->same([], $result['invalidated_cache_page_numbers']);
-    $t->same(['read-options' => true], $result['read_cache_hits']);
-    $t->same('reader-cache-stmt-vdbe-null-branch-current-702', $result['current_reader_cache_stmt_vdbe_null_branch_token']);
-    $t->same('reader-cache-stmt-vdbe-opcode-trace-branch-handoff-current-702', $result['current_reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token']);
-    $t->same('reader-cache-stmt-vdbe-int64-branch-handoff-current-702', $result['current_reader_cache_stmt_vdbe_int64_branch_handoff_token']);
-    $t->same(true, in_array('sqlite-pager-master-journal-reader-cache-current-source-next686', $result['dependencies'], true));
-};
-
-$tests['pager master journal reader cache current source plan dispatches full width calls to next702'] = static function (TestRunner $t) use ($database, $master, $masterBytes, $before, $pageSize, $recovered, $cacheEntry, $read, $base, $tokens, $headers, $variantFields): void {
-    $result = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::plan(
-        $database,
-        $master,
-        $masterBytes,
-        implode('', $before),
-        $pageSize,
-        $recovered,
-        [1 => $cacheEntry()],
-        [$read()],
-        $base['source_id'],
-        702,
-        702,
-        $base['master_source_digest'],
-        702,
-        $tokens,
-        $headers,
-        ...array_map(static fn (string $field): string => $base[$field], $variantFields),
-    );
-
-    $t->same('pager-master-journal-reader-cache-current-source-next702', $result['status']);
-};
-
-$tests['pager master journal reader cache current source next702 invalidates stale int64 handoff cache'] = static function (TestRunner $t) use ($plan, $opCount): void {
-    $result = $plan(['reader_cache_stmt_vdbe_int64_branch_handoff_token' => 'stmt-vdbe-opcode-trace-branch-old']);
-    $t->same([1], $result['reader_cache_stmt_vdbe_int64_branch_handoff_invalidated_cache_page_numbers']);
-    $t->same([1], $result['invalidated_cache_page_numbers']);
-    $t->same(1, $opCount($result, 'invalidate_reader_cache_reader_cache_stmt_vdbe_int64_branch_handoff_current_source_next702'));
-};
-
-$tests['pager master journal reader cache current source next702 reopens stale int64 handoff read ticket'] = static function (TestRunner $t) use ($plan, $opCount): void {
-    $result = $plan([], ['reader_cache_stmt_vdbe_int64_branch_handoff_token' => 'stmt-vdbe-opcode-trace-branch-old']);
-    $t->same(['read-options'], $result['reopen_reader_ids']);
-    $t->same(false, $result['next_reads'][0]['cache_hit']);
-    $t->same('reader_ticket_reader_cache_stmt_vdbe_int64_branch_handoff_predates_current_source', $result['next_reads'][0]['reader_cache_stmt_vdbe_int64_branch_handoff_token_reason']);
-    $t->same(1, $opCount($result, 'reopen_reader_for_reader_cache_stmt_vdbe_int64_branch_handoff_current_source_next702'));
-};
-
-$tests['pager master journal reader cache current source next702 missing int64 handoff token rejects'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(Throwable::class, static fn () => $plan(['reader_cache_stmt_vdbe_int64_branch_handoff_token' => null]));
-};
-
-return $tests;
+echo json_encode([
+    'status' => $plan['status'],
+    'reopen_reader_ids' => $plan['reopen_reader_ids'],
+    'vdbe-opcode-branch-handoff_invalidated_pages' => $plan['reader_cache_stmt_vdbe_int64_branch_handoff_invalidated_cache_page_numbers'],
+], JSON_PRETTY_PRINT) . PHP_EOL;

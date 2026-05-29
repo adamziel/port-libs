@@ -1310,7 +1310,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCurrentSourceHandof
         $rows = self::buildCurrentSourceRows($freelistPlan);
         $errors = self::currentSourceErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next242 handoff failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source handoff failed: ' . implode('; ', $errors));
         }
 
         return new self($freelistPlan, $rows);
@@ -1380,7 +1380,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCurrentSourceHandof
         $freelistSummary = $this->freelistPlan->freelistSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next242-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-handoff-ready',
             'current_source_row_count' => count($this->currentSourceRows),
             'current_source_pages' => $this->currentSourcePages(),
             'freelist_pages' => $freelistSummary['freelist_pages'],
@@ -1397,16 +1397,16 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCurrentSourceHandof
             'all_current_source_links_valid' => !in_array(false, array_column($this->currentSourceRows, 'current_source_link_valid'), true),
             'current_source_errors' => $this->currentSourceErrors(),
             'current_source_signature' => self::signature($this->currentSourceTokens()),
-            'current_source_next242_token' => self::signature(array_merge(
-                ['next242', $freelistSummary['current_source_next238_token']],
+            'current_source_handoff_token' => self::signature(array_merge(
+                ['current-source-handoff', $freelistSummary['current_source_next238_token']],
                 $this->currentSourcePages(),
                 $this->currentSourceTokens(),
             )),
             'dependencies' => [
                 'sqlite-btree-vacuum-pointermap-freeblock-current-source-next238',
-                'sqlite-current-source-next242',
+                'sqlite-current-source-handoff',
             ],
-            'dependency_closure' => 'no new support component needed; next242 reuses next238 freelist rows and records current-source freeblock handoff visibility only',
+            'dependency_closure' => 'no new support component needed; current-source handoff reuses next238 freelist rows and records current-source freeblock handoff visibility only',
             'non_overlap' => 'adds current-source freeblock handoff visibility after next238 freelist-link admission; does not repeat next238 freelist admission, overflow freelist release, bulk overflow freeblocks, page relocation, root collapse, index-interior merge, or rollback/VFS writer behavior',
         ];
     }
@@ -1417,7 +1417,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCurrentSourceHandof
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next242',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-handoff',
             'current_source_summary' => $this->currentSourceSummary(),
             'current_source_errors' => $this->currentSourceErrors(),
             'current_source_rows' => $this->currentSourceRows,
@@ -1473,7 +1473,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCurrentSourceHandof
             $ordinal = $index + 1;
             $freelistToken = (string) $freelistRow['freelist_token'];
             $token = self::signature(array_merge(
-                ['next242', $ordinal, $previousToken ?? 'initial', $freelistToken],
+                ['current-source-handoff', $ordinal, $previousToken ?? 'initial', $freelistToken],
                 [$pageNumber, $channel, $stableTrunk ?? 0, $lastReusablePage],
                 self::sortedIntKeys($visiblePointerMaps),
                 self::sortedIntKeys($reusablePages),
@@ -1498,7 +1498,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCurrentSourceHandof
                 'reusable_source_monotonic' => !$isReusable || $pageNumber > $lastReusablePage,
                 'tail_page_excluded_from_current_source' => !in_array($pageNumber, [109, 110], true) && $freelistRow['tail_page_blocked_from_freelist'] === true,
                 'current_source_link_valid' => $freelistRow['previous_freelist_token'] === ($freelistRows[$index - 1]['freelist_token'] ?? null),
-                'current_source_state' => 'current-source-next242-freeblock-handoff-visible',
+                'current_source_state' => 'current-source-freeblock-handoff-visible',
                 'current_source_token' => $token,
             ];
 
@@ -1522,7 +1522,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCurrentSourceHandof
         $previousOrdinal = 0;
 
         foreach ($rows as $row) {
-            if ($row['current_source_state'] !== 'current-source-next242-freeblock-handoff-visible') {
+            if ($row['current_source_state'] !== 'current-source-freeblock-handoff-visible') {
                 $errors[] = "current-source {$row['current_source_ordinal']} is not visible";
             }
             if ((int) $row['current_source_ordinal'] !== $previousOrdinal + 1) {
@@ -2394,17 +2394,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCursorAdmissionVari
             'cursor_errors' => $this->cursorErrors(),
             'cursor_signature' => self::signature($this->cursorTokens()),
             'current_source_next245_token' => self::signature(array_merge(
-                ['next245', $currentSourceSummary['current_source_next242_token']],
+                ['next245', $currentSourceSummary['current_source_handoff_token']],
                 $this->admittedPages(),
                 $this->cursorEpochs(),
                 $this->cursorTokens(),
             )),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next242',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-handoff',
                 'sqlite-current-source-next245',
             ],
-            'dependency_closure' => 'no new support component needed; next245 reuses next242 current-source rows and verifies cursor admission ordering only',
-            'non_overlap' => 'adds source-cursor admission ordering over next242 current-source rows; does not repeat next242 visibility, next238 freelist admission, overflow freelist release, bulk overflow freeblocks, page relocation, root collapse, or VFS/WAL behavior',
+            'dependency_closure' => 'no new support component needed; next245 reuses current-source handoff rows and verifies cursor admission ordering only',
+            'non_overlap' => 'adds source-cursor admission ordering over current-source handoff rows; does not repeat current-source handoff visibility, next238 freelist admission, overflow freelist release, bulk overflow freeblocks, page relocation, root collapse, or VFS/WAL behavior',
         ];
     }
 
@@ -2705,16 +2705,16 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReceiptVariant
             'reuse_errors' => $this->reuseErrors(),
             'reuse_signature' => self::signature($this->reuseTokens()),
             'current_source_next246_token' => self::signature(array_merge(
-                ['next246', $sourceSummary['current_source_next242_token']],
+                ['next246', $sourceSummary['current_source_handoff_token']],
                 $this->reusePages(),
                 $this->reuseTokens(),
             )),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next242',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-handoff',
                 'sqlite-current-source-next246',
             ],
-            'dependency_closure' => 'no new support component needed; next246 reuses next242 current-source rows and validates vacuum reuse cursor publication',
-            'non_overlap' => 'adds a reuse-cursor publication fence after next242 current-source handoff; does not repeat next242 handoff visibility, next238 freelist admission, overflow freelist release, page relocation, root collapse, index-interior merge, or VFS/WAL behavior',
+            'dependency_closure' => 'no new support component needed; next246 reuses current-source handoff rows and validates vacuum reuse cursor publication',
+            'non_overlap' => 'adds a reuse-cursor publication fence after current-source handoff; does not repeat current-source handoff visibility, next238 freelist admission, overflow freelist release, page relocation, root collapse, index-interior merge, or VFS/WAL behavior',
         ];
     }
 
@@ -3683,7 +3683,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSourceAllocationVar
                 'sqlite-btree-vacuum-pointermap-freeblock-allocation-publication',
             ],
             'dependency_closure' => 'no new support component needed; allocation publication reuses cursor-admission admitted cursor rows and records next-source allocation ordering only',
-            'non_overlap' => 'adds next-source allocation publication after next245 cursor admission; does not repeat next245 cursor ordering, next242 current-source visibility, next238 freelist admission, overflow freelist release, bulk overflow freeblocks, page relocation, root collapse, or VFS/WAL behavior',
+            'non_overlap' => 'adds next-source allocation publication after next245 cursor admission; does not repeat next245 cursor ordering, current-source handoff visibility, next238 freelist admission, overflow freelist release, bulk overflow freeblocks, page relocation, root collapse, or VFS/WAL behavior',
         ];
     }
 
@@ -5308,7 +5308,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCurrentSourceVarian
                 'sqlite-current-source-next254',
             ],
             'dependency_closure' => 'no new support component needed; next254 reuses allocation publication rows and records page-local current-source freeblock write slots',
-            'non_overlap' => 'adds current-source freeblock write-slot publication after allocation publication allocation rows; does not repeat allocation publication ordering, next245 cursor admission, next242 visibility, next238 freelist admission, overflow freelist release, page relocation, root collapse, VFS, WAL, JSON, SQL, or encoding behavior',
+            'non_overlap' => 'adds current-source freeblock write-slot publication after allocation publication allocation rows; does not repeat allocation publication ordering, next245 cursor admission, current-source handoff visibility, next238 freelist admission, overflow freelist release, page relocation, root collapse, VFS, WAL, JSON, SQL, or encoding behavior',
         ];
     }
 

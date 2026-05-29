@@ -15929,12 +15929,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $cursor = self::currentSourceCloseToken((string) ($options['current_source_cursor_next231'] ?? 'wp.returning.current.cursor.231'), 'current source cursor');
-        $closeToken = self::currentSourceCloseToken((string) ($options['current_source_close_token_next231'] ?? 'wp.current.source.close.231'), 'current source close token');
-        $expectedCloseToken = self::currentSourceCloseToken((string) ($options['expected_current_source_close_token_next231'] ?? $closeToken), 'expected current source close token');
-        $viewCookie = self::currentSourceCloseToken((string) ($options['current_view_cookie_next231'] ?? (string) ($currentView['source'] ?? 'main@view-cookie-231-current')), 'current view cookie');
-        $triggerCookie = self::currentSourceCloseToken((string) ($options['current_trigger_cookie_next231'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-cookie-231-current')), 'current trigger cookie');
-        $requireOrder = (bool) ($options['require_current_source_close_order_next231'] ?? true);
+        $cursor = self::currentSourceCloseToken((string) ($options['current_source_cursor_source_close'] ?? 'wp.returning.current.cursor.source.close'), 'current source cursor');
+        $closeToken = self::currentSourceCloseToken((string) ($options['current_source_close_token_source_close'] ?? 'wp.current.source.close.source.close'), 'current source close token');
+        $expectedCloseToken = self::currentSourceCloseToken((string) ($options['expected_current_source_close_token_source_close'] ?? $closeToken), 'expected current source close token');
+        $viewCookie = self::currentSourceCloseToken((string) ($options['current_view_cookie_source_close'] ?? (string) ($currentView['source'] ?? 'main@view-cookie-source-close-current')), 'current view cookie');
+        $triggerCookie = self::currentSourceCloseToken((string) ($options['current_trigger_cookie_source_close'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-cookie-source-close-current')), 'current trigger cookie');
+        $requireOrder = (bool) ($options['require_current_source_close_order_source_close'] ?? true);
         $baseVisible = (bool) ($base['next_source_visible_after_current_source_ticket_next222'] ?? false);
         $closeMatches = hash_equals($closeToken, $expectedCloseToken);
 
@@ -15965,44 +15965,44 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $nextRows = self::tagCurrentSourceCloseRows($nextRows, 'next', $nextVisible, [], $cursor, $closeToken, $viewCookie, $triggerCookie, $nextVisible ? [] : $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($currentRows, $nextRows),
-            static fn (array $row): bool => (bool) $row['visible_after_current_source_close_next231'],
+            static fn (array $row): bool => (bool) $row['visible_after_current_source_close_source_close'],
         ));
         $heldRows = array_values(array_filter(
             $nextRows,
-            static fn (array $row): bool => !(bool) $row['visible_after_current_source_close_next231'],
+            static fn (array $row): bool => !(bool) $row['visible_after_current_source_close_source_close'],
         ));
 
         return [
-            'status_next231' => self::currentSourceCloseStatus($baseVisible, $closeMatches, $missingClosures, $unexpectedClosures, $requireOrder, $orderMatches, $nextVisible),
+            'status_source_close' => self::currentSourceCloseStatus($baseVisible, $closeMatches, $missingClosures, $unexpectedClosures, $requireOrder, $orderMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
-            'base_next_source_visible_next231' => $baseVisible,
-            'current_source_cursor_next231' => $cursor,
-            'current_source_close_token_next231' => $closeToken,
-            'expected_current_source_close_token_next231' => $expectedCloseToken,
-            'current_source_close_matches_next231' => $closeMatches,
-            'current_view_cookie_next231' => $viewCookie,
-            'current_trigger_cookie_next231' => $triggerCookie,
-            'required_current_source_closures_next231' => $requiredClosures,
-            'acknowledged_current_source_closures_next231' => $acknowledgedClosures,
-            'missing_current_source_closures_next231' => $missingClosures,
-            'unexpected_current_source_closures_next231' => $unexpectedClosures,
-            'require_current_source_close_order_next231' => $requireOrder,
-            'current_source_close_order_matches_next231' => $orderMatches,
-            'current_source_close_complete_next231' => $closeComplete,
-            'next_source_visible_after_current_source_close_next231' => $nextVisible,
-            'current_source_rows_next231' => $currentRows,
-            'attempted_next_source_rows_next231' => $nextRows,
-            'visible_returning_rows_next231' => $visibleRows,
-            'held_next_source_rows_next231' => $heldRows,
-            'visible_returning_payloads_next231' => array_column($visibleRows, 'returning'),
-            'held_next_returning_payloads_next231' => array_column($heldRows, 'returning'),
-            'current_source_row_count_next231' => count($currentRows),
-            'attempted_next_source_row_count_next231' => count($nextRows),
-            'visible_row_count_next231' => count($visibleRows),
-            'held_next_row_count_next231' => count($heldRows),
-            'blocked_reasons_next231' => $blockedReasons,
-            'current_source_close_plan_next231' => [
+            'base_next_source_visible_source_close' => $baseVisible,
+            'current_source_cursor_source_close' => $cursor,
+            'current_source_close_token_source_close' => $closeToken,
+            'expected_current_source_close_token_source_close' => $expectedCloseToken,
+            'current_source_close_matches_source_close' => $closeMatches,
+            'current_view_cookie_source_close' => $viewCookie,
+            'current_trigger_cookie_source_close' => $triggerCookie,
+            'required_current_source_closures_source_close' => $requiredClosures,
+            'acknowledged_current_source_closures_source_close' => $acknowledgedClosures,
+            'missing_current_source_closures_source_close' => $missingClosures,
+            'unexpected_current_source_closures_source_close' => $unexpectedClosures,
+            'require_current_source_close_order_source_close' => $requireOrder,
+            'current_source_close_order_matches_source_close' => $orderMatches,
+            'current_source_close_complete_source_close' => $closeComplete,
+            'next_source_visible_after_current_source_close_source_close' => $nextVisible,
+            'current_source_rows_source_close' => $currentRows,
+            'attempted_next_source_rows_source_close' => $nextRows,
+            'visible_returning_rows_source_close' => $visibleRows,
+            'held_next_source_rows_source_close' => $heldRows,
+            'visible_returning_payloads_source_close' => array_column($visibleRows, 'returning'),
+            'held_next_returning_payloads_source_close' => array_column($heldRows, 'returning'),
+            'current_source_row_count_source_close' => count($currentRows),
+            'attempted_next_source_row_count_source_close' => count($nextRows),
+            'visible_row_count_source_close' => count($visibleRows),
+            'held_next_row_count_source_close' => count($heldRows),
+            'blocked_reasons_source_close' => $blockedReasons,
+            'current_source_close_plan_source_close' => [
                 'base_next_source_visible' => $baseVisible,
                 'close_token_matches' => $closeMatches,
                 'required_closures' => $requiredClosures,
@@ -16017,16 +16017,16 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                     ? 'publish-next-source-after-current-returning-cursor-close'
                     : 'hold-next-source-until-current-returning-cursor-close',
             ],
-            'yield_boundary_next231' => $nextVisible
-                ? 'recursive-view-returning-next231-current-cursor-close-then-next'
-                : 'recursive-view-returning-next231-current-cursor-close-fences-next',
-            'dependency_closure_next231' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-close-handoff',
-            'dependencies_next231' => array_values(array_unique(array_merge($base['dependencies_next222'] ?? [], [
-                'sqlite-trigger-recursive-view-returning-current-source-next231',
+            'yield_boundary_source_close' => $nextVisible
+                ? 'recursive-view-returning-source_close-current-cursor-close-then-next'
+                : 'recursive-view-returning-source_close-current-cursor-close-fences-next',
+            'dependency_closure_source_close' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-close-handoff',
+            'dependencies_source_close' => array_values(array_unique(array_merge($base['dependencies_next222'] ?? [], [
+                'sqlite-trigger-recursive-view-returning-current-source-source_close',
                 'sqlite-returning-current-source-cursor-close-handoff',
-                'wordpress-recursive-view-returning-current-source-next231',
+                'wordpress-recursive-view-returning-current-source-source_close',
             ]))),
-            'non_overlap_next231' => 'adds current RETURNING cursor close admission after accepted next222 source-ticket handoff; avoids accepted trigger recursive view RETURNING next157-next222 surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
+            'non_overlap_source_close' => 'adds current RETURNING cursor close admission after accepted next222 source-ticket handoff; avoids accepted trigger recursive view RETURNING next157-next222 surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
     }
 
@@ -16061,11 +16061,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      */
     private static function acknowledgedCurrentSourceClosures(array $options, array $required): array
     {
-        if (($options['auto_ack_current_source_closures_next231'] ?? false) === true) {
+        if (($options['auto_ack_current_source_closures_source_close'] ?? false) === true) {
             return $required;
         }
 
-        return self::currentSourceClosureList($options['acknowledged_current_source_closures_next231'] ?? [], 'acknowledged current source closures');
+        return self::currentSourceClosureList($options['acknowledged_current_source_closures_source_close'] ?? [], 'acknowledged current source closures');
     }
 
     /**
@@ -16075,11 +16075,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     private static function currentSourceClosureList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next231 {$label} must be a list");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source_close {$label} must be a list");
         }
         foreach ($values as $value) {
             if (!is_string($value) || preg_match('/^[a-f0-9]{48}$/', $value) !== 1) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next231 {$label} contain a malformed close receipt");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING source_close {$label} contain a malformed close receipt");
             }
         }
 
@@ -16093,11 +16093,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     private static function currentSourceCloseRows(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next231 {$label} must be a list");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source_close {$label} must be a list");
         }
         foreach ($rows as $row) {
             if (!is_array($row) || !isset($row['returning']) || !is_array($row['returning'])) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next231 {$label} contain a malformed row");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING source_close {$label} contain a malformed row");
             }
         }
 
@@ -16124,14 +16124,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $out = [];
         foreach ($rows as $index => $row) {
             $out[] = $row + [
-                'source_close_phase_next231' => $phase,
-                'current_source_cursor_next231' => $cursor,
-                'current_source_close_token_next231' => $closeToken,
-                'current_view_cookie_next231' => $viewCookie,
-                'current_trigger_cookie_next231' => $triggerCookie,
-                'current_source_close_receipt_next231' => $receipts[$index] ?? null,
-                'visible_after_current_source_close_next231' => $visible,
-                'held_by_current_source_close_reasons_next231' => $visible ? [] : $reasons,
+                'source_close_phase_source_close' => $phase,
+                'current_source_cursor_source_close' => $cursor,
+                'current_source_close_token_source_close' => $closeToken,
+                'current_view_cookie_source_close' => $viewCookie,
+                'current_trigger_cookie_source_close' => $triggerCookie,
+                'current_source_close_receipt_source_close' => $receipts[$index] ?? null,
+                'visible_after_current_source_close_source_close' => $visible,
+                'held_by_current_source_close_reasons_source_close' => $visible ? [] : $reasons,
             ];
         }
 
@@ -16154,7 +16154,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         bool $orderMatches,
     ): array {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
-            throw new InvalidArgumentException('SQLite recursive view RETURNING next231 base blocked reasons are malformed');
+            throw new InvalidArgumentException('SQLite recursive view RETURNING source_close base blocked reasons are malformed');
         }
         $reasons = array_map(static fn (mixed $reason): string => (string) $reason, $baseReasons);
         if (!$baseVisible && $reasons === []) {
@@ -16190,28 +16190,28 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         bool $nextVisible,
     ): string {
         if ($nextVisible) {
-            return 'trigger-recursive-view-returning-current-source-next231-cursor-close-released';
+            return 'trigger-recursive-view-returning-current-source-source_close-cursor-close-released';
         }
         if (!$baseVisible) {
-            return 'trigger-recursive-view-returning-current-source-next231-base-held';
+            return 'trigger-recursive-view-returning-current-source-source_close-base-held';
         }
         if (!$closeMatches) {
-            return 'trigger-recursive-view-returning-current-source-next231-close-token-held';
+            return 'trigger-recursive-view-returning-current-source-source_close-close-token-held';
         }
         if ($missing !== [] || $unexpected !== []) {
-            return 'trigger-recursive-view-returning-current-source-next231-cursor-close-held';
+            return 'trigger-recursive-view-returning-current-source-source_close-cursor-close-held';
         }
         if ($requireOrder && !$orderMatches) {
-            return 'trigger-recursive-view-returning-current-source-next231-cursor-close-order-held';
+            return 'trigger-recursive-view-returning-current-source-source_close-cursor-close-order-held';
         }
 
-        return 'trigger-recursive-view-returning-current-source-next231-cursor-close-empty-held';
+        return 'trigger-recursive-view-returning-current-source-source_close-cursor-close-empty-held';
     }
 
     private static function currentSourceCloseToken(string $value, string $label): string
     {
         if ($value === '' || preg_match('/\s/', $value) === 1) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next231 {$label} is malformed");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source_close {$label} is malformed");
         }
 
         return $value;

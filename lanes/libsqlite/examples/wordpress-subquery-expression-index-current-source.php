@@ -33,7 +33,7 @@ $current['stat4Generation'] = 78;
 $current['indexes'][0]['rootPage'] = 12310;
 $current['indexes'][0]['estimatedRows'] = 5;
 
-$plan = SQLitePlannerSubqueryExpressionIndexCurrentSourceNextPlan::materializeNext123($prepared, $current, [
+$plan = SQLitePlannerSubqueryExpressionIndexCurrentSourceNextPlan::materializeSubqueryExpressionIndex($prepared, $current, [
     'operator' => 'IN_SUBQUERY',
     'left' => ['function' => 'lower', 'column' => 'option_name', 'collation' => 'NOCASE', 'affinity' => 'TEXT'],
     'subquery' => [

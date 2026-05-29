@@ -5,10 +5,10 @@ declare(strict_types=1);
 $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
-    'combined next350-357 current-source follow-on seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next350-357.php';
+    'combined publication current-source follow-on seal' => static function (TestRunner $t) use ($examplesDir): void {
+        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-publication-continuation.php';
 
-        $t->same('rowvalue-update-delete-returning-window-current-source-next350-357', $result['status']);
+        $t->same('rowvalue-update-delete-returning-window-publication-continuation', $result['status']);
         $t->same([
             'rowvalue-update-delete-returning-window-current-source-next350',
             'rowvalue-update-delete-returning-window-current-source-next351',
@@ -40,7 +40,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['rowvalue update delete returning window current source next350-357 ' . $name] = $callback;
+    $tests['rowvalue update delete returning window publication continuation ' . $name] = $callback;
 }
 
 return $tests;

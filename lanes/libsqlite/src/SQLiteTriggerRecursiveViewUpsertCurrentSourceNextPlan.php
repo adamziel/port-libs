@@ -735,9 +735,9 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $options,
         );
 
-        $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_next231'] ?? false);
-        $currentRows = self::rowsCurrentSourceUpsertReceipt($base['current_source_rows_next231'] ?? [], 'current source rows');
-        $nextRows = self::rowsCurrentSourceUpsertReceipt($base['attempted_next_source_rows_next231'] ?? [], 'attempted next source rows');
+        $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_source_close'] ?? false);
+        $currentRows = self::rowsCurrentSourceUpsertReceipt($base['current_source_rows_source_close'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentSourceUpsertReceipt($base['attempted_next_source_rows_source_close'] ?? [], 'attempted next source rows');
         $conflictColumns = self::columnsCurrentSourceUpsertReceipt($options['upsert_conflict_columns_next234'] ?? ['option_name']);
         $upsertToken = self::tokenCurrentSourceUpsertReceipt((string) ($options['current_source_upsert_token_next234'] ?? 'wp.current.source.upsert.234'), 'upsert token');
         $expectedUpsertToken = self::tokenCurrentSourceUpsertReceipt((string) ($options['expected_current_source_upsert_token_next234'] ?? $upsertToken), 'expected upsert token');
@@ -758,7 +758,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $orderMatches;
         $nextVisible = $baseVisible && $upsertComplete;
         $blockedReasons = self::blockedReasonsCurrentSourceUpsertReceipt(
-            $base['blocked_reasons_next231'] ?? [],
+            $base['blocked_reasons_source_close'] ?? [],
             $baseVisible,
             $tokenMatches,
             $missing,
@@ -822,12 +822,12 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 ? 'recursive-view-upsert-next234-current-upsert-then-next'
                 : 'recursive-view-upsert-next234-current-upsert-fences-next',
             'dependency_closure_next234' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-close-and-adds-upsert-conflict-receipts',
-            'dependencies_next234' => array_values(array_unique(array_merge($base['dependencies_next231'] ?? [], [
+            'dependencies_next234' => array_values(array_unique(array_merge($base['dependencies_source_close'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next234',
                 'sqlite-instead-of-view-trigger-current-source-upsert-receipts',
                 'wordpress-recursive-view-upsert-current-source-next234',
             ]))),
-            'non_overlap_next234' => 'adds recursive INSTEAD OF view UPSERT conflict-key receipt admission after accepted next231 cursor-close handoff; avoids accepted next230-next231 recursive view RETURNING close/epoch surfaces, trigger RETURNING conflicts, row-value savepoints, schema reparse, WAL/VFS, JSON, planner, encoding, and B-tree clusters',
+            'non_overlap_next234' => 'adds recursive INSTEAD OF view UPSERT conflict-key receipt admission after accepted source_close cursor-close handoff; avoids accepted next230-source_close recursive view RETURNING close/epoch surfaces, trigger RETURNING conflicts, row-value savepoints, schema reparse, WAL/VFS, JSON, planner, encoding, and B-tree clusters',
         ];
     }
 
@@ -841,7 +841,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $receipts = [];
         foreach ($rows as $index => $row) {
             $returning = $row['returning'];
-            $parts = [$token, $viewCookie, $triggerCookie, (string) ($row['current_source_close_receipt_next231'] ?? ''), (string) $index];
+            $parts = [$token, $viewCookie, $triggerCookie, (string) ($row['current_source_close_receipt_source_close'] ?? ''), (string) $index];
             foreach ($columns as $column) {
                 $parts[] = $column . '=' . (string) ($returning['name'] ?? $returning[$column] ?? '');
             }
@@ -962,7 +962,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         }
         $reasons = array_map(static fn (mixed $reason): string => (string) $reason, $baseReasons);
         if (!$baseVisible && $reasons === []) {
-            $reasons[] = 'base-next231-current-source-close-not-published';
+            $reasons[] = 'base-source-close-current-source-close-not-published';
         }
         if (!$tokenMatches) {
             $reasons[] = 'current-source-upsert-token-mismatch';
@@ -2314,9 +2314,9 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             $options,
         );
 
-        $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_next231'] ?? false);
-        $currentRows = self::rowsCurrentTargetReceipt($base['current_source_rows_next231'] ?? [], 'current source rows');
-        $nextRows = self::rowsCurrentTargetReceipt($base['attempted_next_source_rows_next231'] ?? [], 'attempted next source rows');
+        $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_source_close'] ?? false);
+        $currentRows = self::rowsCurrentTargetReceipt($base['current_source_rows_source_close'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentTargetReceipt($base['attempted_next_source_rows_source_close'] ?? [], 'attempted next source rows');
         $target = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_target_next239'] ?? 'option_name'), 'upsert target');
         $policy = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_policy_next239'] ?? 'do-update-returning'), 'upsert policy');
         $cursor = self::tokenCurrentTargetReceipt((string) ($options['current_source_upsert_cursor_next239'] ?? 'wp.returning.upsert.cursor.239'), 'upsert cursor');
@@ -2336,7 +2336,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $orderMatches;
         $nextVisible = $baseVisible && $upsertComplete;
         $blockedReasons = self::blockedReasonsCurrentTargetReceipt(
-            $base['blocked_reasons_next231'] ?? [],
+            $base['blocked_reasons_source_close'] ?? [],
             $baseVisible,
             $generationMatches,
             $missingTargets,
@@ -2406,13 +2406,13 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             'yield_boundary_next239' => $nextVisible
                 ? 'recursive-view-upsert-next239-current-targets-then-next'
                 : 'recursive-view-upsert-next239-current-targets-fence-next',
-            'dependency_closure_next239' => 'no-new-support-component-reuses-native-recursive-view-returning-next231-and-adds-current-source-upsert-target-admission',
-            'dependencies_next239' => array_values(array_unique(array_merge($base['dependencies_next231'] ?? [], [
+            'dependency_closure_next239' => 'no-new-support-component-reuses-native-recursive-view-returning-source_close-and-adds-current-source-upsert-target-admission',
+            'dependencies_next239' => array_values(array_unique(array_merge($base['dependencies_source_close'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next239',
                 'sqlite-upsert-current-source-target-receipts',
                 'wordpress-recursive-view-upsert-current-source-next239',
             ]))),
-            'non_overlap_next239' => 'adds current-source UPSERT target receipt admission after next231 cursor close; avoids accepted recursive view RETURNING next203-next231 surfaces, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
+            'non_overlap_next239' => 'adds current-source UPSERT target receipt admission after source_close cursor close; avoids accepted recursive view RETURNING next203-source_close surfaces, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
     }
 
@@ -2430,7 +2430,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 $policy,
                 $cursor,
                 $generation,
-                (string) ($row['current_source_close_receipt_next231'] ?? ''),
+                (string) ($row['current_source_close_receipt_source_close'] ?? ''),
                 (string) ($returning['name'] ?? ''),
                 (string) ($returning['value'] ?? ''),
                 (string) ($returning['event_name'] ?? ''),
@@ -2547,7 +2547,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         }
         $reasons = array_map(static fn (mixed $reason): string => (string) $reason, $baseReasons);
         if (!$baseVisible && $reasons === []) {
-            $reasons[] = 'base-next231-current-source-close-not-published';
+            $reasons[] = 'base-source-close-current-source-close-not-published';
         }
         if (!$generationMatches) {
             $reasons[] = 'current-source-upsert-generation-mismatch';
@@ -2642,10 +2642,10 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         $triggerCookie = self::tokenCurrentCompositeKeyReceipt((string) ($options['current_trigger_upsert_cookie_next240'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-upsert-cookie-240-current')), 'current trigger upsert cookie');
         $conflictColumns = self::columnsCurrentCompositeKeyReceipt($options['upsert_conflict_columns_next240'] ?? ['name'], 'conflict columns');
         $requireOrder = (bool) ($options['require_current_source_upsert_order_next240'] ?? true);
-        $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_next231'] ?? false);
+        $baseVisible = (bool) ($base['next_source_visible_after_current_source_close_source_close'] ?? false);
 
-        $currentRows = self::rowsCurrentCompositeKeyReceipt($base['current_source_rows_next231'] ?? [], 'current source rows');
-        $nextRows = self::rowsCurrentCompositeKeyReceipt($base['attempted_next_source_rows_next231'] ?? [], 'attempted next source rows');
+        $currentRows = self::rowsCurrentCompositeKeyReceipt($base['current_source_rows_source_close'] ?? [], 'current source rows');
+        $nextRows = self::rowsCurrentCompositeKeyReceipt($base['attempted_next_source_rows_source_close'] ?? [], 'attempted next source rows');
         $currentKeys = self::currentKeysCurrentCompositeKeyReceipt($currentRows, $conflictColumns);
         $nextKeys = self::nextKeysCurrentCompositeKeyReceipt($nextRows, $conflictColumns);
         $conflictingNextKeys = array_values(array_intersect($nextKeys, $currentKeys));
@@ -2660,7 +2660,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
             && $orderMatches;
         $nextVisible = $baseVisible && $conflictSourceComplete;
         $blockedReasons = self::blockedReasonsCurrentCompositeKeyReceipt(
-            $base['blocked_reasons_next231'] ?? [],
+            $base['blocked_reasons_source_close'] ?? [],
             $baseVisible,
             $missingReceipts,
             $unexpectedReceipts,
@@ -2732,12 +2732,12 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 ? 'recursive-view-upsert-next240-current-conflict-source-then-next'
                 : 'recursive-view-upsert-next240-current-conflict-source-fences-next',
             'dependency_closure_next240' => 'no-new-support-component-reuses-native-recursive-view-upsert-current-source-handoff',
-            'dependencies_next240' => array_values(array_unique(array_merge($base['dependencies_next231'] ?? [], [
+            'dependencies_next240' => array_values(array_unique(array_merge($base['dependencies_source_close'] ?? [], [
                 'sqlite-trigger-recursive-view-upsert-current-source-next240',
                 'sqlite-instead-of-view-upsert-conflict-source',
                 'wordpress-recursive-view-upsert-current-source-next240',
             ]))),
-            'non_overlap_next240' => 'adds current-source UPSERT conflict-key admission after accepted next231 cursor-close handoff; avoids accepted trigger recursive view RETURNING next157-next231 cursor/ticket/close surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
+            'non_overlap_next240' => 'adds current-source UPSERT conflict-key admission after accepted source_close cursor-close handoff; avoids accepted trigger recursive view RETURNING next157-source_close cursor/ticket/close surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
     }
 
@@ -2851,7 +2851,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
                 $cursor,
                 $viewCookie,
                 $triggerCookie,
-                (string) ($row['current_source_close_receipt_next231'] ?? ''),
+                (string) ($row['current_source_close_receipt_source_close'] ?? ''),
                 self::keyForCurrentCompositeKeyReceipt($row['returning'], $columns),
                 (string) ($row['returning_row_ordinal'] ?? $index),
             ];
@@ -2948,7 +2948,7 @@ final class SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan
         }
         $reasons = array_map(static fn (mixed $reason): string => (string) $reason, $baseReasons);
         if (!$baseVisible && $reasons === []) {
-            $reasons[] = 'base-next231-current-source-close-not-published';
+            $reasons[] = 'base-source-close-current-source-close-not-published';
         }
         if ($missing !== []) {
             $reasons[] = 'current-source-upsert-missing';

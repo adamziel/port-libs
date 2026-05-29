@@ -65,7 +65,7 @@ $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareLe
 );
 
 $payload = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next206',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-lead-nth-value-intersect-limit',
     'wordpressUse' => 'Copied wp_options preview queries can combine recursive dependency queues with lead defaults and nth_value frames, then fence current-source resume cursors across an INTERSECT membership boundary before next-source rows shift the final LIMIT.',
     'status' => $plan['status'],
     'windowFunctions' => $plan['windows']['functions'],
@@ -78,16 +78,16 @@ $payload = [
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
-if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next206-ready') {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next206 self-test failed\n");
+if (($payload['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-lead-nth-value-intersect-limit-ready') {
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-lead-nth-value-intersect-limit self-test failed\n");
     exit(1);
 }
 if ($payload['windowFunctions'] !== ['lead', 'nth_value']) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next206 window dispatch failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-lead-nth-value-intersect-limit window dispatch failed\n");
     exit(1);
 }
 if ($payload['currentTokenLength'] !== 64 || $payload['nextTokenLength'] !== 64) {
-    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-next206 token guard failed\n");
+    fwrite(STDERR, "wordpress-compound-select-window-recursive-limit-current-source-lead-nth-value-intersect-limit token guard failed\n");
     exit(1);
 }
 

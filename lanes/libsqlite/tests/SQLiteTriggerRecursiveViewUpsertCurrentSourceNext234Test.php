@@ -104,11 +104,11 @@ $plan234 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewU
         'current_view_source_next222' => 'main@view-cookie-234-current',
         'current_trigger_source_next222' => 'main@trigger-cookie-234-current',
         'auto_ack_current_source_tickets_next222' => true,
-        'current_source_cursor_next231' => 'wp.returning.current.cursor.234',
-        'current_source_close_token_next231' => 'wp.current.source.close.234',
-        'current_view_cookie_next231' => 'main@view-cookie-234-current',
-        'current_trigger_cookie_next231' => 'main@trigger-cookie-234-current',
-        'auto_ack_current_source_closures_next231' => true,
+        'current_source_cursor_source_close' => 'wp.returning.current.cursor.234',
+        'current_source_close_token_source_close' => 'wp.current.source.close.234',
+        'current_view_cookie_source_close' => 'main@view-cookie-234-current',
+        'current_trigger_cookie_source_close' => 'main@trigger-cookie-234-current',
+        'auto_ack_current_source_closures_source_close' => true,
         'current_source_upsert_token_next234' => 'wp.current.source.upsert.234',
         'current_upsert_view_cookie_next234' => 'main@view-cookie-234-current',
         'current_upsert_trigger_cookie_next234' => 'main@trigger-cookie-234-current',
@@ -122,7 +122,7 @@ $unexpected234 = static fn (): array => $plan234(['acknowledged_current_source_u
 $reversed234 = static fn (): array => $plan234(['acknowledged_current_source_upsert_receipts_next234' => array_reverse($receipts234())]);
 $unordered234 = static fn (): array => $plan234(['require_current_source_upsert_order_next234' => false, 'acknowledged_current_source_upsert_receipts_next234' => array_reverse($receipts234())]);
 $tokenMismatch234 = static fn (): array => $plan234(['auto_ack_current_source_upserts_next234' => true, 'expected_current_source_upsert_token_next234' => 'wp.current.source.upsert.stale.234']);
-$baseHeld234 = static fn (): array => $plan234(['auto_ack_current_source_upserts_next234' => true, 'auto_ack_current_source_closures_next231' => false]);
+$baseHeld234 = static fn (): array => $plan234(['auto_ack_current_source_upserts_next234' => true, 'auto_ack_current_source_closures_source_close' => false]);
 $custom234 = static fn (): array => $plan234([
     'auto_ack_current_source_upserts_next234' => true,
     'upsert_conflict_columns_next234' => ['option_name', 'autoload'],
@@ -140,8 +140,8 @@ $cases234 = [
     'token mismatch status' => [static fn (): mixed => $tokenMismatch234()['status_next234'], 'trigger-recursive-view-upsert-current-source-next234-upsert-token-held'],
     'base held status' => [static fn (): mixed => $baseHeld234()['status_next234'], 'trigger-recursive-view-upsert-current-source-next234-base-held'],
     'savepoint retained' => [static fn (): mixed => $released234()['savepoint'], 'wp_recursive_view_234'],
-    'base next231 released' => [static fn (): mixed => $released234()['base']['status_next231'], 'trigger-recursive-view-returning-current-source-next231-cursor-close-released'],
-    'base next231 held' => [static fn (): mixed => $baseHeld234()['base']['status_next231'], 'trigger-recursive-view-returning-current-source-next231-cursor-close-held'],
+    'base next231 released' => [static fn (): mixed => $released234()['base']['status_source_close'], 'trigger-recursive-view-returning-current-source-source_close-cursor-close-released'],
+    'base next231 held' => [static fn (): mixed => $baseHeld234()['base']['status_source_close'], 'trigger-recursive-view-returning-current-source-source_close-cursor-close-held'],
     'base visible released' => [static fn (): mixed => $released234()['base_next_source_visible_next234'], true],
     'base visible held' => [static fn (): mixed => $baseHeld234()['base_next_source_visible_next234'], false],
     'conflict columns default' => [static fn (): mixed => $released234()['upsert_conflict_columns_next234'], ['option_name']],
@@ -214,8 +214,8 @@ $cases234 = [
     'dependency closure marker' => [static fn (): mixed => $released234()['dependency_closure_next234'], 'no-new-support-component-reuses-native-recursive-view-returning-current-source-close-and-adds-upsert-conflict-receipts'],
     'dependency includes next234' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-upsert-current-source-next234', $released234()['dependencies_next234'], true), true],
     'dependency includes upsert receipts' => [static fn (): mixed => in_array('sqlite-instead-of-view-trigger-current-source-upsert-receipts', $released234()['dependencies_next234'], true), true],
-    'dependency includes next231' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next231', $released234()['dependencies_next234'], true), true],
-    'non overlap mentions next231' => [static fn (): mixed => str_contains($released234()['non_overlap_next234'], 'next231 cursor-close handoff'), true],
+    'dependency includes next231' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-source_close', $released234()['dependencies_next234'], true), true],
+    'non overlap mentions next231' => [static fn (): mixed => str_contains($released234()['non_overlap_next234'], 'source_close cursor-close handoff'), true],
     'bad upsert token rejected' => [static fn (): mixed => $plan234(['current_source_upsert_token_next234' => 'bad token']), InvalidArgumentException::class],
     'bad view cookie rejected' => [static fn (): mixed => $plan234(['current_upsert_view_cookie_next234' => 'bad cookie']), InvalidArgumentException::class],
     'bad trigger cookie rejected' => [static fn (): mixed => $plan234(['current_upsert_trigger_cookie_next234' => 'bad cookie']), InvalidArgumentException::class],

@@ -237,7 +237,7 @@ $tests['pager master journal reader cache current source next718 admits current 
     $t->same('reader-cache-stmt-vdbe-opcode-trace-branch-handoff-current-718', $result['current_reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token']);
     $t->same('reader-cache-stmt-vdbe-int64-branch-handoff-current-718', $result['current_reader_cache_stmt_vdbe_int64_branch_handoff_token']);
     $t->same('reader-cache-stmt-vdbe-shift-right-branch-handoff-current-718', $result['current_reader_cache_stmt_vdbe_shift_right_branch_handoff_token']);
-    $t->same(true, in_array('sqlite-pager-master-journal-reader-cache-current-source-next702', $result['dependencies'], true));
+    $t->same(true, in_array('sqlite-pager-master-journal-reader-cache-vdbe-opcode-branch-handoff-fence', $result['dependencies'], true));
 };
 
 $tests['pager master journal reader cache current source plan dispatches full width calls to next718'] = static function (TestRunner $t) use ($database, $master, $masterBytes, $before, $pageSize, $recovered, $cacheEntry, $read, $base, $tokens, $headers, $variantFields): void {

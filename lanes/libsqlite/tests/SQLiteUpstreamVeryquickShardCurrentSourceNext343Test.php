@@ -96,7 +96,8 @@ function libsqlite_suite_next343_record(
     ?int $expected = 96,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next343_evidence()->upstreamVeryquickShardCurrentSourceNext343(
+    return libsqlite_suite_next343_evidence()->upstreamVeryquickShardEvidenceForSlice(
+        343,
         $rows,
         708,
         142008,
@@ -313,7 +314,7 @@ $tests['current source next343 rejects empty row list'] = static function (TestR
         libsqlite_suite_next343_record([]);
         $t->fail('Expected empty next343 row list to be rejected');
     } catch (InvalidArgumentException $exception) {
-        $t->contains('current-source next116 full-suite countability requires at least one row', $exception->getMessage());
+        $t->contains('current-source full-suite-countability full-suite countability requires at least one row', $exception->getMessage());
     }
 };
 

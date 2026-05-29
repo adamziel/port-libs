@@ -19,21 +19,26 @@
   `executeSealedNextSourcePublication()`, renamed its direct private helpers to
   descriptive non-numbered names, and migrated the direct focused test and
   WordPress smoke to descriptive unsuffixed filenames.
+- Fifty-third pass follow-up: consolidated the direct cursor-close option,
+  result, dependency, status, and row-tag suffixes to `source_close`; renamed
+  the direct test and WordPress smoke to descriptive unsuffixed filenames; and
+  migrated the trigger-upsert continuation callers to the descriptive
+  cursor-close contract.
 
 ## Verification
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext229Test.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext230Test.php`
-- `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext231Test.php`
+- `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceCloseTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next229.php`
 - `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next230.php`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next231.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext229Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext230Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext231Test.php`
+- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-close.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext229Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext230Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceCloseTest.php`
   - Result: `3 test files, 269 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next229.php --self-test`
 - `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next230.php --self-test`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next231.php --self-test`
+- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-close.php --self-test`
   - Result: all three self-tests passed.
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext226Test.php`
@@ -56,6 +61,12 @@
   - Result: `1 test files, 78 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-sealed-next-source-publication.php --self-test`
   - Result: `wordpress-trigger-recursive-view-returning-sealed-next-source-publication self-test passed`
+- `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceCloseTest.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNextBaseTest.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext234Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext237Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext239Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext240Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext241Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext242Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext243Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext244Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext245Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext246Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext247Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext248Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext249Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext250Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext251Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext254Test.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext255Test.php`
+  - Result: `20 test files, 1675 assertions, 0 failures`
+- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-close.php`
+- `for f in lanes/libsqlite/examples/wordpress-trigger-recursive-view-upsert-current-source-next*.php; do php "$f"; done`
+  - Result: all touched trigger RETURNING/upsert WordPress smokes passed.
 - `git diff --check -- lanes/libsqlite`
 - `rg -n "function\s+\w*(?:CurrentSource|Current)?Next[0-9]+|function\s+\w*Next[0-9]+" lanes/libsqlite/src | wc -l`
   - Result: `5728` remaining numbered production method lines.

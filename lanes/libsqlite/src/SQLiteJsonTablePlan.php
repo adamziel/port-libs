@@ -3660,38 +3660,38 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionProfile236(
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionProfile(
             $plan['currentGeneratedPathRowidXCurrentYieldGuard224'],
             $rowidPlan['currentGeneratedPathRowidXRowid220'] ?? [],
             $constraints,
             $orderBy,
             false,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionProfile236(
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionProfile(
             $plan['nextGeneratedPathRowidXCurrentYieldGuard224'],
             $rowidPlan['nextGeneratedPathRowidXRowid220'] ?? [],
             $constraints,
             $orderBy,
             $plan['next224ReplanReasons'] !== [],
         );
-        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionTransitions236($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionReasons236($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionReasons($transitions);
 
-        $plan['currentGeneratedPathRowidCurrentSourceCostSelection236'] = $currentProfile;
-        $plan['nextGeneratedPathRowidCurrentSourceCostSelection236'] = $nextProfile;
-        $plan['generatedPathRowidCurrentSourceCostSelection236Transitions'] = $transitions;
-        $plan['next236ReplanReasons'] = array_values(array_unique(array_merge(
+        $plan['currentGeneratedPathRowidCurrentSourceCostSelection'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceCostSelection'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceCostSelectionTransitions'] = $transitions;
+        $plan['generatedPathRowidCurrentSourceCostSelectionReplanReasons'] = array_values(array_unique(array_merge(
             $plan['next224ReplanReasons'] ?? [],
             $reasons,
         )));
-        $plan['replanRequired'] = $plan['next236ReplanReasons'] !== [];
-        $plan['currentReaderPolicy'] = 'cost-select-current-json-table-generated-path-rowid-next236';
+        $plan['replanRequired'] = $plan['generatedPathRowidCurrentSourceCostSelectionReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'cost-select-current-json-table-generated-path-rowid';
         $plan['nextReaderPolicy'] = $nextProfile['currentSourceCostReusable']
-            ? 'reuse-cost-select-current-json-table-generated-path-rowid-next236'
-            : 'reprepare-cost-select-next-json-table-generated-path-rowid-next236';
+            ? 'reuse-cost-select-current-json-table-generated-path-rowid'
+            : 'reprepare-cost-select-next-json-table-generated-path-rowid';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-generated-path-rowid-cost-current-source-next236'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source'],
         )));
 
         return $plan;
@@ -3738,18 +3738,10 @@ final class SQLiteJsonTablePlan
             $observedActiveRowid,
         );
 
-        $current = self::jsonTableGeneratedPathRowidCostCanonicalizeNumber($plan['currentGeneratedPathRowidCurrentSourceCostSelection236']);
-        $next = self::jsonTableGeneratedPathRowidCostCanonicalizeNumber($plan['nextGeneratedPathRowidCurrentSourceCostSelection236']);
-        $transitions = self::jsonTableGeneratedPathRowidCostCanonicalizeNumber($plan['generatedPathRowidCurrentSourceCostSelection236Transitions']);
-        $reasons = self::jsonTableGeneratedPathRowidCostCanonicalizeNumber($plan['next236ReplanReasons']);
-
-        $plan['currentGeneratedPathRowidCurrentSourceCostSelection'] = $current;
-        $plan['nextGeneratedPathRowidCurrentSourceCostSelection'] = $next;
-        $plan['generatedPathRowidCurrentSourceCostSelectionTransitions'] = $transitions;
-        $plan['replanReasons'] = $reasons;
-        $plan['replanRequired'] = $reasons !== [];
+        $plan['replanReasons'] = $plan['generatedPathRowidCurrentSourceCostSelectionReplanReasons'];
+        $plan['replanRequired'] = $plan['replanReasons'] !== [];
         $plan['currentReaderPolicy'] = 'cost-select-current-json-table-generated-path-rowid';
-        $plan['nextReaderPolicy'] = $next['currentSourceCostReusable']
+        $plan['nextReaderPolicy'] = $plan['nextGeneratedPathRowidCurrentSourceCostSelection']['currentSourceCostReusable']
             ? 'reuse-cost-select-current-json-table-generated-path-rowid'
             : 'reprepare-cost-select-next-json-table-generated-path-rowid';
         $plan['dependencies'] = array_values(array_unique(array_merge(
@@ -3759,13 +3751,6 @@ final class SQLiteJsonTablePlan
             )),
             ['sqlite-json-table-generated-path-rowid-cost-current-source-selection'],
         )));
-
-        unset(
-            $plan['currentGeneratedPathRowidCurrentSourceCostSelection236'],
-            $plan['nextGeneratedPathRowidCurrentSourceCostSelection236'],
-            $plan['generatedPathRowidCurrentSourceCostSelection236Transitions'],
-            $plan['next236ReplanReasons'],
-        );
 
         return $plan;
     }
@@ -3828,10 +3813,10 @@ final class SQLiteJsonTablePlan
         $reasonKey = "next{$next}ReplanReasons";
         $dependency = "sqlite-json-table-generated-path-rowid-cost-current-source-next{$next}";
 
-        $plan[$currentKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['currentGeneratedPathRowidCurrentSourceCostSelection236'], $next);
-        $plan[$nextKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['nextGeneratedPathRowidCurrentSourceCostSelection236'], $next);
-        $plan[$transitionKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['generatedPathRowidCurrentSourceCostSelection236Transitions'], $next);
-        $plan[$reasonKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['next236ReplanReasons'], $next);
+        $plan[$currentKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['currentGeneratedPathRowidCurrentSourceCostSelection'], $next);
+        $plan[$nextKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['nextGeneratedPathRowidCurrentSourceCostSelection'], $next);
+        $plan[$transitionKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['generatedPathRowidCurrentSourceCostSelectionTransitions'], $next);
+        $plan[$reasonKey] = self::jsonTableGeneratedPathRowidCostAliasNumber($plan['generatedPathRowidCurrentSourceCostSelectionReplanReasons'], $next);
         $plan['replanRequired'] = $plan[$reasonKey] !== [];
         $plan['currentReaderPolicy'] = "cost-select-current-json-table-generated-path-rowid-next{$next}";
         $plan['nextReaderPolicy'] = $plan[$nextKey]['currentSourceCostReusable']
@@ -3851,7 +3836,15 @@ final class SQLiteJsonTablePlan
     private static function jsonTableGeneratedPathRowidCostAliasNumber(mixed $value, int $next): mixed
     {
         if (is_string($value)) {
-            return str_replace('236', (string) $next, $value);
+            $value = str_replace('current-source-selection', "next{$next}", $value);
+            if (
+                str_starts_with($value, 'json-table-generated-path-rowid-current-source-cost-')
+                || str_starts_with($value, 'json-table-generated-path-rowid-cost-selection-')
+            ) {
+                return "{$value}-next{$next}";
+            }
+
+            return $value;
         }
         if (!is_array($value)) {
             return $value;
@@ -3863,26 +3856,6 @@ final class SQLiteJsonTablePlan
         }
 
         return $aliased;
-    }
-
-    /**
-     * @return mixed
-     */
-    private static function jsonTableGeneratedPathRowidCostCanonicalizeNumber(mixed $value): mixed
-    {
-        if (is_string($value)) {
-            return str_replace('next236', 'current-source-selection', $value);
-        }
-        if (!is_array($value)) {
-            return $value;
-        }
-
-        $canonical = [];
-        foreach ($value as $key => $item) {
-            $canonical[$key] = self::jsonTableGeneratedPathRowidCostCanonicalizeNumber($item);
-        }
-
-        return $canonical;
     }
 
     public static function currentSourceGeneratedPathRowidYieldCost(
@@ -26549,7 +26522,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceCostSelectionProfile236(
+    private static function jsonTableGeneratedPathRowidCurrentSourceCostSelectionProfile(
         array $yieldGuard224,
         array $xRowid220,
         array $constraints,
@@ -26639,7 +26612,7 @@ final class SQLiteJsonTablePlan
             'idxStr' => $idxStr,
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
-            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionCostClass236($pointReusable, $fingerprintMatches, $rowidMatches, $orderByConsumed, $restartRowids),
+            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceCostSelectionCostClass($pointReusable, $fingerprintMatches, $rowidMatches, $orderByConsumed, $restartRowids),
             'selectionFingerprint' => hash('sha256', json_encode([
                 $yieldGuard224['yieldGuardFingerprint'] ?? null,
                 $xRowid220['xRowidFingerprint'] ?? null,
@@ -26659,7 +26632,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<int> $restartRowids
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceCostSelectionCostClass236(
+    private static function jsonTableGeneratedPathRowidCurrentSourceCostSelectionCostClass(
         bool $pointReusable,
         bool $fingerprintMatches,
         bool $rowidMatches,
@@ -26667,22 +26640,22 @@ final class SQLiteJsonTablePlan
         array $restartRowids,
     ): string {
         if ($pointReusable && $orderByConsumed) {
-            return 'json-table-generated-path-rowid-current-source-cost-covering-point-next236';
+            return 'json-table-generated-path-rowid-current-source-cost-covering-point';
         }
         if ($pointReusable) {
-            return 'json-table-generated-path-rowid-current-source-cost-point-next236';
+            return 'json-table-generated-path-rowid-current-source-cost-point';
         }
         if (!$fingerprintMatches) {
-            return 'json-table-generated-path-rowid-current-source-cost-stale-fingerprint-next236';
+            return 'json-table-generated-path-rowid-current-source-cost-stale-fingerprint';
         }
         if (!$rowidMatches) {
-            return 'json-table-generated-path-rowid-current-source-cost-stale-rowid-next236';
+            return 'json-table-generated-path-rowid-current-source-cost-stale-rowid';
         }
         if ($restartRowids === []) {
-            return 'json-table-generated-path-rowid-current-source-cost-eof-next236';
+            return 'json-table-generated-path-rowid-current-source-cost-eof';
         }
 
-        return 'json-table-generated-path-rowid-current-source-cost-reprepare-next236';
+        return 'json-table-generated-path-rowid-current-source-cost-reprepare';
     }
 
     /**
@@ -26690,7 +26663,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceCostSelectionTransitions236(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceCostSelectionTransitions(array $current, array $next): array
     {
         $fields = [
             'function',
@@ -26732,7 +26705,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceCostSelectionReasons236(array $transitions): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceCostSelectionReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -26740,12 +26713,12 @@ final class SQLiteJsonTablePlan
                 continue;
             }
             $reasons[] = match ($transition['field']) {
-                'function', 'root', 'generatedPath', 'sourceGeneration', 'selectionFingerprint' => 'json-table-generated-path-rowid-cost-selection-source-changed-next236',
-                'rowidAliases', 'activeRowid', 'deliveredRowids', 'restartRowids' => 'json-table-generated-path-rowid-cost-selection-rowset-changed-next236',
-                'fingerprintMatches', 'rowidMatches', 'aliasConsistent', 'yieldGuardReusable', 'xRowidReusable', 'currentSourceCostReusable' => 'json-table-generated-path-rowid-cost-selection-admission-changed-next236',
-                'orderByColumns', 'orderByConsumed', 'idxNum', 'idxStr' => 'json-table-generated-path-rowid-cost-selection-index-changed-next236',
-                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-cost-selection-cost-changed-next236',
-                default => 'json-table-generated-path-rowid-cost-selection-state-changed-next236',
+                'function', 'root', 'generatedPath', 'sourceGeneration', 'selectionFingerprint' => 'json-table-generated-path-rowid-cost-selection-source-changed',
+                'rowidAliases', 'activeRowid', 'deliveredRowids', 'restartRowids' => 'json-table-generated-path-rowid-cost-selection-rowset-changed',
+                'fingerprintMatches', 'rowidMatches', 'aliasConsistent', 'yieldGuardReusable', 'xRowidReusable', 'currentSourceCostReusable' => 'json-table-generated-path-rowid-cost-selection-admission-changed',
+                'orderByColumns', 'orderByConsumed', 'idxNum', 'idxStr' => 'json-table-generated-path-rowid-cost-selection-index-changed',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-cost-selection-cost-changed',
+                default => 'json-table-generated-path-rowid-cost-selection-state-changed',
             };
         }
 

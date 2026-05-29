@@ -104,11 +104,11 @@ $plan240 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewU
         'current_view_source_next222' => 'main@view-cookie-240-current',
         'current_trigger_source_next222' => 'main@trigger-cookie-240-current',
         'auto_ack_current_source_tickets_next222' => true,
-        'current_source_cursor_next231' => 'wp.returning.current.cursor.240',
-        'current_source_close_token_next231' => 'wp.current.source.close.240',
-        'current_view_cookie_next231' => 'main@view-cookie-240-current',
-        'current_trigger_cookie_next231' => 'main@trigger-cookie-240-current',
-        'auto_ack_current_source_closures_next231' => true,
+        'current_source_cursor_source_close' => 'wp.returning.current.cursor.240',
+        'current_source_close_token_source_close' => 'wp.current.source.close.240',
+        'current_view_cookie_source_close' => 'main@view-cookie-240-current',
+        'current_trigger_cookie_source_close' => 'main@trigger-cookie-240-current',
+        'auto_ack_current_source_closures_source_close' => true,
         'current_source_upsert_cursor_next240' => 'wp.upsert.current.cursor.240',
         'current_view_upsert_cookie_next240' => 'main@view-cookie-240-current',
         'current_trigger_upsert_cookie_next240' => 'main@trigger-cookie-240-current',
@@ -122,7 +122,7 @@ $missing240 = static fn (): array => $plan240(['acknowledged_current_source_upse
 $unexpected240 = static fn (): array => $plan240(['acknowledged_current_source_upserts_next240' => array_merge($receipts240(), ['abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef'])]);
 $reversed240 = static fn (): array => $plan240(['acknowledged_current_source_upserts_next240' => array_reverse($receipts240())]);
 $unordered240 = static fn (): array => $plan240(['require_current_source_upsert_order_next240' => false, 'acknowledged_current_source_upserts_next240' => array_reverse($receipts240())]);
-$baseHeld240 = static fn (): array => $plan240(['auto_ack_current_source_upserts_next240' => true, 'auto_ack_current_source_closures_next231' => false]);
+$baseHeld240 = static fn (): array => $plan240(['auto_ack_current_source_upserts_next240' => true, 'auto_ack_current_source_closures_source_close' => false]);
 $custom240 = static fn (): array => $plan240([
     'auto_ack_current_source_upserts_next240' => true,
     'current_source_upsert_cursor_next240' => 'wp.upsert.current.cursor.custom.240',
@@ -142,8 +142,8 @@ $cases240 = [
     'unordered reversed releases' => [static fn (): mixed => $unordered240()['status_next240'], 'trigger-recursive-view-upsert-current-source-next240-conflict-source-released'],
     'base held status' => [static fn (): mixed => $baseHeld240()['status_next240'], 'trigger-recursive-view-upsert-current-source-next240-base-held'],
     'savepoint retained' => [static fn (): mixed => $released240()['savepoint'], 'wp_recursive_view_240'],
-    'base next231 released' => [static fn (): mixed => $released240()['base']['status_next231'], 'trigger-recursive-view-returning-current-source-next231-cursor-close-released'],
-    'base next231 held' => [static fn (): mixed => $baseHeld240()['base']['status_next231'], 'trigger-recursive-view-returning-current-source-next231-cursor-close-held'],
+    'base next231 released' => [static fn (): mixed => $released240()['base']['status_source_close'], 'trigger-recursive-view-returning-current-source-source_close-cursor-close-released'],
+    'base next231 held' => [static fn (): mixed => $baseHeld240()['base']['status_source_close'], 'trigger-recursive-view-returning-current-source-source_close-cursor-close-held'],
     'base visible released' => [static fn (): mixed => $released240()['base_next_source_visible_next240'], true],
     'base visible held' => [static fn (): mixed => $baseHeld240()['base_next_source_visible_next240'], false],
     'cursor retained' => [static fn (): mixed => $released240()['current_source_upsert_cursor_next240'], 'wp.upsert.current.cursor.240'],
@@ -213,8 +213,8 @@ $cases240 = [
     'dependency closure marker' => [static fn (): mixed => $released240()['dependency_closure_next240'], 'no-new-support-component-reuses-native-recursive-view-upsert-current-source-handoff'],
     'dependency includes next240' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-upsert-current-source-next240', $released240()['dependencies_next240'], true), true],
     'dependency includes view upsert' => [static fn (): mixed => in_array('sqlite-instead-of-view-upsert-conflict-source', $released240()['dependencies_next240'], true), true],
-    'dependency includes next231' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next231', $released240()['dependencies_next240'], true), true],
-    'non overlap mentions next231' => [static fn (): mixed => str_contains($released240()['non_overlap_next240'], 'next231 cursor-close'), true],
+    'dependency includes next231' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-source_close', $released240()['dependencies_next240'], true), true],
+    'non overlap mentions next231' => [static fn (): mixed => str_contains($released240()['non_overlap_next240'], 'source_close cursor-close'), true],
     'bad cursor rejected' => [static fn (): mixed => $plan240(['current_source_upsert_cursor_next240' => 'bad cursor']), InvalidArgumentException::class],
     'bad view cookie rejected' => [static fn (): mixed => $plan240(['current_view_upsert_cookie_next240' => 'bad cookie']), InvalidArgumentException::class],
     'bad trigger cookie rejected' => [static fn (): mixed => $plan240(['current_trigger_upsert_cookie_next240' => 'bad cookie']), InvalidArgumentException::class],
