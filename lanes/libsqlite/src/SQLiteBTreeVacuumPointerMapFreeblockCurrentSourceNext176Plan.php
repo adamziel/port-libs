@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext176Plan
      * @param list<array<string, mixed>> $sourceRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext173Plan $basePlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan,
         private readonly array $sourceRows,
     ) {
     }
@@ -27,7 +27,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext176Plan
         int $parentBtreePageNumber,
         bool $secureDelete = true,
     ): self {
-        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext173Plan::tableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext173(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -38,7 +38,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext176Plan
         ));
     }
 
-    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext173Plan $basePlan): self
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): self
     {
         $rows = self::buildSourceRows($basePlan);
         $errors = self::sourceErrorsForRows($rows);
@@ -160,7 +160,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext176Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildSourceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext173Plan $basePlan): array
+    private static function buildSourceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): array
     {
         $rows = [];
         foreach ($basePlan->transitionRows() as $row) {

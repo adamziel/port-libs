@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext177Plan
      * @param list<array<string, mixed>> $batchRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext174Plan $basePlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan,
         private readonly array $batchRows,
     ) {
     }
@@ -28,7 +28,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext177Plan
         bool $secureDelete = true,
         int $batchSize = 2,
     ): self {
-        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext174Plan::tableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext174(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -40,7 +40,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext177Plan
         ));
     }
 
-    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext174Plan $basePlan): self
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): self
     {
         $rows = self::buildBatchRows($basePlan);
         foreach ($rows as $row) {
@@ -145,7 +145,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext177Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildBatchRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext174Plan $basePlan): array
+    private static function buildBatchRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): array
     {
         $batches = [];
         foreach ($basePlan->cursorRows() as $row) {

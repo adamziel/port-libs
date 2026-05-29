@@ -26,9 +26,9 @@ require_once __DIR__ . '/../src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourc
 require_once __DIR__ . '/../src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php';
-require_once __DIR__ . '/../src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext169Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext169Plan;
+use PortLibs\LibSqlite\SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -94,7 +94,7 @@ $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, sec
 $staleCurrentPages = [
     107 => substr_replace($database->page(107), 'S', 20, 1),
 ];
-$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext169Plan::tableLeafFromDeleteResult(
+$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext169(
     $database,
     3,
     [
