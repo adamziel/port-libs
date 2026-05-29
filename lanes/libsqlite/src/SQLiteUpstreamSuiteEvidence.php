@@ -27656,6 +27656,156 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
+    public function upstreamRunnerFinalCurrentSourceNext109(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->upstreamRunnerSuiteEvidenceRebaseCurrentSourceNext108(
+            $artifactRows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $finalRows = [];
+        $finalizedIds = [];
+        $preservedIds = [];
+        $blockedIds = [];
+        $seenBaselines = [];
+        $duplicateBaselines = [];
+        $finalBlockers = [];
+
+        foreach (is_array($record['rebase_rows'] ?? null) ? $record['rebase_rows'] : [] as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) ? $row['unit'] : '';
+            $source = null;
+            foreach ($artifactRows as $candidate) {
+                if (is_array($candidate) && ($candidate['unit'] ?? null) === $unit) {
+                    $source = $candidate;
+                    break;
+                }
+            }
+
+            $finalId = is_array($source) && is_string($source['final_evidence_id'] ?? null) && $source['final_evidence_id'] !== ''
+                ? $source['final_evidence_id']
+                : (is_string($row['gap_id'] ?? null) && $row['gap_id'] !== '' ? $row['gap_id'] : $unit);
+            $finalStatus = is_array($source) && is_string($source['final_evidence_status'] ?? null) && $source['final_evidence_status'] !== ''
+                ? $source['final_evidence_status']
+                : 'open';
+            $baselineId = is_array($source) && is_string($source['stale_baseline_id'] ?? null)
+                ? trim($source['stale_baseline_id'])
+                : '';
+            $movement = is_string($row['movement'] ?? null) ? $row['movement'] : 'open';
+            $rowBlockers = is_array($row['blocker_ids'] ?? null) ? $row['blocker_ids'] : [];
+
+            if ($baselineId !== '') {
+                if (isset($seenBaselines[$baselineId])) {
+                    $duplicateBaselines[$baselineId] = true;
+                    $rowBlockers[] = 'duplicate-stale-baseline-id';
+                }
+                $seenBaselines[$baselineId] = true;
+            }
+
+            if ($movement === 'next-source-admitted') {
+                if ($finalStatus !== 'finalized') {
+                    $rowBlockers[] = 'final-evidence-status-not-finalized';
+                }
+                if ($baselineId === '') {
+                    $rowBlockers[] = 'stale-baseline-id-missing';
+                }
+            }
+
+            $rowBlockers = array_values(array_unique(array_filter($rowBlockers, 'is_string')));
+            if ($rowBlockers !== []) {
+                $blockedIds[] = $finalId;
+                $finalBlockers[] = [
+                    'id' => 'current-source-next109-final-evidence-row-blocked',
+                    'unit' => $unit,
+                    'final_evidence_id' => $finalId,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($movement === 'next-source-admitted') {
+                $finalizedIds[] = $finalId;
+            } elseif ($movement === 'current-source-preserved') {
+                $preservedIds[] = $finalId;
+            }
+
+            $row['final_evidence_id'] = $finalId;
+            $row['final_evidence_status'] = $finalStatus;
+            $row['stale_baseline_id'] = $baselineId;
+            $row['blocker_ids'] = $rowBlockers;
+            $finalRows[] = $row;
+        }
+
+        sort($finalizedIds, SORT_STRING);
+        sort($preservedIds, SORT_STRING);
+        sort($blockedIds, SORT_STRING);
+        $duplicateBaselineIds = array_keys($duplicateBaselines);
+        sort($duplicateBaselineIds, SORT_STRING);
+
+        $blockers = array_merge(is_array($record['blockers'] ?? null) ? $record['blockers'] : [], $finalBlockers);
+        $blocked = $blockers !== [];
+        $mappedDelta = !$blocked && $finalizedIds !== [] ? 1 : 0;
+        $phpPassDelta = !$blocked ? (int) ($record['php_pass_delta'] ?? 0) : 0;
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-source-next109-upstream-runner-final-countable';
+        } elseif (!$blocked) {
+            $status = 'current-source-next109-upstream-runner-final-preserved';
+        }
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-source-next109-upstream-runner-final-countable';
+        $record['blocker_count'] = count($blockers);
+        $record['blockers'] = $blockers;
+        $record['mapped_delta'] = $blocked ? 0 : $mappedDelta;
+        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
+        $record['php_pass_delta'] = $phpPassDelta;
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta;
+        $record['tests_total_delta'] = $blocked ? 0 : (int) ($record['tests_total_delta'] ?? 0);
+        $record['final_evidence_rows'] = $finalRows;
+        $record['finalized_evidence_ids'] = $finalizedIds;
+        $record['preserved_final_evidence_ids'] = $preservedIds;
+        $record['blocked_final_evidence_ids'] = $blockedIds;
+        $record['duplicate_stale_baseline_ids'] = $duplicateBaselineIds;
+        $record['counts_upstream_runner_suite_evidence_rebase_current_source_next108'] = false;
+        $record['counts_upstream_runner_final_current_source_next109'] = $status === 'current-source-next109-upstream-runner-final-countable';
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-source-next109-upstream-runner-final-countable'
+            ? 'publish only the current-source next109 final upstream-runner evidence row and exact focused PASS-line movement; duplicate stale baselines and release/all parity remain blocked'
+            : 'keep current-source next109 final upstream-runner evidence uncounted until rebase provenance, finalized evidence status, unique stale-baseline IDs, duplicate-runner state, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source next109 final evidence composes next108 rebase rows, unique stale-baseline IDs, source-head provenance gates, active-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
     public function upstreamRunnerReleaseAdmissionCurrentSourceNext114(
         array $artifactRows,
         int $currentMapped,
