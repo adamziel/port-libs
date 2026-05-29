@@ -60,11 +60,16 @@ $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next230Plan
 ]);
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'wal-hot-journal-savepoint-checkpoint-current-source-next230');
-    assert($plan['can_serve_next_source_readers'] === true);
-    assert($plan['admitted_reader_names'] === ['wp-options-reader', 'wp-autoload-reader']);
-    assert($plan['blocked_reasons'] === []);
-    assert(in_array('serve_checkpoint_next_source_readers_next230', $plan['operation_names'], true));
+    if ($plan['status'] !== 'wal-hot-journal-savepoint-checkpoint-current-source-next230'
+        || $plan['can_serve_next_source_readers'] !== true
+        || $plan['admitted_reader_names'] !== ['wp-options-reader', 'wp-autoload-reader']
+        || $plan['blocked_reasons'] !== []
+        || !in_array('serve_checkpoint_next_source_readers_next230', $plan['operation_names'], true)
+    ) {
+        fwrite(STDERR, "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next230 self-test failed\n");
+        exit(1);
+    }
+
     echo "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next230 self-test passed\n";
     return;
 }

@@ -90,10 +90,15 @@ $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next231Veri
 ]], $walDigest);
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['status'] === 'wal-hot-journal-savepoint-checkpoint-current-source-next231');
-    assert($plan['can_reopen_current_source'] === true);
-    assert($plan['receipt_rows'][0]['readmark_frames'] === $readmarks);
-    assert(in_array('wordpress-import-wal-index-reopen-current-source', $plan['dependencies'], true));
+    if ($plan['status'] !== 'wal-hot-journal-savepoint-checkpoint-current-source-next231'
+        || $plan['can_reopen_current_source'] !== true
+        || $plan['receipt_rows'][0]['readmark_frames'] !== $readmarks
+        || !in_array('wordpress-import-wal-index-reopen-current-source', $plan['dependencies'], true)
+    ) {
+        fwrite(STDERR, "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next231 self-test failed\n");
+        exit(1);
+    }
+
     echo "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next231 self-test passed\n";
     return;
 }
