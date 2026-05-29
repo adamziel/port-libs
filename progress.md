@@ -48,6 +48,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 18:38 UTC):
+  Sixty-sixth safe consolidation follow-up is integrated and pushed as
+  `7b8bdc80`. The batch accepts 3 ready-marked CG handoffs on top of
+  `403c9001` while excluding worker lane-status edits: STAT4 partial expression
+  covering suffix cleanup, rowvalue savepoint retry filename cleanup, and
+  trigger recursive view RETURNING helper consolidation. Validation passed PHP
+  lint on changed files, JSON lane-status validation, changed WordPress smokes,
+  domain tests `272 test files / 16997 assertions / 0 failures` with no PHP
+  warnings, git diff --check, exact user-named 150 suffix scan clean in
+  `src`/`tests`/`examples`, production numbered file/class audits at `0`,
+  numbered production helper-method audit `1837`, and unique numbered
+  production symbol audit `2072`. Public pass/mapped counters remain
+  `154019 pass / 0 fail` and `830 / 1589` because this is consolidation-only.
+  Deferred current-base handoffs include JSON generated-path rowid, rowvalue
+  window, suite evidence, planner STAT4 overlap, and older suffix/pager overlap
+  candidates that failed broader domain gates or need current-head rebasing.
+
 - 2026-05-29 supervisor continuation (shell samples 18:16 UTC):
   Sixty-fifth safe consolidation follow-up is staged and validated in the
   rolling libsqlite integration worktree. The batch accepts 2 ready-marked CC
