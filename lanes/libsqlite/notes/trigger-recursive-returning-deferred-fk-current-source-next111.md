@@ -1,6 +1,6 @@
 # Trigger Recursive RETURNING Deferred FK Current Source Next111
 
-This slice adds `SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNext111Plan`
+This slice adds `SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan`
 for the current-source boundary where a top-level `UPDATE ... RETURNING`
 fires recursive triggers and a deferred foreign-key check is evaluated at the
 savepoint/commit boundary.
@@ -14,7 +14,7 @@ and accepted savepoint-trigger rollback surfaces.
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNext111Plan.php
+php -l lanes/libsqlite/src/SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNext111Test.php
 php -l lanes/libsqlite/examples/wordpress-trigger-recursive-returning-deferred-fk-current-source-next111.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNext111Test.php

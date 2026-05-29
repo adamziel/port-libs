@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan;
 
 $parents = [
     ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1],
@@ -38,10 +38,10 @@ $statement = [
     'rollback_on_deferred_violation' => true,
 ];
 
-$rollbackPlan = static fn (): array => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($parents, $children, $fk, $statement);
-$blockedPlan = static fn (): array => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($parents, $children, $fk, array_replace($statement, ['rollback_on_deferred_violation' => false]));
-$commitPlan = static fn (): array => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($parents, [], $fk, $statement);
-$recursiveOffPlan = static fn (): array => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($parents, $children, $fk, $statement + ['recursive_triggers' => false]);
+$rollbackPlan = static fn (): array => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, $statement);
+$blockedPlan = static fn (): array => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, array_replace($statement, ['rollback_on_deferred_violation' => false]));
+$commitPlan = static fn (): array => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, [], $fk, $statement);
+$recursiveOffPlan = static fn (): array => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, $statement + ['recursive_triggers' => false]);
 
 return [
     'trigger recursive deferred returning current source next121 rollback status' => static function (TestRunner $t) use ($rollbackPlan): void {
@@ -194,21 +194,21 @@ return [
     'trigger recursive deferred returning current source next121 missing where throws' => static function (TestRunner $t) use ($parents, $children, $fk, $statement): void {
         $bad = $statement;
         unset($bad['where']);
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($parents, $children, $fk, $bad));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, $bad));
     },
     'trigger recursive deferred returning current source next121 empty assignments throws' => static function (TestRunner $t) use ($parents, $children, $fk, $statement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($parents, $children, $fk, array_replace($statement, ['assignments' => []])));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, array_replace($statement, ['assignments' => []])));
     },
     'trigger recursive deferred returning current source next121 bad source throws' => static function (TestRunner $t) use ($parents, $children, $fk, $statement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($parents, $children, $fk, array_replace($statement, ['current_source' => 'bad source'])));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, array_replace($statement, ['current_source' => 'bad source'])));
     },
     'trigger recursive deferred returning current source next121 max depth throws' => static function (TestRunner $t) use ($parents, $children, $fk, $statement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($parents, $children, $fk, $statement + ['max_depth' => 1]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, $statement + ['max_depth' => 1]));
     },
     'trigger recursive deferred returning current source next121 bad returning column throws' => static function (TestRunner $t) use ($parents, $children, $fk, $statement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($parents, $children, $fk, array_replace($statement, ['returning' => ['missing_column']])));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, array_replace($statement, ['returning' => ['missing_column']])));
     },
     'trigger recursive deferred returning current source next121 bad alias throws' => static function (TestRunner $t) use ($parents, $children, $fk, $statement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($parents, $children, $fk, array_replace($statement, ['returning' => [['expr' => 'new.option_id', 'as' => 'bad-alias']]])));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($parents, $children, $fk, array_replace($statement, ['returning' => [['expr' => 'new.option_id', 'as' => 'bad-alias']]])));
     },
 ];

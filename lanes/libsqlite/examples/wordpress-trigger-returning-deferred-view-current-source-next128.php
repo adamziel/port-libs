@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNext128Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -55,7 +55,7 @@ $triggers = [
     ],
 ];
 
-$plan = SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNext128Plan::execute(
+$plan = SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan::execute(
     $rows,
     [
         ['option_name' => 'plugin_seed', 'option_value' => 'seed-current', 'revision' => 2, 'depth' => 1, 'autoload' => 'yes', 'parent_name' => 'siteurl'],

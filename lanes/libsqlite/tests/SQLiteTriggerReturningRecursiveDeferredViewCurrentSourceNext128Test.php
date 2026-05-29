@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNext128Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan;
 
 $rows128 = [
     ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1, 'depth' => 0, 'autoload' => 'yes', 'parent_name' => null],
@@ -70,7 +70,7 @@ $view128 = [
     'order_by' => 'option_name',
 ];
 
-$run128 = static fn (array $current = null, array $next = null, array $options = [], array $view = null): array => SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNext128Plan::execute(
+$run128 = static fn (array $current = null, array $next = null, array $options = [], array $view = null): array => SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan::execute(
     $rows128,
     $current ?? [
         ['option_name' => 'plugin_seed', 'option_value' => 'seed-current', 'revision' => 2, 'depth' => 1, 'autoload' => 'yes', 'parent_name' => 'siteurl'],
@@ -150,7 +150,7 @@ $cases128 = [
     'bad view where throws' => [static fn (): mixed => $run128(null, null, [], ['name' => 'bad_view', 'columns' => ['option_name'], 'where' => 'nope']), InvalidArgumentException::class],
     'bad order column throws' => [static fn (): mixed => $run128(null, null, [], ['name' => 'bad_view', 'columns' => ['option_name'], 'order_by' => 'bad column']), InvalidArgumentException::class],
     'bad current source throws' => [static fn (): mixed => $run128(null, null, ['current_source' => 'bad token']), InvalidArgumentException::class],
-    'bad parent key throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNext128Plan::execute($rows128, [['option_name' => 'x']], [['option_name' => 'y']], ['option_name'], $assign128, $triggers128, ['parent_key' => 'bad key', 'child_key' => 'parent_name'], $view128), InvalidArgumentException::class],
+    'bad parent key throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan::execute($rows128, [['option_name' => 'x']], [['option_name' => 'y']], ['option_name'], $assign128, $triggers128, ['parent_key' => 'bad key', 'child_key' => 'parent_name'], $view128), InvalidArgumentException::class],
 ];
 
 foreach ($cases128 as $name => [$callback, $expected]) {

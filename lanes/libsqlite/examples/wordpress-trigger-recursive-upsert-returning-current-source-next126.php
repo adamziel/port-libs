@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveUpsertReturningCurrentSourceNext126Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan;
 
 require_once dirname(__DIR__) . '/../../tools/bootstrap.php';
 
@@ -53,7 +53,7 @@ $returning = [
     ['expr' => 'depth', 'as' => 'trigger_depth'],
 ];
 
-$plan = SQLiteTriggerRecursiveUpsertReturningCurrentSourceNext126Plan::execute(
+$plan = SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan::execute(
     $rows,
     [
         ['option_name' => 'plugin_seed', 'option_value' => 'seed-current', 'revision' => 2, 'depth' => 1, 'autoload' => 'yes'],

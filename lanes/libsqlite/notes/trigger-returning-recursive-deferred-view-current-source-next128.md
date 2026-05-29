@@ -1,6 +1,6 @@
 # trigger-returning-recursive-deferred-view-current-source-next128
 
-Adds `SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNext128Plan`, a
+Adds `SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan`, a
 bounded current-source behavior slice for recursive trigger `RETURNING` rows
 combined with deferred foreign-key checking and view materialization.
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan;
 
 $parents = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -45,18 +45,18 @@ $setNullFk = ['parent_key' => 'option_id', 'child_key' => 'option_id', 'on_delet
 $restrictFk = ['parent_key' => 'option_id', 'child_key' => 'option_id', 'on_delete' => 'restrict', 'deferred' => false];
 $deferredNoActionFk = ['parent_key' => 'option_id', 'child_key' => 'option_id', 'on_delete' => 'no action', 'deferred' => true];
 
-$cascadePlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $cascadeFk, $baseStatement);
-$setNullPlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $setNullFk, $baseStatement);
-$restrictPlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $restrictFk, $baseStatement);
-$deferredBlockedPlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $deferredNoActionFk, $baseStatement);
-$deferredRollbackPlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $deferredNoActionFk, $baseStatement + ['rollback_on_deferred_violation' => true]);
-$triggerRollbackPlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute(
+$cascadePlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $cascadeFk, $baseStatement);
+$setNullPlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $setNullFk, $baseStatement);
+$restrictPlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $restrictFk, $baseStatement);
+$deferredBlockedPlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $deferredNoActionFk, $baseStatement);
+$deferredRollbackPlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $deferredNoActionFk, $baseStatement + ['rollback_on_deferred_violation' => true]);
+$triggerRollbackPlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute(
     $parents,
     $children,
     $cascadeFk,
     array_replace($baseStatement, ['after_triggers' => [['name' => 'wp_options_ad_abort', 'action' => 'rollback']]]),
 );
-$ignorePlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute(
+$ignorePlan = static fn (): array => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute(
     $parents,
     $children,
     $cascadeFk,
@@ -226,27 +226,27 @@ $tests = [
         $t->same([1, 2, 3], $ignorePlan()['next_rowids']);
     },
     'trigger delete returning fk savepoint next120 bad savepoint throws' => static function (TestRunner $t) use ($parents, $children, $cascadeFk, $baseStatement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $cascadeFk, array_replace($baseStatement, ['savepoint' => 'bad-name'])));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $cascadeFk, array_replace($baseStatement, ['savepoint' => 'bad-name'])));
     },
     'trigger delete returning fk savepoint next120 missing where throws' => static function (TestRunner $t) use ($parents, $children, $cascadeFk, $baseStatement): void {
         $statement = $baseStatement;
         unset($statement['where']);
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $cascadeFk, $statement));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $cascadeFk, $statement));
     },
     'trigger delete returning fk savepoint next120 bad fk action throws' => static function (TestRunner $t) use ($parents, $children, $baseStatement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, ['parent_key' => 'option_id', 'child_key' => 'option_id', 'on_delete' => 'explode'], $baseStatement));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, ['parent_key' => 'option_id', 'child_key' => 'option_id', 'on_delete' => 'explode'], $baseStatement));
     },
     'trigger delete returning fk savepoint next120 bad trigger action throws' => static function (TestRunner $t) use ($parents, $children, $cascadeFk, $baseStatement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $cascadeFk, array_replace($baseStatement, ['after_triggers' => [['name' => 'wp_options_ad_bad', 'action' => 'explode']]])));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $cascadeFk, array_replace($baseStatement, ['after_triggers' => [['name' => 'wp_options_ad_bad', 'action' => 'explode']]])));
     },
     'trigger delete returning fk savepoint next120 new returning throws' => static function (TestRunner $t) use ($parents, $children, $cascadeFk, $baseStatement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $cascadeFk, array_replace($baseStatement, ['returning' => ['new.option_id']])));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $cascadeFk, array_replace($baseStatement, ['returning' => ['new.option_id']])));
     },
     'trigger delete returning fk savepoint next120 bad page throws' => static function (TestRunner $t) use ($parents, $children, $cascadeFk, $baseStatement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $cascadeFk, array_replace($baseStatement, ['page_images' => [0 => 'short']])));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $cascadeFk, array_replace($baseStatement, ['page_images' => [0 => 'short']])));
     },
     'trigger delete returning fk savepoint next120 bad wal frame throws' => static function (TestRunner $t) use ($parents, $children, $cascadeFk, $baseStatement): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute($parents, $children, $cascadeFk, array_replace($baseStatement, ['wal_frames' => [['frame_index' => 0, 'page_number' => 1]]])));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute($parents, $children, $cascadeFk, array_replace($baseStatement, ['wal_frames' => [['frame_index' => 0, 'page_number' => 1]]])));
     },
 ];
 

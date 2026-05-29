@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan;
 
 $options = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -18,7 +18,7 @@ $optionMeta = [
 ];
 $page = static fn (string $label): string => str_pad($label, 512, '.', STR_PAD_RIGHT);
 
-$plan = SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan::execute(
+$plan = SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan::execute(
     $options,
     $optionMeta,
     ['parent_key' => 'option_id', 'child_key' => 'option_id', 'on_delete' => 'no action', 'deferred' => true],

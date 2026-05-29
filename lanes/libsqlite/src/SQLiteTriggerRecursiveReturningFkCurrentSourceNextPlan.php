@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan
+final class SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $parents
@@ -16,14 +16,14 @@ final class SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan
      */
     public static function handoff(array $parents, array $children, array $foreignKey, array $currentStatement, array $nextStatement): array
     {
-        if (!class_exists(SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::class)) {
-            require_once __DIR__ . '/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan.php';
+        if (!class_exists(SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::class)) {
+            require_once __DIR__ . '/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan.php';
         }
 
         $currentToken = self::source((string) ($currentStatement['current_source'] ?? 'current'));
         $nextToken = self::source((string) ($nextStatement['current_source'] ?? ($currentStatement['next_source'] ?? 'next')));
         $finalToken = self::source((string) ($nextStatement['next_source'] ?? ($nextToken . ':after')));
-        $current = SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update(
+        $current = SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update(
             $parents,
             $children,
             $foreignKey,
@@ -33,7 +33,7 @@ final class SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan
         $currentAllowsNext = $current['status'] === 'commit-ok';
         $next = null;
         if ($currentAllowsNext) {
-            $next = SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update(
+            $next = SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update(
                 array_values($current['next_parent']),
                 array_values($current['next_child']),
                 $foreignKey,

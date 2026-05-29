@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `DELETE ... RETURNING` with row triggers, `ON DELETE` foreign-key actions, and current-source savepoint rollback.
 
-This slice adds `SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan`, a bounded native PHP planner for copied `wp_options` rows where a parent DELETE runs under a statement savepoint. It covers:
+This slice adds `SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan`, a bounded native PHP planner for copied `wp_options` rows where a parent DELETE runs under a statement savepoint. It covers:
 
 - top-level DELETE RETURNING rows captured from OLD parent images;
 - BEFORE trigger `RAISE(IGNORE)` suppressing a row before DELETE/RETURNING;
@@ -15,8 +15,8 @@ WordPress path: `wordpress-trigger-returning-fk-delete-savepoint-current-source-
 Verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan.php
-No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan.php
+php -l lanes/libsqlite/src/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan.php
 
 php -l lanes/libsqlite/tests/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Test.php
 No syntax errors detected in lanes/libsqlite/tests/SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Test.php

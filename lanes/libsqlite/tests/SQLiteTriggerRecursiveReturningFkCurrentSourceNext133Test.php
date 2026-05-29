@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan;
 
 $parents133 = [
     ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1],
@@ -66,10 +66,10 @@ $currentViolating133 = array_replace($currentStatement133, [
     ],
 ]);
 
-$commitPlan133 = static fn (): array => SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan::handoff($parents133, $children133, $fk133, $currentStatement133, $nextStatement133);
-$currentBlocked133 = static fn (): array => SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan::handoff($parents133, $children133, $fk133, $currentViolating133, $nextStatement133);
-$nextBlocked133 = static fn (): array => SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan::handoff($parents133, $children133, $fk133, $currentStatement133, $nextViolating133);
-$recursiveOff133 = static fn (): array => SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan::handoff($parents133, $children133, $fk133, $currentStatement133 + ['recursive_triggers' => false], $nextStatement133 + ['recursive_triggers' => false]);
+$commitPlan133 = static fn (): array => SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan::handoff($parents133, $children133, $fk133, $currentStatement133, $nextStatement133);
+$currentBlocked133 = static fn (): array => SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan::handoff($parents133, $children133, $fk133, $currentViolating133, $nextStatement133);
+$nextBlocked133 = static fn (): array => SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan::handoff($parents133, $children133, $fk133, $currentStatement133, $nextViolating133);
+$recursiveOff133 = static fn (): array => SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan::handoff($parents133, $children133, $fk133, $currentStatement133 + ['recursive_triggers' => false], $nextStatement133 + ['recursive_triggers' => false]);
 
 return [
     'trigger recursive returning fk current source next133 committed status' => static fn (TestRunner $t) => $t->same('next-source-committed', $commitPlan133()['status']),
@@ -127,11 +127,11 @@ return [
     'trigger recursive returning fk current source next133 next blocked final rowids current commit' => static fn (TestRunner $t) => $t->same([1, 2, 3], $nextBlocked133()['final_rowids']),
     'trigger recursive returning fk current source next133 recursive off current trigger empty' => static fn (TestRunner $t) => $t->same([], $recursiveOff133()['current_trigger_returning_rows']),
     'trigger recursive returning fk current source next133 recursive off combined changes' => static fn (TestRunner $t) => $t->same(2, $recursiveOff133()['combined_changes']),
-    'trigger recursive returning fk current source next133 bad source throws' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan::handoff($parents133, $children133, $fk133, array_replace($currentStatement133, ['current_source' => 'bad source']), $nextStatement133)),
+    'trigger recursive returning fk current source next133 bad source throws' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan::handoff($parents133, $children133, $fk133, array_replace($currentStatement133, ['current_source' => 'bad source']), $nextStatement133)),
     'trigger recursive returning fk current source next133 missing current where throws' => static function (TestRunner $t) use ($parents133, $children133, $fk133, $currentStatement133, $nextStatement133): void {
         $bad = $currentStatement133;
         unset($bad['where']);
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan::handoff($parents133, $children133, $fk133, $bad, $nextStatement133));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan::handoff($parents133, $children133, $fk133, $bad, $nextStatement133));
     },
-    'trigger recursive returning fk current source next133 malformed next assignment throws after current admission' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan::handoff($parents133, $children133, $fk133, $currentStatement133, array_replace($nextStatement133, ['assignments' => []]))),
+    'trigger recursive returning fk current source next133 malformed next assignment throws after current admission' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan::handoff($parents133, $children133, $fk133, $currentStatement133, array_replace($nextStatement133, ['assignments' => []]))),
 ];

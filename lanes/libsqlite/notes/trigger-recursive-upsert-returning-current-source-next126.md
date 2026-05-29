@@ -1,6 +1,6 @@
 # trigger-recursive-upsert-returning-current-source-next126
 
-Adds `SQLiteTriggerRecursiveUpsertReturningCurrentSourceNext126Plan`, a bounded
+Adds `SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan`, a bounded
 current-source/next-source plan for recursive UPSERT triggers with `RETURNING`.
 The plan drains the current statement and recursive trigger `RETURNING` stream
 before exposing the post-current rows as the next source, matching the SQLite

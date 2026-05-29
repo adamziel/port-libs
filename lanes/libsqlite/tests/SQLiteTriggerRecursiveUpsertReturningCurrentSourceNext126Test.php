@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveUpsertReturningCurrentSourceNext126Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan;
 
 $rows126 = [
     ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1, 'depth' => 0, 'autoload' => 'yes'],
@@ -58,7 +58,7 @@ $returning126 = [
     ['expr' => 'trigger', 'as' => 'source_trigger'],
 ];
 
-$run126 = static fn (array $current = null, array $next = null, array $options = []): array => SQLiteTriggerRecursiveUpsertReturningCurrentSourceNext126Plan::execute(
+$run126 = static fn (array $current = null, array $next = null, array $options = []): array => SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan::execute(
     $rows126,
     $current ?? [
         ['option_name' => 'plugin_seed', 'option_value' => 'seed-current', 'revision' => 2, 'depth' => 1, 'autoload' => 'yes'],
@@ -146,7 +146,7 @@ $cases126 = [
     'bad next source token throws' => [static fn (): mixed => $run126(null, null, ['next_source' => 'bad token']), InvalidArgumentException::class],
     'empty current rows throw' => [static fn (): mixed => $run126([], null), InvalidArgumentException::class],
     'empty next rows throw' => [static fn (): mixed => $run126(null, []), InvalidArgumentException::class],
-    'malformed current rows throw' => [static fn (): mixed => SQLiteTriggerRecursiveUpsertReturningCurrentSourceNext126Plan::execute($rows126, ['bad' => ['option_name' => 'x']], [['option_name' => 'y']], ['option_name'], $assign126, $triggers126), InvalidArgumentException::class],
+    'malformed current rows throw' => [static fn (): mixed => SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan::execute($rows126, ['bad' => ['option_name' => 'x']], [['option_name' => 'y']], ['option_name'], $assign126, $triggers126), InvalidArgumentException::class],
     'missing next unique column throws' => [static fn (): mixed => $run126(null, [['option_value' => 'missing']]), InvalidArgumentException::class],
     'max depth throws before next handoff' => [static fn (): mixed => $run126([['option_name' => 'depth_current', 'option_value' => 'depth', 'revision' => 1, 'depth' => 1, 'autoload' => 'no']], null, ['max_depth' => 1]), RuntimeException::class],
 ];

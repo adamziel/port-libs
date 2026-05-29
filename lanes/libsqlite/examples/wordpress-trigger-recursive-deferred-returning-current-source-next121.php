@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1],
@@ -15,7 +15,7 @@ $meta = [
     ['meta_id' => 2, 'option_id' => 2, 'meta_key' => '_origin'],
 ];
 
-$plan = SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update($rows, $meta, [
+$plan = SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update($rows, $meta, [
     'parent_key' => 'option_id',
     'child_key' => 'option_id',
     'deferred' => true,

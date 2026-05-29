@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNext128Plan
+final class SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $rows
@@ -38,7 +38,7 @@ final class SQLiteTriggerReturningRecursiveDeferredViewCurrentSourceNext128Plan
         ];
 
         $baseChildren = self::children(array_values($rows), $fk);
-        $currentPlan = SQLiteTriggerRecursiveUpsertReturningCurrentSourceNext126Plan::execute(
+        $currentPlan = SQLiteTriggerRecursiveUpsertReturningCurrentSourceNextPlan::execute(
             $rows,
             $currentRows,
             $nextRows,

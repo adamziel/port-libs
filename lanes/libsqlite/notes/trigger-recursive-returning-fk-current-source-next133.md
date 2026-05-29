@@ -1,6 +1,6 @@
 # trigger-recursive-returning-fk-current-source-next133
 
-Adds `SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan`, a bounded
+Adds `SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan`, a bounded
 current-source handoff wrapper for recursive trigger `RETURNING` statements
 with deferred foreign-key admission. It drains the current source first, checks
 the deferred FK state, and only then admits the next source. If the current
@@ -16,7 +16,7 @@ valid.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-returning-fk-current-source-next133.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Test.php`

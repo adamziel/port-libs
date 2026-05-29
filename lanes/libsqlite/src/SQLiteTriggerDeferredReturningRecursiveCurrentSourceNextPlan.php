@@ -15,7 +15,7 @@ final class SQLiteTriggerDeferredReturningRecursiveCurrentSourceNextPlan
      */
     public static function sourceBarrier(array $parents, array $children, array $foreignKey, array $statement): array
     {
-        $base = SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan::update(
+        $base = SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan::update(
             $parents,
             $children,
             $foreignKey,

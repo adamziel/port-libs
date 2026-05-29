@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan
+final class SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $parents

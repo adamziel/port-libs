@@ -1,12 +1,12 @@
 # trigger-recursive-deferred-returning-current-source-next121
 
-Adds `SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan`, a bounded current-source behavior helper for the boundary where a top-level `UPDATE ... RETURNING` row is yielded from the current source, recursive triggers update additional rows, and a deferred foreign-key check decides whether the next source commits, blocks, or rolls back to the savepoint.
+Adds `SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan`, a bounded current-source behavior helper for the boundary where a top-level `UPDATE ... RETURNING` row is yielded from the current source, recursive triggers update additional rows, and a deferred foreign-key check decides whether the next source commits, blocks, or rolls back to the savepoint.
 
 The new behavior is distinct from accepted next111 rollback suppression: next121 records the RETURNING source token and attempted trigger RETURNING stream separately, then proves rollback keeps the next source at the current token while commit/blocked paths advance to the next token.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-deferred-returning-current-source-next121.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Test.php`

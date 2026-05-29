@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNext121Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveDeferredReturningCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 1],
@@ -48,7 +48,7 @@ $next = [
     'rollback_on_deferred_violation' => true,
 ];
 
-$plan = SQLiteTriggerRecursiveReturningFkCurrentSourceNext133Plan::handoff($rows, $meta, $fk, $current, $next);
+$plan = SQLiteTriggerRecursiveReturningFkCurrentSourceNextPlan::handoff($rows, $meta, $fk, $current, $next);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'next-source-committed');

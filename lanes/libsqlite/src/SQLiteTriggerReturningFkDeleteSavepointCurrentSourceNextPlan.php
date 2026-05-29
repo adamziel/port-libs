@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNext120Plan
+final class SQLiteTriggerReturningFkDeleteSavepointCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $parents
