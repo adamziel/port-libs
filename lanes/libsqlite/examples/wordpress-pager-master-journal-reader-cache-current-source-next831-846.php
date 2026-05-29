@@ -280,7 +280,7 @@ $read = array_merge($base, [
     'member_journal_header_digest' => $mapDigest($headers),
     'reader_cache_stmt_vdbe_vbegin_branch_handoff_token' => 'stmt-vdbe-vbegin-branch-handoff-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext846(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeTransactionBranchHandoff(
     $database,
     $master,
     $masterBytes,

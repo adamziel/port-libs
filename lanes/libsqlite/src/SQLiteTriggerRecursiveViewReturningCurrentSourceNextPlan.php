@@ -10164,7 +10164,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext205(
+    public static function executeSourceSequenceFence(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -10183,17 +10183,17 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentRows = self::rowsNext205($base['current_generation_rows_next203'] ?? [], 'current generation rows');
-        $nextRows = self::rowsNext205($base['attempted_next_generation_rows_next203'] ?? [], 'attempted next generation rows');
+        $currentRows = self::rowsForSourceSequenceFence($base['current_generation_rows_next203'] ?? [], 'current generation rows');
+        $nextRows = self::rowsForSourceSequenceFence($base['attempted_next_generation_rows_next203'] ?? [], 'attempted next generation rows');
         $baseVisible = (bool) ($base['next_source_visible_after_current_generation_next203'] ?? false);
-        $sourceToken = self::tokenNext205((string) ($options['current_source_sequence_token_next205'] ?? 'wp.current.returning.source.sequence.205'), 'current source sequence token');
-        $expectedSourceToken = self::tokenNext205((string) ($options['expected_current_source_sequence_token_next205'] ?? $sourceToken), 'expected current source sequence token');
-        $nextSourceToken = self::tokenNext205((string) ($options['next_source_sequence_token_next205'] ?? 'wp.next.returning.source.sequence.205'), 'next source sequence token');
-        $expectedNextSourceToken = self::tokenNext205((string) ($options['expected_next_source_sequence_token_next205'] ?? $nextSourceToken), 'expected next source sequence token');
-        $cursor = self::tokenNext205((string) ($options['source_sequence_cursor_next205'] ?? 'wp.returning.source.sequence.cursor.205'), 'source sequence cursor');
-        $sequence = self::sequenceNext205($currentRows, $sourceToken, $cursor);
-        $acknowledged = self::acknowledgedSequenceNext205($options, $sequence);
-        $requireOrder = (bool) ($options['require_source_sequence_order_next205'] ?? true);
+        $sourceToken = self::tokenForSourceSequenceFence((string) ($options['current_source_sequence_fence_token_source_sequence_fence'] ?? 'wp.current.returning.source.sequence.source_sequence'), 'current source-sequence token');
+        $expectedSourceToken = self::tokenForSourceSequenceFence((string) ($options['expected_current_source_sequence_fence_token_source_sequence_fence'] ?? $sourceToken), 'expected current source-sequence token');
+        $nextSourceToken = self::tokenForSourceSequenceFence((string) ($options['next_source_sequence_fence_token_source_sequence_fence'] ?? 'wp.next.returning.source.sequence.source_sequence'), 'next source-sequence token');
+        $expectedNextSourceToken = self::tokenForSourceSequenceFence((string) ($options['expected_next_source_sequence_fence_token_source_sequence_fence'] ?? $nextSourceToken), 'expected next source-sequence token');
+        $cursor = self::tokenForSourceSequenceFence((string) ($options['source_sequence_cursor_source_sequence_fence'] ?? 'wp.returning.source.sequence.cursor.source_sequence'), 'source-sequence cursor');
+        $sequence = self::sourceSequenceReceipts($currentRows, $sourceToken, $cursor);
+        $acknowledged = self::acknowledgedSourceSequenceReceipts($options, $sequence);
+        $requireOrder = (bool) ($options['require_source_sequence_fence_order_source_sequence_fence'] ?? true);
         $missing = array_values(array_diff($sequence, $acknowledged));
         $unexpected = array_values(array_diff($acknowledged, $sequence));
         $orderMatches = !$requireOrder || $sequence === $acknowledged;
@@ -10206,7 +10206,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             && $sourceTokenMatches
             && $nextSourceTokenMatches;
         $nextVisible = $baseVisible && $sourceFenceClear;
-        $blocked = self::blockedReasonsNext205(
+        $blocked = self::blockedReasonsForSourceSequenceFence(
             $base['blocked_reasons_next203'] ?? [],
             $baseVisible,
             $sourceFenceClear,
@@ -10219,48 +10219,48 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         );
 
         $taggedCurrent = self::tagCurrentNextSourceRows($currentRows, $sequence, $sourceToken, $nextSourceToken, $cursor);
-        $taggedNext = self::tagNextNext205($nextRows, $nextVisible, $sourceToken, $nextSourceToken, $cursor, $blocked);
+        $taggedNext = self::tagNextSourceSequenceRows($nextRows, $nextVisible, $sourceToken, $nextSourceToken, $cursor, $blocked);
         $visibleRows = array_values(array_filter(
             array_merge($taggedCurrent, $taggedNext),
-            static fn (array $row): bool => (bool) $row['visible_after_source_sequence_next205'],
+            static fn (array $row): bool => (bool) $row['visible_after_source_sequence_fence_source_sequence_fence'],
         ));
         $heldRows = array_values(array_filter(
             $taggedNext,
-            static fn (array $row): bool => !(bool) $row['visible_after_source_sequence_next205'],
+            static fn (array $row): bool => !(bool) $row['visible_after_source_sequence_fence_source_sequence_fence'],
         ));
 
         return [
-            'status_next205' => self::statusNext205($baseVisible, $sourceFenceClear, $sourceTokenMatches, $nextSourceTokenMatches, $nextVisible),
+            'status_source_sequence_fence' => self::statusForSourceSequenceFence($baseVisible, $sourceFenceClear, $sourceTokenMatches, $nextSourceTokenMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
-            'base_next_source_visible_next205' => $baseVisible,
-            'current_source_sequence_token_next205' => $sourceToken,
-            'expected_current_source_sequence_token_next205' => $expectedSourceToken,
-            'current_source_sequence_token_matches_next205' => $sourceTokenMatches,
-            'next_source_sequence_token_next205' => $nextSourceToken,
-            'expected_next_source_sequence_token_next205' => $expectedNextSourceToken,
-            'next_source_sequence_token_matches_next205' => $nextSourceTokenMatches,
-            'source_sequence_cursor_next205' => $cursor,
-            'required_current_source_sequence_next205' => $sequence,
-            'acknowledged_current_source_sequence_next205' => $acknowledged,
-            'missing_current_source_sequence_next205' => $missing,
-            'unexpected_current_source_sequence_next205' => $unexpected,
-            'require_source_sequence_order_next205' => $requireOrder,
-            'current_source_sequence_order_matches_next205' => $orderMatches,
-            'current_source_sequence_fence_clear_next205' => $sourceFenceClear,
-            'next_source_visible_after_source_sequence_next205' => $nextVisible,
-            'current_source_sequence_rows_next205' => $taggedCurrent,
-            'attempted_next_source_sequence_rows_next205' => $taggedNext,
-            'visible_returning_rows_next205' => $visibleRows,
-            'held_next_source_rows_next205' => $heldRows,
-            'visible_returning_payloads_next205' => array_column($visibleRows, 'returning'),
-            'held_next_returning_payloads_next205' => array_column($heldRows, 'returning'),
-            'current_source_sequence_row_count_next205' => count($taggedCurrent),
-            'attempted_next_source_sequence_row_count_next205' => count($taggedNext),
-            'visible_row_count_next205' => count($visibleRows),
-            'held_next_row_count_next205' => count($heldRows),
-            'blocked_reasons_next205' => $blocked,
-            'source_sequence_plan_next205' => [
+            'base_next_source_visible_source_sequence_fence' => $baseVisible,
+            'current_source_sequence_fence_token_source_sequence_fence' => $sourceToken,
+            'expected_current_source_sequence_fence_token_source_sequence_fence' => $expectedSourceToken,
+            'current_source_sequence_fence_token_matches_source_sequence_fence' => $sourceTokenMatches,
+            'next_source_sequence_fence_token_source_sequence_fence' => $nextSourceToken,
+            'expected_next_source_sequence_fence_token_source_sequence_fence' => $expectedNextSourceToken,
+            'next_source_sequence_fence_token_matches_source_sequence_fence' => $nextSourceTokenMatches,
+            'source_sequence_cursor_source_sequence_fence' => $cursor,
+            'required_current_source_sequence_fence_source_sequence_fence' => $sequence,
+            'acknowledged_current_source_sequence_fence_source_sequence_fence' => $acknowledged,
+            'missing_current_source_sequence_fence_source_sequence_fence' => $missing,
+            'unexpected_current_source_sequence_fence_source_sequence_fence' => $unexpected,
+            'require_source_sequence_fence_order_source_sequence_fence' => $requireOrder,
+            'current_source_sequence_fence_order_matches_source_sequence_fence' => $orderMatches,
+            'current_source_sequence_fence_fence_clear_source_sequence_fence' => $sourceFenceClear,
+            'next_source_visible_after_source_sequence_fence_source_sequence_fence' => $nextVisible,
+            'current_source_sequence_fence_rows_source_sequence_fence' => $taggedCurrent,
+            'attempted_next_source_sequence_fence_rows_source_sequence_fence' => $taggedNext,
+            'visible_returning_rows_source_sequence_fence' => $visibleRows,
+            'held_next_source_rows_source_sequence_fence' => $heldRows,
+            'visible_returning_payloads_source_sequence_fence' => array_column($visibleRows, 'returning'),
+            'held_next_returning_payloads_source_sequence_fence' => array_column($heldRows, 'returning'),
+            'current_source_sequence_fence_row_count_source_sequence_fence' => count($taggedCurrent),
+            'attempted_next_source_sequence_fence_row_count_source_sequence_fence' => count($taggedNext),
+            'visible_row_count_source_sequence_fence' => count($visibleRows),
+            'held_next_row_count_source_sequence_fence' => count($heldRows),
+            'blocked_reasons_source_sequence_fence' => $blocked,
+            'source_sequence_plan_source_sequence_fence' => [
                 'base_next_source_visible' => $baseVisible,
                 'required_sequence' => $sequence,
                 'acknowledged_sequence' => $acknowledged,
@@ -10276,16 +10276,16 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                     ? 'publish-next-source-after-current-source-sequence'
                     : 'hold-next-source-until-current-source-sequence',
             ],
-            'yield_boundary_next205' => $nextVisible
-                ? 'recursive-view-returning-next205-current-source-sequence-then-next'
-                : 'recursive-view-returning-next205-current-source-sequence-fences-next',
-            'dependency_closure_next205' => 'no new support component needed; reuses native recursive view RETURNING current-source sequence fencing',
-            'dependencies_next205' => array_values(array_unique(array_merge($base['dependencies_next203'], [
-                'sqlite-trigger-recursive-view-returning-current-source-next205',
+            'yield_boundary_source_sequence_fence' => $nextVisible
+                ? 'recursive-view-returning-source-sequence-current-source-sequence-then-next'
+                : 'recursive-view-returning-source-sequence-current-source-sequence-fences-next',
+            'dependency_closure_source_sequence_fence' => 'no new support component needed; reuses native recursive view RETURNING current-source-sequence fencing',
+            'dependencies_source_sequence_fence' => array_values(array_unique(array_merge($base['dependencies_next203'], [
+                'sqlite-trigger-recursive-view-returning-current-source-source-sequence',
                 'sqlite-returning-current-source-sequence-fence',
-                'wordpress-recursive-view-returning-current-source-next205',
+                'wordpress-recursive-view-returning-current-source-source-sequence',
             ]))),
-            'non_overlap_next205' => 'adds a source-sequence fence after next203 generation receipts; avoids accepted next203 generation handoff, next196 child drain, next195 receipt fence, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_source_sequence_fence' => 'adds a source-sequence fence after next203 generation receipts; avoids accepted next203 generation handoff, next196 child drain, next195 receipt fence, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -10293,7 +10293,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function sequenceNext205(array $rows, string $sourceToken, string $cursor): array
+    private static function sourceSequenceReceipts(array $rows, string $sourceToken, string $cursor): array
     {
         $sequence = [];
         foreach ($rows as $index => $row) {
@@ -10315,27 +10315,27 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $required
      * @return list<string>
      */
-    private static function acknowledgedSequenceNext205(array $options, array $required): array
+    private static function acknowledgedSourceSequenceReceipts(array $options, array $required): array
     {
-        if (($options['auto_ack_current_source_sequence_next205'] ?? false) === true) {
+        if (($options['auto_ack_current_source_sequence_fence_source_sequence_fence'] ?? false) === true) {
             return $required;
         }
 
-        return self::sequenceListNext205($options['acknowledged_current_source_sequence_next205'] ?? [], 'acknowledged current source sequence');
+        return self::sourceSequenceReceiptList($options['acknowledged_current_source_sequence_fence_source_sequence_fence'] ?? [], 'acknowledged current source-sequence');
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function sequenceListNext205(mixed $values, string $label): array
+    private static function sourceSequenceReceiptList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next205 {$label} must be a list");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source-sequence {$label} must be a list");
         }
         foreach ($values as $value) {
             if (!is_string($value) || preg_match('/^[a-f0-9]{32}$/', $value) !== 1) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next205 {$label} contains a malformed sequence token");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING source-sequence {$label} contains a malformed sequence token");
             }
         }
 
@@ -10346,14 +10346,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext205(mixed $rows, string $label): array
+    private static function rowsForSourceSequenceFence(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next205 {$label} must be a list");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source-sequence {$label} must be a list");
         }
         foreach ($rows as $row) {
             if (!is_array($row) || !isset($row['returning']) || !is_array($row['returning'])) {
-                throw new InvalidArgumentException("SQLite recursive view RETURNING next205 {$label} contain a malformed row");
+                throw new InvalidArgumentException("SQLite recursive view RETURNING source-sequence {$label} contain a malformed row");
             }
         }
 
@@ -10370,13 +10370,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $out = [];
         foreach ($rows as $index => $row) {
             $out[] = $row + [
-                'source_sequence_phase_next205' => 'current',
-                'current_source_sequence_token_next205' => $sourceToken,
-                'next_source_sequence_token_next205' => $nextSourceToken,
-                'source_sequence_cursor_next205' => $cursor,
-                'current_source_sequence_next205' => $sequence[$index] ?? null,
-                'visible_after_source_sequence_next205' => true,
-                'held_by_source_sequence_reasons_next205' => [],
+                'source_sequence_phase_source_sequence_fence' => 'current',
+                'current_source_sequence_fence_token_source_sequence_fence' => $sourceToken,
+                'next_source_sequence_fence_token_source_sequence_fence' => $nextSourceToken,
+                'source_sequence_cursor_source_sequence_fence' => $cursor,
+                'current_source_sequence_fence_source_sequence_fence' => $sequence[$index] ?? null,
+                'visible_after_source_sequence_fence_source_sequence_fence' => true,
+                'held_by_source_sequence_fence_reasons_source_sequence_fence' => [],
             ];
         }
 
@@ -10388,18 +10388,18 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagNextNext205(array $rows, bool $visible, string $sourceToken, string $nextSourceToken, string $cursor, array $reasons): array
+    private static function tagNextSourceSequenceRows(array $rows, bool $visible, string $sourceToken, string $nextSourceToken, string $cursor, array $reasons): array
     {
         $out = [];
         foreach ($rows as $row) {
             $out[] = $row + [
-                'source_sequence_phase_next205' => 'next',
-                'current_source_sequence_token_next205' => $sourceToken,
-                'next_source_sequence_token_next205' => $nextSourceToken,
-                'source_sequence_cursor_next205' => $cursor,
-                'current_source_sequence_next205' => null,
-                'visible_after_source_sequence_next205' => $visible,
-                'held_by_source_sequence_reasons_next205' => $visible ? [] : $reasons,
+                'source_sequence_phase_source_sequence_fence' => 'next',
+                'current_source_sequence_fence_token_source_sequence_fence' => $sourceToken,
+                'next_source_sequence_fence_token_source_sequence_fence' => $nextSourceToken,
+                'source_sequence_cursor_source_sequence_fence' => $cursor,
+                'current_source_sequence_fence_source_sequence_fence' => null,
+                'visible_after_source_sequence_fence_source_sequence_fence' => $visible,
+                'held_by_source_sequence_fence_reasons_source_sequence_fence' => $visible ? [] : $reasons,
             ];
         }
 
@@ -10412,7 +10412,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $unexpected
      * @return list<string>
      */
-    private static function blockedReasonsNext205(
+    private static function blockedReasonsForSourceSequenceFence(
         mixed $baseReasons,
         bool $baseVisible,
         bool $sourceFenceClear,
@@ -10424,7 +10424,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         bool $nextSourceTokenMatches,
     ): array {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
-            throw new InvalidArgumentException('SQLite recursive view RETURNING next205 base blocked reasons are malformed');
+            throw new InvalidArgumentException('SQLite recursive view RETURNING source-sequence base blocked reasons are malformed');
         }
         $reasons = array_map(static fn (mixed $reason): string => (string) $reason, $baseReasons);
         if (!$baseVisible && $reasons === []) {
@@ -10451,31 +10451,31 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext205(bool $baseVisible, bool $sourceFenceClear, bool $sourceTokenMatches, bool $nextSourceTokenMatches, bool $nextVisible): string
+    private static function statusForSourceSequenceFence(bool $baseVisible, bool $sourceFenceClear, bool $sourceTokenMatches, bool $nextSourceTokenMatches, bool $nextVisible): string
     {
         if ($nextVisible) {
-            return 'trigger-recursive-view-returning-current-source-next205-source-sequence-released';
+            return 'trigger-recursive-view-returning-current-source-source-sequence-source-sequence-released';
         }
         if (!$baseVisible) {
-            return 'trigger-recursive-view-returning-current-source-next205-base-held';
+            return 'trigger-recursive-view-returning-current-source-source-sequence-base-held';
         }
         if (!$sourceTokenMatches) {
-            return 'trigger-recursive-view-returning-current-source-next205-current-source-held';
+            return 'trigger-recursive-view-returning-current-source-source-sequence-current-source-held';
         }
         if (!$nextSourceTokenMatches) {
-            return 'trigger-recursive-view-returning-current-source-next205-next-source-held';
+            return 'trigger-recursive-view-returning-current-source-source-sequence-next-source-held';
         }
         if (!$sourceFenceClear) {
-            return 'trigger-recursive-view-returning-current-source-next205-sequence-held';
+            return 'trigger-recursive-view-returning-current-source-source-sequence-sequence-held';
         }
 
-        return 'trigger-recursive-view-returning-current-source-next205-held';
+        return 'trigger-recursive-view-returning-current-source-source-sequence-held';
     }
 
-    private static function tokenNext205(string $token, string $label): string
+    private static function tokenForSourceSequenceFence(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
-            throw new InvalidArgumentException("SQLite recursive view RETURNING next205 {$label} is malformed");
+            throw new InvalidArgumentException("SQLite recursive view RETURNING source-sequence {$label} is malformed");
         }
 
         return $token;
@@ -10882,7 +10882,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-returning-current-source-drain-fence',
                 'wordpress-recursive-view-returning-current-source-next207',
             ]))),
-            'non_overlap_next207' => 'adds current RETURNING drain admission after next206 yield watermark; avoids accepted next206 watermark, next205 sequence, next203 generation handoff, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_next207' => 'adds current RETURNING drain admission after next206 yield watermark; avoids accepted next206 watermark, source-sequence sequence, next203 generation handoff, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -11674,7 +11674,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $sequenceToken = self::currentSourceSequenceToken((string) ($options['current_source_sequence_token_next210'] ?? 'wp.current.source.sequence.210'), 'current source sequence token');
+        $sequenceToken = self::currentSourceSequenceToken((string) ($options['current_source_sequence_fence_token_next210'] ?? 'wp.current.source.sequence.210'), 'current source-sequence token');
         $handoffCursor = self::currentSourceSequenceToken((string) ($options['sequence_handoff_cursor_next210'] ?? 'wp.returning.sequence.cursor.210'), 'sequence handoff cursor');
         $expectedHandoffCursor = self::currentSourceSequenceToken((string) ($options['expected_sequence_handoff_cursor_next210'] ?? $handoffCursor), 'expected sequence handoff cursor');
         $viewCookie = self::currentSourceSequenceToken((string) ($base['current_view_cookie_next209'] ?? ''), 'base view cookie');
@@ -11688,7 +11688,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $acknowledgedSequence = self::acknowledgedCurrentSourceSequence($options, $requiredSequence);
         $missingSequence = array_values(array_diff($requiredSequence, $acknowledgedSequence));
         $unexpectedSequence = array_values(array_diff($acknowledgedSequence, $requiredSequence));
-        $requireOrder = (bool) ($options['require_current_source_sequence_order_next210'] ?? true);
+        $requireOrder = (bool) ($options['require_current_source_sequence_fence_order_next210'] ?? true);
         $orderMatches = !$requireOrder || $requiredSequence === $acknowledgedSequence;
         $cursorMatches = hash_equals($handoffCursor, $expectedHandoffCursor);
         $sourceSignature = self::currentSourceSequenceSignature($viewCookie, $triggerCookie, $sequenceToken);
@@ -11714,11 +11714,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $taggedNext = self::tagNextSequenceRows($nextRows, $nextVisible, $sequenceToken, $handoffCursor, $sourceSignature, $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($taggedCurrent, $taggedNext),
-            static fn (array $row): bool => (bool) $row['visible_after_current_source_sequence_next210'],
+            static fn (array $row): bool => (bool) $row['visible_after_current_source_sequence_fence_next210'],
         ));
         $heldRows = array_values(array_filter(
             $taggedNext,
-            static fn (array $row): bool => !(bool) $row['visible_after_current_source_sequence_next210'],
+            static fn (array $row): bool => !(bool) $row['visible_after_current_source_sequence_fence_next210'],
         ));
 
         return [
@@ -11726,21 +11726,21 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'base_next_source_visible_next210' => $baseVisible,
-            'current_source_sequence_token_next210' => $sequenceToken,
+            'current_source_sequence_fence_token_next210' => $sequenceToken,
             'sequence_handoff_cursor_next210' => $handoffCursor,
             'expected_sequence_handoff_cursor_next210' => $expectedHandoffCursor,
             'sequence_handoff_cursor_matches_next210' => $cursorMatches,
             'current_source_signature_next210' => $sourceSignature,
             'expected_current_source_signature_next210' => $expectedSourceSignature,
             'current_source_signature_matches_next210' => $sourceSignatureMatches,
-            'required_current_source_sequence_next210' => $requiredSequence,
-            'acknowledged_current_source_sequence_next210' => $acknowledgedSequence,
-            'missing_current_source_sequence_next210' => $missingSequence,
-            'unexpected_current_source_sequence_next210' => $unexpectedSequence,
-            'require_current_source_sequence_order_next210' => $requireOrder,
-            'current_source_sequence_order_matches_next210' => $orderMatches,
-            'current_source_sequence_complete_next210' => $sequenceComplete,
-            'next_source_visible_after_current_source_sequence_next210' => $nextVisible,
+            'required_current_source_sequence_fence_next210' => $requiredSequence,
+            'acknowledged_current_source_sequence_fence_next210' => $acknowledgedSequence,
+            'missing_current_source_sequence_fence_next210' => $missingSequence,
+            'unexpected_current_source_sequence_fence_next210' => $unexpectedSequence,
+            'require_current_source_sequence_fence_order_next210' => $requireOrder,
+            'current_source_sequence_fence_order_matches_next210' => $orderMatches,
+            'current_source_sequence_fence_complete_next210' => $sequenceComplete,
+            'next_source_visible_after_current_source_sequence_fence_next210' => $nextVisible,
             'current_source_rows_next210' => $taggedCurrent,
             'attempted_next_source_rows_next210' => $taggedNext,
             'visible_returning_rows_next210' => $visibleRows,
@@ -11752,7 +11752,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'visible_row_count_next210' => count($visibleRows),
             'held_next_row_count_next210' => count($heldRows),
             'blocked_reasons_next210' => $blockedReasons,
-            'current_source_sequence_plan_next210' => [
+            'current_source_sequence_fence_plan_next210' => [
                 'base_next_source_visible' => $baseVisible,
                 'source_signature' => $sourceSignature,
                 'source_signature_matches' => $sourceSignatureMatches,
@@ -11778,7 +11778,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'sqlite-returning-current-source-ordered-sequence-fence',
                 'wordpress-recursive-view-returning-current-source-next210',
             ]))),
-            'non_overlap_next210' => 'adds ordered current-source sequence fencing after next209 drain watermarks; avoids accepted next209 drain, next208 cursor close, next203 generation handoff, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
+            'non_overlap_next210' => 'adds ordered current-source-sequence fencing after next209 drain watermarks; avoids accepted next209 drain, next208 cursor close, next203 generation handoff, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
     }
 
@@ -11812,11 +11812,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      */
     private static function acknowledgedCurrentSourceSequence(array $options, array $required): array
     {
-        if (($options['auto_ack_current_source_sequence_next210'] ?? false) === true) {
+        if (($options['auto_ack_current_source_sequence_fence_next210'] ?? false) === true) {
             return $required;
         }
 
-        return self::currentSourceSequenceList($options['acknowledged_current_source_sequence_next210'] ?? [], 'acknowledged current source sequence');
+        return self::currentSourceSequenceList($options['acknowledged_current_source_sequence_fence_next210'] ?? [], 'acknowledged current source-sequence');
     }
 
     /**
@@ -11866,12 +11866,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         foreach ($rows as $index => $row) {
             $out[] = $row + [
                 'source_sequence_phase_next210' => 'current',
-                'current_source_sequence_token_next210' => $sequenceToken,
+                'current_source_sequence_fence_token_next210' => $sequenceToken,
                 'sequence_handoff_cursor_next210' => $handoffCursor,
                 'current_source_signature_next210' => $sourceSignature,
-                'current_source_sequence_next210' => $sequence[$index] ?? null,
-                'visible_after_current_source_sequence_next210' => true,
-                'held_by_current_source_sequence_reasons_next210' => [],
+                'current_source_sequence_fence_next210' => $sequence[$index] ?? null,
+                'visible_after_current_source_sequence_fence_next210' => true,
+                'held_by_current_source_sequence_fence_reasons_next210' => [],
             ];
         }
 
@@ -11889,12 +11889,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         foreach ($rows as $row) {
             $out[] = $row + [
                 'source_sequence_phase_next210' => 'next',
-                'current_source_sequence_token_next210' => $sequenceToken,
+                'current_source_sequence_fence_token_next210' => $sequenceToken,
                 'sequence_handoff_cursor_next210' => $handoffCursor,
                 'current_source_signature_next210' => $sourceSignature,
-                'current_source_sequence_next210' => null,
-                'visible_after_current_source_sequence_next210' => $visible,
-                'held_by_current_source_sequence_reasons_next210' => $visible ? [] : $reasons,
+                'current_source_sequence_fence_next210' => null,
+                'visible_after_current_source_sequence_fence_next210' => $visible,
+                'held_by_current_source_sequence_fence_reasons_next210' => $visible ? [] : $reasons,
             ];
         }
 

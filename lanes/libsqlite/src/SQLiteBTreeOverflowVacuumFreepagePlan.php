@@ -77,8 +77,8 @@ final class SQLiteBTreeOverflowVacuumFreepagePlan
             'current_page_numbers' => array_keys($this->currentPageImages),
             'updated_pointer_map_page_numbers' => array_keys($this->releasePlan->freePlan->updatedPointerMapPages),
             'secure_delete_cleared_pages' => $this->releasePlan->freePlan->clearedPageNumbers,
-            'overflow_pointermap_freepage_current_source_next91' => $this->overflowPointerMapFreepageCurrentSourceNext91(),
-            'overflow_freepage_vacuum_current_source_next102' => $this->overflowFreepageVacuumCurrentSourceNext102(
+            'overflow_pointer_map_freepage_rows' => $this->overflowPointerMapFreepageRows(),
+            'overflow_freepage_vacuum_rows' => $this->overflowFreepageVacuumRows(
                 count($this->releasePlan->releasedOverflowPages),
                 $this->firstReusableSourceParentPage(),
             ),
@@ -88,7 +88,7 @@ final class SQLiteBTreeOverflowVacuumFreepagePlan
     /**
      * @return list<array{source:string,page_number:int,current_type_name:string|null,current_parent_page_number:int|null,next_type_name:string|null,next_parent_page_number:int|null,freelist_role:string,freelist_position:int|null,next_allocation_position:int|null,secure_deleted:bool,pointer_map_page:int|null}>
      */
-    public function overflowPointerMapFreepageCurrentSourceNext91(): array
+    public function overflowPointerMapFreepageRows(): array
     {
         $currentEntries = [];
         if ($this->releasePlan->freePlan->freedPointerMapEntries !== []) {
@@ -157,16 +157,16 @@ final class SQLiteBTreeOverflowVacuumFreepagePlan
     /**
      * @return list<array{source:string|null,page_number:int,current_status:string,next_status:string,freelist_role:string|null,freelist_position:int|null,allocation_position:int|null,allocation_source:string|null,allocation_trunk_page:int|null,current_pointer_map_type:string|null,current_pointer_map_parent:int|null,next_pointer_map_type:string|null,next_pointer_map_parent:int|null,pointer_map_page:int|null,secure_deleted_before_reuse:bool}>
      */
-    public function overflowFreepageVacuumCurrentSourceNext102(int $allocationCount, ?int $parentPageNumber): array
+    public function overflowFreepageVacuumRows(int $allocationCount, ?int $parentPageNumber): array
     {
         if ($allocationCount < 0) {
-            throw new \InvalidArgumentException('SQLite overflow freepage vacuum current-source next102 allocation count cannot be negative');
+            throw new \InvalidArgumentException('SQLite overflow freepage vacuum current-source overflow freepage vacuum allocation count cannot be negative');
         }
         if ($allocationCount === 0) {
             return [];
         }
         if ($parentPageNumber !== null && $parentPageNumber < 2) {
-            throw new \InvalidArgumentException('SQLite overflow freepage vacuum current-source next102 parent page must be null or at page 2 or later');
+            throw new \InvalidArgumentException('SQLite overflow freepage vacuum current-source overflow freepage vacuum parent page must be null or at page 2 or later');
         }
 
         $allocationPlan = $this->currentDatabase->planBtreePageAllocation($allocationCount, $parentPageNumber, false);

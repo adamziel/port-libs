@@ -31,7 +31,7 @@ $plan214 = static fn (
     ?int $yieldBatchSize = 3,
     ?array $projection = null,
     ?array $columnReads = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext214(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXColumnCache(
     'json_tree',
     $current ?? $current214,
     $next ?? $next214,

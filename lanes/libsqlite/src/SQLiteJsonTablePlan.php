@@ -3308,7 +3308,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $columnReads
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext214(
+    public static function currentSourceGeneratedPathRowidXColumnCache(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -3338,16 +3338,16 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceXColumnProfile214(
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceXColumnProfile(
             $plan['currentGeneratedPathRowidCurrentSourceXCurrent212'],
             $columnReads,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceXColumnProfile214(
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceXColumnProfile(
             $plan['nextGeneratedPathRowidCurrentSourceXCurrent212'],
             $columnReads,
         );
-        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceXColumnTransitions214($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceXColumnReasons214($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceXColumnTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceXColumnReasons($transitions);
 
         $plan['currentGeneratedPathRowidCurrentSourceXColumn214'] = $currentProfile;
         $plan['nextGeneratedPathRowidCurrentSourceXColumn214'] = $nextProfile;
@@ -25606,7 +25606,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $columnReads
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceXColumnProfile214(
+    private static function jsonTableGeneratedPathRowidCurrentSourceXColumnProfile(
         array $xCurrent212,
         array $columnReads,
     ): array {
@@ -25757,7 +25757,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceXColumnTransitions214(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceXColumnTransitions(array $current, array $next): array
     {
         $fields = [
             'function',
@@ -25796,7 +25796,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceXColumnReasons214(array $transitions): array
+    private static function jsonTableGeneratedPathRowidCurrentSourceXColumnReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {

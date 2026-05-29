@@ -43,10 +43,31 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 152G available, 67% used; `/tmp` has about 4.9G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current sample reports `/` at 452G size with about 148G available, 68% used; `/tmp` has about 4.9G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-29 supervisor continuation (shell samples 14:25 UTC):
+  Thirty-first consolidation follow-up is reduced and validated in the rolling
+  libsqlite integration worktree. The batch accepts nine AR-wave handoffs:
+  compound upstream-suite wrapper cleanup, JSON table generated-path rowid
+  helper cleanup, B-tree vacuum helper cleanup, planner subquery partial-index
+  suffix cleanup, row-value savepoint helper cleanup, trigger source-sequence
+  cleanup, attach/schema direct-caller cleanup, pager-master wrapper cleanup,
+  and pager rollback-source reader-cache cleanup. Verification passed:
+  php-lint for `42` changed PHP files, focused changed tests
+  `17 test files / 2078 assertions / 0 failures`, `17` changed WordPress
+  examples/self-tests, extra pager-family guard
+  `4 test files / 251 assertions / 0 failures`, git diff --check, exact
+  user-named 150 suffix scan clean, numbered production filename/class scans
+  at `0`, and remaining numbered production method-line audit down to `558`.
+  Public libsqlite PASS and mapped totals remain `154019 / 0 fail` and
+  `830 / 1589` because this is consolidation, not new upstream behavior
+  coverage. Remaining numbered production method-line debt is concentrated in
+  `SQLiteUpstreamSuiteEvidence.php` and `SQLiteJsonTablePlan.php`; next
+  intake should prioritize those families while keeping rowvalue-window and
+  broad-family rewrites behind isolated validation and causality checks.
 
 - 2026-05-29 supervisor continuation (shell samples 14:16 UTC):
   Thirtieth consolidation follow-up is reduced and validated in the rolling

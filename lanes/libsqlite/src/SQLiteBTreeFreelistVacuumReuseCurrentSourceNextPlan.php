@@ -66,7 +66,7 @@ final class SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan
     /**
      * @return list<array<string, mixed>>
      */
-    public function incrementalVacuumCurrentSourceNext108Rows(): array
+    public function incrementalVacuumReuseRows(): array
     {
         $allocated = array_fill_keys($this->allocationPlan->allocatedPageNumbers, true);
         $survivors = array_fill_keys($this->vacuumPlan->survivingFreedPointerMapPages(), true);
@@ -170,7 +170,7 @@ final class SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan
     public function toArray(): array
     {
         return [
-            'action' => 'btree-freelist-pointermap-vacuum-reuse-current-source-next104',
+            'action' => 'btree-freelist-pointermap-vacuum-reuse',
             'vacuum_final_database_page_count' => $this->vacuumPlan->finalDatabasePageCount(),
             'vacuum_surviving_freed_pages' => $this->vacuumPlan->survivingFreedPointerMapPages(),
             'vacuum_truncated_freed_pages' => $this->vacuumPlan->truncatedFreedPointerMapPages(),
@@ -185,8 +185,8 @@ final class SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan
             'allocation_steps' => $this->allocationPlan->allocationSteps(),
             'allocated_pointer_map_entries' => $this->allocationPlan->allocatedPointerMapEntries(),
             'updated_page_numbers' => array_keys($this->pageImages()),
-            'btree_freelist_pointermap_vacuum_reuse_current_source_next104' => $this->reuseRows,
-            'incremental_vacuum_current_source_next108' => $this->incrementalVacuumCurrentSourceNext108Rows(),
+            'btree_freelist_pointermap_vacuum_reuse_rows' => $this->reuseRows,
+            'incremental_vacuum_reuse_rows' => $this->incrementalVacuumReuseRows(),
         ];
     }
 

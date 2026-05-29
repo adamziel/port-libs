@@ -18,7 +18,7 @@ $rows = [
     ['option_id' => 9, 'blog_id' => 5, 'option_name' => '_transient_old', 'autoload' => 'no', 'status' => 'stale', 'bytes' => 3, 'option_value' => 'old'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleaseNextReadSavepoint(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeReleaseFollowupReadSavepoint(
     ['wp_options' => $rows],
     [
         "UPDATE OR REPLACE wp_options SET (blog_id, autoload, status, option_value, bytes) = (4, 'yes', 'released205', option_value || ':released205', bytes + 10) WHERE (blog_id, option_name) IN ((3, 'orphaned_cache')) RETURNING option_id, blog_id, option_name, autoload, status, option_value, bytes, (blog_id, autoload) IS (4, 'yes') AS tuple_is ORDER BY option_id",

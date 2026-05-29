@@ -8516,7 +8516,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array{release_token?:string,expected_release_token?:string,next_cursor?:string,expected_next_cursor?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeReleaseNextReadSavepoint(
+    public static function executeReleaseFollowupReadSavepoint(
         array $tables,
         array $savepointStatements,
         array $nextStatements,
@@ -8538,13 +8538,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value release release_followup_read savepoint must be an identifier');
         }
 
-        $releaseToken = self::tokenReleaseNextReadSavepoint((string) ($options['release_token'] ?? 'wp.rowvalue.release.followup.read'), 'release token');
-        $expectedReleaseToken = self::tokenReleaseNextReadSavepoint((string) ($options['expected_release_token'] ?? $releaseToken), 'expected release token');
-        $nextCursor = self::tokenReleaseNextReadSavepoint((string) ($options['next_cursor'] ?? 'wp.rowvalue.followup.cursor'), 'next cursor');
-        $expectedNextCursor = self::tokenReleaseNextReadSavepoint((string) ($options['expected_next_cursor'] ?? $nextCursor), 'expected next cursor');
+        $releaseToken = self::tokenReleaseFollowupReadSavepoint((string) ($options['release_token'] ?? 'wp.rowvalue.release.followup.read'), 'release token');
+        $expectedReleaseToken = self::tokenReleaseFollowupReadSavepoint((string) ($options['expected_release_token'] ?? $releaseToken), 'expected release token');
+        $nextCursor = self::tokenReleaseFollowupReadSavepoint((string) ($options['next_cursor'] ?? 'wp.rowvalue.followup.cursor'), 'next cursor');
+        $expectedNextCursor = self::tokenReleaseFollowupReadSavepoint((string) ($options['expected_next_cursor'] ?? $nextCursor), 'expected next cursor');
 
-        $savepointImage = self::normalizeTablesReleaseNextReadSavepoint($tables);
-        [$releasedCurrent, $savepointExecuted, $savepointReturning] = self::runStatementsReleaseNextReadSavepoint(
+        $savepointImage = self::normalizeTablesReleaseFollowupReadSavepoint($tables);
+        [$releasedCurrent, $savepointExecuted, $savepointReturning] = self::runStatementsReleaseFollowupReadSavepoint(
             $savepointImage,
             $savepointStatements,
             $uniqueConstraints,
@@ -8555,7 +8555,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $releaseAdmitted = $releaseToken === $expectedReleaseToken;
         $nextCursorMatches = $nextCursor === $expectedNextCursor;
         $nextSource = $releaseAdmitted ? $releasedCurrent : $savepointImage;
-        [$nextCurrent, $nextExecuted, $nextReturning] = self::runStatementsReleaseNextReadSavepoint(
+        [$nextCurrent, $nextExecuted, $nextReturning] = self::runStatementsReleaseFollowupReadSavepoint(
             $nextSource,
             $nextStatements,
             $uniqueConstraints,
@@ -8563,7 +8563,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'next-after-release-current-source-release_followup_read',
         );
 
-        $nextReadReleasedRows = $releaseAdmitted && $nextCursorMatches && self::firstStatementSourceMatchesReleaseNextReadSavepoint($nextExecuted, $releasedCurrent, $rowIdColumn);
+        $nextReadReleasedRows = $releaseAdmitted && $nextCursorMatches && self::firstStatementSourceMatchesReleaseFollowupReadSavepoint($nextExecuted, $releasedCurrent, $rowIdColumn);
         $status = $releaseAdmitted && $nextCursorMatches
             ? 'rowvalue-update-delete-returning-release-current-source-release_followup_read'
             : 'rowvalue-update-delete-returning-release-current-source-blocked-release_followup_read';
@@ -8587,12 +8587,12 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'next_statements' => $nextExecuted,
             'savepoint_returning' => $savepointReturning,
             'next_returning' => $nextReturning,
-            'released_returning_count' => self::returningCountReleaseNextReadSavepoint($savepointReturning),
-            'next_returning_count' => self::returningCountReleaseNextReadSavepoint($nextReturning),
-            'released_conflict_delete_count' => self::deletedConflictCountReleaseNextReadSavepoint($savepointExecuted),
-            'changed_tables_after_release' => self::changedTablesReleaseNextReadSavepoint($savepointImage, $releasedCurrent),
-            'changed_tables_after_next' => self::changedTablesReleaseNextReadSavepoint($savepointImage, $nextCurrent),
-            'row_counts' => self::rowCountsReleaseNextReadSavepoint($nextCurrent),
+            'released_returning_count' => self::returningCountReleaseFollowupReadSavepoint($savepointReturning),
+            'next_returning_count' => self::returningCountReleaseFollowupReadSavepoint($nextReturning),
+            'released_conflict_delete_count' => self::deletedConflictCountReleaseFollowupReadSavepoint($savepointExecuted),
+            'changed_tables_after_release' => self::changedTablesReleaseFollowupReadSavepoint($savepointImage, $releasedCurrent),
+            'changed_tables_after_next' => self::changedTablesReleaseFollowupReadSavepoint($savepointImage, $nextCurrent),
+            'row_counts' => self::rowCountsReleaseFollowupReadSavepoint($nextCurrent),
             'release_receipt_release_followup_read' => [
                 'savepoint' => $savepoint,
                 'token' => $releaseToken,
@@ -8616,7 +8616,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runStatementsReleaseNextReadSavepoint(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    private static function runStatementsReleaseFollowupReadSavepoint(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
     {
         $current = $tables;
         $executed = [];
@@ -8626,7 +8626,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $executed[] = self::statementSummaryReleaseNextReadSavepoint($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
+            $executed[] = self::statementSummaryReleaseFollowupReadSavepoint($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => $phase,
                 'ordinal' => $ordinal,
@@ -8644,7 +8644,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryReleaseNextReadSavepoint(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementSummaryReleaseFollowupReadSavepoint(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -8655,7 +8655,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsReleaseNextReadSavepoint($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::rowsByIdsReleaseFollowupReadSavepoint($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -8668,7 +8668,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesReleaseNextReadSavepoint(array $tables): array
+    private static function normalizeTablesReleaseFollowupReadSavepoint(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -8689,7 +8689,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsReleaseNextReadSavepoint(array $rows, array $ids, string $rowIdColumn): array
+    private static function rowsByIdsReleaseFollowupReadSavepoint(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -8717,7 +8717,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<array<string,mixed>> $executed
      * @param array<string,list<array<string,mixed>>> $source
      */
-    private static function firstStatementSourceMatchesReleaseNextReadSavepoint(array $executed, array $source, string $rowIdColumn): bool
+    private static function firstStatementSourceMatchesReleaseFollowupReadSavepoint(array $executed, array $source, string $rowIdColumn): bool
     {
         $statement = $executed[0] ?? null;
         if (!is_array($statement)) {
@@ -8729,13 +8729,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             return false;
         }
 
-        return self::rowsByIdsReleaseNextReadSavepoint($source[$table], $ids, $rowIdColumn) === ($statement['source_rows'] ?? null);
+        return self::rowsByIdsReleaseFollowupReadSavepoint($source[$table], $ids, $rowIdColumn) === ($statement['source_rows'] ?? null);
     }
 
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountReleaseNextReadSavepoint(array $yielded): int
+    private static function returningCountReleaseFollowupReadSavepoint(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -8748,7 +8748,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $executed
      */
-    private static function deletedConflictCountReleaseNextReadSavepoint(array $executed): int
+    private static function deletedConflictCountReleaseFollowupReadSavepoint(array $executed): int
     {
         $count = 0;
         foreach ($executed as $statement) {
@@ -8763,7 +8763,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesReleaseNextReadSavepoint(array $before, array $after): array
+    private static function changedTablesReleaseFollowupReadSavepoint(array $before, array $after): array
     {
         $changed = [];
         foreach (array_unique(array_merge(array_keys($before), array_keys($after))) as $table) {
@@ -8779,7 +8779,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsReleaseNextReadSavepoint(array $tables): array
+    private static function rowCountsReleaseFollowupReadSavepoint(array $tables): array
     {
         $counts = [];
         foreach ($tables as $table => $rows) {
@@ -8789,7 +8789,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return $counts;
     }
 
-    private static function tokenReleaseNextReadSavepoint(string $token, string $label): string
+    private static function tokenReleaseFollowupReadSavepoint(string $token, string $label): string
     {
         $token = trim($token);
         if ($token === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $token) !== 1) {
