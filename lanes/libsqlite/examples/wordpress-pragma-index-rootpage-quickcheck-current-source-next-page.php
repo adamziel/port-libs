@@ -7,7 +7,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext129;
+use PortLibs\LibSqlite\SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -57,7 +57,7 @@ $catalog = new SQLiteAttachedSchemaCatalog([
     $record('index', 'wp_options_autoload', 'wp_options', 6, $schemaRows[2][4]),
 ]);
 
-$page = SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext129::page(
+$page = SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext::page(
     $catalog,
     'PRAGMA main.index_xinfo(wp_options_name_expr)',
     $database,
@@ -73,16 +73,16 @@ if (($argv[1] ?? null) === '--self-test') {
         || $page['current']['quick_check_errors'] !== 1
         || ($page['rows'][$page['count'] - 1]['source'] ?? null) !== 'quick_check'
     ) {
-        fwrite(STDERR, "wordpress-pragma-index-rootpage-quickcheck-current-source-next129 self-test failed\n");
+        fwrite(STDERR, "wordpress-pragma-index-rootpage-quickcheck-current-source-next-page self-test failed\n");
         exit(1);
     }
 
-    fwrite(STDOUT, "wordpress-pragma-index-rootpage-quickcheck-current-source-next129 self-test passed\n");
+    fwrite(STDOUT, "wordpress-pragma-index-rootpage-quickcheck-current-source-next-page self-test passed\n");
     exit(0);
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-pragma-index-rootpage-quickcheck-current-source-next129',
+    'scenario' => 'wordpress-pragma-index-rootpage-quickcheck-current-source-next-page',
     'wordpressUse' => 'Resume copied wp_options expression-index metadata together with bounded PRAGMA quick_check rootpage blockers from the same current database image.',
     'status' => $page['status'],
     'source_id' => $page['source_id'],

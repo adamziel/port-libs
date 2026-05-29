@@ -7,7 +7,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext146;
+use PortLibs\LibSqlite\SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -66,7 +66,7 @@ $nextDatabase = $database($pointerMap([
     [6, SQLitePointerMapEntry::ROOT_PAGE, 0],
 ]));
 
-$summary = SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext146::currentNextPage(
+$summary = SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext::currentNextPage(
     $catalog,
     $catalog,
     'PRAGMA main.index_xinfo(wp_options_value_expr)',
@@ -81,16 +81,16 @@ if (($argv[1] ?? null) === '--self-test') {
         || $summary['next_counts']['quick_check_errors'] !== 0
         || $summary['delta']['cleared'] !== true
     ) {
-        fwrite(STDERR, "wordpress-pragma-index-rootpage-quickcheck-current-source-next146 self-test failed\n");
+        fwrite(STDERR, "wordpress-pragma-index-rootpage-quickcheck-current-source-next-current-next-page self-test failed\n");
         exit(1);
     }
 
-    fwrite(STDOUT, "wordpress-pragma-index-rootpage-quickcheck-current-source-next146 self-test passed\n");
+    fwrite(STDOUT, "wordpress-pragma-index-rootpage-quickcheck-current-source-next-current-next-page self-test passed\n");
     exit(0);
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-pragma-index-rootpage-quickcheck-current-source-next146',
+    'scenario' => 'wordpress-pragma-index-rootpage-quickcheck-current-source-next-current-next-page',
     'wordpressUse' => 'Resume copied wp_options expression-index analysis only after PRAGMA quick_check verifies the next database image repaired the index rootpage pointer-map state.',
     'status' => $summary['status'],
     'current_errors' => $summary['current']['quick_check_errors'],

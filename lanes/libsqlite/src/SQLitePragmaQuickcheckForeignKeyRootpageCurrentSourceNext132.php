@@ -35,7 +35,7 @@ final class SQLitePragmaQuickcheckForeignKeyRootpageCurrentSourceNext132
             throw new InvalidArgumentException('SQLite PRAGMA quickcheck foreign-key rootpage current-source next132 limit must be positive');
         }
 
-        $quick = SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext129::page(
+        $quick = SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext::page(
             $catalog,
             $indexXinfoSql,
             $database,

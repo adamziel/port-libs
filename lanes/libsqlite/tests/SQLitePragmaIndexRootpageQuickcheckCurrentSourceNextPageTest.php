@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext129;
+use PortLibs\LibSqlite\SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -143,7 +143,7 @@ $page = static fn (
     bool $tableValued = false,
     ?array $cursor = null,
     ?SQLiteAttachedSchemaCatalog $catalog = null,
-): array => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext129::page(
+): array => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext::page(
     $catalog ?? $catalogFactory(),
     $sql ?? 'PRAGMA main.index_xinfo(wp_options_value_expr)',
     $db ?? $pointerMismatchDatabase,
@@ -284,15 +284,15 @@ $tests['pragma index rootpage quickcheck current source next129 rejects stale of
 };
 
 $tests['pragma index rootpage quickcheck current source next129 rejects integrity_check sql'] = static function (TestRunner $t) use ($catalogFactory, $validDatabase): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext129::page($catalogFactory(), 'PRAGMA index_xinfo(wp_options_name)', $validDatabase, 0, 129, 'PRAGMA integrity_check'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext::page($catalogFactory(), 'PRAGMA index_xinfo(wp_options_name)', $validDatabase, 0, 129, 'PRAGMA integrity_check'));
 };
 
 $tests['pragma index rootpage quickcheck current source next129 rejects negative offset'] = static function (TestRunner $t) use ($catalogFactory, $validDatabase): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext129::page($catalogFactory(), 'PRAGMA index_xinfo(wp_options_name)', $validDatabase, -1, 129));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext::page($catalogFactory(), 'PRAGMA index_xinfo(wp_options_name)', $validDatabase, -1, 129));
 };
 
 $tests['pragma index rootpage quickcheck current source next129 rejects zero limit'] = static function (TestRunner $t) use ($catalogFactory, $validDatabase): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext129::page($catalogFactory(), 'PRAGMA index_xinfo(wp_options_name)', $validDatabase, 0, 0));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext::page($catalogFactory(), 'PRAGMA index_xinfo(wp_options_name)', $validDatabase, 0, 0));
 };
 
 return $tests;

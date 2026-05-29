@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext146;
+use PortLibs\LibSqlite\SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -133,7 +133,7 @@ $page146 = static fn (
     ?string $sql = null,
     string $quickSql = 'PRAGMA quick_check',
     bool $tableValued = false,
-): array => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext146::currentNextPage(
+): array => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext::currentNextPage(
     $currentCatalog ?? $catalog146(),
     $nextCatalog ?? $catalog146(),
     $sql ?? 'PRAGMA main.index_xinfo(wp_options_value_expr)',
@@ -270,7 +270,7 @@ $tests['pragma index rootpage quickcheck current source next146 rejects stale of
 };
 
 $tests['pragma index rootpage quickcheck current source next146 rejects integrity check sql'] = static function (TestRunner $t) use ($catalog146, $currentDatabase146, $nextDatabase146): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext146::currentNextPage($catalog146(), $catalog146(), 'PRAGMA index_xinfo(wp_options_value_expr)', $currentDatabase146, $nextDatabase146, 0, 146, 'PRAGMA integrity_check'));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePragmaIndexRootpageQuickcheckCurrentSourceNext::currentNextPage($catalog146(), $catalog146(), 'PRAGMA index_xinfo(wp_options_value_expr)', $currentDatabase146, $nextDatabase146, 0, 146, 'PRAGMA integrity_check'));
 };
 
 $tests['pragma index rootpage quickcheck current source next146 rejects negative offset'] = static function (TestRunner $t) use ($page146): void {
