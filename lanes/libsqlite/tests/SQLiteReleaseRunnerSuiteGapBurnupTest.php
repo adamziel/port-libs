@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 
-function libsqlite_release_burnup_evidence(): SQLiteUpstreamSuiteEvidence
+function libsqlite_release_suite_gap_burnup_evidence(): SQLiteUpstreamSuiteEvidence
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 }
 
-function libsqlite_release_burnup_output(int $assertions = 65, int $failures = 0): string
+function libsqlite_release_suite_gap_burnup_output(int $assertions = 65, int $failures = 0): string
 {
     return "Focused test run: 1 selected test files (root lock skipped)\n"
         . "1 test files, {$assertions} assertions, {$failures} failures\n";
 }
 
-function libsqlite_release_burnup_rows(int $case): array
+function libsqlite_release_suite_gap_burnup_rows(int $case): array
 {
     return [
         [
@@ -55,13 +55,13 @@ $tests = [];
 
 for ($i = 1; $i <= 56; $i++) {
     $tests['current next51 suite gap burnup generated case ' . str_pad((string) $i, 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use ($i, $currentHead51, $nextHead51, $focusedPath51, $nonOverlap51): void {
-        $record = libsqlite_release_burnup_evidence()->releaseRunnerSuiteGapBurnup(
-            libsqlite_release_burnup_rows($i),
+        $record = libsqlite_release_suite_gap_burnup_evidence()->releaseRunnerSuiteGapBurnup(
+            libsqlite_release_suite_gap_burnup_rows($i),
             $currentHead51,
             $nextHead51,
             18565,
             $focusedPath51,
-            libsqlite_release_burnup_output(65),
+            libsqlite_release_suite_gap_burnup_output(65),
             $nonOverlap51,
             3
         );
@@ -80,7 +80,7 @@ for ($i = 1; $i <= 56; $i++) {
 }
 
 $tests['current next51 suite gap burnup completes when all target rows count'] = static function (TestRunner $t) use ($currentHead51, $nextHead51, $focusedPath51, $nonOverlap51): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerSuiteGapBurnup(
+    $record = libsqlite_release_suite_gap_burnup_evidence()->releaseRunnerSuiteGapBurnup(
         [
             ['id' => 'veryquick', 'tier' => 'veryquick', 'current_status' => 'passed', 'next_status' => 'passed', 'current_tests' => 329670, 'next_tests' => 329670],
             ['id' => 'release', 'tier' => 'release', 'current_status' => 'missing', 'next_status' => 'passed', 'current_tests' => 0, 'next_tests' => 24000],
@@ -89,7 +89,7 @@ $tests['current next51 suite gap burnup completes when all target rows count'] =
         $nextHead51,
         18565,
         $focusedPath51,
-        libsqlite_release_burnup_output(65),
+        libsqlite_release_suite_gap_burnup_output(65),
         $nonOverlap51,
         2
     );
@@ -101,13 +101,13 @@ $tests['current next51 suite gap burnup completes when all target rows count'] =
 };
 
 $tests['current next51 suite gap burnup leaves release blockers explicit'] = static function (TestRunner $t) use ($currentHead51, $nextHead51, $focusedPath51, $nonOverlap51): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerSuiteGapBurnup(
-        libsqlite_release_burnup_rows(5),
+    $record = libsqlite_release_suite_gap_burnup_evidence()->releaseRunnerSuiteGapBurnup(
+        libsqlite_release_suite_gap_burnup_rows(5),
         $currentHead51,
         $nextHead51,
         18565,
         $focusedPath51,
-        libsqlite_release_burnup_output(65),
+        libsqlite_release_suite_gap_burnup_output(65),
         $nonOverlap51,
         3
     );
@@ -117,13 +117,13 @@ $tests['current next51 suite gap burnup leaves release blockers explicit'] = sta
 };
 
 $tests['current next51 suite gap burnup sorts tier summaries'] = static function (TestRunner $t) use ($currentHead51, $nextHead51, $focusedPath51, $nonOverlap51): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerSuiteGapBurnup(
-        libsqlite_release_burnup_rows(6),
+    $record = libsqlite_release_suite_gap_burnup_evidence()->releaseRunnerSuiteGapBurnup(
+        libsqlite_release_suite_gap_burnup_rows(6),
         $currentHead51,
         $nextHead51,
         18565,
         $focusedPath51,
-        libsqlite_release_burnup_output(65),
+        libsqlite_release_suite_gap_burnup_output(65),
         $nonOverlap51,
         3
     );
@@ -133,8 +133,8 @@ $tests['current next51 suite gap burnup sorts tier summaries'] = static function
 };
 
 $tests['current next51 suite gap burnup blocks unfocused php output'] = static function (TestRunner $t) use ($currentHead51, $nextHead51, $focusedPath51, $nonOverlap51): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerSuiteGapBurnup(
-        libsqlite_release_burnup_rows(6),
+    $record = libsqlite_release_suite_gap_burnup_evidence()->releaseRunnerSuiteGapBurnup(
+        libsqlite_release_suite_gap_burnup_rows(6),
         $currentHead51,
         $nextHead51,
         18565,
@@ -150,7 +150,7 @@ $tests['current next51 suite gap burnup blocks unfocused php output'] = static f
 };
 
 $tests['current next51 suite gap burnup blocks regressed suite rows'] = static function (TestRunner $t) use ($currentHead51, $nextHead51, $focusedPath51, $nonOverlap51): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerSuiteGapBurnup(
+    $record = libsqlite_release_suite_gap_burnup_evidence()->releaseRunnerSuiteGapBurnup(
         [
             ['id' => 'veryquick', 'tier' => 'veryquick', 'current_status' => 'passed', 'next_status' => 'failed', 'current_tests' => 329670, 'next_tests' => 0, 'blocker' => 'next runner failed'],
         ],
@@ -158,7 +158,7 @@ $tests['current next51 suite gap burnup blocks regressed suite rows'] = static f
         $nextHead51,
         18565,
         $focusedPath51,
-        libsqlite_release_burnup_output(65),
+        libsqlite_release_suite_gap_burnup_output(65),
         $nonOverlap51,
         1
     );
@@ -169,7 +169,7 @@ $tests['current next51 suite gap burnup blocks regressed suite rows'] = static f
 };
 
 $tests['current next51 suite gap burnup clamps negative test totals'] = static function (TestRunner $t) use ($currentHead51, $nextHead51, $focusedPath51, $nonOverlap51): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerSuiteGapBurnup(
+    $record = libsqlite_release_suite_gap_burnup_evidence()->releaseRunnerSuiteGapBurnup(
         [
             ['id' => 'focused', 'tier' => 'focused', 'current_status' => 'missing', 'next_status' => 'passed', 'next_tests' => -20],
         ],
@@ -177,7 +177,7 @@ $tests['current next51 suite gap burnup clamps negative test totals'] = static f
         $nextHead51,
         18565,
         $focusedPath51,
-        libsqlite_release_burnup_output(65),
+        libsqlite_release_suite_gap_burnup_output(65),
         $nonOverlap51,
         1
     );
@@ -187,13 +187,13 @@ $tests['current next51 suite gap burnup clamps negative test totals'] = static f
 };
 
 $tests['current next51 suite gap burnup defaults target to row count'] = static function (TestRunner $t) use ($currentHead51, $nextHead51, $focusedPath51, $nonOverlap51): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerSuiteGapBurnup(
-        libsqlite_release_burnup_rows(1),
+    $record = libsqlite_release_suite_gap_burnup_evidence()->releaseRunnerSuiteGapBurnup(
+        libsqlite_release_suite_gap_burnup_rows(1),
         $currentHead51,
         $nextHead51,
         18565,
         $focusedPath51,
-        libsqlite_release_burnup_output(65),
+        libsqlite_release_suite_gap_burnup_output(65),
         $nonOverlap51
     );
 
@@ -204,26 +204,26 @@ $tests['current next51 suite gap burnup defaults target to row count'] = static 
 $tests['current next51 suite gap burnup rejects missing heads'] = static function (TestRunner $t) use ($focusedPath51, $nonOverlap51): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_release_burnup_evidence()->releaseRunnerSuiteGapBurnup(
+        static fn () => libsqlite_release_suite_gap_burnup_evidence()->releaseRunnerSuiteGapBurnup(
             [['id' => 'release', 'next_status' => 'passed']],
             '',
             'next',
             18565,
             $focusedPath51,
-            libsqlite_release_burnup_output(65),
+            libsqlite_release_suite_gap_burnup_output(65),
             $nonOverlap51
         )
     );
 };
 
 $tests['current next51 suite gap burnup records dependency closure'] = static function (TestRunner $t) use ($currentHead51, $nextHead51, $focusedPath51, $nonOverlap51): void {
-    $record = libsqlite_release_burnup_evidence()->releaseRunnerSuiteGapBurnup(
-        libsqlite_release_burnup_rows(6),
+    $record = libsqlite_release_suite_gap_burnup_evidence()->releaseRunnerSuiteGapBurnup(
+        libsqlite_release_suite_gap_burnup_rows(6),
         $currentHead51,
         $nextHead51,
         18565,
         $focusedPath51,
-        libsqlite_release_burnup_output(65),
+        libsqlite_release_suite_gap_burnup_output(65),
         $nonOverlap51,
         3
     );
