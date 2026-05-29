@@ -611,6 +611,19 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite overflow allocation parent b-tree page must be at page 2 or later');
         }
 
+        return $this->planOverflowPageAllocationForParent($count, $parentBtreePageNumber, $allowAppend);
+    }
+
+    public function planRootOverflowPageAllocation(int $count, bool $allowAppend = true): SQLiteFreelistAllocationPlan
+    {
+        return $this->planOverflowPageAllocationForParent($count, 1, $allowAppend);
+    }
+
+    private function planOverflowPageAllocationForParent(
+        int $count,
+        int $parentBtreePageNumber,
+        bool $allowAppend,
+    ): SQLiteFreelistAllocationPlan {
         $allocationPlan = $this->planPageAllocation($count, $allowAppend);
         $updatedPointerMapPages = [];
         $allocatedPointerMapEntries = [];

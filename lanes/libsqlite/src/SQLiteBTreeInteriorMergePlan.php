@@ -116,6 +116,8 @@ final class SQLiteBTreeInteriorMergePlan
         ?int $usableSize = null,
         int $leftHeaderOffset = 0,
         int $rightHeaderOffset = 0,
+        ?callable $overflowReader = null,
+        ?callable $overflowPageNumbers = null,
     ): self {
         $usableSize ??= $pageSize;
         self::assertPageNumbers($leftPageNumber, $rightPageNumber, $parentPageNumber);
@@ -133,24 +135,33 @@ final class SQLiteBTreeInteriorMergePlan
             throw new \InvalidArgumentException('SQLite b-tree index interior merge requires right-most child pointers');
         }
 
-        $leftCells = SQLiteIndexCell::parsePageCells($leftPage, $leftHeader, $usableSize);
-        $rightCells = SQLiteIndexCell::parsePageCells($rightPage, $rightHeader, $usableSize);
+        $leftCells = SQLiteIndexCell::parsePageCells($leftPage, $leftHeader, $usableSize, $overflowReader);
+        $rightCells = SQLiteIndexCell::parsePageCells($rightPage, $rightHeader, $usableSize, $overflowReader);
         $leftChildren = array_map(static fn (SQLiteIndexCell $cell): int => self::requireChildPage($cell), $leftCells);
         $leftChildren[] = $leftHeader->rightMostPointer;
         $rightChildren = array_map(static fn (SQLiteIndexCell $cell): int => self::requireChildPage($cell), $rightCells);
         $rightChildren[] = $rightHeader->rightMostPointer;
 
-        $mergedPayloads = array_merge(
-            array_map(static fn (SQLiteIndexCell $cell): string => $cell->payload, $leftCells),
-            [$dividerPayload],
-            array_map(static fn (SQLiteIndexCell $cell): string => $cell->payload, $rightCells),
+        $mergedEntries = array_merge(
+            array_map(static fn (SQLiteIndexCell $cell): array => [
+                'payload' => $cell->payload,
+                'first_overflow_page' => $cell->firstOverflowPage,
+            ], $leftCells),
+            [[
+                'payload' => $dividerPayload,
+                'first_overflow_page' => null,
+            ]],
+            array_map(static fn (SQLiteIndexCell $cell): array => [
+                'payload' => $cell->payload,
+                'first_overflow_page' => $cell->firstOverflowPage,
+            ], $rightCells),
         );
         $mergedChildren = array_merge($leftChildren, $rightChildren);
-        if (count($mergedChildren) !== count($mergedPayloads) + 1) {
+        if (count($mergedChildren) !== count($mergedEntries) + 1) {
             throw new \InvalidArgumentException('SQLite b-tree index interior merge found an invalid child/key shape');
         }
 
-        $mergedPage = self::assembleIndexInteriorPage($mergedPayloads, $mergedChildren, $pageSize, $leftHeaderOffset, $leftPage, $usableSize);
+        $mergedPage = self::assembleIndexInteriorEntries($mergedEntries, $mergedChildren, $pageSize, $leftHeaderOffset, $leftPage, $usableSize);
         $mergedHeader = SQLiteBTreePageHeader::parsePage($mergedPage, $pageSize, $leftHeaderOffset);
 
         $pointerMapUpdates = [];
@@ -159,6 +170,31 @@ final class SQLiteBTreeInteriorMergePlan
                 'type' => SQLitePointerMapEntry::BTREE_PAGE,
                 'parent_page_number' => $leftPageNumber,
             ];
+        }
+        foreach ($mergedEntries as $entry) {
+            $firstOverflowPage = $entry['first_overflow_page'];
+            if ($firstOverflowPage === null) {
+                continue;
+            }
+            if ($overflowPageNumbers === null) {
+                throw new \InvalidArgumentException('SQLite b-tree index interior merge overflow pointer-map updates require overflow page numbers');
+            }
+            $overflowPayloadBytes = strlen($entry['payload']) - SQLiteIndexCell::localPayloadLength(strlen($entry['payload']), $usableSize);
+            $chainPages = $overflowPageNumbers($firstOverflowPage, $overflowPayloadBytes);
+            if (!is_array($chainPages) || $chainPages === [] || $chainPages[0] !== $firstOverflowPage) {
+                throw new \InvalidArgumentException('SQLite b-tree index interior merge overflow page numbers must start at the first overflow page');
+            }
+            $previousPage = $leftPageNumber;
+            foreach ($chainPages as $chainIndex => $overflowPageNumber) {
+                if (!is_int($overflowPageNumber) || $overflowPageNumber < 2) {
+                    throw new \InvalidArgumentException('SQLite b-tree index interior merge overflow page numbers must be valid page numbers');
+                }
+                $pointerMapUpdates[$overflowPageNumber] = [
+                    'type' => $chainIndex === 0 ? SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE : SQLitePointerMapEntry::OVERFLOW_PAGE,
+                    'parent_page_number' => $previousPage,
+                ];
+                $previousPage = $overflowPageNumber;
+            }
         }
         ksort($pointerMapUpdates);
 
@@ -171,7 +207,7 @@ final class SQLiteBTreeInteriorMergePlan
             $pageSize,
             $usableSize,
             $mergedPage,
-            array_map(static fn (string $payload): int => strlen($payload), $mergedPayloads),
+            array_map(static fn (array $entry): int => strlen($entry['payload']), $mergedEntries),
             $mergedChildren,
             $leftHeader->cellCount,
             $rightHeader->cellCount,
@@ -308,6 +344,38 @@ final class SQLiteBTreeInteriorMergePlan
                 throw new \InvalidArgumentException('SQLite b-tree index interior merge lost a left child pointer');
             }
             $cells[] = SQLiteIndexCell::encode($payload, $usableSize, null, $leftChildPage);
+        }
+
+        return SQLiteIndexInteriorPage::assemble($cells, $rightMostPointer, $pageSize, $headerOffset, $basePage, $usableSize);
+    }
+
+    /**
+     * @param list<array{payload:string,first_overflow_page:?int}> $entries
+     * @param list<int> $children
+     */
+    private static function assembleIndexInteriorEntries(
+        array $entries,
+        array $children,
+        int $pageSize,
+        int $headerOffset,
+        string $basePage,
+        int $usableSize,
+    ): string {
+        if (count($children) !== count($entries) + 1) {
+            throw new \InvalidArgumentException('SQLite b-tree index interior merge cannot assemble an invalid child/key shape');
+        }
+        $rightMostPointer = array_pop($children);
+        if (!is_int($rightMostPointer)) {
+            throw new \InvalidArgumentException('SQLite b-tree index interior merge lost the right-most child pointer');
+        }
+
+        $cells = [];
+        foreach ($entries as $index => $entry) {
+            $leftChildPage = $children[$index] ?? null;
+            if (!is_int($leftChildPage)) {
+                throw new \InvalidArgumentException('SQLite b-tree index interior merge lost a left child pointer');
+            }
+            $cells[] = SQLiteIndexCell::encode($entry['payload'], $usableSize, $entry['first_overflow_page'], $leftChildPage);
         }
 
         return SQLiteIndexInteriorPage::assemble($cells, $rightMostPointer, $pageSize, $headerOffset, $basePage, $usableSize);
