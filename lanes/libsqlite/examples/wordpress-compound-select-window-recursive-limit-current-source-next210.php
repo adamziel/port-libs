@@ -73,7 +73,7 @@ SELECT id, label, metric FROM (
  LIMIT 6 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext210(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRowNumberLastValueIntersectExceptLimit(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],

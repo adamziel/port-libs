@@ -10597,7 +10597,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext206(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareLeadNthValueIntersectLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -10697,7 +10697,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-intersect-current-source-token-fence-next206',
                 ],
                 'dependency_closure' => 'no new support component needed; next206 reuses native SELECT SQL compound, recursive queue ORDER BY/LIMIT/OFFSET, lead default handling, nth_value frame output, INTERSECT membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, next191 nth_value/ntile/lead value-offset tape, and JSON/WAL/B-tree/VFS clusters; this slice fences lead defaults plus nth_value frame output through an INTERSECT tail before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next203 lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, next191 nth_value/ntile/lead value-offset tape, and JSON/WAL/B-tree/VFS clusters; this slice fences lead defaults plus nth_value frame output through an INTERSECT tail before the final compound LIMIT over current and next wp_options sources',
             ];
         }
 
@@ -10998,7 +10998,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext207(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareExceptBeforeIntersectWindowLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -11400,7 +11400,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext208(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareRankDenseRankExceptLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -11791,7 +11791,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext209(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareSumCountExceptUnionLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -12158,7 +12158,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext210(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareRowNumberLastValueIntersectExceptLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -12550,7 +12550,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext211(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareFilteredWindowExceptUnionLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -12955,7 +12955,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext212(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareGroupConcatRowNumberExceptLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -13325,7 +13325,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext213(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareMinMaxIntersectLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -13656,7 +13656,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext217(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareRankDenseRankIntersectLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -14026,7 +14026,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext218(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareUnionAllIntersectWindowLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -14375,7 +14375,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext219(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function comparePercentRankCumeDistExceptLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -14719,7 +14719,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>
          */
-        public static function compareNext221(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
+        public static function compareMaxSumIntersectLimit(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);

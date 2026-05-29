@@ -59,7 +59,7 @@ SELECT id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext217(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRankDenseRankIntersectLimit(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],

@@ -61,7 +61,7 @@ SELECT id,
  LIMIT 7 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext211($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareFilteredWindowExceptUnionLimit($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? null) === '--self-test') {
     if (($plan['status'] ?? null) !== 'compound-select-window-recursive-limit-current-source-next211-ready') {

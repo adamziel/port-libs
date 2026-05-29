@@ -53,7 +53,7 @@ SELECT option_id AS id,
  LIMIT 3 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext213(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMinMaxIntersectLimit(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],

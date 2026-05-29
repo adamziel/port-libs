@@ -48,7 +48,7 @@ SELECT option_id AS id,
  LIMIT 3 OFFSET 1
 SQL;
 
-$summary218 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext218($sql218, $currentTables218, $nextTables218, $cursor);
+$summary218 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllIntersectWindowLimit($sql218, $currentTables218, $nextTables218, $cursor);
 $tests = [];
 
 $tests['compound select window recursive limit current source next218 status dependencies'] = static function (TestRunner $t) use ($summary218): void {
@@ -144,7 +144,7 @@ $tests['compound select window recursive limit current source next218 replan rea
 };
 
 $tests['compound select window recursive limit current source next218 rejects missing intersect'] = static function (TestRunner $t) use ($currentTables218): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext218(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllIntersectWindowLimit(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 140) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 8 LIMIT 5 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score DESC, id) AS rn FROM q UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC, option_id) FROM wp_options ORDER BY rn, label LIMIT 3 OFFSET 1",
         $currentTables218,
         $currentTables218,
@@ -152,7 +152,7 @@ $tests['compound select window recursive limit current source next218 rejects mi
 };
 
 $tests['compound select window recursive limit current source next218 rejects missing recursive offset'] = static function (TestRunner $t) use ($currentTables218): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext218(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllIntersectWindowLimit(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 140) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 8 LIMIT 5) SELECT id, label, row_number() OVER (ORDER BY score DESC, id) AS rn FROM q UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC, option_id) FROM wp_options INTERSECT SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC, option_id) FROM wp_options ORDER BY rn, label LIMIT 3 OFFSET 1",
         $currentTables218,
         $currentTables218,
@@ -173,8 +173,8 @@ foreach (range(1, 52) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 6, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 95 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (140 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT 5 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score DESC, id) AS rn FROM q UNION ALL SELECT option_id AS id, option_name AS label, row_number() OVER (ORDER BY score DESC, option_id) AS rn FROM wp_options WHERE autoload = 'yes' INTERSECT SELECT option_id AS id, option_name AS label, row_number() OVER (ORDER BY score DESC, option_id) AS rn FROM wp_options WHERE autoload = 'yes' ORDER BY rn, label LIMIT 3 OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext218($sql, $tables, $nextTables);
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext218($sql, $tables, $nextTables, $plan['cursor']);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllIntersectWindowLimit($sql, $tables, $nextTables);
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllIntersectWindowLimit($sql, $tables, $nextTables, $plan['cursor']);
 
         $t->same(['home_' . $case, 'rewrite_' . $case, 'blog_' . $case], array_column($plan['currentRows'], 'label'));
         $t->same(['plugin_' . $case, 'home_' . $case, 'rewrite_' . $case], array_column($plan['nextRows'], 'label'));

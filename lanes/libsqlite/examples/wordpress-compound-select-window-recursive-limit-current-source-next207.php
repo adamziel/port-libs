@@ -62,7 +62,7 @@ SELECT id, label, metric
  LIMIT 6 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext207(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareExceptBeforeIntersectWindowLimit(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],

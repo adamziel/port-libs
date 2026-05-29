@@ -71,7 +71,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary221 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext221($sql221, $currentTables221, $nextTables221, $cursor);
+$summary221 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMaxSumIntersectLimit($sql221, $currentTables221, $nextTables221, $cursor);
 $tests = [];
 
 $tests['compound select window recursive limit current source next221 status dependencies'] = static function (TestRunner $t) use ($summary221): void {
@@ -167,7 +167,7 @@ $tests['compound select window recursive limit current source next221 base rows 
 };
 
 $tests['compound select window recursive limit current source next221 rejects missing sum'] = static function (TestRunner $t) use ($currentTables221): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext221(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMaxSumIntersectLimit(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 120) UNION ALL SELECT id + 1, label, score - 5 FROM q WHERE id < 7 ORDER BY score DESC LIMIT 6 OFFSET 1) SELECT id, label, max(score) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS metric FROM q UNION ALL SELECT option_id, option_name, max(score) OVER (ORDER BY score DESC ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options INTERSECT SELECT id, label, metric FROM (SELECT id, label, max(score) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS metric FROM q) ORDER BY metric DESC, id LIMIT 5 OFFSET 1",
         $currentTables221,
         $currentTables221,
@@ -175,7 +175,7 @@ $tests['compound select window recursive limit current source next221 rejects mi
 };
 
 $tests['compound select window recursive limit current source next221 rejects missing intersect'] = static function (TestRunner $t) use ($currentTables221): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext221(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMaxSumIntersectLimit(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 120) UNION ALL SELECT id + 1, label, score - 5 FROM q WHERE id < 7 ORDER BY score DESC LIMIT 6 OFFSET 1) SELECT id, label, max(score) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS metric FROM q UNION ALL SELECT option_id, option_name, sum(score) OVER (ORDER BY score DESC ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) FROM wp_options ORDER BY metric DESC, id LIMIT 5 OFFSET 1",
         $currentTables221,
         $currentTables221,
@@ -196,8 +196,8 @@ foreach (range(1, 50) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 95 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (120 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 5 FROM q WHERE id < 7 ORDER BY score DESC LIMIT 6 OFFSET 1) SELECT id, label, max(score) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, sum(score) OVER (PARTITION BY autoload ORDER BY score DESC ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS metric FROM wp_options WHERE autoload = 'yes' INTERSECT SELECT id, label, metric FROM (SELECT id, label, max(score) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, sum(score) OVER (PARTITION BY autoload ORDER BY score DESC ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS metric FROM wp_options WHERE autoload = 'yes') WHERE metric >= " . (90 + $case) . " EXCEPT SELECT option_id AS id, option_name AS label, score AS metric FROM wp_options WHERE option_name = 'home_{$case}' ORDER BY metric DESC, id LIMIT {$finalLimit} OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext221($sql, $tables, $nextTables);
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext221($sql, $tables, $nextTables, $plan['cursor']);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMaxSumIntersectLimit($sql, $tables, $nextTables);
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMaxSumIntersectLimit($sql, $tables, $nextTables, $plan['cursor']);
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $t->same($finalLimit, count($rows));

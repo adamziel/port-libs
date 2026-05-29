@@ -45,7 +45,7 @@ SELECT id, label, score AS metric
  LIMIT 6 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext209(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareSumCountExceptUnionLimit(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],

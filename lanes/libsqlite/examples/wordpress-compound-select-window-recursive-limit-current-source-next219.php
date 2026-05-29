@@ -54,7 +54,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext219(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::comparePercentRankCumeDistExceptLimit(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],
