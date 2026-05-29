@@ -26751,6 +26751,256 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     }
 
     /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page271(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::afterCurrentChildActionLookupPage271($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 271, 'CASCADE', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page272(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::afterCurrentChildActionLookupPage271($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 272, 'SET NULL', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page273(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::afterCurrentChildActionLookupPage271($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 273, 'SET DEFAULT', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page274(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::afterCurrentChildActionLookupPage271($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 274, 'RESTRICT', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return list<array<string,mixed>>
+     */
+    public static function afterCurrentChildActionLookupRows271(array $currentRows, array $nextRows, string $action): array
+    {
+        $currentByKey = [];
+        foreach ($currentRows as $row) {
+            $currentByKey[self::childActionLookupTransitionKey271($row)] = $row;
+        }
+
+        $rows = [];
+        foreach ($nextRows as $nextRow) {
+            $key = self::childActionLookupTransitionKey271($nextRow);
+            $currentRow = $currentByKey[$key] ?? null;
+            if ($currentRow === null) {
+                continue;
+            }
+
+            $currentBlocked = ($currentRow['blocked'] ?? false) === true;
+            $nextBlocked = ($nextRow['blocked'] ?? false) === true;
+            $rows[] = [
+                'phase' => 'after_current',
+                'kind' => 'foreign_key_child_action_lookup_after_current',
+                'table' => (string) $nextRow['table'],
+                'foreign_key_id' => (int) $nextRow['foreign_key_id'],
+                'parent' => (string) $nextRow['parent'],
+                'action_column' => (string) $nextRow['action_column'],
+                'action' => $action,
+                'child_columns' => $nextRow['child_columns'],
+                'current_lookup_status' => (string) $currentRow['lookup_status'],
+                'next_lookup_status' => (string) $nextRow['lookup_status'],
+                'current_candidate_index' => $currentRow['candidate_index'],
+                'next_candidate_index' => $nextRow['candidate_index'],
+                'repaired' => $currentBlocked && !$nextBlocked,
+                'regressed' => !$currentBlocked && $nextBlocked,
+                'blocked' => $nextBlocked,
+                'status' => $currentBlocked && !$nextBlocked ? 'repaired' : (!$currentBlocked && $nextBlocked ? 'regressed' : ($nextBlocked ? 'still_blocked' : 'unchanged_ok')),
+                'message' => "foreign key {$nextRow['table']}#{$nextRow['foreign_key_id']} {$nextRow['action_column']} {$action} child lookup moved from {$currentRow['lookup_status']} to {$nextRow['lookup_status']}",
+            ];
+        }
+
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => [$left['table'], $left['foreign_key_id'], $left['action_column']]
+                <=> [$right['table'], $right['foreign_key_id'], $right['action_column']],
+        );
+
+        return $rows;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    private static function afterCurrentChildActionLookupPage271(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $slice,
+        string $action,
+        int $offset,
+        int $limit,
+        ?array $resume,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} offset must be non-negative");
+        }
+        if ($limit < 1) {
+            throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} limit must be positive");
+        }
+
+        $base = self::childActionLookupPage263($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, $slice - 8, $action, 0, PHP_INT_MAX, null);
+        $currentRows = self::childActionLookupRows263($currentRecords, 'current', $action);
+        $nextRows = self::childActionLookupRows263($nextRecords, 'next', $action);
+        $transitionRows = self::afterCurrentChildActionLookupRows271($currentRows, $nextRows, $action);
+        $sourceId = hash('sha256', json_encode([
+            'mode' => "pragma-index-xinfo-foreignkey-current-source-next{$slice}",
+            'base' => $base['source_id'],
+            'action' => $action,
+            'after_current_child_action_lookup' => self::rowSummary271($transitionRows),
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+
+        if ($resume !== null) {
+            if (($resume['source_id'] ?? null) !== $sourceId) {
+                throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} resume cursor does not match current source");
+            }
+            if (($resume['offset'] ?? null) !== $offset) {
+                throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} resume cursor offset mismatch");
+            }
+        }
+
+        $allRows = array_values(array_merge($base['rows'], $transitionRows));
+        $pageRows = array_slice($allRows, $offset, $limit);
+        $nextOffset = $offset + count($pageRows);
+        $counts = self::afterCurrentChildActionLookupCounts271($transitionRows);
+
+        return [
+            ...$base,
+            'operation' => "pragma-index-xinfo-foreignkey-current-source-next{$slice}",
+            'source_id' => $sourceId,
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($pageRows),
+            'total' => count($allRows),
+            'next' => $nextOffset < count($allRows) ? ['source_id' => $sourceId, 'offset' => $nextOffset] : null,
+            'next_row' => $allRows[$nextOffset] ?? null,
+            'current_source' => [
+                ...$base['current_source'],
+                "foreign_key_child_action_lookup_after_current_next{$slice}" => self::rowSummary271($transitionRows),
+            ],
+            'current' => [
+                ...$base['current'],
+                "foreign_key_child_action_lookup_after_current_next{$slice}" => $counts,
+            ],
+            'delta' => [
+                ...$base['delta'],
+                "foreign_key_child_action_lookup_after_current_repaired_next{$slice}" => $counts['repaired'],
+                "foreign_key_child_action_lookup_after_current_regressed_next{$slice}" => $counts['regressed'],
+                "foreign_key_child_action_lookup_after_current_ready_next{$slice}" => $counts['regressed'] === 0 && $counts['still_blocked'] === 0,
+            ],
+            'dependencies' => array_values(array_unique([
+                ...$base['dependencies'],
+                'sqlite-pragma-foreign-key-child-action-lookup-after-current',
+            ])),
+            'rows' => $pageRows,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function childActionLookupTransitionKey271(array $row): string
+    {
+        return strtolower((string) $row['table']) . '#' . (int) $row['foreign_key_id'] . '#' . (string) $row['action_column'];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{rows:int,repaired:int,regressed:int,still_blocked:int,unchanged_ok:int}
+     */
+    private static function afterCurrentChildActionLookupCounts271(array $rows): array
+    {
+        $counts = ['rows' => count($rows), 'repaired' => 0, 'regressed' => 0, 'still_blocked' => 0, 'unchanged_ok' => 0];
+        foreach ($rows as $row) {
+            $status = (string) ($row['status'] ?? '');
+            if (array_key_exists($status, $counts)) {
+                $counts[$status]++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function rowSummary271(array $rows): array
+    {
+        $summary = array_map(
+            static fn (array $row): string => implode(':', [
+                (string) $row['table'] . '#' . (int) $row['foreign_key_id'],
+                (string) $row['action_column'] . '=' . (string) $row['action'],
+                (string) $row['current_lookup_status'] . '->' . (string) $row['next_lookup_status'],
+                (string) $row['status'],
+            ]),
+            $rows,
+        );
+        sort($summary);
+
+        return $summary;
+    }
+
+    /**
      * @param list<mixed> $records
      */
     private static function validateRecords267(array $records): void
