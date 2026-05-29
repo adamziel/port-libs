@@ -24,7 +24,7 @@ final class SQLiteUpdateDeleteReturningSql
             $plan = SQLiteUpdateDeleteLimitPlan::delete(
                 $tables[$table],
                 $where,
-                $parsed['order_by'],
+                self::orderByCallbacks($parsed['order_by']),
                 $parsed['limit'],
                 $parsed['offset'],
                 $rowIdColumn,
@@ -34,7 +34,7 @@ final class SQLiteUpdateDeleteReturningSql
                 $tables[$table],
                 $where,
                 self::assignmentCallbacks($parsed['assignments']),
-                $parsed['order_by'],
+                self::orderByCallbacks($parsed['order_by']),
                 $parsed['limit'],
                 $parsed['offset'],
                 $rowIdColumn,
@@ -72,7 +72,7 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
-     * @return array{action:string,table:string,conflict_action:string,assignments:array<string,string>,where:?string,returning:string,order_by:list<array{column:string,direction?:string}>,limit:?int,offset:int}
+     * @return array{action:string,table:string,conflict_action:string,assignments:array<string,string>,where:?string,returning:string,order_by:list<array{column?:string,expression?:string,direction?:string}>,limit:?int,offset:int}
      */
     public static function parse(string $sql): array
     {
@@ -556,7 +556,7 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
-     * @return list<array{column:string,direction?:string}>
+     * @return list<array{column?:string,expression?:string,direction?:string}>
      */
     private static function parseOrderBy(string $sql): array
     {
@@ -566,10 +566,16 @@ final class SQLiteUpdateDeleteReturningSql
 
         $terms = [];
         foreach (self::splitComma($sql) as $term) {
-            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+(ASC|DESC))?$/i', trim($term), $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite UPDATE/DELETE ORDER BY only supports column terms');
+            if (preg_match('/^(.+?)(?:\s+(ASC|DESC))?$/is', trim($term), $match) !== 1) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE ORDER BY terms are malformed');
             }
-            $entry = ['column' => $match[1]];
+            $expression = trim($match[1]);
+            if ($expression === '') {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE ORDER BY terms must not be empty');
+            }
+            $entry = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $expression) === 1
+                ? ['column' => $expression]
+                : ['expression' => $expression];
             if (isset($match[2]) && $match[2] !== '') {
                 $entry['direction'] = strtoupper($match[2]);
             }
@@ -577,6 +583,35 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return $terms;
+    }
+
+    /**
+     * @param list<array{column?:string,expression?:string,direction?:string}> $terms
+     * @return list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}>
+     */
+    private static function orderByCallbacks(array $terms): array
+    {
+        $prepared = [];
+        foreach ($terms as $index => $term) {
+            if (isset($term['column'])) {
+                $entry = ['column' => $term['column']];
+            } elseif (isset($term['expression'])) {
+                $expression = $term['expression'];
+                $entry = [
+                    'column' => '__sqlite_udl_order_' . $index,
+                    'expression' => $expression,
+                    'value' => static fn (array $row): mixed => self::evaluateExpression($expression, $row),
+                ];
+            } else {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE ORDER BY term needs a column or expression');
+            }
+            if (isset($term['direction'])) {
+                $entry['direction'] = $term['direction'];
+            }
+            $prepared[] = $entry;
+        }
+
+        return $prepared;
     }
 
     /**

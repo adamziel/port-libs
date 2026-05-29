@@ -12,7 +12,7 @@ final class SQLiteUpdateDeleteLimitPlan
      * @param list<array<string,mixed>> $selectedRows
      * @param list<array<string,mixed>> $mutationRows
      * @param list<array<string,mixed>> $resultRows
-     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
      * @param list<int|string> $selectedIds
      * @param list<int|string> $mutationIds
      * @param array<string,mixed> $assignments
@@ -37,7 +37,7 @@ final class SQLiteUpdateDeleteLimitPlan
     /**
      * @param list<array<string,mixed>> $rows
      * @param callable(array<string,mixed>):bool|null $where
-     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
      */
     public static function delete(
         array $rows,
@@ -76,7 +76,7 @@ final class SQLiteUpdateDeleteLimitPlan
      * @param list<array<string,mixed>> $rows
      * @param callable(array<string,mixed>):bool|null $where
      * @param array<string,mixed|callable(array<string,mixed>):mixed> $assignments
-     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
      */
     public static function update(
         array $rows,
@@ -147,7 +147,7 @@ final class SQLiteUpdateDeleteLimitPlan
             'result_rows' => count($this->resultRows),
             'selected_ids' => $this->selectedIds,
             'mutation_ids' => $this->mutationIds,
-            'order_by' => $this->orderBy,
+            'order_by' => self::orderBySummary($this->orderBy),
             'limit' => $this->limit,
             'offset' => $this->offset,
             'rowid_column' => $this->rowIdColumn,
@@ -213,7 +213,7 @@ final class SQLiteUpdateDeleteLimitPlan
     /**
      * @param list<array<string,mixed>> $rows
      * @param callable(array<string,mixed>):bool|null $where
-     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
      * @return array{indexed:list<array<string,mixed>>,qualified:list<array<string,mixed>>,selected:list<array<string,mixed>>,mutation:list<array<string,mixed>>}
      */
     private static function prepare(array $rows, callable $where, array $orderBy, ?int $limit, int $offset, string $rowIdColumn): array
@@ -236,8 +236,10 @@ final class SQLiteUpdateDeleteLimitPlan
             if (!array_key_exists($rowIdColumn, $row)) {
                 throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT row is missing rowid column {$rowIdColumn}");
             }
-            if (array_key_exists('__sqlite_udl_index', $row)) {
-                throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT rows cannot use internal column __sqlite_udl_index');
+            foreach (array_keys($row) as $column) {
+                if (str_starts_with((string) $column, '__sqlite_udl_')) {
+                    throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT rows cannot use internal columns');
+                }
             }
             $row['__sqlite_udl_index'] = $index;
             $indexed[] = $row;
@@ -254,7 +256,10 @@ final class SQLiteUpdateDeleteLimitPlan
             }
         }
 
-        $ordered = $orderBy === [] ? $qualified : SQLiteSelectResult::orderBy($qualified, $orderBy);
+        $ordered = $orderBy === [] ? $qualified : SQLiteSelectResult::orderBy(
+            self::withOrderValues($qualified, $orderBy),
+            self::orderByColumns($orderBy)
+        );
         $selected = SQLiteSelectResult::limitOffset($ordered, $limit, $offset);
         $selectedIndexes = array_fill_keys(array_column($selected, '__sqlite_udl_index'), true);
         $mutation = [];
@@ -273,7 +278,11 @@ final class SQLiteUpdateDeleteLimitPlan
      */
     private static function stripInternal(array $row): array
     {
-        unset($row['__sqlite_udl_index']);
+        foreach (array_keys($row) as $column) {
+            if (str_starts_with((string) $column, '__sqlite_udl_')) {
+                unset($row[$column]);
+            }
+        }
 
         return $row;
     }
@@ -308,5 +317,67 @@ final class SQLiteUpdateDeleteLimitPlan
         }
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
+     * @return list<array<string,mixed>>
+     */
+    private static function withOrderValues(array $rows, array $orderBy): array
+    {
+        $prepared = [];
+        foreach ($rows as $row) {
+            $base = self::stripInternal($row);
+            foreach ($orderBy as $term) {
+                if (isset($term['value'])) {
+                    $row[$term['column']] = $term['value']($base);
+                }
+            }
+            $prepared[] = $row;
+        }
+
+        return $prepared;
+    }
+
+    /**
+     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
+     * @return list<array{column:string,direction?:string}>
+     */
+    private static function orderByColumns(array $orderBy): array
+    {
+        return array_map(
+            static function (array $term): array {
+                $summary = ['column' => $term['column']];
+                if (isset($term['direction'])) {
+                    $summary['direction'] = $term['direction'];
+                }
+
+                return $summary;
+            },
+            $orderBy,
+        );
+    }
+
+    /**
+     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
+     * @return list<array{column:string,direction?:string,expression?:string}>
+     */
+    private static function orderBySummary(array $orderBy): array
+    {
+        return array_map(
+            static function (array $term): array {
+                $summary = ['column' => $term['column']];
+                if (isset($term['expression'])) {
+                    $summary['expression'] = $term['expression'];
+                }
+                if (isset($term['direction'])) {
+                    $summary['direction'] = $term['direction'];
+                }
+
+                return $summary;
+            },
+            $orderBy,
+        );
     }
 }
