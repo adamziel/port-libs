@@ -174,7 +174,7 @@ $cases104 = [
 ];
 
 $expected104 = [
-    'action label' => 'btree-freelist-pointermap-vacuum-reuse-current-source-next104',
+    'action label' => 'btree-freelist-pointermap-vacuum-reuse',
     'vacuum final page count' => 307,
     'vacuum survivors' => [306, 307],
     'vacuum truncated pages' => [308, 309, 310],

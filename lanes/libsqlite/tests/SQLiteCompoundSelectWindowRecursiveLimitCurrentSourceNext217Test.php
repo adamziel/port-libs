@@ -149,7 +149,7 @@ $tests['compound select window recursive limit current source next217 limit trac
 
 $tests['compound select window recursive limit current source next217 replan reasons'] = static function (TestRunner $t) use ($summary217): void {
     $plan = $summary217();
-    $t->contains('avoids accepted next212', $plan['non_overlap']);
+    $t->contains('avoids accepted group_concat/row_number EXCEPT fencing', $plan['non_overlap']);
     $t->true(in_array('compound-rank-dense-rank-current-source-next217', $plan['replanReasons'], true));
     $t->true(in_array('recursive-queue-exhausted-before-intersect-next217', $plan['replanReasons'], true));
     $t->true(in_array('intersect-window-membership-before-final-limit-next217', $plan['replanReasons'], true));

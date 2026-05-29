@@ -151,7 +151,7 @@ $tests['compound select window recursive limit current source next208 limit trac
 
 $tests['compound select window recursive limit current source next208 replan reasons'] = static function (TestRunner $t) use ($summary208): void {
     $plan = $summary208();
-    $t->contains('avoids accepted next206', $plan['non_overlap']);
+    $t->contains('avoids accepted lead-nth-value-intersect-limit', $plan['non_overlap']);
     $t->true(in_array('compound-rank-dense-rank-current-source-next208', $plan['replanReasons'], true));
     $t->true(in_array('recursive-ordered-limit-before-ranking-windows-next208', $plan['replanReasons'], true));
     $t->true(in_array('except-after-ranking-window-output-next208', $plan['replanReasons'], true));

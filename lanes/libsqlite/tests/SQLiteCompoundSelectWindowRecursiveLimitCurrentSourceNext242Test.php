@@ -89,9 +89,9 @@ $tests['compound select window recursive limit current source next242 carries re
 $tests['compound select window recursive limit current source next242 promotes after all acknowledgements'] = static function (TestRunner $t) use ($summary242): void {
     $first = $summary242();
     $cursor = $first['cursor'];
-    $cursor['acknowledgedCurrentAcksNext232'] = $cursor['requiredCurrentAcksNext232'];
-    $cursor['acknowledgedPromotionAcksNext235'] = $cursor['requiredPromotionAcksNext235'];
-    $cursor['acknowledgedSourceGenerationAcksNext238'] = $cursor['requiredSourceGenerationAcksNext238'];
+    $cursor['acknowledgedCurrentAcksCurrentPageHandoff'] = $cursor['requiredCurrentAcksCurrentPageHandoff'];
+    $cursor['acknowledgedPromotionAcksRecursiveWindowPromotionBarrier'] = $cursor['requiredPromotionAcksRecursiveWindowPromotionBarrier'];
+    $cursor['acknowledgedSourceGenerationAcksSourceGenerationSeal'] = $cursor['requiredSourceGenerationAcksSourceGenerationSeal'];
     $cursor['acknowledgedCommitFenceAcksNext242'] = $cursor['requiredCommitFenceAcksNext242'];
     $again = $summary242($cursor);
     $t->same($first['recursiveLimitWindowCommitFenceNext242']['commitFenceToken'], $again['recursiveLimitWindowCommitFenceNext242']['commitFenceToken']);
@@ -140,7 +140,7 @@ $tests['compound select window recursive limit current source next242 executor p
 
 $tests['compound select window recursive limit current source next242 non overlap'] = static function (TestRunner $t) use ($summary242): void {
     $plan = $summary242();
-    $t->contains('extends accepted next238', $plan['non_overlap']);
+    $t->contains('extends accepted source-generation-seal', $plan['non_overlap']);
     $t->true(in_array('compound-recursive-limit-window-commit-fence-next242', $plan['replanReasons'], true));
     $t->true(in_array('recursive-queue-window-final-page-acks-next242', $plan['replanReasons'], true));
 };
@@ -160,9 +160,9 @@ foreach (range(1, 72) as $case) {
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (140 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT 5 OFFSET 2) SELECT id, label, dense_rank() OVER (ORDER BY score DESC) AS rn FROM q UNION SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC) AS rn FROM wp_options WHERE autoload = 'yes' EXCEPT SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC) AS rn FROM wp_options WHERE option_name IN ('siteurl_{$case}') ORDER BY rn, label LIMIT 3 OFFSET 1";
         $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveLimitWindowCommitFence($sql, $tables, $nextTables);
         $cursor = $plan['cursor'];
-        $cursor['acknowledgedCurrentAcksNext232'] = $cursor['requiredCurrentAcksNext232'];
-        $cursor['acknowledgedPromotionAcksNext235'] = $cursor['requiredPromotionAcksNext235'];
-        $cursor['acknowledgedSourceGenerationAcksNext238'] = $cursor['requiredSourceGenerationAcksNext238'];
+        $cursor['acknowledgedCurrentAcksCurrentPageHandoff'] = $cursor['requiredCurrentAcksCurrentPageHandoff'];
+        $cursor['acknowledgedPromotionAcksRecursiveWindowPromotionBarrier'] = $cursor['requiredPromotionAcksRecursiveWindowPromotionBarrier'];
+        $cursor['acknowledgedSourceGenerationAcksSourceGenerationSeal'] = $cursor['requiredSourceGenerationAcksSourceGenerationSeal'];
         $cursor['acknowledgedCommitFenceAcksNext242'] = $cursor['requiredCommitFenceAcksNext242'];
         $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveLimitWindowCommitFence($sql, $tables, $nextTables, $cursor);
         $fence = $plan['recursiveLimitWindowCommitFenceNext242'];

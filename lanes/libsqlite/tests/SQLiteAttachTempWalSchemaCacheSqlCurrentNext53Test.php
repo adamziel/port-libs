@@ -90,7 +90,7 @@ $pathCases53 = [
     'network statement schemas' => ['statements.5.schemas', ['network', 'temp']],
     'network statement no reprepare' => ['statements.5.requires_reprepare', false],
     'quoted qualified names normalize' => ['statements.6.tables', ['main.wp_posts', 'archive.wp_options']],
-    'dependency includes current next53 marker' => ['dependencies.3', 'sqlite-attach-temp-wal-schema-cache-sql-current-next53'],
+    'dependency includes consolidated schema-cache sql marker' => ['dependencies.3', 'sqlite-attach-temp-wal-schema-cache-sql'],
 ];
 
 foreach ($pathCases53 as $name => [$path, $expected]) {

@@ -157,7 +157,7 @@ $tests['compound select window recursive limit current source next207 limit trac
 
 $tests['compound select window recursive limit current source next207 replan reasons'] = static function (TestRunner $t) use ($summary207): void {
     $plan = $summary207();
-    $t->contains('avoids accepted next206', $plan['non_overlap']);
+    $t->contains('avoids accepted lead-nth-value-intersect-limit', $plan['non_overlap']);
     $t->true(in_array('compound-except-before-intersect-current-source-next207', $plan['replanReasons'], true));
     $t->true(in_array('recursive-ordered-limit-except-fence-next207', $plan['replanReasons'], true));
     $t->true(in_array('window-output-membership-after-except-next207', $plan['replanReasons'], true));
