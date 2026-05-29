@@ -28274,6 +28274,26 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 267, 'seal_hot_journal_savepoint_checkpoint_after_current');
     }
 
+    public static function next268AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 268, 'verify_after_current_checkpoint_wal_frames');
+    }
+
+    public static function next269AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 269, 'verify_after_current_checkpoint_reader_snapshot');
+    }
+
+    public static function next270AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 270, 'verify_after_current_checkpoint_hot_journal_retired');
+    }
+
+    public static function next271AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 271, 'seal_after_current_checkpoint_current_source_handoff');
+    }
+
     /**
      * @param array<string,mixed> $basePlan
      * @param list<array<string,mixed>> $checkpointReceipts
