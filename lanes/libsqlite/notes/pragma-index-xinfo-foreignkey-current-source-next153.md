@@ -1,6 +1,6 @@
 # pragma-index-xinfo-foreignkey-current-source-next153
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext153`, a current/next
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a current/next
 source cursor that combines `PRAGMA index_xinfo(...)` metadata with scoped
 `PRAGMA foreign_key_check(...)` rows. It is intentionally separate from the
 accepted rootpage and quickcheck cursors: this slice reports index column
@@ -14,7 +14,7 @@ WordPress smoke:
 
 Focused test evidence:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext153Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - Result: `1 test files, 84 assertions, 0 failures`
 
 Non-overlap: avoids accepted PRAGMA quickcheck/index/FK next138 and rootpage

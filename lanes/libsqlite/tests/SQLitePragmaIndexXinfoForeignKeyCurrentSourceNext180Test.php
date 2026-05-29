@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext180;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record180 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -75,7 +75,7 @@ $page180 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext180::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog180(
     $currentRecords180,
     $currentTables180,
     $nextRecords ?? $nextRecords180,
@@ -102,8 +102,8 @@ $valueAt180 = static function (mixed $value, string $path): mixed {
 $default180 = static fn (): array => $page180();
 $blocked180 = static fn (): array => $page180(nextRecords: $currentRecords180, nextTables: $currentTables180);
 $same180 = static fn (): array => $page180(nextRecords: $currentRecords180);
-$diagnostics180 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext180::parentIndexDiagnostics($currentRecords180);
-$nextDiagnostics180 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext180::parentIndexDiagnostics($nextRecords180);
+$diagnostics180 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentIndexDiagnostics180($currentRecords180);
+$nextDiagnostics180 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentIndexDiagnostics180($nextRecords180);
 $tableValued180 = static fn (): array => $page180(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 
 $cases180 = [
@@ -211,7 +211,7 @@ $tests['pragma index xinfo foreignkey current source next180 rejects stale offse
 };
 
 $tests['pragma index xinfo foreignkey current source next180 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext180::parentIndexDiagnostics([['not' => 'schema']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentIndexDiagnostics180([['not' => 'schema']]));
 };
 
 return $tests;

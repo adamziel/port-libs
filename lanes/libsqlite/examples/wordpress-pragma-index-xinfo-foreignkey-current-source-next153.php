@@ -6,12 +6,13 @@ require_once __DIR__ . '/../src/SQLiteSchemaRecord.php';
 require_once __DIR__ . '/../src/SQLitePragmaRowCursor.php';
 require_once __DIR__ . '/../src/SQLitePragmaSchemaCatalog.php';
 require_once __DIR__ . '/../src/SQLiteAttachedSchemaCatalog.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLitePragmaForeignKeyCheck.php';
 require_once __DIR__ . '/../src/SQLitePragmaForeignKeyIntegrity.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext153.php';
+require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php';
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext153;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -42,7 +43,7 @@ $nextSchemas['main']['tables']['wp_options'] = [
     ['rowid' => 1, 'option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
 ];
 
-$first = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext153::page(
+$first = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page153(
     $catalog,
     $catalog,
     'PRAGMA main.index_xinfo(wp_options_name_autoload)',
@@ -52,7 +53,7 @@ $first = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext153::page(
     0,
     4,
 );
-$second = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext153::page(
+$second = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page153(
     $catalog,
     $catalog,
     'PRAGMA main.index_xinfo(wp_options_name_autoload)',

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext154;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record154 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql = null, int $rowid = 1): SQLiteSchemaRecord => new SQLiteSchemaRecord(
@@ -58,7 +58,7 @@ $page154 = static fn (
     string $fkSql = 'PRAGMA main.foreign_key_list(wp_options)',
     bool $tableValuedIndex = false,
     bool $tableValuedFk = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext154::currentNextPage(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPage154(
     $current ?? $catalog154(),
     $next ?? $catalog154(),
     $indexSql,

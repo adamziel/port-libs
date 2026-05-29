@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext179;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record179 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -67,7 +67,7 @@ $page179 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext179::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog179(
     $currentRecords179,
     $currentTables179,
     $nextRecords ?? $nextRecords179,
@@ -94,7 +94,7 @@ $valueAt179 = static function (mixed $value, string $path): mixed {
 $default179 = static fn (): array => $page179();
 $sameNames179 = static fn (): array => $page179(nextRecords: $currentRecords179);
 $blocked179 = static fn (): array => $page179(nextTables: $currentTables179);
-$constraints179 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext179::constraintRows($currentRecords179);
+$constraints179 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::constraintRows179($currentRecords179);
 $tableValued179 = static fn (): array => $page179(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 
 $cases179 = [
@@ -203,7 +203,7 @@ $tests['pragma index xinfo foreignkey current source next179 rejects stale offse
 };
 
 $tests['pragma index xinfo foreignkey current source next179 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext179::constraintRows([['not' => 'schema']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::constraintRows179([['not' => 'schema']]));
 };
 
 return $tests;

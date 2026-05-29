@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext155;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -33,7 +33,7 @@ $schemas = [
     ],
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext155::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page155(
     $catalog,
     $schemas,
     'PRAGMA main.index_xinfo(wp_options_name_autoload)',

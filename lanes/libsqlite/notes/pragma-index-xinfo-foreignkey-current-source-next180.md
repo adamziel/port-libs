@@ -3,7 +3,7 @@
 This slice adds parent-index candidate diagnostics to the existing
 `PRAGMA index_xinfo` plus foreign-key current-source page.
 
-- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext180` reuses accepted
+- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` reuses accepted
   `index_xinfo`, `foreign_key_list`, constraint-name, action, deferral, and
   current/next pagination behavior.
 - The new surface explains why a parent key is accepted or blocked:
@@ -17,10 +17,10 @@ This slice adds parent-index candidate diagnostics to the existing
 Verification:
 
 ```bash
-php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext180.php
-php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext180Test.php
+php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php
+php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next180.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext180Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next180.php --self-test
 git diff --check -- lanes/libsqlite
 ```

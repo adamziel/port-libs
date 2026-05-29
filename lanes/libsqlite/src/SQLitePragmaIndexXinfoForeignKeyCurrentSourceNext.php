@@ -36353,4 +36353,3062 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             }
         }
     }
+
+    /**
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $currentSchemas
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $nextSchemas
+     * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
+     * @return array{status:string,source_id:string,current_source:array<string,mixed>,next_source:array<string,mixed>,offset:int,limit:int,count:int,total:int,next_offset:int|null,complete:bool,current:array<string,mixed>,next_counts:array<string,mixed>,delta:array<string,mixed>,next_state:array{ready:bool,blocking:list<string>},next:array{source_id:string,offset:int}|null,rows:list<array<string,mixed>>}
+     */
+    public static function page153(
+        SQLiteAttachedSchemaCatalog $currentCatalog,
+        SQLiteAttachedSchemaCatalog $nextCatalog,
+        string $indexXinfoSql,
+        array $currentSchemas,
+        array $nextSchemas,
+        string $foreignKeySql = 'PRAGMA foreign_key_check',
+        int $offset = 0,
+        int $limit = 153,
+        bool $indexTableValued = false,
+        ?array $cursor = null,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo foreign-key current-source next153 offset must be non-negative');
+        }
+        if ($limit < 1) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo foreign-key current-source next153 limit must be positive');
+        }
+
+        $current = self::snapshot153($currentCatalog, $indexXinfoSql, $currentSchemas, $foreignKeySql, $indexTableValued);
+        $next = self::snapshot153($nextCatalog, $indexXinfoSql, $nextSchemas, $foreignKeySql, $indexTableValued);
+        $sourceId = self::stableHash153([
+            'mode' => 'pragma-index-xinfo-foreignkey-current-source-next153',
+            'current' => $current['source_id'],
+            'next' => $next['source_id'],
+        ]);
+        if ($cursor !== null) {
+            self::validateCursor153($cursor, $sourceId, $offset);
+        }
+
+        $rows = [
+            ...array_map(static fn (array $row): array => ['side' => 'current', ...$row], $current['rows']),
+            ...array_map(static fn (array $row): array => ['side' => 'next', ...$row], $next['rows']),
+        ];
+        $pageRows = array_slice($rows, $offset, $limit);
+        $nextOffset = $offset + count($pageRows);
+        $complete = $nextOffset >= count($rows);
+        $delta = self::delta153($current['counts'], $next['counts'], $current['index_signature'], $next['index_signature']);
+        $blocking = self::blocking153($next['counts'], $current['index_signature'], $next['index_signature']);
+
+        return [
+            'status' => $blocking === [] ? 'ok' : 'blocked',
+            'source_id' => $sourceId,
+            'current_source' => $current['source'],
+            'next_source' => $next['source'],
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($pageRows),
+            'total' => count($rows),
+            'next_offset' => $complete ? null : $nextOffset,
+            'complete' => $complete,
+            'current' => $current['counts'],
+            'next_counts' => $next['counts'],
+            'delta' => $delta,
+            'next_state' => [
+                'ready' => $blocking === [],
+                'blocking' => $blocking,
+            ],
+            'next' => $complete ? null : [
+                'source_id' => $sourceId,
+                'offset' => $nextOffset,
+            ],
+            'rows' => $pageRows,
+        ];
+    }
+
+    /**
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
+     * @return array{source_id:string,source:array<string,mixed>,rows:list<array<string,mixed>>,counts:array<string,mixed>,index_signature:string}
+     */
+    private static function snapshot153(
+        SQLiteAttachedSchemaCatalog $catalog,
+        string $indexXinfoSql,
+        array $schemas,
+        string $foreignKeySql,
+        bool $indexTableValued,
+    ): array {
+        $index = $indexTableValued
+            ? $catalog->executeTableValuedPragma($indexXinfoSql)
+            : $catalog->executeSchemaPragma($indexXinfoSql);
+        if (($index['pragma'] ?? null) !== 'index_xinfo') {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo foreign-key current-source next153 requires index_xinfo input');
+        }
+
+        $foreignKeys = self::foreignKeyRows153($foreignKeySql, $schemas, $catalog);
+        $indexRows = self::indexRows153($index);
+        $fkRows = array_map(
+            static fn (array $row): array => [
+                'kind' => 'foreign_key_check',
+                'phase' => 'foreign_key_check',
+                'schema' => $row['schema'],
+                'target' => $row['table'],
+                'seqno' => null,
+                'cid' => null,
+                'name' => null,
+                'desc' => null,
+                'coll' => null,
+                'key' => null,
+                'table' => $row['table'],
+                'rowid' => $row['rowid'],
+                'parent' => $row['parent'],
+                'fkid' => $row['fkid'],
+                'message' => self::foreignKeyMessage153($row),
+            ],
+            $foreignKeys['rows'],
+        );
+        $source = [
+            'mode' => 'index_xinfo_foreignkey_current_source_next153',
+            'catalog_hash' => self::catalogHash153($catalog),
+            'schemas_hash' => self::stableHash153($schemas),
+            'index_xinfo_sql' => self::normalizeSql153($indexXinfoSql),
+            'foreign_key_sql' => self::normalizeSql153($foreignKeySql),
+            'index_schema' => $index['schema'],
+            'index_target' => $index['target'],
+            'index_table_valued' => $indexTableValued,
+            'foreign_key_table_valued' => $foreignKeys['table_valued'],
+        ];
+        $rows = [...$indexRows, ...$fkRows];
+
+        return [
+            'source_id' => self::stableHash153($source),
+            'source' => $source,
+            'rows' => $rows,
+            'counts' => [
+                'index_xinfo' => count($indexRows),
+                'index_key_columns' => count(array_filter($indexRows, static fn (array $row): bool => $row['key'] === 1)),
+                'index_auxiliary_columns' => count(array_filter($indexRows, static fn (array $row): bool => $row['key'] === 0)),
+                'index_expression_columns' => count(array_filter($indexRows, static fn (array $row): bool => $row['cid'] === -2)),
+                'foreign_key' => count($fkRows),
+                'foreign_key_tables' => self::uniqueCount153(array_map(static fn (array $row): string => (string) $row['table'], $fkRows)),
+            ],
+            'index_signature' => self::stableHash153($indexRows),
+        ];
+    }
+
+    /**
+     * @param array{schema:string,target:string,rows:list<array<string,int|string|null>>} $index
+     * @return list<array<string,mixed>>
+     */
+    private static function indexRows153(array $index): array
+    {
+        return array_map(
+            static fn (array $row): array => [
+                'kind' => 'index_xinfo',
+                'phase' => 'index_xinfo',
+                'schema' => $index['schema'],
+                'target' => $index['target'],
+                'seqno' => $row['seqno'],
+                'cid' => $row['cid'],
+                'name' => $row['name'],
+                'desc' => $row['desc'],
+                'coll' => $row['coll'],
+                'key' => $row['key'],
+                'table' => null,
+                'rowid' => null,
+                'parent' => null,
+                'fkid' => null,
+                'message' => self::indexMessage153($index['schema'], $index['target'], $row),
+            ],
+            $index['rows'],
+        );
+    }
+
+    /**
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
+     * @return array{rows:list<array<string,mixed>>,table_valued:bool}
+     */
+    private static function foreignKeyRows153(string $foreignKeySql, array $schemas, SQLiteAttachedSchemaCatalog $catalog): array
+    {
+        $normalized = self::normalizeSql153($foreignKeySql);
+        $tableValued = str_starts_with($normalized, 'select ')
+            || str_starts_with($normalized, 'pragma_foreign_key_check')
+            || str_contains($normalized, '.pragma_foreign_key_check(');
+        $result = $tableValued
+            ? SQLitePragmaForeignKeyIntegrity::executeTableValued($foreignKeySql, $schemas, $catalog)
+            : SQLitePragmaForeignKeyIntegrity::execute($foreignKeySql, $schemas);
+
+        return [
+            'rows' => $result['rows'],
+            'table_valued' => $tableValued,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function indexMessage153(string $schema, string $target, array $row): string
+    {
+        $name = $row['name'] === null ? '<expr>' : (string) $row['name'];
+
+        return "{$schema}.{$target} index_xinfo seq {$row['seqno']} cid {$row['cid']} name {$name} coll {$row['coll']} key {$row['key']}";
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function foreignKeyMessage153(array $row): string
+    {
+        $rowid = $row['rowid'] === null ? 'NULL' : (string) $row['rowid'];
+
+        return "foreign key mismatch in {$row['schema']}.{$row['table']} rowid {$rowid} references {$row['parent']} fkid {$row['fkid']}";
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return array<string,mixed>
+     */
+    private static function delta153(array $current, array $next, string $currentIndexSignature, string $nextIndexSignature): array
+    {
+        $keys = ['index_xinfo', 'index_key_columns', 'index_auxiliary_columns', 'index_expression_columns', 'foreign_key', 'foreign_key_tables'];
+        $delta = [
+            'index_signature_changed' => $currentIndexSignature !== $nextIndexSignature,
+        ];
+        foreach ($keys as $key) {
+            $delta[$key] = (int) ($next[$key] ?? 0) - (int) ($current[$key] ?? 0);
+        }
+        $delta['foreign_keys_cleared'] = ((int) ($current['foreign_key'] ?? 0)) > 0 && ((int) ($next['foreign_key'] ?? 0)) === 0;
+
+        return $delta;
+    }
+
+    /**
+     * @param array<string,mixed> $next
+     * @return list<string>
+     */
+    private static function blocking153(array $next, string $currentIndexSignature, string $nextIndexSignature): array
+    {
+        $blocking = [];
+        if ($currentIndexSignature !== $nextIndexSignature) {
+            $blocking[] = 'index_xinfo_drift';
+        }
+        if (((int) ($next['foreign_key'] ?? 0)) > 0) {
+            $blocking[] = 'foreign_key_check';
+        }
+
+        return $blocking;
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function uniqueCount153(array $values): int
+    {
+        return count(array_unique($values));
+    }
+
+    private static function catalogHash153(SQLiteAttachedSchemaCatalog $catalog): string
+    {
+        $snapshot = [
+            'database_list' => $catalog->databaseList(),
+            'schema_generation' => $catalog->schemaGeneration(),
+            'search_order' => $catalog->searchOrder(),
+            'schemas' => [],
+        ];
+        foreach ($catalog->databaseList() as $database) {
+            $schema = (string) $database['name'];
+            $snapshot['schemas'][$schema] = array_map(
+                static fn (SQLiteSchemaRecord $record): array => [
+                    'type' => $record->type,
+                    'name' => $record->name,
+                    'table' => $record->tableName,
+                    'rootpage' => $record->rootPage,
+                    'sql' => $record->sql,
+                    'rowid' => $record->rowId,
+                ],
+                $catalog->schemaRecords($schema),
+            );
+        }
+
+        return self::stableHash153($snapshot);
+    }
+
+    /**
+     * @param array<string,mixed> $cursor
+     */
+    private static function validateCursor153(array $cursor, string $sourceId, int $offset): void
+    {
+        if (($cursor['source_id'] ?? null) !== $sourceId) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo foreign-key current-source next153 cursor source changed');
+        }
+        $cursorOffset = $cursor['next_offset'] ?? $cursor['offset'] ?? null;
+        if ($cursorOffset !== null && $cursorOffset !== $offset) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo foreign-key current-source next153 cursor offset changed');
+        }
+    }
+
+    private static function normalizeSql153(string $sql): string
+    {
+        return strtolower(trim(preg_replace('/\s+/', ' ', rtrim($sql, " \t\r\n;")) ?? trim($sql)));
+    }
+
+    private static function stableHash153(mixed $value): string
+    {
+        return hash('sha256', self::stableEncode153($value));
+    }
+
+    private static function stableEncode153(mixed $value): string
+    {
+        if (is_array($value)) {
+            if (!array_is_list($value)) {
+                ksort($value);
+            }
+
+            return '[' . implode(',', array_map(static fn (mixed $item, string|int $key): string => self::stableEncode153((string) $key) . ':' . self::stableEncode153($item), $value, array_keys($value))) . ']';
+        }
+
+        return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+    }
+
+    /**
+     * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
+     * @return array{status:string,source_id:string,current_source:array<string,mixed>,next_source:array<string,mixed>,offset:int,limit:int,count:int,total:int,next_offset:int|null,complete:bool,current:array<string,mixed>,next_counts:array<string,mixed>,delta:array<string,mixed>,next_state:array{ready:bool,blocking:list<string>},next:array{source_id:string,offset:int}|null,rows:list<array<string,mixed>>}
+     */
+    public static function currentNextPage154(
+        SQLiteAttachedSchemaCatalog $currentCatalog,
+        SQLiteAttachedSchemaCatalog $nextCatalog,
+        string $indexXinfoSql,
+        string $foreignKeyListSql,
+        int $offset = 0,
+        int $limit = 154,
+        bool $tableValuedIndexXinfo = false,
+        bool $tableValuedForeignKeyList = false,
+        ?array $cursor = null,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK-list current-source next154 offset must be non-negative');
+        }
+        if ($limit < 1) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK-list current-source next154 limit must be positive');
+        }
+
+        $currentSource = self::source154($currentCatalog, $indexXinfoSql, $foreignKeyListSql, $tableValuedIndexXinfo, $tableValuedForeignKeyList);
+        $nextSource = self::source154($nextCatalog, $indexXinfoSql, $foreignKeyListSql, $tableValuedIndexXinfo, $tableValuedForeignKeyList);
+        $sourceId = self::stableHash154([
+            'mode' => 'pragma-index-xinfo-foreignkey-current-source-next154',
+            'current' => $currentSource['source_id'],
+            'next' => $nextSource['source_id'],
+        ]);
+        if ($cursor !== null) {
+            self::validateCursor154($cursor, $sourceId, $offset);
+        }
+
+        $currentRows = self::sideRows154('current', self::collect154($currentCatalog, $indexXinfoSql, $foreignKeyListSql, $tableValuedIndexXinfo, $tableValuedForeignKeyList));
+        $nextRows = self::sideRows154('next', self::collect154($nextCatalog, $indexXinfoSql, $foreignKeyListSql, $tableValuedIndexXinfo, $tableValuedForeignKeyList));
+        $rows = [...$currentRows, ...$nextRows];
+        $pageRows = array_slice($rows, $offset, $limit);
+        $nextOffset = $offset + count($pageRows);
+        $complete = $nextOffset >= count($rows);
+        $currentCounts = self::counts154($currentRows);
+        $nextCounts = self::counts154($nextRows);
+        $delta = self::delta154($currentRows, $nextRows, $currentCounts, $nextCounts);
+        $blocking = self::blocking154($delta, $nextCounts);
+
+        return [
+            'status' => $blocking === [] ? 'ok' : 'blocked',
+            'source_id' => $sourceId,
+            'current_source' => self::publicSource154($currentSource),
+            'next_source' => self::publicSource154($nextSource),
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($pageRows),
+            'total' => count($rows),
+            'next_offset' => $complete ? null : $nextOffset,
+            'complete' => $complete,
+            'current' => $currentCounts,
+            'next_counts' => $nextCounts,
+            'delta' => $delta,
+            'next_state' => [
+                'ready' => $blocking === [],
+                'blocking' => $blocking,
+            ],
+            'next' => $complete ? null : [
+                'source_id' => $sourceId,
+                'offset' => $nextOffset,
+            ],
+            'rows' => $pageRows,
+        ];
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    public static function collect154(
+        SQLiteAttachedSchemaCatalog $catalog,
+        string $indexXinfoSql,
+        string $foreignKeyListSql,
+        bool $tableValuedIndexXinfo = false,
+        bool $tableValuedForeignKeyList = false,
+    ): array {
+        $index = $tableValuedIndexXinfo
+            ? $catalog->executeTableValuedPragma($indexXinfoSql)
+            : $catalog->executeSchemaPragma($indexXinfoSql);
+        if (($index['pragma'] ?? null) !== 'index_xinfo') {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK-list current-source next154 requires index_xinfo rows');
+        }
+        if (($index['rows'] ?? []) === []) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK-list current-source next154 requires a resolved index_xinfo target');
+        }
+
+        $foreignKeys = $tableValuedForeignKeyList
+            ? $catalog->executeTableValuedPragma($foreignKeyListSql)
+            : $catalog->executeSchemaPragma($foreignKeyListSql);
+        if (($foreignKeys['pragma'] ?? null) !== 'foreign_key_list') {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK-list current-source next154 requires foreign_key_list rows');
+        }
+        if (($foreignKeys['rows'] ?? []) === []) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK-list current-source next154 requires a resolved foreign_key_list target');
+        }
+
+        $rows = [];
+        foreach ($index['rows'] as $row) {
+            $rows[] = [
+                'kind' => 'index_xinfo',
+                'phase' => 'index_xinfo',
+                'schema' => $index['schema'],
+                'target' => $index['target'],
+                'seqno' => $row['seqno'],
+                'cid' => $row['cid'],
+                'name' => $row['name'],
+                'desc' => $row['desc'],
+                'coll' => $row['coll'],
+                'key' => $row['key'],
+                'message' => self::indexMessage154($index['schema'], $index['target'], $row),
+            ];
+        }
+        foreach ($foreignKeys['rows'] as $row) {
+            $rows[] = [
+                'kind' => 'foreign_key_list',
+                'phase' => 'foreign_key_list',
+                'schema' => $foreignKeys['schema'],
+                'target' => $foreignKeys['target'],
+                'id' => $row['id'],
+                'seq' => $row['seq'],
+                'table' => $row['table'],
+                'from' => $row['from'],
+                'to' => $row['to'],
+                'on_update' => $row['on_update'],
+                'on_delete' => $row['on_delete'],
+                'match' => $row['match'],
+                'message' => self::foreignKeyMessage154($foreignKeys['schema'], $foreignKeys['target'], $row),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function sideRows154(string $side, array $rows): array
+    {
+        return array_map(static fn (array $row): array => ['side' => $side, ...$row], $rows);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array<string,mixed>
+     */
+    private static function counts154(array $rows): array
+    {
+        $counts = [
+            'index_xinfo' => 0,
+            'index_key_columns' => 0,
+            'index_aux_columns' => 0,
+            'index_expression_columns' => 0,
+            'foreign_key_list' => 0,
+            'foreign_key_actions' => [],
+            'schemas' => [],
+            'targets' => [],
+            'index_collations' => [],
+            'foreign_key_parents' => [],
+        ];
+
+        foreach ($rows as $row) {
+            $schema = (string) ($row['schema'] ?? '');
+            if ($schema !== '' && !in_array($schema, $counts['schemas'], true)) {
+                $counts['schemas'][] = $schema;
+            }
+            $target = (string) ($row['target'] ?? '');
+            if ($target !== '' && !in_array($target, $counts['targets'], true)) {
+                $counts['targets'][] = $target;
+            }
+
+            if (($row['kind'] ?? null) === 'index_xinfo') {
+                $counts['index_xinfo']++;
+                if ((int) ($row['key'] ?? 0) === 1) {
+                    $counts['index_key_columns']++;
+                } else {
+                    $counts['index_aux_columns']++;
+                }
+                if ((int) ($row['key'] ?? 0) === 1 && (int) ($row['cid'] ?? 0) < 0 && ($row['name'] ?? null) === null) {
+                    $counts['index_expression_columns']++;
+                }
+                $collation = (string) ($row['coll'] ?? '');
+                if ($collation !== '' && !in_array($collation, $counts['index_collations'], true)) {
+                    $counts['index_collations'][] = $collation;
+                }
+                continue;
+            }
+
+            if (($row['kind'] ?? null) === 'foreign_key_list') {
+                $counts['foreign_key_list']++;
+                $action = (string) ($row['on_update'] ?? '') . '/' . (string) ($row['on_delete'] ?? '');
+                if ($action !== '/' && !in_array($action, $counts['foreign_key_actions'], true)) {
+                    $counts['foreign_key_actions'][] = $action;
+                }
+                $parent = (string) ($row['table'] ?? '');
+                if ($parent !== '' && !in_array($parent, $counts['foreign_key_parents'], true)) {
+                    $counts['foreign_key_parents'][] = $parent;
+                }
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @param array<string,mixed> $currentCounts
+     * @param array<string,mixed> $nextCounts
+     * @return array<string,mixed>
+     */
+    private static function delta154(array $currentRows, array $nextRows, array $currentCounts, array $nextCounts): array
+    {
+        $currentIndex = self::signatures154($currentRows, 'index_xinfo');
+        $nextIndex = self::signatures154($nextRows, 'index_xinfo');
+        $currentFk = self::signatures154($currentRows, 'foreign_key_list');
+        $nextFk = self::signatures154($nextRows, 'foreign_key_list');
+
+        return [
+            'index_xinfo' => $nextCounts['index_xinfo'] - $currentCounts['index_xinfo'],
+            'foreign_key_list' => $nextCounts['foreign_key_list'] - $currentCounts['foreign_key_list'],
+            'index_changed' => $currentIndex !== $nextIndex,
+            'foreign_key_changed' => $currentFk !== $nextFk,
+            'index_added' => array_values(array_diff($nextIndex, $currentIndex)),
+            'index_removed' => array_values(array_diff($currentIndex, $nextIndex)),
+            'foreign_key_added' => array_values(array_diff($nextFk, $currentFk)),
+            'foreign_key_removed' => array_values(array_diff($currentFk, $nextFk)),
+            'stable' => $currentIndex === $nextIndex && $currentFk === $nextFk,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function signatures154(array $rows, string $kind): array
+    {
+        $signatures = [];
+        foreach ($rows as $row) {
+            if (($row['kind'] ?? null) !== $kind) {
+                continue;
+            }
+            $copy = $row;
+            unset($copy['side'], $copy['message'], $copy['phase'], $copy['kind']);
+            $signatures[] = self::stableHash154($copy);
+        }
+        sort($signatures);
+
+        return $signatures;
+    }
+
+    /**
+     * @param array<string,mixed> $delta
+     * @param array<string,mixed> $nextCounts
+     * @return list<string>
+     */
+    private static function blocking154(array $delta, array $nextCounts): array
+    {
+        $blocking = [];
+        if (($nextCounts['index_xinfo'] ?? 0) === 0) {
+            $blocking[] = 'index_xinfo';
+        }
+        if (($nextCounts['foreign_key_list'] ?? 0) === 0) {
+            $blocking[] = 'foreign_key_list';
+        }
+        if (($delta['index_changed'] ?? false) === true) {
+            $blocking[] = 'index_xinfo_drift';
+        }
+        if (($delta['foreign_key_changed'] ?? false) === true) {
+            $blocking[] = 'foreign_key_list_drift';
+        }
+
+        return $blocking;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function source154(
+        SQLiteAttachedSchemaCatalog $catalog,
+        string $indexXinfoSql,
+        string $foreignKeyListSql,
+        bool $tableValuedIndexXinfo,
+        bool $tableValuedForeignKeyList,
+    ): array {
+        $source = [
+            'catalog' => self::catalogHash154($catalog),
+            'index_xinfo_sql' => self::normalizeSql154($indexXinfoSql),
+            'foreign_key_list_sql' => self::normalizeSql154($foreignKeyListSql),
+            'table_valued_index_xinfo' => $tableValuedIndexXinfo,
+            'table_valued_foreign_key_list' => $tableValuedForeignKeyList,
+        ];
+
+        return [
+            ...$source,
+            'source_id' => self::stableHash154($source),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @return array<string,mixed>
+     */
+    private static function publicSource154(array $source): array
+    {
+        unset($source['source_id']);
+
+        return $source;
+    }
+
+    private static function catalogHash154(SQLiteAttachedSchemaCatalog $catalog): string
+    {
+        $payload = [
+            'databases' => $catalog->databaseList(),
+            'records' => [],
+        ];
+        foreach ($catalog->databaseList() as $database) {
+            $schema = (string) $database['name'];
+            $payload['records'][$schema] = array_map(
+                static fn (SQLiteSchemaRecord $record): array => [
+                    'type' => $record->type,
+                    'name' => $record->name,
+                    'table' => $record->tableName,
+                    'root' => $record->rootPage,
+                    'sql' => $record->sql,
+                    'rowid' => $record->rowId,
+                ],
+                $catalog->schemaRecords($schema),
+            );
+        }
+
+        return self::stableHash154($payload);
+    }
+
+    private static function normalizeSql154(string $sql): string
+    {
+        return strtolower(trim(preg_replace('/\s+/', ' ', rtrim(trim($sql), ';')) ?? trim($sql)));
+    }
+
+    /**
+     * @param array{source_id?:string,next_offset?:int|null,offset?:int|null} $cursor
+     */
+    private static function validateCursor154(array $cursor, string $sourceId, int $offset): void
+    {
+        if (($cursor['source_id'] ?? null) !== $sourceId) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK-list current-source next154 cursor does not match the current source');
+        }
+        $cursorOffset = $cursor['next_offset'] ?? $cursor['offset'] ?? null;
+        if ($cursorOffset !== null && (int) $cursorOffset !== $offset) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK-list current-source next154 cursor offset is stale');
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $value
+     */
+    private static function stableHash154(array $value): string
+    {
+        return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * @param array<string,int|string|null> $row
+     */
+    private static function indexMessage154(string $schema, string $index, array $row): string
+    {
+        $name = $row['name'] === null ? '<expr>' : (string) $row['name'];
+
+        return sprintf(
+            'index_xinfo %s.%s seqno %d cid %d %s coll %s key %d',
+            $schema,
+            $index,
+            (int) $row['seqno'],
+            (int) $row['cid'],
+            $name,
+            (string) $row['coll'],
+            (int) $row['key'],
+        );
+    }
+
+    /**
+     * @param array<string,int|string|null> $row
+     */
+    private static function foreignKeyMessage154(string $schema, string $table, array $row): string
+    {
+        return sprintf(
+            'foreign_key_list %s.%s id %d seq %d %s references %s(%s) update %s delete %s match %s',
+            $schema,
+            $table,
+            (int) $row['id'],
+            (int) $row['seq'],
+            (string) $row['from'],
+            (string) $row['table'],
+            (string) ($row['to'] ?? ''),
+            (string) $row['on_update'],
+            (string) $row['on_delete'],
+            (string) $row['match'],
+        );
+    }
+
+    /**
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
+     * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
+     * @return array{status:string,source_id:string,current_source:array<string,mixed>,offset:int,limit:int,count:int,total:int,next_offset:int|null,complete:bool,current:array<string,mixed>,next:array{source_id:string,offset:int}|null,rows:list<array<string,mixed>>}
+     */
+    public static function page155(
+        SQLiteAttachedSchemaCatalog|SQLitePragmaSchemaCatalog $catalog,
+        array $schemas,
+        string $indexXinfoSql,
+        string $foreignKeyListSql,
+        string $foreignKeyCheckSql = 'PRAGMA foreign_key_check',
+        int $offset = 0,
+        int $limit = 155,
+        bool $tableValuedIndexXinfo = false,
+        bool $tableValuedForeignKeyList = false,
+        ?array $cursor = null,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next155 offset must be non-negative');
+        }
+        if ($limit < 1) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next155 limit must be positive');
+        }
+
+        $source = self::source155($catalog, $schemas, $indexXinfoSql, $foreignKeyListSql, $foreignKeyCheckSql, $tableValuedIndexXinfo, $tableValuedForeignKeyList);
+        if ($cursor !== null) {
+            self::validateCursor155($cursor, $source['source_id'], $offset);
+        }
+
+        $rows = self::collect155($catalog, $schemas, $indexXinfoSql, $foreignKeyListSql, $foreignKeyCheckSql, $tableValuedIndexXinfo, $tableValuedForeignKeyList);
+        $pageRows = array_slice($rows, $offset, $limit);
+        $nextOffset = $offset + count($pageRows);
+        $complete = $nextOffset >= count($rows);
+
+        return [
+            'status' => 'ok',
+            'source_id' => $source['source_id'],
+            'current_source' => self::publicSource155($source),
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($pageRows),
+            'total' => count($rows),
+            'next_offset' => $complete ? null : $nextOffset,
+            'complete' => $complete,
+            'current' => self::counts155($rows),
+            'next' => $complete ? null : [
+                'source_id' => $source['source_id'],
+                'offset' => $nextOffset,
+            ],
+            'rows' => $pageRows,
+        ];
+    }
+
+    /**
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
+     * @return list<array<string,mixed>>
+     */
+    public static function collect155(
+        SQLiteAttachedSchemaCatalog|SQLitePragmaSchemaCatalog $catalog,
+        array $schemas,
+        string $indexXinfoSql,
+        string $foreignKeyListSql,
+        string $foreignKeyCheckSql = 'PRAGMA foreign_key_check',
+        bool $tableValuedIndexXinfo = false,
+        bool $tableValuedForeignKeyList = false,
+    ): array {
+        $index = self::executeCatalogPragma155($catalog, $indexXinfoSql, $tableValuedIndexXinfo);
+        if (($index['pragma'] ?? null) !== 'index_xinfo') {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next155 requires index_xinfo rows');
+        }
+
+        $foreignKeyList = self::executeCatalogPragma155($catalog, $foreignKeyListSql, $tableValuedForeignKeyList);
+        if (($foreignKeyList['pragma'] ?? null) !== 'foreign_key_list') {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next155 requires foreign_key_list rows');
+        }
+
+        $foreignKeyCheck = self::foreignKeyCheckRows155($schemas, $foreignKeyCheckSql);
+        $rows = [];
+        foreach ($index['rows'] as $row) {
+            $rows[] = [
+                'phase' => 'index_xinfo',
+                'kind' => 'index_xinfo',
+                'schema' => $index['schema'],
+                'target' => $index['target'],
+                'seqno' => $row['seqno'],
+                'cid' => $row['cid'],
+                'name' => $row['name'],
+                'desc' => $row['desc'],
+                'coll' => $row['coll'],
+                'key' => $row['key'],
+                'table' => null,
+                'from' => null,
+                'to' => null,
+                'rowid' => null,
+                'parent' => null,
+                'fkid' => null,
+            ];
+        }
+        foreach ($foreignKeyList['rows'] as $row) {
+            $rows[] = [
+                'phase' => 'foreign_key_list',
+                'kind' => 'foreign_key_list',
+                'schema' => $foreignKeyList['schema'],
+                'target' => $foreignKeyList['target'],
+                'seqno' => $row['seq'],
+                'cid' => null,
+                'name' => null,
+                'desc' => null,
+                'coll' => null,
+                'key' => null,
+                'table' => $row['table'],
+                'from' => $row['from'],
+                'to' => $row['to'],
+                'on_update' => $row['on_update'],
+                'on_delete' => $row['on_delete'],
+                'match' => $row['match'],
+                'rowid' => null,
+                'parent' => $row['table'],
+                'fkid' => $row['id'],
+            ];
+        }
+        foreach ($foreignKeyCheck['rows'] as $row) {
+            $rows[] = [
+                'phase' => 'foreign_key_check',
+                'kind' => 'foreign_key_check',
+                'schema' => $foreignKeyCheck['schema'],
+                'target' => $foreignKeyCheck['target'],
+                'seqno' => null,
+                'cid' => null,
+                'name' => null,
+                'desc' => null,
+                'coll' => null,
+                'key' => null,
+                'table' => $row['table'],
+                'from' => null,
+                'to' => null,
+                'rowid' => $row['rowid'],
+                'parent' => $row['parent'],
+                'fkid' => $row['fkid'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
+     * @return array{status:string,pragma:string,schema:string,target:string|null,rows:list<array{table:string,rowid:int|string|null,parent:string,fkid:int}>}
+     */
+    private static function foreignKeyCheckRows155(array $schemas, string $sql): array
+    {
+        $parsed = self::parseForeignKeyCheck155($sql);
+        $schema = $parsed['schema'] ?? 'main';
+        $source = $schemas[$schema] ?? ['tables' => [], 'foreignKeys' => []];
+
+        return [
+            'status' => 'ok',
+            'pragma' => 'foreign_key_check',
+            'schema' => $schema,
+            'target' => $parsed['target'],
+            'rows' => SQLitePragmaForeignKeyCheck::check($source['tables'] ?? [], $source['foreignKeys'] ?? [], $parsed['target']),
+        ];
+    }
+
+    /**
+     * @return array{schema:string|null,target:string|null}
+     */
+    private static function parseForeignKeyCheck155(string $sql): array
+    {
+        $trimmed = rtrim(trim($sql), ';');
+        if (preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?foreign_key_check\s*(?:\(\s*(?<target>(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))\s*\))?$/i', $trimmed, $matches) === 1) {
+            return [
+                'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? strtolower($matches['schema']) : null,
+                'target' => isset($matches['target']) && $matches['target'] !== '' ? self::unquoteIdentifier155($matches['target']) : null,
+            ];
+        }
+        if (preg_match('/^(?:select\s+\*\s+from\s+)?pragma_foreign_key_check\s*\(\s*(?<target>(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))?\s*\)$/i', $trimmed, $matches) === 1) {
+            $target = isset($matches['target']) && $matches['target'] !== '' ? self::unquoteIdentifier155($matches['target']) : null;
+            $schema = null;
+            if (is_string($target) && str_contains($target, '.')) {
+                [$schema, $target] = explode('.', $target, 2);
+                $schema = strtolower($schema);
+            }
+
+            return ['schema' => $schema, 'target' => $target];
+        }
+
+        throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next155 requires foreign_key_check SQL');
+    }
+
+    /**
+     * @return array{status:string,pragma:string,schema:string,target:string,rows:list<array<string,int|string|null>>}
+     */
+    private static function executeCatalogPragma155(SQLiteAttachedSchemaCatalog|SQLitePragmaSchemaCatalog $catalog, string $sql, bool $tableValued): array
+    {
+        if ($catalog instanceof SQLiteAttachedSchemaCatalog) {
+            return $tableValued ? $catalog->executeTableValuedPragma($sql) : $catalog->executeSchemaPragma($sql);
+        }
+
+        return $tableValued ? $catalog->executeTableValuedPragma($sql) : $catalog->execute($sql);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array<string,mixed>
+     */
+    private static function counts155(array $rows): array
+    {
+        $counts = [
+            'index_xinfo' => 0,
+            'foreign_key_list' => 0,
+            'foreign_key_check' => 0,
+            'foreign_key_tables' => [],
+            'foreign_key_parents' => [],
+            'index_key_columns' => [],
+            'index_aux_columns' => [],
+        ];
+        foreach ($rows as $row) {
+            $kind = $row['kind'] ?? null;
+            if ($kind === 'index_xinfo') {
+                $counts['index_xinfo']++;
+                $name = $row['name'] ?? null;
+                if (($row['key'] ?? null) === 1 && is_string($name)) {
+                    $counts['index_key_columns'][] = $name;
+                } elseif (($row['key'] ?? null) === 0 && is_string($name)) {
+                    $counts['index_aux_columns'][] = $name;
+                }
+            } elseif ($kind === 'foreign_key_list') {
+                $counts['foreign_key_list']++;
+                $table = (string) ($row['target'] ?? '');
+                $parent = (string) ($row['parent'] ?? '');
+                if ($table !== '' && !in_array($table, $counts['foreign_key_tables'], true)) {
+                    $counts['foreign_key_tables'][] = $table;
+                }
+                if ($parent !== '' && !in_array($parent, $counts['foreign_key_parents'], true)) {
+                    $counts['foreign_key_parents'][] = $parent;
+                }
+            } elseif ($kind === 'foreign_key_check') {
+                $counts['foreign_key_check']++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
+     * @return array<string,mixed>
+     */
+    private static function source155(
+        SQLiteAttachedSchemaCatalog|SQLitePragmaSchemaCatalog $catalog,
+        array $schemas,
+        string $indexXinfoSql,
+        string $foreignKeyListSql,
+        string $foreignKeyCheckSql,
+        bool $tableValuedIndexXinfo,
+        bool $tableValuedForeignKeyList,
+    ): array {
+        $source = [
+            'catalog' => self::catalogHash155($catalog),
+            'schemas' => self::stableHash155($schemas),
+            'index_xinfo_sql' => self::normalizeSql155($indexXinfoSql),
+            'foreign_key_list_sql' => self::normalizeSql155($foreignKeyListSql),
+            'foreign_key_check_sql' => self::normalizeSql155($foreignKeyCheckSql),
+            'table_valued_index_xinfo' => $tableValuedIndexXinfo,
+            'table_valued_foreign_key_list' => $tableValuedForeignKeyList,
+        ];
+
+        return [
+            ...$source,
+            'source_id' => self::stableHash155($source),
+        ];
+    }
+
+    private static function catalogHash155(SQLiteAttachedSchemaCatalog|SQLitePragmaSchemaCatalog $catalog): string
+    {
+        if ($catalog instanceof SQLiteAttachedSchemaCatalog) {
+            $snapshot = [
+                'database_list' => $catalog->databaseList(),
+                'schema_generation' => $catalog->schemaGeneration(),
+                'search_order' => $catalog->searchOrder(),
+                'schemas' => [],
+            ];
+            foreach ($catalog->databaseList() as $database) {
+                $schema = (string) $database['name'];
+                $snapshot['schemas'][$schema] = self::schemaRecordsSnapshot155($catalog->schemaRecords($schema));
+            }
+
+            return self::stableHash155($snapshot);
+        }
+
+        return self::stableHash155([
+            'schema' => 'main',
+            'records' => self::schemaRecordsSnapshot155($catalog->records()),
+        ]);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array{type:string,name:string,table:string,rootpage:int|null,sql:string|null,rowid:int}>
+     */
+    private static function schemaRecordsSnapshot155(array $records): array
+    {
+        return array_map(
+            static fn (SQLiteSchemaRecord $record): array => [
+                'type' => $record->type,
+                'name' => $record->name,
+                'table' => $record->tableName,
+                'rootpage' => $record->rootPage,
+                'sql' => $record->sql,
+                'rowid' => $record->rowId,
+            ],
+            $records,
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @return array<string,mixed>
+     */
+    private static function publicSource155(array $source): array
+    {
+        unset($source['source_id']);
+
+        return $source;
+    }
+
+    private static function normalizeSql155(string $sql): string
+    {
+        return strtolower(preg_replace('/\s+/', ' ', rtrim(trim($sql), ';')) ?? trim($sql));
+    }
+
+    /**
+     * @param array<string,mixed> $cursor
+     */
+    private static function validateCursor155(array $cursor, string $sourceId, int $offset): void
+    {
+        if (($cursor['source_id'] ?? null) !== $sourceId) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next155 cursor does not match the current source');
+        }
+        $cursorOffset = $cursor['next_offset'] ?? $cursor['offset'] ?? null;
+        if ($cursorOffset !== null && $cursorOffset !== $offset) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next155 cursor offset does not match the requested page offset');
+        }
+    }
+
+    private static function unquoteIdentifier155(string $identifier): string
+    {
+        $identifier = trim($identifier);
+        $first = $identifier[0] ?? '';
+        $last = substr($identifier, -1);
+        if ($first === '"' && $last === '"') {
+            return str_replace('""', '"', substr($identifier, 1, -1));
+        }
+        if ($first === "'" && $last === "'") {
+            return str_replace("''", "'", substr($identifier, 1, -1));
+        }
+        if (($first === '`' && $last === '`') || ($first === '[' && $last === ']')) {
+            return substr($identifier, 1, -1);
+        }
+
+        return $identifier;
+    }
+
+    private static function stableHash155(mixed $value): string
+    {
+        return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param array<string,list<array<string,mixed>>> $currentTables
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array<string,list<array<string,mixed>>> $nextTables
+     * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
+     * @return array<string,mixed>
+     */
+    public static function currentNextPageFromCatalog197(
+        array $currentRecords,
+        array $currentTables,
+        array $nextRecords,
+        array $nextTables,
+        string $indexXinfoSql,
+        int $offset = 0,
+        int $limit = 197,
+        ?array $cursor = null,
+        bool $tableValuedIndexXinfo = false,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next197 offset must be non-negative');
+        }
+        if ($limit <= 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next197 limit must be positive');
+        }
+
+        $base = self::currentNextPageFromCatalog193(
+            $currentRecords,
+            $currentTables,
+            $nextRecords,
+            $nextTables,
+            $indexXinfoSql,
+            0,
+            PHP_INT_MAX,
+            null,
+            $tableValuedIndexXinfo,
+        );
+
+        $currentRows = self::nonUniqueParentIndexRows197($currentRecords, 'current');
+        $nextRows = self::nonUniqueParentIndexRows197($nextRecords, 'next');
+        $sourceId = self::stableHash197([
+            'mode' => 'pragma-index-xinfo-foreignkey-current-source-next197',
+            'base' => $base['source_id'],
+            'current_non_unique_parent' => self::rowSummary197($currentRows),
+            'next_non_unique_parent' => self::rowSummary197($nextRows),
+        ]);
+        if ($cursor !== null) {
+            self::validateCursor197($cursor, $sourceId, $offset);
+        }
+
+        $nonUniqueRows = array_values(array_merge($currentRows, $nextRows));
+        $allRows = array_values(array_merge(
+            array_map(static fn (array $row): array => self::decorateParentKeyRow197($row, $nonUniqueRows), $base['rows']),
+            $nonUniqueRows,
+        ));
+        $total = count($allRows);
+        $rows = array_slice($allRows, $offset, $limit);
+        $nextOffset = $offset + count($rows);
+        $complete = $nextOffset >= $total;
+        $currentCounts = self::nonUniqueCounts197($currentRows);
+        $nextCounts = self::nonUniqueCounts197($nextRows);
+        $blocking = array_values(array_unique([
+            ...($base['next_state']['blocking'] ?? []),
+            ...($nextCounts['non_unique_matching_parent'] > 0 ? ['foreign_key_parent_non_unique_index'] : []),
+        ]));
+
+        return [
+            ...$base,
+            'source_id' => $sourceId,
+            'status' => $blocking === [] ? 'ok' : 'blocked',
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($rows),
+            'total' => $total,
+            'next_offset' => $complete ? null : $nextOffset,
+            'complete' => $complete,
+            'current_source' => [
+                ...$base['current_source'],
+                'foreign_key_parent_non_unique_source' => 'pragma_index_xinfo_matching_non_unique_parent_indexes',
+                'foreign_key_parent_non_unique' => self::rowSummary197($currentRows),
+            ],
+            'next_source' => [
+                ...$base['next_source'],
+                'foreign_key_parent_non_unique_source' => 'pragma_index_xinfo_matching_non_unique_parent_indexes',
+                'foreign_key_parent_non_unique' => self::rowSummary197($nextRows),
+            ],
+            'current' => [
+                ...$base['current'],
+                'foreign_key_parent_non_unique_rows' => count($currentRows),
+                'foreign_key_parent_non_unique' => $currentCounts,
+                'total_blockers' => (int) ($base['current']['total_blockers'] ?? 0) + $currentCounts['non_unique_matching_parent'],
+            ],
+            'next_counts' => [
+                ...$base['next_counts'],
+                'foreign_key_parent_non_unique_rows' => count($nextRows),
+                'foreign_key_parent_non_unique' => $nextCounts,
+                'total_blockers' => (int) ($base['next_counts']['total_blockers'] ?? 0) + $nextCounts['non_unique_matching_parent'],
+            ],
+            'delta' => [
+                ...$base['delta'],
+                'foreign_key_parent_non_unique_rows' => count($nextRows) - count($currentRows),
+                'foreign_key_parent_non_unique_blockers' => $nextCounts['non_unique_matching_parent'] - $currentCounts['non_unique_matching_parent'],
+                'foreign_key_parent_non_unique_repaired' => $currentCounts['non_unique_matching_parent'] > 0 && $nextCounts['non_unique_matching_parent'] === 0,
+                'foreign_key_parent_non_unique_changed' => self::rowSummary197($currentRows, false) !== self::rowSummary197($nextRows, false),
+                'total_blockers' => ((int) ($base['delta']['total_blockers'] ?? 0)) + $nextCounts['non_unique_matching_parent'] - $currentCounts['non_unique_matching_parent'],
+                'cleared' => (($base['delta']['cleared'] ?? false) === true) && $nextCounts['non_unique_matching_parent'] === 0,
+            ],
+            'next_state' => [
+                'ready' => $blocking === [],
+                'blocking' => $blocking,
+            ],
+            'next' => $complete ? null : [
+                'source_id' => $sourceId,
+                'offset' => $nextOffset,
+            ],
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function nonUniqueParentIndexRows197(array $records, string $side = 'current'): array
+    {
+        self::validateRecords197($records);
+
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        $rows = [];
+        foreach (self::groupForeignKeys197(self::foreignKeysFromCatalog167($records)) as $foreignKey) {
+            $parent = (string) $foreignKey['parent'];
+            $parentColumns = array_map(static fn (array $column): string => (string) $column['parent'], $foreignKey['columns']);
+            foreach ($catalog->execute('PRAGMA index_list(' . self::pragmaArgumentLiteral197($parent) . ')')['rows'] as $index) {
+                if ((int) ($index['unique'] ?? 0) !== 0 || (int) ($index['partial'] ?? 0) === 1) {
+                    continue;
+                }
+
+                $indexName = (string) $index['name'];
+                $xinfo = $catalog->execute('PRAGMA index_xinfo(' . self::pragmaArgumentLiteral197($indexName) . ')')['rows'];
+                $keyRows = array_values(array_filter($xinfo, static fn (array $row): bool => (int) ($row['key'] ?? 0) === 1));
+                if (self::expressionKeyCount197($keyRows) > 0) {
+                    continue;
+                }
+
+                $keyColumns = array_map(static fn (array $row): string => (string) ($row['name'] ?? ''), $keyRows);
+                if (!self::sameColumns197($keyColumns, $parentColumns)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'side' => $side,
+                    'kind' => 'foreign_key_parent_non_unique',
+                    'table' => (string) $foreignKey['table'],
+                    'fkid' => (int) $foreignKey['id'],
+                    'parent' => $parent,
+                    'index' => $indexName,
+                    'parent_columns' => $parentColumns,
+                    'index_key_columns' => $keyColumns,
+                    'index_unique' => 0,
+                    'index_partial' => 0,
+                    'index_expression_keys' => 0,
+                    'index_key_count' => count($keyRows),
+                    'status' => 'non_unique_matching_parent',
+                    'message' => "foreign key {$foreignKey['table']}->{$parent} cannot use non-UNIQUE index {$indexName} as a parent key",
+                ];
+            }
+        }
+
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => [$left['side'], $left['table'], $left['fkid'], $left['index']]
+                <=> [$right['side'], $right['table'], $right['fkid'], $right['index']],
+        );
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $foreignKeys
+     * @return list<array<string,mixed>>
+     */
+    private static function groupForeignKeys197(array $foreignKeys): array
+    {
+        $grouped = [];
+        foreach ($foreignKeys as $foreignKey) {
+            $key = strtolower((string) $foreignKey['table']) . '#' . (int) $foreignKey['id'];
+            $grouped[$key] ??= [
+                ...$foreignKey,
+                'columns' => [],
+            ];
+            foreach ((array) ($foreignKey['columns'] ?? []) as $column) {
+                if (!is_array($column)) {
+                    continue;
+                }
+                $grouped[$key]['columns'][] = [
+                    'child' => (string) ($column['child'] ?? ''),
+                    'parent' => (string) ($column['parent'] ?? ''),
+                ];
+            }
+        }
+
+        foreach ($grouped as $foreignKey) {
+            if ($foreignKey['columns'] === []) {
+                throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next197 requires foreign key columns');
+            }
+        }
+
+        return array_values($grouped);
+    }
+
+    /**
+     * @param list<string> $left
+     * @param list<string> $right
+     */
+    private static function sameColumns197(array $left, array $right): bool
+    {
+        if (count($left) !== count($right)) {
+            return false;
+        }
+        foreach ($left as $index => $column) {
+            if (strcasecmp($column, $right[$index]) !== 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** @param list<array<string,mixed>> $keyRows */
+    private static function expressionKeyCount197(array $keyRows): int
+    {
+        return count(array_filter(
+            $keyRows,
+            static fn (array $row): bool => (int) ($row['cid'] ?? 0) === -2 || ($row['name'] ?? null) === null || (string) ($row['name'] ?? '') === ''
+        ));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{rows:int,non_unique_matching_parent:int}
+     */
+    private static function nonUniqueCounts197(array $rows): array
+    {
+        return [
+            'rows' => count($rows),
+            'non_unique_matching_parent' => count(array_filter($rows, static fn (array $row): bool => ($row['status'] ?? null) === 'non_unique_matching_parent')),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $nonUniqueRows
+     */
+    private static function decorateParentKeyRow197(array $row, array $nonUniqueRows): array
+    {
+        if (($row['kind'] ?? null) !== 'foreign_key_parent_key' || ($row['status'] ?? null) !== 'missing_parent_key') {
+            return $row;
+        }
+
+        foreach ($nonUniqueRows as $nonUniqueRow) {
+            if (
+                ($row['side'] ?? null) === ($nonUniqueRow['side'] ?? null)
+                && ($row['table'] ?? null) === ($nonUniqueRow['table'] ?? null)
+                && (int) ($row['fkid'] ?? -1) === (int) ($nonUniqueRow['fkid'] ?? -2)
+            ) {
+                return [
+                    ...$row,
+                    'rejected_parent_unique_index' => $nonUniqueRow['index'],
+                    'rejected_parent_unique_reason' => 'non_unique_matching_parent',
+                ];
+            }
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function rowSummary197(array $rows, bool $includeSide = true): array
+    {
+        $summary = array_map(
+            static fn (array $row): string => ($includeSide ? $row['side'] . ':' : '')
+                . $row['table'] . '#' . $row['fkid'] . '->' . $row['parent']
+                . ':' . $row['index'] . ':non_unique_matching_parent',
+            $rows,
+        );
+        sort($summary);
+
+        return $summary;
+    }
+
+    /** @param list<mixed> $records */
+    private static function validateRecords197(array $records): void
+    {
+        foreach ($records as $record) {
+            if (!$record instanceof SQLiteSchemaRecord) {
+                throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next197 records must be SQLiteSchemaRecord instances');
+            }
+        }
+    }
+
+    /** @param array<string,mixed> $cursor */
+    private static function validateCursor197(array $cursor, string $sourceId, int $offset): void
+    {
+        if (($cursor['source_id'] ?? null) !== $sourceId) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next197 cursor does not match the current source');
+        }
+        $cursorOffset = $cursor['next_offset'] ?? $cursor['offset'] ?? null;
+        if ($cursorOffset !== null && $cursorOffset !== $offset) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next197 cursor offset does not match the requested page offset');
+        }
+    }
+
+    private static function pragmaArgumentLiteral197(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
+    }
+
+    private static function stableHash197(mixed $value): string
+    {
+        return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param array<string,list<array<string,mixed>>> $currentTables
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array<string,list<array<string,mixed>>> $nextTables
+     * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
+     * @return array<string,mixed>
+     */
+    public static function currentNextPageFromCatalog198(
+        array $currentRecords,
+        array $currentTables,
+        array $nextRecords,
+        array $nextTables,
+        string $indexXinfoSql,
+        int $offset = 0,
+        int $limit = 198,
+        ?array $cursor = null,
+        bool $tableValuedIndexXinfo = false,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next198 offset must be non-negative');
+        }
+        if ($limit <= 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next198 limit must be positive');
+        }
+
+        $base = self::currentNextPageFromCatalog195(
+            $currentRecords,
+            $currentTables,
+            $nextRecords,
+            $nextTables,
+            $indexXinfoSql,
+            0,
+            PHP_INT_MAX,
+            null,
+            $tableValuedIndexXinfo,
+        );
+
+        $currentRows = self::withoutRowidParentKeyRows198($currentRecords, 'current');
+        $nextRows = self::withoutRowidParentKeyRows198($nextRecords, 'next');
+        $covered = self::coveredForeignKeyKeys198([...$currentRows, ...$nextRows]);
+        $decoratedBaseRows = array_map(
+            static fn (array $row): array => self::decorateCoveredParentKeyRow198($row, $covered),
+            $base['rows'],
+        );
+
+        $sourceId = self::stableHash198([
+            'mode' => 'pragma-index-xinfo-foreignkey-current-source-next198',
+            'base' => $base['source_id'],
+            'current_without_rowid_parent_keys' => self::rowSummary198($currentRows),
+            'next_without_rowid_parent_keys' => self::rowSummary198($nextRows),
+        ]);
+        if ($cursor !== null) {
+            self::validateCursor198($cursor, $sourceId, $offset);
+        }
+
+        $allRows = array_values(array_merge($decoratedBaseRows, $currentRows, $nextRows));
+        $total = count($allRows);
+        $rows = array_slice($allRows, $offset, $limit);
+        $nextOffset = $offset + count($rows);
+        $complete = $nextOffset >= $total;
+        $currentCounts = self::withoutRowidCounts198($currentRows);
+        $nextCounts = self::withoutRowidCounts198($nextRows);
+        $blocking = self::adjustBlocking198($base['next_state']['blocking'] ?? [], $decoratedBaseRows, $covered);
+
+        return [
+            ...$base,
+            'status' => $blocking === [] ? 'ok' : 'blocked',
+            'source_id' => $sourceId,
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($rows),
+            'total' => $total,
+            'next_offset' => $complete ? null : $nextOffset,
+            'complete' => $complete,
+            'current_source' => [
+                ...$base['current_source'],
+                'foreign_key_without_rowid_parent_source' => 'pragma_table_info_without_rowid_primary_key',
+                'foreign_key_without_rowid_parent_keys' => self::rowSummary198($currentRows),
+            ],
+            'next_source' => [
+                ...$base['next_source'],
+                'foreign_key_without_rowid_parent_source' => 'pragma_table_info_without_rowid_primary_key',
+                'foreign_key_without_rowid_parent_keys' => self::rowSummary198($nextRows),
+            ],
+            'current' => [
+                ...$base['current'],
+                'foreign_key_without_rowid_parent_rows' => count($currentRows),
+                'foreign_key_without_rowid_parent' => $currentCounts,
+            ],
+            'next_counts' => [
+                ...$base['next_counts'],
+                'foreign_key_without_rowid_parent_rows' => count($nextRows),
+                'foreign_key_without_rowid_parent' => $nextCounts,
+            ],
+            'delta' => [
+                ...$base['delta'],
+                'foreign_key_without_rowid_parent_rows' => count($nextRows) - count($currentRows),
+                'foreign_key_without_rowid_parent_changed' => self::rowSummary198($currentRows, false) !== self::rowSummary198($nextRows, false),
+                'foreign_key_without_rowid_parent_repaired' => $currentCounts['covered_foreign_keys'] === 0 && $nextCounts['covered_foreign_keys'] > 0,
+                'foreign_key_without_rowid_parent_regressed' => $currentCounts['covered_foreign_keys'] > 0 && $nextCounts['covered_foreign_keys'] === 0,
+            ],
+            'next_state' => [
+                ...$base['next_state'],
+                'ready' => $blocking === [],
+                'blocking' => $blocking,
+            ],
+            'next' => $complete ? null : [
+                'source_id' => $sourceId,
+                'offset' => $nextOffset,
+            ],
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function withoutRowidParentKeyRows198(array $records, string $side = 'current'): array
+    {
+        self::validateRecords198($records);
+
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        $tables = self::tableRecordMap198($records);
+        $rows = [];
+        foreach (self::groupForeignKeyRows198(self::foreignKeyListRows175($records, $side)) as $group) {
+            $table = (string) $group[0]['table'];
+            $parent = (string) $group[0]['parent'];
+            $parentRecord = $tables[strtolower($parent)] ?? null;
+            if ($parentRecord === null || $parentRecord->sql === null || !self::isWithoutRowid198($parentRecord->sql)) {
+                continue;
+            }
+
+            $parentColumns = array_map(static fn (array $row): string => (string) $row['to'], $group);
+            $primaryKeyRows = self::primaryKeyRows198($catalog, $parent);
+            $primaryKeyColumns = array_map(static fn (array $row): string => (string) $row['name'], $primaryKeyRows);
+            if (!self::sameColumns198($parentColumns, $primaryKeyColumns)) {
+                continue;
+            }
+
+            foreach ($group as $row) {
+                $pkRow = $primaryKeyRows[(int) $row['seq']] ?? null;
+                $rows[] = [
+                    'side' => $side,
+                    'kind' => 'foreign_key_without_rowid_parent_key',
+                    'table' => $table,
+                    'fkid' => (int) $row['id'],
+                    'seq' => (int) $row['seq'],
+                    'parent' => $parent,
+                    'from' => (string) $row['from'],
+                    'to' => (string) $row['to'],
+                    'index' => 'without-rowid-primary-key',
+                    'index_unique' => 1,
+                    'index_partial' => 0,
+                    'index_seqno' => $pkRow['pk'] ?? null,
+                    'index_cid' => $pkRow['cid'] ?? null,
+                    'index_name' => $pkRow['name'] ?? null,
+                    'primary_key_columns' => $primaryKeyColumns,
+                    'status' => 'ok',
+                    'message' => "foreign key {$table}->{$parent} parent key is covered by WITHOUT ROWID primary key column {$row['to']}",
+                ];
+            }
+        }
+
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => [$left['side'], $left['table'], $left['fkid'], $left['seq']]
+                <=> [$right['side'], $right['table'], $right['fkid'], $right['seq']],
+        );
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<list<array<string,mixed>>>
+     */
+    private static function groupForeignKeyRows198(array $rows): array
+    {
+        $groups = [];
+        foreach ($rows as $row) {
+            $groups[strtolower((string) $row['table']) . '#' . (int) $row['id']][] = $row;
+        }
+        foreach ($groups as &$group) {
+            usort($group, static fn (array $left, array $right): int => (int) $left['seq'] <=> (int) $right['seq']);
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return array<string,SQLiteSchemaRecord>
+     */
+    private static function tableRecordMap198(array $records): array
+    {
+        $tables = [];
+        foreach ($records as $record) {
+            if ($record->type === 'table') {
+                $tables[strtolower($record->name)] = $record;
+            }
+        }
+
+        return $tables;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private static function primaryKeyRows198(SQLitePragmaSchemaCatalog $catalog, string $table): array
+    {
+        $rows = array_values(array_filter(
+            $catalog->execute('PRAGMA table_info(' . self::pragmaArgumentLiteral198($table) . ')')['rows'],
+            static fn (array $row): bool => (int) ($row['pk'] ?? 0) > 0,
+        ));
+        usort($rows, static fn (array $left, array $right): int => (int) $left['pk'] <=> (int) $right['pk']);
+
+        return $rows;
+    }
+
+    /**
+     * @param list<string> $left
+     * @param list<string> $right
+     */
+    private static function sameColumns198(array $left, array $right): bool
+    {
+        if (count($left) !== count($right)) {
+            return false;
+        }
+        foreach ($left as $index => $column) {
+            if (strcasecmp($column, $right[$index]) !== 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function isWithoutRowid198(string $sql): bool
+    {
+        return preg_match('/\)\s*WITHOUT\s+ROWID\b/i', $sql) === 1;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array<string,bool>
+     */
+    private static function coveredForeignKeyKeys198(array $rows): array
+    {
+        $covered = [];
+        foreach ($rows as $row) {
+            $covered[self::foreignKeyKey198((string) $row['side'], (string) $row['table'], (int) $row['fkid'])] = true;
+        }
+
+        return $covered;
+    }
+
+    /**
+     * @param array<string,bool> $covered
+     */
+    private static function decorateCoveredParentKeyRow198(array $row, array $covered): array
+    {
+        if (($row['kind'] ?? null) !== 'foreign_key_parent_key' || ($row['status'] ?? null) !== 'missing_parent_key') {
+            return $row;
+        }
+
+        if (!isset($covered[self::foreignKeyKey198((string) $row['side'], (string) $row['table'], (int) $row['fkid'])])) {
+            return $row;
+        }
+
+        return [
+            ...$row,
+            'index' => 'without-rowid-primary-key',
+            'status' => 'ok',
+            'without_rowid_parent_key' => true,
+            'message' => "foreign key {$row['table']}->{$row['parent']} parent columns are backed by the WITHOUT ROWID table primary key",
+        ];
+    }
+
+    /**
+     * @param list<string> $baseBlocking
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,bool> $covered
+     * @return list<string>
+     */
+    private static function adjustBlocking198(array $baseBlocking, array $rows, array $covered): array
+    {
+        if ($covered === []) {
+            return $baseBlocking;
+        }
+
+        $hasUncoveredMissingParentKey = false;
+        foreach ($rows as $row) {
+            if (($row['kind'] ?? null) !== 'foreign_key_parent_key' || ($row['side'] ?? null) !== 'next') {
+                continue;
+            }
+            if (($row['status'] ?? null) === 'missing_parent_key') {
+                $hasUncoveredMissingParentKey = true;
+                break;
+            }
+        }
+
+        if ($hasUncoveredMissingParentKey) {
+            return $baseBlocking;
+        }
+
+        return array_values(array_filter(
+            $baseBlocking,
+            static fn (string $blocker): bool => $blocker !== 'foreign_key_parent_unique_index',
+        ));
+    }
+
+    private static function foreignKeyKey198(string $side, string $table, int $id): string
+    {
+        return strtolower($side) . ':' . strtolower($table) . '#' . $id;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{rows:int,covered_foreign_keys:int,covered_columns:int,composite_columns:int}
+     */
+    private static function withoutRowidCounts198(array $rows): array
+    {
+        $keys = [];
+        $columns = 0;
+        foreach ($rows as $row) {
+            $keys[self::foreignKeyKey198((string) $row['side'], (string) $row['table'], (int) $row['fkid'])] = true;
+            $columns++;
+        }
+
+        return [
+            'rows' => count($rows),
+            'covered_foreign_keys' => count($keys),
+            'covered_columns' => $columns,
+            'composite_columns' => count(array_filter($rows, static fn (array $row): bool => count($row['primary_key_columns'] ?? []) > 1)),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function rowSummary198(array $rows, bool $includeSide = true): array
+    {
+        $summary = array_map(
+            static fn (array $row): string => ($includeSide ? $row['side'] . ':' : '')
+                . $row['table'] . '#' . $row['fkid'] . '.' . $row['seq'] . ':' . $row['from']
+                . '->' . $row['parent'] . '.' . $row['to'] . ':without-rowid-pk=' . implode('|', $row['primary_key_columns'] ?? []),
+            $rows,
+        );
+        sort($summary);
+
+        return $summary;
+    }
+
+    /** @param list<mixed> $records */
+    private static function validateRecords198(array $records): void
+    {
+        foreach ($records as $record) {
+            if (!$record instanceof SQLiteSchemaRecord) {
+                throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next198 records must be SQLiteSchemaRecord instances');
+            }
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $cursor
+     */
+    private static function validateCursor198(array $cursor, string $sourceId, int $offset): void
+    {
+        if (($cursor['source_id'] ?? null) !== $sourceId) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next198 cursor does not match the current source');
+        }
+        $cursorOffset = $cursor['next_offset'] ?? $cursor['offset'] ?? null;
+        if ($cursorOffset !== null && $cursorOffset !== $offset) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next198 cursor offset does not match the requested page offset');
+        }
+    }
+
+    private static function pragmaArgumentLiteral198(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
+    }
+
+    private static function stableHash198(mixed $value): string
+    {
+        return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page204(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA current-source next204 offset must be non-negative');
+        }
+        if ($limit < 1) {
+            throw new InvalidArgumentException('SQLite PRAGMA current-source next204 limit must be positive');
+        }
+
+        $base = self::page203(
+            $currentRecords,
+            $nextRecords,
+            $indexXinfoSql,
+            $foreignKeySql,
+            0,
+            PHP_INT_MAX,
+        );
+
+        $currentRows = self::childIndexRows204($currentRecords, 'current');
+        $nextRows = self::childIndexRows204($nextRecords, 'next');
+        $sourceId = hash('sha256', json_encode([
+            'mode' => 'pragma-index-xinfo-foreignkey-current-source-next204',
+            'base' => $base['source_id'],
+            'current_child_index' => self::rowSummary204($currentRows),
+            'next_child_index' => self::rowSummary204($nextRows),
+        ], JSON_THROW_ON_ERROR));
+
+        if ($resume !== null) {
+            if (($resume['source_id'] ?? null) !== $sourceId) {
+                throw new InvalidArgumentException('SQLite PRAGMA current-source next204 resume cursor does not match current source');
+            }
+            if (($resume['offset'] ?? null) !== $offset) {
+                throw new InvalidArgumentException('SQLite PRAGMA current-source next204 resume cursor offset mismatch');
+            }
+        }
+
+        $allRows = array_values(array_merge($base['rows'], $currentRows, $nextRows));
+        $pageRows = array_slice($allRows, $offset, $limit);
+        $nextOffset = $offset + count($pageRows);
+        $currentCounts = self::childIndexCounts204($currentRows);
+        $nextCounts = self::childIndexCounts204($nextRows);
+
+        return [
+            ...$base,
+            'operation' => 'pragma-index-xinfo-foreignkey-current-source-next204',
+            'source_id' => $sourceId,
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($pageRows),
+            'total' => count($allRows),
+            'next' => $nextOffset < count($allRows) ? ['source_id' => $sourceId, 'offset' => $nextOffset] : null,
+            'next_row' => $allRows[$nextOffset] ?? null,
+            'current_source' => [
+                ...$base['current_source'],
+                'foreign_key_child_index_source' => 'pragma_foreign_key_list_child_groups_plus_pragma_index_list_xinfo',
+                'foreign_key_child_index' => self::rowSummary204($currentRows),
+            ],
+            'next_source' => [
+                ...($base['next_source'] ?? []),
+                'foreign_key_child_index_source' => 'pragma_foreign_key_list_child_groups_plus_pragma_index_list_xinfo',
+                'foreign_key_child_index' => self::rowSummary204($nextRows),
+            ],
+            'current' => [
+                ...$base['current'],
+                'foreign_key_child_index' => $currentCounts,
+            ],
+            'next_counts' => [
+                ...$base['next_counts'],
+                'foreign_key_child_index' => $nextCounts,
+            ],
+            'delta' => [
+                ...$base['delta'],
+                'foreign_key_child_index_rows' => $nextCounts['rows'] - $currentCounts['rows'],
+                'foreign_key_child_index_missing' => $nextCounts['missing_child_index'] - $currentCounts['missing_child_index'],
+                'foreign_key_child_index_covered' => $nextCounts['covered'] - $currentCounts['covered'],
+                'foreign_key_child_index_repaired' => $currentCounts['missing_child_index'] > 0 && $nextCounts['missing_child_index'] === 0,
+                'foreign_key_child_index_changed' => self::rowSummary204($currentRows, false) !== self::rowSummary204($nextRows, false),
+            ],
+            'dependencies' => array_values(array_unique([
+                ...$base['dependencies'],
+                'sqlite-pragma-foreign-key-child-index-coverage',
+            ])),
+            'rows' => $pageRows,
+        ];
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function childIndexRows204(array $records, string $phase = 'current'): array
+    {
+        self::validateRecords204($records);
+
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        $rows = [];
+        foreach (self::groupForeignKeys204(self::foreignKeysFromCatalog167($records)) as $foreignKey) {
+            $childColumns = array_map(static fn (array $column): string => (string) $column['child'], $foreignKey['columns']);
+            $candidate = self::coveringChildIndex204($catalog, (string) $foreignKey['table'], $childColumns);
+            $status = $candidate === null ? 'missing_child_index' : 'covered';
+
+            $rows[] = [
+                'phase' => $phase,
+                'kind' => 'foreign_key_child_index',
+                'table' => (string) $foreignKey['table'],
+                'foreign_key_id' => (int) $foreignKey['id'],
+                'parent' => (string) $foreignKey['parent'],
+                'parent_columns' => array_map(static fn (array $column): string => (string) $column['parent'], $foreignKey['columns']),
+                'child_columns' => $childColumns,
+                'child_index' => $candidate['name'] ?? null,
+                'child_index_unique' => $candidate['unique'] ?? null,
+                'child_index_origin' => $candidate['origin'] ?? null,
+                'child_index_key_columns' => $candidate['columns'] ?? [],
+                'child_index_prefix_columns' => $candidate['prefix_columns'] ?? [],
+                'child_index_collations' => $candidate['collations'] ?? [],
+                'child_index_desc' => $candidate['desc'] ?? [],
+                'child_index_partial' => $candidate['partial'] ?? null,
+                'child_index_expression_terms' => $candidate['expression_terms'] ?? null,
+                'status' => $status,
+                'message' => $status === 'covered'
+                    ? "foreign key {$foreignKey['table']} child key is searchable by {$candidate['name']}"
+                    : "foreign key {$foreignKey['table']} child key has no usable child-side index prefix",
+            ];
+        }
+
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => [$left['phase'], $left['table'], $left['foreign_key_id']]
+                <=> [$right['phase'], $right['table'], $right['foreign_key_id']],
+        );
+
+        return $rows;
+    }
+
+    /**
+     * @param list<string> $childColumns
+     * @return array{name:string,unique:int,origin:string,columns:list<string>,prefix_columns:list<string>,collations:list<string>,desc:list<int>,partial:int,expression_terms:int}|null
+     */
+    private static function coveringChildIndex204(SQLitePragmaSchemaCatalog $catalog, string $table, array $childColumns): ?array
+    {
+        foreach ($catalog->indexList($table) as $index) {
+            if ((int) $index['partial'] !== 0) {
+                continue;
+            }
+
+            $xinfo = $catalog->indexXInfo((string) $index['name']);
+            $keyRows = array_values(array_filter($xinfo, static fn (array $row): bool => (int) ($row['key'] ?? 0) === 1));
+            if (count($keyRows) < count($childColumns)) {
+                continue;
+            }
+
+            $prefixRows = array_slice($keyRows, 0, count($childColumns));
+            $prefixColumns = array_map(static fn (array $row): ?string => isset($row['name']) ? (string) $row['name'] : null, $prefixRows);
+            if (!self::sameColumns204($prefixColumns, $childColumns)) {
+                continue;
+            }
+
+            $expressionTerms = count(array_filter($prefixRows, static fn (array $row): bool => ($row['name'] ?? null) === null || (int) ($row['cid'] ?? 0) === -2));
+            if ($expressionTerms > 0) {
+                continue;
+            }
+
+            return [
+                'name' => (string) $index['name'],
+                'unique' => (int) $index['unique'],
+                'origin' => (string) $index['origin'],
+                'columns' => array_map(
+                    static fn (array $row): string => (string) ($row['name'] ?? ''),
+                    $keyRows,
+                ),
+                'prefix_columns' => array_map(static fn (?string $column): string => (string) $column, $prefixColumns),
+                'collations' => array_map(static fn (array $row): string => strtoupper((string) ($row['coll'] ?? 'BINARY')), $prefixRows),
+                'desc' => array_map(static fn (array $row): int => (int) ($row['desc'] ?? 0), $prefixRows),
+                'partial' => (int) $index['partial'],
+                'expression_terms' => $expressionTerms,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $foreignKeys
+     * @return list<array<string,mixed>>
+     */
+    private static function groupForeignKeys204(array $foreignKeys): array
+    {
+        $grouped = [];
+        foreach ($foreignKeys as $foreignKey) {
+            $key = strtolower((string) $foreignKey['table']) . '#' . (int) $foreignKey['id'];
+            $grouped[$key] ??= [
+                ...$foreignKey,
+                'columns' => [],
+            ];
+            foreach ((array) ($foreignKey['columns'] ?? []) as $column) {
+                if (!is_array($column)) {
+                    continue;
+                }
+                $grouped[$key]['columns'][] = [
+                    'child' => (string) ($column['child'] ?? ''),
+                    'parent' => (string) ($column['parent'] ?? ''),
+                ];
+            }
+        }
+
+        foreach ($grouped as $foreignKey) {
+            if ($foreignKey['columns'] === []) {
+                throw new InvalidArgumentException('SQLite PRAGMA current-source next204 requires foreign key columns');
+            }
+        }
+
+        return array_values($grouped);
+    }
+
+    /**
+     * @param list<string|null> $left
+     * @param list<string> $right
+     */
+    private static function sameColumns204(array $left, array $right): bool
+    {
+        if (count($left) !== count($right)) {
+            return false;
+        }
+        foreach ($left as $index => $column) {
+            if ($column === null || strcasecmp($column, $right[$index]) !== 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{rows:int,covered:int,missing_child_index:int,non_unique:int,unique:int,partial:int,descending_prefix:int}
+     */
+    private static function childIndexCounts204(array $rows): array
+    {
+        $counts = [
+            'rows' => count($rows),
+            'covered' => 0,
+            'missing_child_index' => 0,
+            'non_unique' => 0,
+            'unique' => 0,
+            'partial' => 0,
+            'descending_prefix' => 0,
+        ];
+        foreach ($rows as $row) {
+            if (($row['status'] ?? null) === 'covered') {
+                $counts['covered']++;
+            }
+            if (($row['status'] ?? null) === 'missing_child_index') {
+                $counts['missing_child_index']++;
+            }
+            if (($row['child_index_unique'] ?? null) === 1) {
+                $counts['unique']++;
+            }
+            if (($row['child_index_unique'] ?? null) === 0) {
+                $counts['non_unique']++;
+            }
+            if (($row['child_index_partial'] ?? null) === 1) {
+                $counts['partial']++;
+            }
+            if (in_array(1, (array) ($row['child_index_desc'] ?? []), true)) {
+                $counts['descending_prefix']++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function rowSummary204(array $rows, bool $includeStatus = true): array
+    {
+        $summary = array_map(
+            static fn (array $row): string => implode(':', array_filter([
+                (string) $row['phase'],
+                (string) $row['table'] . '#' . (int) $row['foreign_key_id'] . '->' . (string) $row['parent'],
+                implode(',', (array) $row['child_columns']),
+                (string) ($row['child_index'] ?? 'missing'),
+                $includeStatus ? (string) $row['status'] : null,
+            ], static fn (?string $part): bool => $part !== null)),
+            $rows,
+        );
+        sort($summary);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<mixed> $records
+     */
+    private static function validateRecords204(array $records): void
+    {
+        foreach ($records as $record) {
+            if (!$record instanceof SQLiteSchemaRecord) {
+                throw new InvalidArgumentException('SQLite PRAGMA current-source next204 records must be SQLiteSchemaRecord instances');
+            }
+        }
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param array<string,list<array<string,mixed>>> $currentTables
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array<string,list<array<string,mixed>>> $nextTables
+     * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
+     * @return array<string,mixed>
+     */
+    public static function currentNextPageFromCatalog179(
+        array $currentRecords,
+        array $currentTables,
+        array $nextRecords,
+        array $nextTables,
+        string $indexXinfoSql,
+        int $offset = 0,
+        int $limit = 179,
+        ?array $cursor = null,
+        bool $tableValuedIndexXinfo = false,
+    ): array {
+        $baseCurrentRecords = self::recordsWithDoubleQuotedConstraintNames179($currentRecords);
+        $baseNextRecords = self::recordsWithDoubleQuotedConstraintNames179($nextRecords);
+        $page = self::currentNextPageFromCatalog171(
+            $baseCurrentRecords,
+            $currentTables,
+            $baseNextRecords,
+            $nextTables,
+            $indexXinfoSql,
+            $offset,
+            $limit,
+            null,
+            $tableValuedIndexXinfo,
+        );
+
+        $currentNames = self::constraintRows179($currentRecords);
+        $nextNames = self::constraintRows179($nextRecords);
+        $sourceId = self::stableHash179([
+            'mode' => 'pragma-index-xinfo-foreignkey-current-source-next179',
+            'base' => $page['source_id'],
+            'current_constraints' => self::constraintSummary179($currentNames),
+            'next_constraints' => self::constraintSummary179($nextNames),
+        ]);
+        if ($cursor !== null) {
+            self::validateCursor179($cursor, $sourceId, $offset);
+        }
+
+        $currentMap = self::constraintMap179($currentNames);
+        $nextMap = self::constraintMap179($nextNames);
+
+        return [
+            ...$page,
+            'source_id' => $sourceId,
+            'current_source' => [
+                ...$page['current_source'],
+                'foreign_key_constraint_source' => 'create_table_constraint_names_single_quoted',
+                'foreign_key_constraints' => self::constraintSummary179($currentNames),
+            ],
+            'next_source' => [
+                ...$page['next_source'],
+                'foreign_key_constraint_source' => 'create_table_constraint_names_single_quoted',
+                'foreign_key_constraints' => self::constraintSummary179($nextNames),
+            ],
+            'current' => [
+                ...$page['current'],
+                'foreign_key_constraints' => self::constraintCounts179($currentNames),
+            ],
+            'next_counts' => [
+                ...$page['next_counts'],
+                'foreign_key_constraints' => self::constraintCounts179($nextNames),
+            ],
+            'delta' => [
+                ...$page['delta'],
+                'foreign_key_constraint_changes' => self::constraintChangeCount179($currentNames, $nextNames),
+                'foreign_key_constraint_changed' => self::constraintSummary179($currentNames) !== self::constraintSummary179($nextNames),
+            ],
+            'next' => $page['next'] === null ? null : [
+                'source_id' => $sourceId,
+                'offset' => $page['next']['offset'],
+            ],
+            'rows' => array_map(
+                static fn (array $row): array => self::decorateRow179($row, ($row['side'] ?? 'current') === 'next' ? $nextMap : $currentMap),
+                $page['rows'],
+            ),
+        ];
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array{table:string,fkid:int,constraint:string|null,origin:string}>
+     */
+    public static function constraintRows179(array $records): array
+    {
+        self::validateRecords179($records);
+
+        $foreignKeys = self::foreignKeysFromCatalog171($records);
+        $clauses = self::constraintClausesByTable179($records);
+        $rows = [];
+
+        foreach ($foreignKeys as $foreignKey) {
+            $table = (string) $foreignKey['table'];
+            $id = (int) $foreignKey['id'];
+            $clause = $clauses[strtolower($table)][$id] ?? null;
+            $rows[] = [
+                'table' => $table,
+                'fkid' => $id,
+                'constraint' => $clause === null ? null : $clause['constraint'],
+                'origin' => $clause === null ? 'pragma_foreign_key_list' : $clause['origin'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return array<string,list<array{constraint:string|null,origin:string}>>
+     */
+    private static function constraintClausesByTable179(array $records): array
+    {
+        $clauses = [];
+        foreach ($records as $record) {
+            if ($record->type !== 'table' || $record->sql === null) {
+                continue;
+            }
+
+            $body = self::parenthesizedBody179($record->sql);
+            if ($body === null) {
+                continue;
+            }
+
+            foreach (self::splitTopLevel179($body, ',') as $definition) {
+                $definition = trim($definition);
+                if (preg_match('/\bREFERENCES\b/i', $definition) !== 1) {
+                    continue;
+                }
+                $clauses[strtolower($record->name)][] = self::constraintFromDefinition179($definition);
+            }
+        }
+
+        return $clauses;
+    }
+
+    /**
+     * @return array{constraint:string|null,origin:string}
+     */
+    private static function constraintFromDefinition179(string $definition): array
+    {
+        $identifier = self::identifierPattern179();
+        if (preg_match('/^CONSTRAINT\s+' . $identifier . '\s+FOREIGN\s+KEY\b/is', $definition, $matches) === 1) {
+            return [
+                'constraint' => self::matchedIdentifier179($matches),
+                'origin' => 'table_constraint',
+            ];
+        }
+
+        if (preg_match('/^(?:"(?:""|[^"])*"|\'(?:\'\'|[^\'])*\'|`[^`]*`|\[[^\]]*\]|[A-Za-z_][A-Za-z0-9_]*)\b.*?\bCONSTRAINT\s+' . $identifier . '\s+REFERENCES\b/is', $definition, $matches) === 1) {
+            return [
+                'constraint' => self::matchedIdentifier179($matches),
+                'origin' => 'column_constraint',
+            ];
+        }
+
+        return [
+            'constraint' => null,
+            'origin' => preg_match('/^\s*(?:CONSTRAINT\s+\S+\s+)?FOREIGN\s+KEY\b/i', $definition) === 1 ? 'table_constraint' : 'column_constraint',
+        ];
+    }
+
+    /**
+     * @param array<string,string> $matches
+     */
+    private static function matchedIdentifier179(array $matches): string
+    {
+        if (($matches['dq'] ?? '') !== '') {
+            return str_replace('""', '"', $matches['dq']);
+        }
+        if (($matches['sq'] ?? '') !== '') {
+            return str_replace("''", "'", $matches['sq']);
+        }
+        if (($matches['bt'] ?? '') !== '') {
+            return $matches['bt'];
+        }
+        if (($matches['br'] ?? '') !== '') {
+            return $matches['br'];
+        }
+
+        return $matches['bare'];
+    }
+
+    private static function identifierPattern179(): string
+    {
+        return '(?:"(?<dq>(?:""|[^"])*)"|\'(?<sq>(?:\'\'|[^\'])*)\'|`(?<bt>[^`]*)`|\[(?<br>[^\]]*)\]|(?<bare>[A-Za-z_][A-Za-z0-9_]*))';
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<SQLiteSchemaRecord>
+     */
+    private static function recordsWithDoubleQuotedConstraintNames179(array $records): array
+    {
+        self::validateRecords179($records);
+
+        return array_map(
+            static function (SQLiteSchemaRecord $record): SQLiteSchemaRecord {
+                if ($record->type !== 'table' || $record->sql === null || !str_contains($record->sql, "CONSTRAINT '")) {
+                    return $record;
+                }
+
+                $sql = preg_replace_callback(
+                    "/\bCONSTRAINT\s+'((?:''|[^'])*)'(?=\s+(?:FOREIGN\s+KEY\b|REFERENCES\b))/i",
+                    static fn (array $matches): string => 'CONSTRAINT "' . str_replace('"', '""', str_replace("''", "'", $matches[1])) . '"',
+                    $record->sql,
+                );
+
+                return new SQLiteSchemaRecord(
+                    $record->type,
+                    $record->name,
+                    $record->tableName,
+                    $record->rootPage,
+                    $sql,
+                    $record->rowId,
+                );
+            },
+            $records,
+        );
+    }
+
+    /**
+     * @param list<array{table:string,fkid:int,constraint:string|null,origin:string}> $rows
+     * @return array<string,array{constraint:string|null,origin:string}>
+     */
+    private static function constraintMap179(array $rows): array
+    {
+        $map = [];
+        foreach ($rows as $row) {
+            $map[self::constraintKey179($row['table'], $row['fkid'])] = [
+                'constraint' => $row['constraint'],
+                'origin' => $row['origin'],
+            ];
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param array<string,array{constraint:string|null,origin:string}> $constraints
+     * @return array<string,mixed>
+     */
+    private static function decorateRow179(array $row, array $constraints): array
+    {
+        if (($row['kind'] ?? null) !== 'index_admission' && ($row['kind'] ?? null) !== 'foreign_key_check') {
+            return $row;
+        }
+
+        $constraint = $constraints[self::constraintKey179((string) ($row['table'] ?? ''), (int) ($row['fkid'] ?? -1))] ?? null;
+        if ($constraint === null) {
+            return $row;
+        }
+
+        return [
+            ...$row,
+            'constraint' => $constraint['constraint'],
+            'constraint_origin' => $constraint['origin'],
+            'constraint_named' => $constraint['constraint'] !== null,
+        ];
+    }
+
+    /**
+     * @param list<array{table:string,fkid:int,constraint:string|null,origin:string}> $rows
+     * @return list<string>
+     */
+    private static function constraintSummary179(array $rows): array
+    {
+        $summary = array_map(
+            static fn (array $row): string => $row['table'] . '#' . $row['fkid'] . ':constraint=' . ($row['constraint'] ?? '<anonymous>') . ',origin=' . $row['origin'],
+            $rows,
+        );
+        sort($summary);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array{table:string,fkid:int,constraint:string|null,origin:string}> $rows
+     * @return array<string,int>
+     */
+    private static function constraintCounts179(array $rows): array
+    {
+        $counts = [
+            'named' => 0,
+            'anonymous' => 0,
+            'table_constraint' => 0,
+            'column_constraint' => 0,
+        ];
+        foreach ($rows as $row) {
+            $counts[$row['constraint'] === null ? 'anonymous' : 'named']++;
+            $counts[$row['origin']] = ($counts[$row['origin']] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array{table:string,fkid:int,constraint:string|null,origin:string}> $current
+     * @param list<array{table:string,fkid:int,constraint:string|null,origin:string}> $next
+     */
+    private static function constraintChangeCount179(array $current, array $next): int
+    {
+        return count(array_diff(self::constraintSummary179($next), self::constraintSummary179($current)))
+            + count(array_diff(self::constraintSummary179($current), self::constraintSummary179($next)));
+    }
+
+    private static function constraintKey179(string $table, int $id): string
+    {
+        return strtolower($table) . '#' . $id;
+    }
+
+    /** @param list<mixed> $records */
+    private static function validateRecords179(array $records): void
+    {
+        foreach ($records as $record) {
+            if (!$record instanceof SQLiteSchemaRecord) {
+                throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next179 records must be SQLiteSchemaRecord instances');
+            }
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $cursor
+     */
+    private static function validateCursor179(array $cursor, string $sourceId, int $offset): void
+    {
+        if (($cursor['source_id'] ?? null) !== $sourceId) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next179 cursor does not match the current source');
+        }
+        $cursorOffset = $cursor['next_offset'] ?? $cursor['offset'] ?? null;
+        if ($cursorOffset !== null && $cursorOffset !== $offset) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next179 cursor offset does not match the requested page offset');
+        }
+    }
+
+    private static function parenthesizedBody179(string $sql): ?string
+    {
+        $open = strpos($sql, '(');
+        if ($open === false) {
+            return null;
+        }
+
+        $depth = 0;
+        $quote = null;
+        $length = strlen($sql);
+        for ($i = $open; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    if (($quote === "'" || $quote === '"') && ($sql[$i + 1] ?? '') === $quote) {
+                        $i++;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[') {
+                $quote = ']';
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return substr($sql, $open + 1, $i - $open - 1);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitTopLevel179(string $value, string $delimiter): array
+    {
+        $parts = [];
+        $start = 0;
+        $depth = 0;
+        $quote = null;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    if (($quote === "'" || $quote === '"') && ($value[$i + 1] ?? '') === $quote) {
+                        $i++;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[') {
+                $quote = ']';
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                continue;
+            }
+            if ($depth === 0 && $char === $delimiter) {
+                $parts[] = substr($value, $start, $i - $start);
+                $start = $i + 1;
+            }
+        }
+        $parts[] = substr($value, $start);
+
+        return $parts;
+    }
+
+    private static function stableHash179(mixed $value): string
+    {
+        return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param array<string,list<array<string,mixed>>> $currentTables
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array<string,list<array<string,mixed>>> $nextTables
+     * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
+     * @return array<string,mixed>
+     */
+    public static function currentNextPageFromCatalog180(
+        array $currentRecords,
+        array $currentTables,
+        array $nextRecords,
+        array $nextTables,
+        string $indexXinfoSql,
+        int $offset = 0,
+        int $limit = 180,
+        ?array $cursor = null,
+        bool $tableValuedIndexXinfo = false,
+    ): array {
+        $page = self::currentNextPageFromCatalog177(
+            $currentRecords,
+            $currentTables,
+            $nextRecords,
+            $nextTables,
+            $indexXinfoSql,
+            $offset,
+            $limit,
+            null,
+            $tableValuedIndexXinfo,
+        );
+
+        $currentDiagnostics = self::parentIndexDiagnostics180($currentRecords);
+        $nextDiagnostics = self::parentIndexDiagnostics180($nextRecords);
+        $sourceId = self::stableHash180([
+            'mode' => 'pragma-index-xinfo-foreignkey-current-source-next180',
+            'base' => $page['source_id'],
+            'current_parent_index_diagnostics' => self::diagnosticSummary180($currentDiagnostics),
+            'next_parent_index_diagnostics' => self::diagnosticSummary180($nextDiagnostics),
+        ]);
+        if ($cursor !== null) {
+            self::validateCursor180($cursor, $sourceId, $offset);
+        }
+
+        $currentMap = self::diagnosticMap180($currentDiagnostics);
+        $nextMap = self::diagnosticMap180($nextDiagnostics);
+
+        return [
+            ...$page,
+            'source_id' => $sourceId,
+            'current_source' => [
+                ...$page['current_source'],
+                'foreign_key_parent_index_source' => 'pragma_index_list_index_xinfo_candidate_diagnostics',
+                'foreign_key_parent_indexes' => self::diagnosticSummary180($currentDiagnostics),
+            ],
+            'next_source' => [
+                ...$page['next_source'],
+                'foreign_key_parent_index_source' => 'pragma_index_list_index_xinfo_candidate_diagnostics',
+                'foreign_key_parent_indexes' => self::diagnosticSummary180($nextDiagnostics),
+            ],
+            'current' => [
+                ...$page['current'],
+                'foreign_key_parent_indexes' => self::diagnosticCounts180($currentDiagnostics),
+            ],
+            'next_counts' => [
+                ...$page['next_counts'],
+                'foreign_key_parent_indexes' => self::diagnosticCounts180($nextDiagnostics),
+            ],
+            'delta' => [
+                ...$page['delta'],
+                'foreign_key_parent_index_changes' => self::diagnosticChangeCount180($currentDiagnostics, $nextDiagnostics),
+                'foreign_key_parent_index_changed' => self::diagnosticSummary180($currentDiagnostics) !== self::diagnosticSummary180($nextDiagnostics),
+            ],
+            'next' => $page['next'] === null ? null : [
+                'source_id' => $sourceId,
+                'offset' => $page['next']['offset'],
+            ],
+            'rows' => array_map(
+                static fn (array $row): array => self::decorateRow180($row, ($row['side'] ?? 'current') === 'next' ? $nextMap : $currentMap),
+                $page['rows'],
+            ),
+        ];
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function parentIndexDiagnostics180(array $records): array
+    {
+        self::validateRecords180($records);
+
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        $tableRecords = self::tableRecords180($records);
+        $foreignKeys = self::foreignKeysFromCatalog166($records);
+        $diagnostics = [];
+
+        foreach ($foreignKeys as $foreignKey) {
+            $parent = (string) ($foreignKey['parent'] ?? '');
+            $parentColumns = array_map(static fn (array $column): string => (string) $column['parent'], $foreignKey['columns']);
+            $parentCollations = array_map(static fn (array $column): string => strtoupper((string) $column['collation']), $foreignKey['columns']);
+            $candidates = self::candidateRows180($catalog, $parent, $parentColumns, $parentCollations);
+            $rowidMatch = self::rowidPrimaryKey180($tableRecords[strtolower($parent)] ?? null, $parentColumns);
+            $accepted = array_values(array_filter($candidates, static fn (array $row): bool => $row['reason'] === 'accepted_unique_index'));
+            if ($rowidMatch) {
+                array_unshift($accepted, [
+                    'index' => 'rowid-primary-key',
+                    'reason' => 'accepted_rowid_primary_key',
+                    'columns' => $parentColumns,
+                    'collations' => ['BINARY'],
+                ]);
+            }
+
+            $diagnostics[] = [
+                'table' => (string) ($foreignKey['table'] ?? ''),
+                'fkid' => (int) ($foreignKey['id'] ?? -1),
+                'parent' => $parent,
+                'parent_columns' => $parentColumns,
+                'parent_collations' => $parentCollations,
+                'accepted' => $accepted !== [],
+                'accepted_index' => $accepted[0]['index'] ?? null,
+                'accepted_reason' => $accepted[0]['reason'] ?? 'missing_matching_unique_index',
+                'candidate_count' => count($candidates) + ($rowidMatch ? 1 : 0),
+                'rejected' => self::rejectionCounts180($candidates),
+                'candidate_summary' => self::candidateSummary180($candidates, $rowidMatch, $parentColumns),
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $diagnostics
+     * @return list<string>
+     */
+    private static function diagnosticSummary180(array $diagnostics): array
+    {
+        $summary = array_map(
+            static fn (array $row): string => $row['table'] . '#' . $row['fkid']
+                . ':parent=' . $row['parent']
+                . ',columns=' . implode('|', $row['parent_columns'])
+                . ',accepted=' . ($row['accepted_index'] ?? '<none>')
+                . ',reason=' . $row['accepted_reason']
+                . ',candidates=' . implode('|', $row['candidate_summary']),
+            $diagnostics,
+        );
+        sort($summary);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $diagnostics
+     * @return array<string,int>
+     */
+    private static function diagnosticCounts180(array $diagnostics): array
+    {
+        $counts = [
+            'accepted' => 0,
+            'blocked' => 0,
+            'rowid_primary_key' => 0,
+            'unique_index' => 0,
+            'partial_unique_rejected' => 0,
+            'non_unique_rejected' => 0,
+            'column_order_rejected' => 0,
+            'collation_rejected' => 0,
+        ];
+
+        foreach ($diagnostics as $row) {
+            $counts[$row['accepted'] ? 'accepted' : 'blocked']++;
+            if ($row['accepted_reason'] === 'accepted_rowid_primary_key') {
+                $counts['rowid_primary_key']++;
+            }
+            if ($row['accepted_reason'] === 'accepted_unique_index') {
+                $counts['unique_index']++;
+            }
+            foreach ($row['rejected'] as $reason => $count) {
+                $counts[$reason . '_rejected'] = ($counts[$reason . '_rejected'] ?? 0) + $count;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $current
+     * @param list<array<string,mixed>> $next
+     */
+    private static function diagnosticChangeCount180(array $current, array $next): int
+    {
+        return count(array_diff(self::diagnosticSummary180($next), self::diagnosticSummary180($current)))
+            + count(array_diff(self::diagnosticSummary180($current), self::diagnosticSummary180($next)));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $diagnostics
+     * @return array<string,array<string,mixed>>
+     */
+    private static function diagnosticMap180(array $diagnostics): array
+    {
+        $map = [];
+        foreach ($diagnostics as $row) {
+            $map[self::diagnosticKey180((string) $row['table'], (int) $row['fkid'])] = $row;
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param array<string,array<string,mixed>> $diagnostics
+     * @return array<string,mixed>
+     */
+    private static function decorateRow180(array $row, array $diagnostics): array
+    {
+        if (($row['kind'] ?? null) !== 'index_admission' && ($row['kind'] ?? null) !== 'foreign_key_check') {
+            return $row;
+        }
+
+        $diagnostic = $diagnostics[self::diagnosticKey180((string) ($row['table'] ?? ''), (int) ($row['fkid'] ?? -1))] ?? null;
+        if ($diagnostic === null) {
+            return $row;
+        }
+
+        return [
+            ...$row,
+            'parent_index_accepted' => $diagnostic['accepted'],
+            'parent_index' => $diagnostic['accepted_index'],
+            'parent_index_reason' => $diagnostic['accepted_reason'],
+            'parent_index_candidates' => $diagnostic['candidate_count'],
+            'parent_index_rejections' => $diagnostic['rejected'],
+        ];
+    }
+
+    /**
+     * @param list<string> $parentColumns
+     * @param list<string> $parentCollations
+     * @return list<array{index:string,reason:string,columns:list<string>,collations:list<string>}>
+     */
+    private static function candidateRows180(SQLitePragmaSchemaCatalog $catalog, string $parent, array $parentColumns, array $parentCollations): array
+    {
+        $rows = [];
+        foreach ($catalog->execute('PRAGMA index_list(' . self::pragmaArgumentLiteral180($parent) . ')')['rows'] as $index) {
+            $indexName = (string) $index['name'];
+            $xinfo = array_values(array_filter(
+                $catalog->execute('PRAGMA index_xinfo(' . self::pragmaArgumentLiteral180($indexName) . ')')['rows'],
+                static fn (array $row): bool => (int) $row['key'] === 1
+            ));
+            $columns = array_map(static fn (array $row): string => (string) $row['name'], $xinfo);
+            $collations = array_map(static fn (array $row): string => strtoupper((string) $row['coll']), $xinfo);
+            $reason = self::candidateReason180((int) $index['unique'], (int) $index['partial'], $columns, $collations, $parentColumns, $parentCollations);
+            $rows[] = [
+                'index' => $indexName,
+                'reason' => $reason,
+                'columns' => $columns,
+                'collations' => $collations,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @param list<string> $collations
+     * @param list<string> $parentColumns
+     * @param list<string> $parentCollations
+     */
+    private static function candidateReason180(int $unique, int $partial, array $columns, array $collations, array $parentColumns, array $parentCollations): string
+    {
+        if ($unique !== 1) {
+            return 'non_unique';
+        }
+        if ($partial !== 0) {
+            return 'partial_unique';
+        }
+        if (array_map('strtolower', $columns) !== array_map('strtolower', $parentColumns)) {
+            return 'column_order';
+        }
+        if ($collations !== array_map('strtoupper', $parentCollations)) {
+            return 'collation';
+        }
+
+        return 'accepted_unique_index';
+    }
+
+    /**
+     * @param list<array{index:string,reason:string,columns:list<string>,collations:list<string>}> $candidates
+     * @return array<string,int>
+     */
+    private static function rejectionCounts180(array $candidates): array
+    {
+        $counts = [
+            'partial_unique' => 0,
+            'non_unique' => 0,
+            'column_order' => 0,
+            'collation' => 0,
+        ];
+        foreach ($candidates as $candidate) {
+            if ($candidate['reason'] !== 'accepted_unique_index') {
+                $counts[$candidate['reason']]++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array{index:string,reason:string,columns:list<string>,collations:list<string>}> $candidates
+     * @param list<string> $parentColumns
+     * @return list<string>
+     */
+    private static function candidateSummary180(array $candidates, bool $rowidMatch, array $parentColumns): array
+    {
+        $summary = [];
+        if ($rowidMatch) {
+            $summary[] = 'rowid-primary-key:accepted_rowid_primary_key:' . implode('|', $parentColumns) . ':BINARY';
+        }
+        foreach ($candidates as $candidate) {
+            $summary[] = $candidate['index'] . ':' . $candidate['reason'] . ':' . implode('|', $candidate['columns']) . ':' . implode('|', $candidate['collations']);
+        }
+        sort($summary);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<string> $parentColumns
+     */
+    private static function rowidPrimaryKey180(?SQLiteSchemaRecord $record, array $parentColumns): bool
+    {
+        if ($record === null || $record->sql === null || count($parentColumns) !== 1) {
+            return false;
+        }
+
+        $body = self::parenthesizedBody180($record->sql);
+        if ($body === null) {
+            return false;
+        }
+        foreach (self::splitTopLevel180($body, ',') as $definition) {
+            $definition = trim($definition);
+            if (preg_match('/^(?:"(?<dq>(?:""|[^"])*)"|`(?<bt>[^`]*)`|\[(?<br>[^\]]*)\]|(?<bare>[A-Za-z_][A-Za-z0-9_]*))\b(?<tail>.*)$/is', $definition, $matches) !== 1) {
+                continue;
+            }
+            $name = str_replace('""', '"', $matches['dq'] ?: ($matches['bt'] ?: ($matches['br'] ?: $matches['bare'])));
+            if (strcasecmp($name, $parentColumns[0]) === 0 && preg_match('/\bINTEGER\s+PRIMARY\s+KEY\b/i', $matches['tail']) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return array<string,SQLiteSchemaRecord>
+     */
+    private static function tableRecords180(array $records): array
+    {
+        $tables = [];
+        foreach ($records as $record) {
+            if ($record->type === 'table') {
+                $tables[strtolower($record->name)] = $record;
+            }
+        }
+
+        return $tables;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     */
+    private static function validateRecords180(array $records): void
+    {
+        foreach ($records as $record) {
+            if (!$record instanceof SQLiteSchemaRecord) {
+                throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next180 records must be SQLiteSchemaRecord instances');
+            }
+        }
+    }
+
+    private static function diagnosticKey180(string $table, int $id): string
+    {
+        return strtolower($table) . '#' . $id;
+    }
+
+    /**
+     * @param array<string,mixed> $cursor
+     */
+    private static function validateCursor180(array $cursor, string $sourceId, int $offset): void
+    {
+        if (($cursor['source_id'] ?? null) !== $sourceId) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next180 cursor does not match the current source');
+        }
+        $cursorOffset = $cursor['next_offset'] ?? $cursor['offset'] ?? null;
+        if ($cursorOffset !== null && $cursorOffset !== $offset) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next180 cursor offset does not match the requested page offset');
+        }
+    }
+
+    private static function parenthesizedBody180(string $sql): ?string
+    {
+        $open = strpos($sql, '(');
+        if ($open === false) {
+            return null;
+        }
+        $depth = 0;
+        $quote = null;
+        $length = strlen($sql);
+        for ($i = $open; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    if (($quote === "'" || $quote === '"') && ($sql[$i + 1] ?? '') === $quote) {
+                        $i++;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[') {
+                $quote = ']';
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return substr($sql, $open + 1, $i - $open - 1);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitTopLevel180(string $value, string $delimiter): array
+    {
+        $parts = [];
+        $start = 0;
+        $depth = 0;
+        $quote = null;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    if (($quote === "'" || $quote === '"') && ($value[$i + 1] ?? '') === $quote) {
+                        $i++;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[') {
+                $quote = ']';
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                continue;
+            }
+            if ($char === $delimiter && $depth === 0) {
+                $parts[] = substr($value, $start, $i - $start);
+                $start = $i + 1;
+            }
+        }
+        $parts[] = substr($value, $start);
+
+        return $parts;
+    }
+
+    private static function pragmaArgumentLiteral180(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
+    }
+
+    private static function stableHash180(mixed $value): string
+    {
+        return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
 }

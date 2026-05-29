@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext197;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record197 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -38,7 +38,7 @@ $page197 = static fn (
     ?array $nextRecords = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_import_fk_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext197::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog197(
     $currentRecords197,
     $currentTables197,
     $nextRecords ?? $nextRecords197,
@@ -64,8 +64,8 @@ $valueAt197 = static function (mixed $value, string $path): mixed {
 
 $default197 = static fn (): array => $page197();
 $blocked197 = static fn (): array => $page197(nextRecords: $sameRecords197);
-$nonUniqueRows197 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext197::nonUniqueParentIndexRows($currentRecords197);
-$nextNonUniqueRows197 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext197::nonUniqueParentIndexRows($nextRecords197, 'next');
+$nonUniqueRows197 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::nonUniqueParentIndexRows197($currentRecords197);
+$nextNonUniqueRows197 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::nonUniqueParentIndexRows197($nextRecords197, 'next');
 $tableValued197 = static fn (): array => $page197(indexSql: "pragma_index_xinfo('wp_options_import_fk_lookup')", tableValued: true);
 
 $cases197 = [
@@ -158,7 +158,7 @@ $tests['pragma index xinfo foreignkey non unique parent current source next197 i
         $record197('index', 'wp_option_names_locale_name_lookup', 'wp_option_names', 9, 'CREATE INDEX wp_option_names_locale_name_lookup ON wp_option_names(locale, name COLLATE NOCASE)', 9),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext197::nonUniqueParentIndexRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::nonUniqueParentIndexRows197($records));
 };
 
 $tests['pragma index xinfo foreignkey non unique parent current source next197 ignores expression non unique indexes'] = static function (TestRunner $t) use ($record197, $currentRecords197): void {
@@ -168,7 +168,7 @@ $tests['pragma index xinfo foreignkey non unique parent current source next197 i
         $record197('index', 'wp_option_names_expr_lookup', 'wp_option_names', 10, 'CREATE INDEX wp_option_names_expr_lookup ON wp_option_names(lower(name), locale)', 10),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext197::nonUniqueParentIndexRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::nonUniqueParentIndexRows197($records));
 };
 
 $tests['pragma index xinfo foreignkey non unique parent current source next197 rejects stale cursor'] = static function (TestRunner $t) use ($page197, $sameRecords197): void {
@@ -184,7 +184,7 @@ $tests['pragma index xinfo foreignkey non unique parent current source next197 r
 };
 
 $tests['pragma index xinfo foreignkey non unique parent current source next197 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext197::nonUniqueParentIndexRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::nonUniqueParentIndexRows197([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey non unique parent current source next197 rejects negative offset'] = static function (TestRunner $t) use ($page197): void {

@@ -5,10 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteSchemaRecord.php';
 require_once __DIR__ . '/../src/SQLitePragmaSchemaCatalog.php';
 require_once __DIR__ . '/../src/SQLiteAttachedSchemaCatalog.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext154.php';
+require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php';
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext154;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql = null, int $rowid = 1): SQLiteSchemaRecord => new SQLiteSchemaRecord(
@@ -46,7 +46,7 @@ $catalog = static function (bool $stable = true) use ($record): SQLiteAttachedSc
     ]);
 };
 
-$result = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext154::currentNextPage(
+$result = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPage154(
     $catalog(),
     $catalog(false),
     'PRAGMA main.index_xinfo(wp_options_name_expr154)',

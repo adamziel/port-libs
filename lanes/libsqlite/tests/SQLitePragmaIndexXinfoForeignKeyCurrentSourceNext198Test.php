@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext198;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record198 = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -45,7 +45,7 @@ $page198 = static fn (
     ?array $nextRecords = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext198::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog198(
     $currentRecords198,
     $tables198,
     $nextRecords ?? $nextRecords198,
@@ -82,8 +82,8 @@ $firstRow198 = static function (array $page, callable $predicate): array {
 $default198 = static fn (): array => $page198();
 $mismatched198 = static fn (): array => $page198(nextRecords: $mismatchedNextRecords198);
 $indexed198 = static fn (): array => $page198(nextRecords: $indexedNextRecords198);
-$rows198 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext198::withoutRowidParentKeyRows($nextRecords198, 'next');
-$currentRows198 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext198::withoutRowidParentKeyRows($currentRecords198, 'current');
+$rows198 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::withoutRowidParentKeyRows198($nextRecords198, 'next');
+$currentRows198 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::withoutRowidParentKeyRows198($currentRecords198, 'current');
 $tableValued198 = static fn (): array => $page198(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 $decoratedParentKey198 = static fn (): array => $firstRow198(
     $page198(),
@@ -183,7 +183,7 @@ $tests['pragma index xinfo foreignkey without rowid parent current source next19
 };
 
 $tests['pragma index xinfo foreignkey without rowid parent current source next198 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext198::withoutRowidParentKeyRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::withoutRowidParentKeyRows198([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey without rowid parent current source next198 rejects negative offset'] = static function (TestRunner $t) use ($page198): void {

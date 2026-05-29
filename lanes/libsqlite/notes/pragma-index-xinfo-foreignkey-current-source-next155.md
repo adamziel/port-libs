@@ -2,7 +2,7 @@
 
 Slice: `pragma-index-xinfo-foreignkey-current-source-next155`.
 
-This adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext155`, a bounded
+This adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a bounded
 current-source cursor that combines:
 
 - explicit `PRAGMA index_xinfo(...)` rows for one selected index;
@@ -22,10 +22,10 @@ choosing whether a copied options table is safe to promote.
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext155.php
-php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext155Test.php
+php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php
+php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next155.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext155Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next155.php --self-test
 git diff --check -- lanes/libsqlite
 ```

@@ -10,7 +10,7 @@ the parent catalog has a matching UNIQUE index.
 
 Focused evidence:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext197Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next197.php --self-test`
 
 Dependency closure: no new support component is needed. This reuses the
