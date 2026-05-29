@@ -9387,6 +9387,187 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext314(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next314',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext313($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $handoff = [
+            'savepoint' => $savepoint,
+            'after_ready_range' => 'next310-313',
+            'next313_final' => $base['next313_final']['next313_final'],
+            'next313_ready' => $base['next313_ready'],
+            'yield_window_rows' => count($base['yield_window']),
+            'suppressed_attempt_window_rows' => count($base['suppressed_attempt_window']),
+            'retry_window_rows' => count($base['retry_window']),
+            'current_source_row_count' => count($base['current_source_tables']['wp_options'] ?? []),
+        ];
+        $handoff['next314_handoff'] = hash('sha256', json_encode($handoff, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next314',
+            'next314_handoff' => $handoff,
+            'dependency_closure_next314' => 'no new support component needed; next314 starts the next314-317 continuation after the ready next310-313 row-value RETURNING window seal',
+            'dependencies_next314' => [
+                'sqlite-rowvalue-update-delete-returning-window-current-source-next314',
+                'sqlite-rowvalue-update-delete-returning-window-current-source-next313',
+                'wordpress-rowvalue-update-delete-returning-window-current-source-next314',
+            ],
+            'non_overlap_next314' => 'adds handoff metadata over the ready next310-313 seal; avoids row-value DML execution changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, coordination files, and unrelated private state',
+        ]);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext315(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next315',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext314($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $sourceAudit = [
+            'savepoint' => $savepoint,
+            'next314_handoff' => $base['next314_handoff']['next314_handoff'],
+            'current_source_tables_hash' => hash('sha256', json_encode($base['current_source_tables'], JSON_THROW_ON_ERROR)),
+            'next_source_tables_hash' => hash('sha256', json_encode($base['next_source_tables'], JSON_THROW_ON_ERROR)),
+            'yield_window_ids' => array_column($base['yield_window'], $rowIdColumn),
+            'suppressed_attempt_window_ids' => array_column($base['suppressed_attempt_window'], $rowIdColumn),
+            'retry_window_ids' => array_column($base['retry_window'], $rowIdColumn),
+            'retry_window_dense_ranks' => array_column($base['retry_window'], 'dense_rank'),
+            'retry_rows_preserve_current_source' => $base['next_source_tables'] === $base['current_source_tables'],
+        ];
+        $sourceAudit['next315_source_audit'] = hash('sha256', json_encode($sourceAudit, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next315',
+            'next315_source_audit' => $sourceAudit,
+            'dependency_closure_next315' => 'no new support component needed; next315 records current-source hashes and phase window ids from the next314 continuation',
+            'dependencies_next315' => [
+                'sqlite-rowvalue-update-delete-returning-window-source-audit-next315',
+                'sqlite-rowvalue-update-delete-returning-window-current-source-next314',
+                'wordpress-rowvalue-update-delete-returning-window-source-audit-next315',
+            ],
+            'non_overlap_next315' => 'adds source-audit metadata for existing phase windows; avoids row-value parser/executor changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, lane-status files, and supervisor state',
+        ]);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext316(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next316',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext315($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $preflight = [
+            'savepoint' => $savepoint,
+            'next315_source_audit' => $base['next315_source_audit']['next315_source_audit'],
+            'yield_change_count' => $base['yield_change_count'],
+            'attempt_change_count' => $base['attempt_change_count'],
+            'retry_change_count' => $base['retry_change_count'],
+            'yielded_returning_count' => $base['yielded_returning_count'],
+            'suppressed_returning_count' => $base['suppressed_returning_count'],
+            'retry_returning_count' => $base['retry_returning_count'],
+            'phase_window_rows' => [
+                'yield' => count($base['yield_window']),
+                'suppressed_attempt' => count($base['suppressed_attempt_window']),
+                'retry' => count($base['retry_window']),
+            ],
+            'keeps_libsqlite_throughput_high' => true,
+        ];
+        $preflight['next316_preflight'] = hash('sha256', json_encode($preflight, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next316',
+            'next316_preflight' => $preflight,
+            'dependency_closure_next316' => 'no new support component needed; next316 preflights row-value RETURNING phase throughput counters before sealing next314-317',
+            'dependencies_next316' => [
+                'sqlite-rowvalue-update-delete-returning-window-preflight-next316',
+                'sqlite-rowvalue-update-delete-returning-window-source-audit-next315',
+                'wordpress-rowvalue-update-delete-returning-window-preflight-next316',
+            ],
+            'non_overlap_next316' => 'adds focused throughput counters only; avoids DML execution, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and coordination surfaces',
+        ]);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext317(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next317',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext316($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $seal = [
+            'savepoint' => $savepoint,
+            'next314_handoff' => $base['next314_handoff']['next314_handoff'],
+            'next315_source_audit' => $base['next315_source_audit']['next315_source_audit'],
+            'next316_preflight' => $base['next316_preflight']['next316_preflight'],
+            'next313_ready' => $base['next313_ready'],
+            'retry_rows_preserve_current_source' => $base['next315_source_audit']['retry_rows_preserve_current_source'],
+            'keeps_libsqlite_throughput_high' => $base['next316_preflight']['keeps_libsqlite_throughput_high'],
+        ];
+        $seal['next317_final'] = hash('sha256', json_encode($seal, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next317',
+            'next317_final' => $seal,
+            'next317_ready' => $base['next313_ready'] === true
+                && $seal['retry_rows_preserve_current_source'] === true
+                && $seal['keeps_libsqlite_throughput_high'] === true,
+            'dependency_closure_next317' => 'no new support component needed; next317 seals the next314-317 row-value UPDATE/DELETE RETURNING window current-source continuation after ready next310-313',
+            'dependencies_next317' => [
+                'sqlite-rowvalue-update-delete-returning-window-current-source-next317',
+                'sqlite-rowvalue-update-delete-returning-window-preflight-next316',
+                'wordpress-rowvalue-update-delete-returning-window-current-source-next317',
+            ],
+            'non_overlap_next317' => 'adds the final next314-317 inspectable seal; avoids coordination files, broad suite evidence, executor changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and unrelated private state',
+        ]);
+    }
+
+    /**
      * @param list<array<string,mixed>> $checkpoints
      * @return array<string,mixed>
      */
