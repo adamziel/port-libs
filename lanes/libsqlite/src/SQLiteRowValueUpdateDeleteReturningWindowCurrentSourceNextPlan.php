@@ -13822,6 +13822,102 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return self::continuationNext382397(self::executeNext604($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 605, 602);
     }
 
+    /** @return array<string,mixed> */
+    public static function executeNext606(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next606', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext605($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 606, 606);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext607(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next607', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext606($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 607, 606);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext608(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next608', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext607($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 608, 606);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext609(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next609', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext608($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 609, 606);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext610(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next610', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext609($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 610, 610);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext611(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next611', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext610($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 611, 610);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext612(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next612', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext611($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 612, 610);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext613(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next613', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext612($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 613, 610);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext614(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next614', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext613($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 614, 614);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext615(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next615', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext614($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 615, 614);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext616(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next616', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext615($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 616, 614);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext617(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next617', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext616($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 617, 614);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext618(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next618', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext617($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 618, 618);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext619(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next619', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext618($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 619, 618);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext620(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next620', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext619($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 620, 618);
+    }
+
+    /** @return array<string,mixed> */
+    public static function executeNext621(array $tables, array $yieldStatements, array $attemptStatements, array $retryStatements, array $uniqueConstraints, string $savepoint = 'wp_options_rowvalue_window_current_next621', string $rowIdColumn = 'option_id'): array
+    {
+        return self::continuationNext382397(self::executeNext620($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn), $savepoint, $rowIdColumn, 621, 618);
+    }
+
     /**
      * @param array<string,mixed> $base
      * @return array<string,mixed>
