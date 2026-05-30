@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 18:32:47 UTC",
-    "sourceCommit": "cc52cdf6c038ab46a03942b993e5e104373b495c",
-    "sourceCommitShort": "cc52cdf6c038",
+    "generated": "2026-05-30 18:39:16 UTC",
+    "sourceCommit": "eb516092fddd7da0bb8dcdda70bd408b8b314573",
+    "sourceCommitShort": "eb516092fddd",
     "sourceBranch": "main",
-    "dashboardCommit": "cc52cdf6c038ab46a03942b993e5e104373b495c",
-    "dashboardCommitShort": "cc52cdf6c038",
+    "dashboardCommit": "eb516092fddd7da0bb8dcdda70bd408b8b314573",
+    "dashboardCommitShort": "eb516092fddd",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1189",
             "coverage": "1189 / 1589",
-            "php": "316239 pass / 0 fail",
+            "php": "330113 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted 12 compatible PASS-line handoffs...",
-            "currentWork": "Published source cc52cdf6c0 with a +17518 honest selected PASS-line libsqlite batch, brin...",
-            "nextTarget": "Keep 10-11 visible libsqlite workers active on non-overlapping real upstream corpus famil...",
-            "blocker": "PASS-line throughput is above the 10k/hour target when integration cadenc...",
-            "commit": "cc52cdf"
+            "audit": "Accepted 27 compatible handoffs, includin...",
+            "currentWork": "Published source eb516092fd with a +13874 honest selected PASS-line libsqlite batch, brin...",
+            "nextTarget": "Keep 10-11 visible libsqlite workers active on current base eb516092fd, score fresh hando...",
+            "blocker": "PASS-line throughput is still above the 10k/hour target when integration...",
+            "commit": "eb51609"
         },
         {
             "library": "LightningCSS",

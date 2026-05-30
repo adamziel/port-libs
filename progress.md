@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 18:40 UTC):
+  Latest accepted libsqlite source is `eb516092fd`
+  (`libsqlite: add extended upstream corpus batch`). This batch accepts 27
+  compatible handoffs, including note-only blockers, on top of `365df791b`.
+  It adds B-tree/index partial dynamic coverage, date5 Gregorian cycle
+  coverage, pager/WAL exclusive and recovery behavior, PRAGMA schema
+  invalidation batches, select8 LIMIT/OFFSET and selectA compound ordering
+  coverage, trigger/FK view corpus coverage, UPSERT target-analysis coverage,
+  VFS reopen-fault coverage, window2 partition RANGE coverage, and window NULL
+  placement behavior. Focused verification passed `18 files / 115251
+  assertions / 0 failures / 23312 PASS lines`; the accepted-base comparison
+  over existing selected files passed `5 files / 23745 assertions / 0 failures
+  / 9438 PASS lines`, so the honest selected PASS-line delta is `+13874`.
+  Public libsqlite should move to `330113 pass / 0 fail`; mapped coverage
+  remains `1189 / 1589`. The current bottleneck is not worker count: it is
+  runner-map/suite-denominator evidence for mapped coverage growth and keeping
+  the queue clean enough that high-yield handoffs are scored without delay.
+
 - 2026-05-30 supervisor continuation (integration sample 18:32 UTC):
   Latest accepted libsqlite source is `cc52cdf6c0`
   (`libsqlite: add current corpus throughput batch`). This batch accepts 12
