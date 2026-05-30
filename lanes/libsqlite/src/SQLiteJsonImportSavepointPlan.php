@@ -73,7 +73,7 @@ final class SQLiteJsonImportSavepointPlan
             $insertedOptionName = null;
 
             try {
-                $optionName = self::mutationOptionName($mutation);
+                $optionName = self::mutationKeyName($mutation);
                 $rowKey = self::mutationRowKey($mutation, $hasMultisiteRows);
                 if (!isset($workingRows[$rowKey])) {
                     $row = self::insertMissingRow($mutation, $optionName, $rowKey, $workingIds, $maxOptionId, $hasMultisiteRows);
@@ -234,7 +234,7 @@ final class SQLiteJsonImportSavepointPlan
     /**
      * @param array<string,mixed> $mutation
      */
-    private static function mutationOptionName(array $mutation): string
+    private static function mutationKeyName(array $mutation): string
     {
         $optionName = $mutation['option_name'] ?? null;
         if (!is_string($optionName) || $optionName === '') {
@@ -289,7 +289,7 @@ final class SQLiteJsonImportSavepointPlan
      */
     private static function mutationRowKey(array $mutation, bool $hasMultisiteRows): string
     {
-        $optionName = self::mutationOptionName($mutation);
+        $optionName = self::mutationKeyName($mutation);
         if (!$hasMultisiteRows) {
             return $optionName;
         }

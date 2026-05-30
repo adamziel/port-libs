@@ -87,7 +87,7 @@ final class SQLiteImportTransactionPlan
                     'option_value' => $stage['option_value'],
                     'autoload' => $stage['autoload'],
                 ];
-                $conflictingId = self::conflictingOptionNameId($finalById, $after['option_name'], $targetId);
+                $conflictingId = self::conflictingKeyNameId($finalById, $after['option_name'], $targetId);
                 if ($conflictingId !== null) {
                     $conflicts[] = [
                         'option_name' => $after['option_name'],
@@ -100,14 +100,14 @@ final class SQLiteImportTransactionPlan
                     }
                     $deleted[] = $finalById[$conflictingId] + ['reason' => 'replace_conflict'];
                     unset($finalById[$conflictingId]);
-                    $dirtyPages[self::pageForOptionId($conflictingId)] = true;
+                    $dirtyPages[self::pageForKeyValueId($conflictingId)] = true;
                 }
 
                 if ($before === $after) {
                     $unchanged[] = $after;
                 } else {
                     $updated[] = ['before' => $before, 'after' => $after];
-                    $dirtyPages[self::pageForOptionId($targetId)] = true;
+                    $dirtyPages[self::pageForKeyValueId($targetId)] = true;
                 }
                 $finalById[$targetId] = $after;
                 continue;
@@ -122,7 +122,7 @@ final class SQLiteImportTransactionPlan
                 $maxId = max($maxId, $newId);
             }
 
-            $conflictingId = self::conflictingOptionNameId($finalById, $stage['option_name'], $newId);
+            $conflictingId = self::conflictingKeyNameId($finalById, $stage['option_name'], $newId);
             if ($conflictingId !== null) {
                 $conflicts[] = [
                     'option_name' => $stage['option_name'],
@@ -135,7 +135,7 @@ final class SQLiteImportTransactionPlan
                 }
                 $deleted[] = $finalById[$conflictingId] + ['reason' => 'replace_conflict'];
                 unset($finalById[$conflictingId]);
-                $dirtyPages[self::pageForOptionId($conflictingId)] = true;
+                $dirtyPages[self::pageForKeyValueId($conflictingId)] = true;
             }
 
             $insert = [
@@ -146,7 +146,7 @@ final class SQLiteImportTransactionPlan
             ];
             $inserted[] = $insert;
             $finalById[$newId] = $insert;
-            $dirtyPages[self::pageForOptionId($newId)] = true;
+            $dirtyPages[self::pageForKeyValueId($newId)] = true;
         }
 
         if ($deleteMissing) {
@@ -158,7 +158,7 @@ final class SQLiteImportTransactionPlan
                 if (!isset($stagedNames[$row['option_name']]) && isset($finalById[$id])) {
                     $deleted[] = $row + ['reason' => 'missing_from_stage'];
                     unset($finalById[$id]);
-                    $dirtyPages[self::pageForOptionId($id)] = true;
+                    $dirtyPages[self::pageForKeyValueId($id)] = true;
                 }
             }
         }
@@ -239,7 +239,7 @@ final class SQLiteImportTransactionPlan
     /**
      * @param array<int, array{option_id:int,option_name:string,option_value:mixed,autoload:string}> $rows
      */
-    private static function conflictingOptionNameId(array $rows, string $name, int $exceptId): ?int
+    private static function conflictingKeyNameId(array $rows, string $name, int $exceptId): ?int
     {
         foreach ($rows as $id => $row) {
             if ($id !== $exceptId && $row['option_name'] === $name) {
@@ -250,7 +250,7 @@ final class SQLiteImportTransactionPlan
         return null;
     }
 
-    private static function pageForOptionId(int $optionId): int
+    private static function pageForKeyValueId(int $optionId): int
     {
         return 2 + intdiv($optionId - 1, 64);
     }

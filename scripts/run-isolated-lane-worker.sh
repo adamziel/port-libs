@@ -118,11 +118,11 @@ if [[ "$LANE" == "libsqlite" ]]; then
       printf 'libsqlite handoff guard failed: numbered production source class remains. No ready marker written.\n' >&2
       exit 4
     fi
-    if find lanes/libsqlite/src \( -name '*WordPress*.php' -o -name '*wordpress*.php' -o -name '*WP*.php' -o -name '*wp_*.php' -o -name '*OptionRow*.php' -o -name '*optionRowName*.php' -o -name '*optionRowValue*.php' -o -name '*Multisite*.php' -o -name '*Network*.php' -o -name '*Autoload*.php' -o -name '*autoload*.php' -o -name '*BlogId*.php' -o -name '*blogId*.php' \) -print -quit | rg .; then
+    if find lanes/libsqlite/src \( -name '*WordPress*.php' -o -name '*wordpress*.php' -o -name '*WP*.php' -o -name '*wp_*.php' -o -name '*wpError*.php' -o -name '*OptionRow*.php' -o -name '*optionRowName*.php' -o -name '*optionRowValue*.php' -o -name '*OptionsTable*.php' -o -name '*optionsTable*.php' -o -name '*OptionName*.php' -o -name '*optionName*.php' -o -name '*OptionValue*.php' -o -name '*optionValue*.php' -o -name '*OptionId*.php' -o -name '*optionId*.php' -o -name '*Multisite*.php' -o -name '*Network*.php' -o -name '*Autoload*.php' -o -name '*autoload*.php' -o -name '*BlogId*.php' -o -name '*blogId*.php' \) -print -quit | rg .; then
       printf 'libsqlite handoff guard failed: WordPress-specific source filename remains. No ready marker written.\n' >&2
       exit 4
     fi
-    if rg -n '^\s*(?:(?:final|abstract)\s+)?(?:class|interface|trait)\s+\w*(?:WordPress|wordpress|WP|Wp|wp_|OptionRow|optionRowName|optionRowValue|Multisite|Network|Autoload|autoload|BlogId|blogId)\w*|^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+\w*(?:WordPress|wordpress|WP|Wp|wp_|OptionRow|optionRowName|optionRowValue|Multisite|Network|Autoload|autoload|BlogId|blogId)\w*\s*\(' lanes/libsqlite --glob '*.php'; then
+    if rg -n '^\s*(?:(?:final|abstract)\s+)?(?:class|interface|trait)\s+\w*(?:WordPress|wordpress|WP|Wp|wp_|wpError|OptionRow|optionRowName|optionRowValue|OptionsTable|optionsTable|OptionName|optionName|OptionValue|optionValue|OptionId|optionId|Multisite|Network|Autoload|autoload|BlogId|blogId)\w*|^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+\w*(?:WordPress|wordpress|WP|Wp|wp_|wpError|OptionRow|optionRowName|optionRowValue|OptionsTable|optionsTable|OptionName|optionName|OptionValue|optionValue|OptionId|optionId|Multisite|Network|Autoload|autoload|BlogId|blogId)\w*\s*\(' lanes/libsqlite --glob '*.php' | rg -v 'CompileOptionName|compileOptionName'; then
       printf 'libsqlite handoff guard failed: WordPress-specific PHP declaration remains. No ready marker written.\n' >&2
       exit 4
     fi
@@ -150,7 +150,7 @@ if [[ "$LANE" == "libsqlite" ]] &&
 fi
 
 if [[ "$LANE" == "libsqlite" ]] &&
-  grep -E '^\+.*((class|interface|trait)[[:space:]]+[[:alnum:]_]*(WordPress|wordpress|WP|Wp|wp_|OptionRow|optionRowName|optionRowValue|Multisite|Network|Autoload|autoload|BlogId|blogId)|function[[:space:]]+[[:alnum:]_]*(WordPress|wordpress|WP|Wp|wp_|OptionRow|optionRowName|optionRowValue|Multisite|Network|Autoload|autoload|BlogId|blogId)[[:alnum:]_]*[[:space:]]*\()' "$PATCH_FILE" >/dev/null; then
+  grep -E '^\+.*((class|interface|trait)[[:space:]]+[[:alnum:]_]*(WordPress|wordpress|WP|Wp|wp_|wpError|OptionRow|optionRowName|optionRowValue|OptionsTable|optionsTable|OptionName|optionName|OptionValue|optionValue|OptionId|optionId|Multisite|Network|Autoload|autoload|BlogId|blogId)|function[[:space:]]+[[:alnum:]_]*(WordPress|wordpress|WP|Wp|wp_|wpError|OptionRow|optionRowName|optionRowValue|OptionsTable|optionsTable|OptionName|optionName|OptionValue|optionValue|OptionId|optionId|Multisite|Network|Autoload|autoload|BlogId|blogId)[[:alnum:]_]*[[:space:]]*\()' "$PATCH_FILE" | grep -Ev 'CompileOptionName|compileOptionName' >/dev/null; then
   printf 'libsqlite handoff guard failed: patch adds a WordPress-specific PHP declaration. No ready marker written.\n' >&2
   printf 'Patch: %s\n' "$PATCH_FILE" >&2
   exit 4

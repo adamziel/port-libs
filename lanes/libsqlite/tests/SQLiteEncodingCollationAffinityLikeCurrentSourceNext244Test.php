@@ -51,7 +51,7 @@ $plan244 = static fn (
     string $nextSource = 'main.wp_options@244',
     int $currentCookie = 243,
     int $nextCookie = 244,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16OptionNameLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan(
     $current ?? $current244,
     $next ?? $nextTwoFourFour,
     $pattern,
@@ -222,23 +222,23 @@ $tests['encoding collation affinity like current source nextTwoFourFour direct l
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFour rejects missing option name'] = static function (TestRunner $t) use ($nextTwoFourFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16OptionNameLikePlan([['option_id' => 1]], $nextTwoFourFour, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan([['option_id' => 1]], $nextTwoFourFour, 'plugin%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFour rejects array option name'] = static function (TestRunner $t) use ($nextTwoFourFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16OptionNameLikePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFourFour, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan([['option_id' => 1, 'option_name' => ['plugin']]], $nextTwoFourFour, 'plugin%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFour rejects invalid encoding'] = static function (TestRunner $t) use ($nextTwoFourFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16OptionNameLikePlan([['option_id' => 1, 'option_name' => 'plugin', 'text_encoding' => 'UTF-32']], $nextTwoFourFour, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan([['option_id' => 1, 'option_name' => 'plugin', 'text_encoding' => 'UTF-32']], $nextTwoFourFour, 'plugin%'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFour rejects invalid collation'] = static function (TestRunner $t) use ($current244, $nextTwoFourFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16OptionNameLikePlan($current244, $nextTwoFourFour, 'plugin%', null, false, 'UNICODE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan($current244, $nextTwoFourFour, 'plugin%', null, false, 'UNICODE'));
 };
 
 $tests['encoding collation affinity like current source nextTwoFourFour rejects multi character escape'] = static function (TestRunner $t) use ($current244, $nextTwoFourFour): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16OptionNameLikePlan($current244, $nextTwoFourFour, 'plugin!!_%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationUtf16KeyNameLikePlan($current244, $nextTwoFourFour, 'plugin!!_%', '!!'));
 };
 
 return $tests;

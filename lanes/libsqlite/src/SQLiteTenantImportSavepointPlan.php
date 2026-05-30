@@ -42,7 +42,7 @@ final class SQLiteTenantImportSavepointPlan
                 throw new \InvalidArgumentException("Duplicate Application multisite blog_id {$blogId}");
             }
 
-            $tableName = self::optionsTableName($blogId);
+            $tableName = self::keyValueTableName($blogId);
             $tableNames[] = $tableName;
             $batches = $site['batches'] ?? null;
             if (!is_array($batches)) {
@@ -179,7 +179,7 @@ final class SQLiteTenantImportSavepointPlan
         return $blogId;
     }
 
-    private static function optionsTableName(int $blogId): string
+    private static function keyValueTableName(int $blogId): string
     {
         return $blogId === 1 ? 'wp_options' : 'wp_' . $blogId . '_options';
     }

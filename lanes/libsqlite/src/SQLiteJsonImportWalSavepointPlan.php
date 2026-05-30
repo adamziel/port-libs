@@ -394,7 +394,7 @@ final class SQLiteJsonImportWalSavepointPlan
                 continue;
             }
             $current = $currentByName[$name] ?? null;
-            if ($current === null || self::optionValueForComparison($current['option_value'] ?? '') !== self::optionValueForComparison($row['option_value'] ?? '') || self::loadPolicyForComparison($current['autoload'] ?? 'no') !== self::loadPolicyForComparison($row['autoload'] ?? 'no')) {
+            if ($current === null || self::keyValueForComparison($current['option_value'] ?? '') !== self::keyValueForComparison($row['option_value'] ?? '') || self::loadPolicyForComparison($current['autoload'] ?? 'no') !== self::loadPolicyForComparison($row['autoload'] ?? 'no')) {
                 $changed[] = $row;
             }
         }
@@ -414,7 +414,7 @@ final class SQLiteJsonImportWalSavepointPlan
             $out[] = [
                 'option_id' => isset($row['option_id']) && is_int($row['option_id']) ? $row['option_id'] : null,
                 'option_name' => (string) ($row['option_name'] ?? ''),
-                'option_value' => self::optionValueForComparison($value),
+                'option_value' => self::keyValueForComparison($value),
                 'autoload' => self::loadPolicyForComparison($row['autoload'] ?? 'no'),
             ];
         }
@@ -445,7 +445,7 @@ final class SQLiteJsonImportWalSavepointPlan
         return $names;
     }
 
-    private static function optionValueForComparison(mixed $value): string
+    private static function keyValueForComparison(mixed $value): string
     {
         if ($value instanceof SQLiteBlobValue) {
             return json_encode(SQLiteJsonB::decode($value->bytes), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);

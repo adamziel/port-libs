@@ -48,10 +48,11 @@ $sourceTextMatches = static function () use ($sourceFiles, $relativePath): array
 
 $sourceFilenameMatches = static function () use ($sourceFiles, $relativePath): array {
     $matches = [];
+    $specificName = 'WordPress|wordpress|WP|Wp|wp_|wpError|OptionRow|optionRowName|optionRowValue|Multisite|Network|Autoload|autoload|BlogId|blogId|OptionsTable|optionsTable|(?<!Compile)OptionName|(?<!compile)optionName|(?<!Compile)OptionValue|(?<!compile)optionValue|(?<!Compile)OptionId|(?<!compile)optionId';
 
     foreach ($sourceFiles as $file) {
         $relative = $relativePath($file);
-        if (preg_match('/WordPress|wordpress|WP|Wp|wp_|OptionRow|optionRowName|optionRowValue|Multisite|Network|Autoload|autoload|BlogId|blogId/', $relative) === 1) {
+        if (preg_match('/' . $specificName . '/', $relative) === 1) {
             $matches[] = $relative;
         }
     }
@@ -61,7 +62,7 @@ $sourceFilenameMatches = static function () use ($sourceFiles, $relativePath): a
 
 $wordpressDeclarationMatches = static function () use ($libsqlitePhpFiles, $relativePath): array {
     $matches = [];
-    $specificName = 'WordPress|wordpress|WP|Wp|wp_|OptionRow|optionRowName|optionRowValue|Multisite|Network|Autoload|autoload|BlogId|blogId';
+    $specificName = 'WordPress|wordpress|WP|Wp|wp_|wpError|OptionRow|optionRowName|optionRowValue|Multisite|Network|Autoload|autoload|BlogId|blogId|OptionsTable|optionsTable|(?<!Compile)OptionName|(?<!compile)optionName|(?<!Compile)OptionValue|(?<!compile)optionValue|(?<!Compile)OptionId|(?<!compile)optionId';
     $pattern = '/^\s*(?:(?:final|abstract)\s+)?(?:class|interface|trait)\s+\w*(?:' . $specificName . ')\w*|^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+\w*(?:' . $specificName . ')\w*\s*\(/m';
 
     foreach ($libsqlitePhpFiles as $file) {

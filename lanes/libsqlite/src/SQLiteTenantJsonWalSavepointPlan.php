@@ -51,7 +51,7 @@ final class SQLiteTenantJsonWalSavepointPlan
                 throw new \InvalidArgumentException('SQLite Application network JSON WAL site imports must be a list');
             }
 
-            $tableName = self::optionsTableName($blogId);
+            $tableName = self::keyValueTableName($blogId);
             $tableNames[] = $tableName;
             $prefixedImports = [];
             foreach (array_values($imports) as $importIndex => $import) {
@@ -184,7 +184,7 @@ final class SQLiteTenantJsonWalSavepointPlan
         return $blogId;
     }
 
-    private static function optionsTableName(int $blogId): string
+    private static function keyValueTableName(int $blogId): string
     {
         return $blogId === 1 ? 'wp_options' : 'wp_' . $blogId . '_options';
     }

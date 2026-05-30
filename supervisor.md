@@ -49,7 +49,10 @@
   classes, interfaces, traits, functions, or methods. Do not accept libsqlite
   patches that add declarations whose names contain `WordPress`, `wordpress`,
   `WP`, `Wp`, `wp_`, `OptionRow`, `optionRowName`, `optionRowValue`,
-  `Multisite`, `Network`, `Autoload`, `autoload`, `BlogId`, or `blogId`.
+  `wpError`, `OptionsTable`, `optionsTable`, `OptionName`, `optionName`,
+  `OptionValue`, `optionValue`, `OptionId`, `optionId`, `Multisite`, `Network`,
+  `Autoload`, `autoload`, `BlogId`, or `blogId`. SQLite compile-option helpers
+  are allowed only when they are clearly about SQLite compile options.
 - New libsqlite handoffs should use generic application scenario names, not
   WordPress-specific smokes/examples. Existing fixture table strings are test
   data only and are not permission to expose WordPress-named APIs.

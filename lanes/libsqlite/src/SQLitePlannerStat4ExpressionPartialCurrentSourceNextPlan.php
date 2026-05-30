@@ -10612,7 +10612,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
 
                 $rowid = (int) $row['rowid'];
-                $actual = self::evaluateLowerOptionNameForPayloadExpressionFence($payload['option_name']);
+                $actual = self::evaluateLowerKeyNameForPayloadExpressionFence($payload['option_name']);
                 $expected = (string) $row['expressionKey'];
                 $sampleKey = $sampleKeysByRowid[$rowid] ?? null;
                 $matches = $actual !== null && $actual === $expected && ($sampleKey === null || $sampleKey === $actual);
@@ -10672,7 +10672,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $out;
         }
 
-        private static function evaluateLowerOptionNameForPayloadExpressionFence(mixed $value): ?string
+        private static function evaluateLowerKeyNameForPayloadExpressionFence(mixed $value): ?string
         {
             if ($value === null) {
                 return null;
@@ -12042,7 +12042,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
 
                 $rowid = (int) $row['rowid'];
-                $key = self::evaluateLowerOptionNameCurrentSourceResidualWhereFence($payload['option_name']);
+                $key = self::evaluateLowerKeyNameCurrentSourceResidualWhereFence($payload['option_name']);
                 if ($key === null) {
                     $nulls[] = $rowid;
                     $key = '__SQLITE_NEXT196_NULL__';
@@ -12096,7 +12096,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             ];
         }
 
-        private static function evaluateLowerOptionNameCurrentSourceResidualWhereFence(mixed $value): ?string
+        private static function evaluateLowerKeyNameCurrentSourceResidualWhereFence(mixed $value): ?string
         {
             if ($value === null) {
                 return null;

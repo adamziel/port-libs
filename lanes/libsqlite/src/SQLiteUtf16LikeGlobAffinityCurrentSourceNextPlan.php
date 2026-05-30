@@ -126,7 +126,7 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require option_value or option_value_bytes');
             }
             try {
-                $decoded = self::decodeOptionValue($row);
+                $decoded = self::decodeKeyValue($row);
             } catch (\InvalidArgumentException) {
                 $malformed[] = $row['option_id'];
                 continue;
@@ -158,7 +158,7 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan
      * @param array<string,mixed> $row
      * @return array{value:mixed,textEncodingName:?string,bytesHex:?string}
      */
-    private static function decodeOptionValue(array $row): array
+    private static function decodeKeyValue(array $row): array
     {
         if (array_key_exists('option_value_bytes', $row)) {
             if (!is_string($row['option_value_bytes'])) {

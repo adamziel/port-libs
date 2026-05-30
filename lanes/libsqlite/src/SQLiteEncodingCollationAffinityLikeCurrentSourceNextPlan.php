@@ -1469,7 +1469,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
             }
             $matched[] = [
                 'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
-                'optionName' => self::nextTwoFourZero_optionName($row, $index),
+                'optionName' => self::nextTwoFourZero_keyName($row, $index),
                 'formatted' => $coerced['formatted'],
                 'formattedHex' => bin2hex($coerced['formatted']),
                 'storageClass' => $coerced['storageClass'],
@@ -1524,7 +1524,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $row */
-    private static function nextTwoFourZero_optionName(array $row, int $index): string
+    private static function nextTwoFourZero_keyName(array $row, int $index): string
     {
         $name = $row['option_name'] ?? 'option_' . ($index + 1);
 
@@ -2410,7 +2410,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function applicationUtf16OptionNameLikePlan(
+    public static function applicationUtf16KeyNameLikePlan(
         array $currentRows,
         array $nextRows,
         string $pattern,
@@ -4681,7 +4681,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
             }
             $matched[] = [
                 'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
-                'optionName' => self::nextTwoFiveOne_optionName($row, $index),
+                'optionName' => self::nextTwoFiveOne_keyName($row, $index),
                 'valueText' => $value['text'],
                 'valueHex' => $value['hex'],
                 'valueStorage' => $value['storageClass'],
@@ -4754,7 +4754,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $row */
-    private static function nextTwoFiveOne_optionName(array $row, int $index): string
+    private static function nextTwoFiveOne_keyName(array $row, int $index): string
     {
         $name = $row['option_name'] ?? 'option_' . ($index + 1);
 
@@ -7480,7 +7480,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
 
         foreach ($rows as $index => $row) {
             $rowid = self::nextTwoSixOne_rowid($row, $index);
-            $name = self::nextTwoSixOne_decodeOptionName($row);
+            $name = self::nextTwoSixOne_decodeKeyName($row);
             $value = self::nextTwoSixOne_coerceLikeText($row['option_value'] ?? null);
             $nameMatch = SQLiteDatabase::likeMatches($name['text'], $namePattern, $nameEscape, $caseSensitiveLike);
             $valueMatch = $value !== null && SQLiteDatabase::likeMatches($value['text'], $valuePattern, $valueEscape, $caseSensitiveLike);
@@ -7530,7 +7530,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $row @return array{text:string,encoding:string} */
-    private static function nextTwoSixOne_decodeOptionName(array $row): array
+    private static function nextTwoSixOne_decodeKeyName(array $row): array
     {
         if (isset($row['option_name_bytes'])) {
             if (!is_string($row['option_name_bytes']) || !isset($row['name_text_encoding'])) {

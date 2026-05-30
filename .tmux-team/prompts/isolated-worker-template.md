@@ -13,8 +13,11 @@ Current supervisor override, 2026-05-30 13:20 UTC:
 - User rule: the libsqlite port must have zero WordPress-specific classes,
   interfaces, traits, functions, or methods. Do not create declarations whose
   names contain `WordPress`, `wordpress`, `WP`, `Wp`, `wp_`, `OptionRow`,
-  `optionRowName`, `optionRowValue`, `Multisite`, `Network`, `Autoload`,
-  `autoload`, `BlogId`, or `blogId`.
+  `wpError`, `optionRowName`, `optionRowValue`, `OptionsTable`, `optionsTable`,
+  `OptionName`, `optionName`, `OptionValue`, `optionValue`, `OptionId`,
+  `optionId`, `Multisite`, `Network`, `Autoload`, `autoload`, `BlogId`, or
+  `blogId`. SQLite compile-option helpers are allowed only when they are
+  clearly about SQLite compile options.
 - Do not add or require WordPress-specific libsqlite smokes/examples for new
   handoffs. Use generic application scenario names. Existing fixture data
   strings such as `wp_options` are not permission to expose WordPress-named
