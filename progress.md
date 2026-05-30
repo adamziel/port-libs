@@ -70,7 +70,11 @@
   `git diff --check -- lanes/libsqlite`. Public pass/mapped counters remain
   `154019 pass / 0 fail` and `830 / 1589` because this is consolidation-only.
   A first root no-argument harness attempt reached 103721 output lines before
-  exposing the release helper collision; rerun is pending after `3ab73a6aa4`.
+  exposing the release helper collision. A second root attempt reached 127790
+  output lines after `3ab73a6aa4`; the integration-specific fatal/foreign-key
+  issues were cleared, and remaining focused root failures were confirmed
+  pre-existing at clean `c7f3b81d` with evidence in
+  `.tmux-team/tmp/cleanup-evidence/root-failure-baseline-c7f3-20260530T0451Z`.
   Disk cleanup compressed old worker logs, pruned exact
   patch-matched inactive ready worktrees, and removed non-priority upstream
   caches after skipping registered dirty worktree parents; evidence is under
