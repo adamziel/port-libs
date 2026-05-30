@@ -16943,6 +16943,14 @@ final class SQLiteUpstreamSuiteEvidence
         return array_values(array_unique($matches[1]));
     }
 
+    private function isConcreteUpstreamTestScript(string $script): bool
+    {
+        return preg_match('/\A[A-Za-z0-9_.-]+\.test\z/', $script) === 1
+            && !str_contains($script, '*')
+            && !str_contains($script, '?')
+            && !str_contains($script, '/');
+    }
+
     /**
      * @return list<string>
      */
@@ -25259,6 +25267,170 @@ final class SQLiteUpstreamSuiteEvidence
                 default => 'keep denominator burnup uncounted until regressed rows, duplicate runners, and focused PHP admission blockers are repaired',
             },
             'dependency_closure' => 'no new support component needed; current-next53 denominator burnup composes lane-local gap rows, script counts, active-runner gates, and focused PHP TestRunner admission only',
+        ];
+    }
+
+    /**
+     * @param list<string> $hydratedScripts
+     * @param list<string> $alreadyMappedScripts
+     * @return array<string, mixed>
+     */
+    public function upstreamRunnerHydratedScriptMapGapClosure(
+        array $hydratedScripts,
+        array $alreadyMappedScripts,
+        int $currentMapped,
+        int $denominatorTotal,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        string $processSnapshot = ''
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite hydrated script map-gap closure requires current and next accepted HEAD values');
+        }
+        if ($currentMapped < 0 || $denominatorTotal < 1 || $currentMapped > $denominatorTotal) {
+            throw new \InvalidArgumentException('SQLite hydrated script map-gap closure requires a valid current mapped denominator');
+        }
+        if ($hydratedScripts === []) {
+            throw new \InvalidArgumentException('SQLite hydrated script map-gap closure requires hydrated upstream script filenames');
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $blockers = [];
+        $hydratedSet = [];
+        $invalidHydrated = [];
+        foreach ($hydratedScripts as $script) {
+            if (!is_string($script) || !$this->isConcreteUpstreamTestScript($script)) {
+                $invalidHydrated[] = is_scalar($script) ? (string) $script : gettype($script);
+                continue;
+            }
+
+            $hydratedSet[$script] = true;
+        }
+
+        if ($invalidHydrated !== []) {
+            $blockers[] = [
+                'id' => 'hydrated-script-invalid',
+                'evidence' => implode(', ', array_slice($invalidHydrated, 0, 5)),
+            ];
+        }
+
+        $mappedSet = [];
+        $invalidMapped = [];
+        $mappedNotHydrated = [];
+        foreach ($alreadyMappedScripts as $script) {
+            if (!is_string($script) || !$this->isConcreteUpstreamTestScript($script)) {
+                $invalidMapped[] = is_scalar($script) ? (string) $script : gettype($script);
+                continue;
+            }
+            if (!isset($hydratedSet[$script])) {
+                $mappedNotHydrated[] = $script;
+                continue;
+            }
+
+            $mappedSet[$script] = true;
+        }
+
+        if ($invalidMapped !== []) {
+            $blockers[] = [
+                'id' => 'mapped-script-invalid',
+                'evidence' => implode(', ', array_slice($invalidMapped, 0, 5)),
+            ];
+        }
+        if ($mappedNotHydrated !== []) {
+            sort($mappedNotHydrated, SORT_STRING);
+            $blockers[] = [
+                'id' => 'mapped-script-not-hydrated',
+                'evidence' => implode(', ', array_slice($mappedNotHydrated, 0, 5)),
+            ];
+        }
+
+        $hydrated = array_keys($hydratedSet);
+        sort($hydrated, SORT_STRING);
+        $mapped = array_keys($mappedSet);
+        sort($mapped, SORT_STRING);
+
+        $missing = array_values(array_diff($hydrated, $mapped));
+        sort($missing, SORT_STRING);
+
+        $remainingDenominator = max(0, $denominatorTotal - $currentMapped);
+        $admissibleDelta = min(count($missing), $remainingDenominator);
+        $admitted = array_slice($missing, 0, $admissibleDelta);
+        $heldBack = array_slice($missing, $admissibleDelta);
+
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+        if ($admissibleDelta === 0 && $missing !== []) {
+            $blockers[] = [
+                'id' => 'denominator-already-full',
+                'evidence' => 'hydrated script gaps exist but the mapped denominator has no remaining capacity',
+            ];
+        }
+
+        $nextMapped = $blockers === [] ? $currentMapped + $admissibleDelta : $currentMapped;
+        $status = 'blocked';
+        if ($blockers === [] && $admissibleDelta > 0 && $nextMapped === $denominatorTotal) {
+            $status = 'hydrated-script-map-gap-closed';
+        } elseif ($blockers === [] && $admissibleDelta > 0) {
+            $status = 'hydrated-script-map-gap-advanced';
+        } elseif ($blockers === [] && $missing === []) {
+            $status = 'hydrated-script-map-gap-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'denominator_total' => $denominatorTotal,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $nextMapped,
+            'mapped_delta' => $blockers === [] ? $admissibleDelta : 0,
+            'remaining_denominator_before' => $remainingDenominator,
+            'remaining_denominator_after' => max(0, $denominatorTotal - $nextMapped),
+            'hydrated_script_count' => count($hydrated),
+            'already_mapped_script_count' => count($mapped),
+            'missing_script_count' => count($missing),
+            'admitted_script_count' => $blockers === [] ? count($admitted) : 0,
+            'held_back_script_count' => count($heldBack),
+            'admitted_scripts' => $blockers === [] ? $admitted : [],
+            'held_back_scripts' => $heldBack,
+            'sample_admitted_scripts' => array_slice($admitted, 0, 20),
+            'sample_missing_scripts' => array_slice($missing, 0, 20),
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => $blockers === [] ? (int) ($phpAdmission['assertion_delta'] ?? 0) : 0,
+            'next_php_pass' => $blockers === [] ? (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass) : $currentPhpPass,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_mapped_denominator_growth' => $blockers === [] && $admissibleDelta > 0,
+            'counts_pass_line_growth' => false,
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'hydrated-script-map-gap-closed'
+                ? 'publish the admitted real hydrated script mappings; release/all parity remains gated on separate zero-error runner artifacts'
+                : 'continue mapping real hydrated scripts only, then run guarded focused shards for admitted scripts before claiming release/all parity',
+            'dependency_closure' => 'no new support component needed; hydrated script map-gap closure uses real upstream .test filenames, focused TestRunner evidence, and duplicate-runner gates only',
         ];
     }
 

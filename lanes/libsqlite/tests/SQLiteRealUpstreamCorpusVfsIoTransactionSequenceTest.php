@@ -83,11 +83,41 @@ foreach ($flagCases as $name => [$flags, $expectedFlags]) {
     };
 }
 
+$sectorAtomicCases = [
+    'io-2.9.1 atomic sector larger than page uses rollback journal' => [['atomic'], 1024, 2048, false, 0, true],
+    'io-2.9.2 atomic sector equal to page avoids rollback journal' => [['atomic'], 2048, 2048, true, 2048, false],
+    'io-2.10.1 atomic1k cannot cover a 2048 byte page' => [['atomic', 'atomic1k'], 2048, 2048, false, 1024, true],
+    'io-2.10.2 atomic2k covers a 2048 byte page' => [['atomic', 'atomic2k'], 2048, 2048, true, 2048, false],
+    'io-2.10.2 atomic2k normalized mixed case covers page' => [['ATOMIC', 'atomic2K'], 2048, 2048, true, 2048, false],
+    'io-2.10.1 atomic512 cannot cover a 1024 byte page' => [['atomic', 'atomic512'], 1024, 1024, false, 512, true],
+    'io-2.10 atomic4k covers a 4096 byte page' => [['atomic', 'atomic4k'], 4096, 4096, true, 4096, false],
+    'io-2.10 atomic64k covers a 32768 byte page' => [['atomic', 'atomic64k'], 32768, 32768, true, 65536, false],
+];
+
+foreach ($sectorAtomicCases as $name => [$flags, $pageSize, $sectorSize, $atomic, $atomicBytes, $journalCreated]) {
+    $tests['real upstream corpus vfs io transaction sequence ' . $name] = static function (TestRunner $t) use ($baseSteps, $flags, $pageSize, $sectorSize, $atomic, $atomicBytes, $journalCreated): void {
+        $plan = SQLiteVfsIoTransactionSequencePlan::transactionSequence([$baseSteps[1]], $flags, $pageSize, $sectorSize);
+        $step = $plan['steps'][0];
+
+        $t->same('ok', $plan['status']);
+        $t->same($pageSize, $step['page_size']);
+        $t->same($sectorSize, $step['sector_size']);
+        $t->same($atomicBytes, $step['atomic_bytes']);
+        $t->same($atomic, $step['atomic_write']);
+        $t->same($journalCreated, $step['journal_created']);
+        $t->same($journalCreated ? 1 : 0, $plan['journal_creates']);
+        $t->same($journalCreated ? ['journal-header', 'journal-pages', 'directory', 'database'] : ['database'], $step['sync_reasons']);
+        $t->same(true, in_array('io.test io-2.9.1-2.9.3', $plan['upstream'], true));
+        $t->same(true, in_array('io.test io-2.10.1-2.10.3', $plan['upstream'], true));
+    };
+}
+
 $guardCases = [
     'rejects empty transaction sequence' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::transactionSequence([]),
     'rejects unknown capability flag' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::transactionSequence([['pages_written' => 1]], ['networked']),
     'rejects zero pages written' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::transactionSequence([['pages_written' => 0]]),
     'rejects zero page size' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::transactionSequence([['pages_written' => 1]], [], 0),
+    'rejects zero sector size' => static fn (): array => SQLiteVfsIoTransactionSequencePlan::transactionSequence([['pages_written' => 1]], [], 1024, 0),
 ];
 
 foreach ($guardCases as $name => $callable) {

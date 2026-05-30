@@ -11,13 +11,17 @@ final class SQLiteVfsIoTransactionSequencePlan
      * @param list<string> $deviceFlags
      * @return array{status:string,count:int,write_total:int,sync_total:int,journal_creates:int,steps:list<array<string, mixed>>,dependencies:list<string>,upstream:list<string>}
      */
-    public static function transactionSequence(array $steps, array $deviceFlags = [], int $pageSize = 1024): array
+    public static function transactionSequence(array $steps, array $deviceFlags = [], int $pageSize = 1024, ?int $sectorSize = null): array
     {
         if ($steps === []) {
             throw new \InvalidArgumentException('SQLite VFS I/O transaction sequence requires at least one step');
         }
         if ($pageSize <= 0) {
             throw new \InvalidArgumentException('SQLite VFS I/O transaction sequence page size must be positive');
+        }
+        $sectorSize ??= $pageSize;
+        if ($sectorSize <= 0) {
+            throw new \InvalidArgumentException('SQLite VFS I/O transaction sequence sector size must be positive');
         }
 
         $flags = self::deviceFlags($deviceFlags);
@@ -27,7 +31,7 @@ final class SQLiteVfsIoTransactionSequencePlan
         $journalCreates = 0;
 
         foreach ($steps as $ordinal => $step) {
-            $result = self::step($step, $flags, $pageSize) + ['ordinal' => $ordinal];
+            $result = self::step($step, $flags, $pageSize, $sectorSize) + ['ordinal' => $ordinal];
             $results[] = $result;
             $writeTotal += $result['writes'];
             $syncTotal += $result['syncs'];
@@ -48,6 +52,8 @@ final class SQLiteVfsIoTransactionSequencePlan
                 'io.test io-2.4.1-2.4.3',
                 'io.test io-2.5.1-2.5.3',
                 'io.test io-2.6.*',
+                'io.test io-2.9.1-2.9.3',
+                'io.test io-2.10.1-2.10.3',
                 'io.test io-3.*',
                 'io.test io-4.*',
             ],
@@ -59,7 +65,7 @@ final class SQLiteVfsIoTransactionSequencePlan
      * @param list<string> $flags
      * @return array{name:string,status:string,writes:int,pages_touched:int,journal_created:bool,atomic_write:bool,syncs:int,sync_reasons:list<string>,flags:list<string>}
      */
-    private static function step(array $step, array $flags, int $pageSize): array
+    private static function step(array $step, array $flags, int $pageSize, int $sectorSize): array
     {
         $writes = self::positiveInt($step, 'pages_written');
         $pagesTouched = self::positiveInt($step, 'pages_touched', $writes);
@@ -67,14 +73,13 @@ final class SQLiteVfsIoTransactionSequencePlan
         $commit = (bool) ($step['commit'] ?? true);
         $rollback = (bool) ($step['rollback'] ?? false);
         $explicitJournal = (bool) ($step['journal_created'] ?? false);
+        $atomicBytes = $sectorSize <= $pageSize ? self::atomicBytes($flags, $pageSize) : 0;
+        $atomicRequested = in_array('atomic', $flags, true) && $pagesTouched === 1 && !$appendsPage && !$explicitJournal;
         $atomic = !$rollback
             && $commit
-            && in_array('atomic', $flags, true)
-            && $pagesTouched === 1
-            && !$appendsPage
-            && !$explicitJournal
-            && $pagesTouched * $pageSize <= self::atomicBytes($flags, $pageSize);
-        $journalCreated = !$atomic && ($explicitJournal || $pagesTouched > 1 || $appendsPage || $rollback);
+            && $atomicRequested
+            && $pagesTouched * $pageSize <= $atomicBytes;
+        $journalCreated = !$atomic && ($explicitJournal || $pagesTouched > 1 || $appendsPage || $rollback || $atomicRequested);
         $syncReasons = [];
 
         if ($atomic) {
@@ -97,6 +102,9 @@ final class SQLiteVfsIoTransactionSequencePlan
             'status' => 'ok',
             'writes' => $writes,
             'pages_touched' => $pagesTouched,
+            'page_size' => $pageSize,
+            'sector_size' => $sectorSize,
+            'atomic_bytes' => $atomicBytes,
             'journal_created' => $journalCreated,
             'atomic_write' => $atomic,
             'syncs' => count($syncReasons),
@@ -148,8 +156,26 @@ final class SQLiteVfsIoTransactionSequencePlan
         if (in_array('atomic64k', $flags, true)) {
             return 65536;
         }
+        if (in_array('atomic32k', $flags, true)) {
+            return 32768;
+        }
+        if (in_array('atomic16k', $flags, true)) {
+            return 16384;
+        }
+        if (in_array('atomic8k', $flags, true)) {
+            return 8192;
+        }
         if (in_array('atomic4k', $flags, true)) {
             return 4096;
+        }
+        if (in_array('atomic2k', $flags, true)) {
+            return 2048;
+        }
+        if (in_array('atomic1k', $flags, true)) {
+            return 1024;
+        }
+        if (in_array('atomic512', $flags, true)) {
+            return 512;
         }
 
         return $pageSize;

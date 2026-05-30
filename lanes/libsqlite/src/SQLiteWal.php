@@ -666,7 +666,7 @@ final class SQLiteWal
     public function checkpointModePlan(string $databaseBytes, string $mode = 'passive', ?int $readerEndFrame = null): array
     {
         $mode = strtolower($mode);
-        if (!in_array($mode, ['passive', 'full', 'restart', 'truncate'], true)) {
+        if (!in_array($mode, ['passive', 'full', 'restart', 'truncate', 'noop'], true)) {
             throw new \InvalidArgumentException("Unsupported SQLite WAL checkpoint mode: {$mode}");
         }
         if ($readerEndFrame !== null && $readerEndFrame < 0) {
@@ -676,7 +676,7 @@ final class SQLiteWal
         $checkpointPlan = $this->checkpointPlan($databaseBytes);
         $lastCommitFrame = $this->lastCommitFrame();
         $lastCommitIndex = $lastCommitFrame?->index;
-        $checkpointLimit = $lastCommitIndex;
+        $checkpointLimit = $mode === 'noop' ? 0 : $lastCommitIndex;
         if ($readerEndFrame !== null && $checkpointLimit !== null) {
             $checkpointLimit = min($checkpointLimit, $readerEndFrame);
         }
@@ -714,6 +714,7 @@ final class SQLiteWal
             $reason = 'uncommitted_frames_after_last_commit';
         } else {
             $reason = match ($mode) {
+                'noop' => 'noop_checkpoint_does_not_backfill',
                 'passive' => 'passive_checkpoint_complete',
                 'full' => 'full_checkpoint_complete',
                 'restart' => 'restart_checkpoint_can_reset_wal',
@@ -747,11 +748,13 @@ final class SQLiteWal
             $pageSize = SQLiteHeader::parse($databaseBytes)->pageSize;
         }
 
-        $databasePageCount = $plan['last_commit_frame'] === null
+        $databasePageCount = $plan['mode'] === 'noop'
             ? intdiv(strlen($databaseBytes), $pageSize)
-            : $this->frames[$plan['last_commit_frame'] - 1]->databasePageCountAfterCommit;
+            : ($plan['last_commit_frame'] === null
+            ? intdiv(strlen($databaseBytes), $pageSize)
+            : $this->frames[$plan['last_commit_frame'] - 1]->databasePageCountAfterCommit);
         $checkpointBytes = substr($databaseBytes . str_repeat("\0", max(0, ($databasePageCount * $pageSize) - strlen($databaseBytes))), 0, $databasePageCount * $pageSize);
-        $checkpointLimit = $plan['last_commit_frame'];
+        $checkpointLimit = $plan['mode'] === 'noop' ? 0 : $plan['last_commit_frame'];
         if ($readerEndFrame !== null && $checkpointLimit !== null) {
             $checkpointLimit = min($checkpointLimit, $readerEndFrame);
         }

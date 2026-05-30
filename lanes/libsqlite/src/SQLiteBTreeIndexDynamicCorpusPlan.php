@@ -295,6 +295,184 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,scenario:string,row_count:int,blob_bytes:int,index_name:string,cache_size:int|null,expected_integrity:string,requires_external_sort:bool,unique_error:string|null,duplicate_value:int|null}>
+     */
+    public static function index4LargeBuildCases(): array
+    {
+        $cases = [
+            [
+                'upstream' => 'index4-1.2',
+                'scenario' => 'large randomblob index build after power-of-two inserts',
+                'row_count' => 65536,
+                'blob_bytes' => 102,
+                'index_name' => 'i1',
+                'cache_size' => null,
+                'expected_integrity' => 'ok',
+                'requires_external_sort' => true,
+                'unique_error' => null,
+                'duplicate_value' => null,
+            ],
+            [
+                'upstream' => 'index4-1.4',
+                'scenario' => 'large randomblob index build with cache_size limited to ten pages',
+                'row_count' => 65536,
+                'blob_bytes' => 102,
+                'index_name' => 'i2',
+                'cache_size' => 10,
+                'expected_integrity' => 'ok',
+                'requires_external_sort' => true,
+                'unique_error' => null,
+                'duplicate_value' => null,
+            ],
+            [
+                'upstream' => 'index4-1.6',
+                'scenario' => 'mixed text null and growing blob keys build a stable index',
+                'row_count' => 256,
+                'blob_bytes' => 5202,
+                'index_name' => 'i1',
+                'cache_size' => null,
+                'expected_integrity' => 'ok',
+                'requires_external_sort' => true,
+                'unique_error' => null,
+                'duplicate_value' => null,
+            ],
+            [
+                'upstream' => 'index4-1.7',
+                'scenario' => 'single-row table index build is valid',
+                'row_count' => 1,
+                'blob_bytes' => 1,
+                'index_name' => 'i1',
+                'cache_size' => null,
+                'expected_integrity' => 'ok',
+                'requires_external_sort' => false,
+                'unique_error' => null,
+                'duplicate_value' => null,
+            ],
+            [
+                'upstream' => 'index4-1.8',
+                'scenario' => 'empty table index build is valid',
+                'row_count' => 0,
+                'blob_bytes' => 0,
+                'index_name' => 'i1',
+                'cache_size' => null,
+                'expected_integrity' => 'ok',
+                'requires_external_sort' => false,
+                'unique_error' => null,
+                'duplicate_value' => null,
+            ],
+            [
+                'upstream' => 'index4-2.2',
+                'scenario' => 'unique index build rolls back cleanly after duplicate integer key',
+                'row_count' => 5,
+                'blob_bytes' => 0,
+                'index_name' => 'i3',
+                'cache_size' => null,
+                'expected_integrity' => 'ok',
+                'requires_external_sort' => false,
+                'unique_error' => 'UNIQUE constraint failed: t2.x',
+                'duplicate_value' => 35,
+            ],
+        ];
+
+        foreach ([2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536] as $rowCount) {
+            $cases[] = [
+                'upstream' => 'index4-1.1.dynamic-' . $rowCount,
+                'scenario' => 'power-of-two insert batch stays index-build ready',
+                'row_count' => $rowCount,
+                'blob_bytes' => 102,
+                'index_name' => 'i1',
+                'cache_size' => null,
+                'expected_integrity' => 'ok',
+                'requires_external_sort' => $rowCount > 512,
+                'unique_error' => null,
+                'duplicate_value' => null,
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
+     * @return list<array{upstream:string,index_name:string,where_column:string,where_value:int,order_by:list<string>,limit:int,result_rows:list<list<int>>,detail:string,uses_index:bool}>
+     */
+    public static function index8OrderByLimitPlannerCases(): array
+    {
+        $rows = [];
+        for ($x = 0; $x <= 100; $x++) {
+            $rows[] = [
+                'a' => intdiv($x, 10),
+                'b' => $x % 10,
+                'c' => $x % 19,
+                'd' => $x,
+            ];
+        }
+
+        $matching = array_values(array_filter($rows, static fn (array $row): bool => $row['c'] === 4));
+        usort($matching, static fn (array $left, array $right): int => [$left['a'], $left['b']] <=> [$right['a'], $right['b']]);
+        $resultRows = array_map(static fn (array $row): array => [$row['a'], $row['b'], $row['c'], $row['d']], array_slice($matching, 0, 2));
+
+        return [
+            [
+                'upstream' => 'index8-1.0',
+                'index_name' => 't1abc',
+                'where_column' => 'c',
+                'where_value' => 4,
+                'order_by' => ['a', 'b'],
+                'limit' => 2,
+                'result_rows' => $resultRows,
+                'detail' => 'SCAN t1 USING INDEX t1abc',
+                'uses_index' => true,
+            ],
+            [
+                'upstream' => 'index8-1.1',
+                'index_name' => 't1abd',
+                'where_column' => 'c',
+                'where_value' => 4,
+                'order_by' => ['a', 'b'],
+                'limit' => 2,
+                'result_rows' => $resultRows,
+                'detail' => 'SCAN t1',
+                'uses_index' => false,
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array{upstream:string,join:string,probe_values:list<int>,result_rows:list<array{y:int,c:int|null}>,page_size:int,primary_key:string,overflow_key:int,overflow_blob:int}>
+     */
+    public static function btree01OverflowJoinCases(): array
+    {
+        $resultRows = [
+            ['y' => 198, 'c' => 99],
+            ['y' => 187, 'c' => null],
+            ['y' => 100, 'c' => 50],
+        ];
+
+        return [
+            [
+                'upstream' => 'btree01-2.1',
+                'join' => 'LEFT JOIN',
+                'probe_values' => [198, 187, 100],
+                'result_rows' => $resultRows,
+                'page_size' => 1024,
+                'primary_key' => 'WITHOUT ROWID PRIMARY KEY(a)',
+                'overflow_key' => 198,
+                'overflow_blob' => 1000,
+            ],
+            [
+                'upstream' => 'btree01-2.2',
+                'join' => 'RIGHT JOIN',
+                'probe_values' => [198, 187, 100],
+                'result_rows' => $resultRows,
+                'page_size' => 1024,
+                'primary_key' => 'WITHOUT ROWID PRIMARY KEY(a)',
+                'overflow_key' => 198,
+                'overflow_blob' => 1000,
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

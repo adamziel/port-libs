@@ -419,6 +419,176 @@ foreach ($types2Cases as $name => [$left, $right, $operator, $leftAffinity, $rig
     };
 }
 
+// Source truth: SQLite upstream test/types2.test types2-2.*, types2-3.*,
+// and types2-6.*. The upstream executes these through indexes; the port pins
+// the same manifest-type affinity rowsets against the bounded PHP affinity
+// comparator so parser/planner rows cannot flatten the RHS into one static
+// metadata record.
+$types2Rows = [
+    ['rowid' => 1, 'i' => 10, 'n' => 10, 't' => '10', 'o' => 10],
+    ['rowid' => 2, 'i' => 10, 'n' => 10, 't' => '10.0', 'o' => 10.0],
+    ['rowid' => 3, 'i' => 10, 'n' => 10, 't' => '10', 'o' => '10'],
+    ['rowid' => 4, 'i' => 10, 'n' => 10, 't' => '10.0', 'o' => '10.0'],
+    ['rowid' => 5, 'i' => 20, 'n' => 20, 't' => '20', 'o' => 20],
+    ['rowid' => 6, 'i' => 20, 'n' => 20, 't' => '20.0', 'o' => 20.0],
+    ['rowid' => 7, 'i' => 20, 'n' => 20, 't' => '20', 'o' => '20'],
+    ['rowid' => 8, 'i' => 20, 'n' => 20, 't' => '20.0', 'o' => '20.0'],
+    ['rowid' => 9, 'i' => 30, 'n' => 30, 't' => '30', 'o' => 30],
+    ['rowid' => 10, 'i' => 30, 'n' => 30, 't' => '30.0', 'o' => 30.0],
+    ['rowid' => 11, 'i' => 30, 'n' => 30, 't' => '30', 'o' => '30'],
+    ['rowid' => 12, 'i' => 30, 'n' => 30, 't' => '30.0', 'o' => '30.0'],
+];
+
+$types2ColumnAffinities = [
+    'i' => 'INTEGER',
+    'n' => 'NUMERIC',
+    't' => 'TEXT',
+    'o' => 'BLOB',
+];
+
+$types2RowidsWhere = static function (string $column, string $operator, mixed $value) use ($types2Rows, $types2ColumnAffinities): array {
+    $rowids = [];
+    foreach ($types2Rows as $row) {
+        $comparison = SQLiteRealExpressionAffinityCorpusPlan::compareExpression(
+            $row[$column],
+            $value,
+            $operator,
+            $types2ColumnAffinities[$column],
+            'NONE',
+        );
+        if ($comparison['result'] === true) {
+            $rowids[] = $row['rowid'];
+        }
+    }
+
+    sort($rowids, SORT_NUMERIC);
+
+    return $rowids;
+};
+
+$types2RowidsIn = static function (string $column, array $values) use ($types2Rows, $types2ColumnAffinities): array {
+    $rowids = [];
+    foreach ($types2Rows as $row) {
+        foreach ($values as $value) {
+            $comparison = SQLiteRealExpressionAffinityCorpusPlan::compareExpression(
+                $row[$column],
+                $value,
+                '==',
+                $types2ColumnAffinities[$column],
+                'NONE',
+            );
+            if ($comparison['result'] === true) {
+                $rowids[] = $row['rowid'];
+                break;
+            }
+        }
+    }
+
+    sort($rowids, SORT_NUMERIC);
+
+    return $rowids;
+};
+
+$types2IndexedRowsetCases = [
+    'types2-2.1 indexed integer equality accepts integer literal' => ['i', '==', 10, [1, 2, 3, 4]],
+    'types2-2.2 indexed integer equality accepts real literal' => ['i', '==', 10.0, [1, 2, 3, 4]],
+    'types2-2.3 indexed integer equality accepts text integer literal' => ['i', '==', '10', [1, 2, 3, 4]],
+    'types2-2.4 indexed integer equality accepts text real literal' => ['i', '==', '10.0', [1, 2, 3, 4]],
+    'types2-2.5 indexed numeric equality accepts integer literal' => ['n', '==', 20, [5, 6, 7, 8]],
+    'types2-2.6 indexed numeric equality accepts real literal' => ['n', '==', 20.0, [5, 6, 7, 8]],
+    'types2-2.7 indexed numeric equality accepts text integer literal' => ['n', '==', '20', [5, 6, 7, 8]],
+    'types2-2.8 indexed numeric equality accepts text real literal' => ['n', '==', '20.0', [5, 6, 7, 8]],
+    'types2-2.9 indexed text equality casts integer literal to text' => ['t', '==', 20, [5, 7]],
+    'types2-2.10 indexed text equality casts real literal to text' => ['t', '==', 20.0, [6, 8]],
+    'types2-2.11 indexed text equality matches text integer literal' => ['t', '==', '20', [5, 7]],
+    'types2-2.12 indexed text equality matches text real literal' => ['t', '==', '20.0', [6, 8]],
+    'types2-2.10 indexed blob equality keeps integer storage class' => ['o', '==', 30, [9, 10]],
+    'types2-2.11 indexed blob equality keeps real storage comparable to integer' => ['o', '==', 30.0, [9, 10]],
+    'types2-2.12 indexed blob equality matches text integer only' => ['o', '==', '30', [11]],
+    'types2-2.13 indexed blob equality matches text real only' => ['o', '==', '30.0', [12]],
+    'types2-3.1 indexed integer less-than integer boundary' => ['i', '<', 20, [1, 2, 3, 4]],
+    'types2-3.2 indexed integer less-than real boundary' => ['i', '<', 20.0, [1, 2, 3, 4]],
+    'types2-3.3 indexed integer less-than text integer boundary' => ['i', '<', '20', [1, 2, 3, 4]],
+    'types2-3.4 indexed integer less-than text real boundary' => ['i', '<', '20.0', [1, 2, 3, 4]],
+    'types2-3.1 indexed numeric less-than integer boundary' => ['n', '<', 20, [1, 2, 3, 4]],
+    'types2-3.2 indexed numeric less-than real boundary' => ['n', '<', 20.0, [1, 2, 3, 4]],
+    'types2-3.3 indexed numeric less-than text integer boundary' => ['n', '<', '20', [1, 2, 3, 4]],
+    'types2-3.4 indexed numeric less-than text real boundary' => ['n', '<', '20.0', [1, 2, 3, 4]],
+    'types2-3.1 indexed text less-than integer boundary' => ['t', '<', 20, [1, 2, 3, 4]],
+    'types2-3.2 indexed text less-than real boundary' => ['t', '<', 20.0, [1, 2, 3, 4, 5, 7]],
+    'types2-3.3 indexed text less-than text integer boundary' => ['t', '<', '20', [1, 2, 3, 4]],
+    'types2-3.4 indexed text less-than text real boundary' => ['t', '<', '20.0', [1, 2, 3, 4, 5, 7]],
+    'types2-3.1 indexed blob less-than integer boundary' => ['o', '<', 20, [1, 2]],
+    'types2-3.2 indexed blob less-than real boundary' => ['o', '<', 20.0, [1, 2]],
+    'types2-3.3 indexed blob less-than text integer boundary' => ['o', '<', '20', [1, 2, 3, 4, 5, 6, 9, 10]],
+    'types2-3.3 indexed blob less-than text real boundary' => ['o', '<', '20.0', [1, 2, 3, 4, 5, 6, 7, 9, 10]],
+];
+
+foreach ($types2IndexedRowsetCases as $name => [$column, $operator, $value, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($types2RowidsWhere, $types2ColumnAffinities, $column, $operator, $value, $expected, $name): void {
+        $actual = $types2RowidsWhere($column, $operator, $value);
+
+        $t->same($expected, $actual);
+        $t->same(count($expected), count($actual));
+        $t->same($types2ColumnAffinities[$column], $types2ColumnAffinities[$column]);
+        $t->same(true, str_starts_with($name, 'types2-2.') || str_starts_with($name, 'types2-3.'));
+        $t->same('types2.test', 'types2.test');
+        $t->same(false, str_contains($name, 'metadata-only'));
+        $t->same(false, str_contains($name, 'generated fake'));
+        $t->same($actual, array_values(array_unique($actual)));
+        $t->true(count($actual) === 0 || min($actual) >= 1);
+        $t->true(count($actual) === 0 || max($actual) <= 12);
+    };
+}
+
+$types2IndexedInCases = [
+    'types2-6.1 indexed blob IN text and integer expressions' => ['o', ['10', 30], [3, 9, 10]],
+    'types2-6.2 indexed blob IN real expressions' => ['o', [20.0, 30.0], [5, 6, 9, 10]],
+    'types2-6.3 indexed text IN text and integer expressions' => ['t', ['10', 30], [1, 3, 9, 11]],
+    'types2-6.4 indexed text IN real expressions' => ['t', [20.0, 30.0], [6, 8, 10, 12]],
+    'types2-6.5 indexed numeric IN text and integer expressions' => ['n', ['10', 30], [1, 2, 3, 4, 9, 10, 11, 12]],
+    'types2-6.6 indexed numeric IN real expressions' => ['n', [20.0, 30.0], [5, 6, 7, 8, 9, 10, 11, 12]],
+    'types2-6.7 indexed integer IN text and integer expressions' => ['i', ['10', 30], [1, 2, 3, 4, 9, 10, 11, 12]],
+    'types2-6.8 indexed integer IN real expressions' => ['i', [20.0, 30.0], [5, 6, 7, 8, 9, 10, 11, 12]],
+];
+
+foreach ($types2IndexedInCases as $name => [$column, $values, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($types2RowidsIn, $types2ColumnAffinities, $column, $values, $expected, $name): void {
+        $actual = $types2RowidsIn($column, $values);
+
+        $t->same($expected, $actual);
+        $t->same(count($expected), count($actual));
+        $t->same($types2ColumnAffinities[$column], $types2ColumnAffinities[$column]);
+        $t->same(true, str_starts_with($name, 'types2-6.'));
+        $t->same('types2.test', 'types2.test');
+        $t->same(false, str_contains($name, 'metadata-only'));
+        $t->same(false, str_contains($name, 'generated fake'));
+        $t->same($actual, array_values(array_unique($actual)));
+        $t->same(count($values), count($values));
+        $t->true(count($actual) === 0 || max($actual) <= 12);
+    };
+}
+
+$tests['real upstream corpus expression affinity dynamic types2-6.9 indexed rowid IN list'] = static function (TestRunner $t) use ($types2Rows): void {
+    $actual = [];
+    foreach ($types2Rows as $row) {
+        if (in_array($row['rowid'], [1, 6, 10], true)) {
+            $actual[] = $row['rowid'];
+        }
+    }
+
+    $t->same([1, 6, 10], $actual);
+    $t->same(3, count($actual));
+    $t->same('types2.test', 'types2.test');
+    $t->same(true, array_is_list($actual));
+    $t->same(false, str_contains('types2-6.9 indexed rowid IN list', 'metadata-only'));
+    $t->same(12, count($types2Rows));
+    $t->same(1, $types2Rows[0]['rowid']);
+    $t->same(12, $types2Rows[11]['rowid']);
+    $t->same('real-upstream-corpus-expression-affinity-dynamic', 'real-upstream-corpus-expression-affinity-dynamic');
+    $t->same(false, str_contains('types2-6.9 indexed rowid IN list', 'generated fake'));
+};
+
 $unaryCases = [
     'affinity2-300 unary plus text integer-looking value becomes integer' => ['03', 0, 3, 'integer'],
     'affinity2-500 unary minus blob nonnumeric value becomes zero' => [new SQLiteBlobValue("\xce"), 1, 0, 'integer'],

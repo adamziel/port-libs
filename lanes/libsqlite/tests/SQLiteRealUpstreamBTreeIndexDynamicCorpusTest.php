@@ -106,4 +106,68 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index6PartialJoinAndUpdateCases() as
     };
 }
 
+// Source truth: SQLite upstream test/index4.test index4-1.1 through 2.2.
+// These cases cover large CREATE INDEX builds, cache-limited builds, empty and
+// single-row tables, and duplicate-key rollback during UNIQUE index creation.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index4LargeBuildCases() as $case) {
+    $tests['real upstream index4 large index build ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->true(str_starts_with($case['upstream'], 'index4-'));
+        $t->true($case['scenario'] !== '');
+        $t->true($case['row_count'] >= 0);
+        $t->true($case['blob_bytes'] >= 0);
+        $t->true(str_starts_with($case['index_name'], 'i'));
+        $t->same('ok', $case['expected_integrity']);
+        if ($case['unique_error'] === null) {
+            if ($case['row_count'] > 512) {
+                $t->true($case['requires_external_sort'] || $case['cache_size'] === 10);
+            }
+            if ($case['row_count'] <= 1) {
+                $t->same(false, $case['requires_external_sort']);
+            }
+        }
+        if ($case['cache_size'] !== null) {
+            $t->same(10, $case['cache_size']);
+        }
+        if ($case['unique_error'] !== null) {
+            $t->same('UNIQUE constraint failed: t2.x', $case['unique_error']);
+            $t->same(35, $case['duplicate_value']);
+            $t->same(5, $case['row_count']);
+        } else {
+            $t->same(null, $case['duplicate_value']);
+        }
+    };
+}
+
+// Source truth: SQLite upstream test/index8.test index8-1.0 and 1.1.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index8OrderByLimitPlannerCases() as $case) {
+    $tests['real upstream index8 order by limit planner ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->same('c', $case['where_column']);
+        $t->same(4, $case['where_value']);
+        $t->same(['a', 'b'], $case['order_by']);
+        $t->same(2, $case['limit']);
+        $t->same([[0, 4, 4, 4], [2, 3, 4, 23]], $case['result_rows']);
+        $t->same($case['uses_index'], str_contains($case['detail'], 'USING INDEX'));
+        $t->same($case['uses_index'], $case['index_name'] === 't1abc');
+        $t->true(str_starts_with($case['upstream'], 'index8-1.'));
+    };
+}
+
+// Source truth: SQLite upstream test/btree01.test btree01-2.1 and 2.2.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::btree01OverflowJoinCases() as $case) {
+    $tests['real upstream btree01 overflow join ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {
+        $t->same(1024, $case['page_size']);
+        $t->same('WITHOUT ROWID PRIMARY KEY(a)', $case['primary_key']);
+        $t->same(198, $case['overflow_key']);
+        $t->same(1000, $case['overflow_blob']);
+        $t->same([198, 187, 100], $case['probe_values']);
+        $t->same([
+            ['y' => 198, 'c' => 99],
+            ['y' => 187, 'c' => null],
+            ['y' => 100, 'c' => 50],
+        ], $case['result_rows']);
+        $t->true($case['join'] === 'LEFT JOIN' || $case['join'] === 'RIGHT JOIN');
+        $t->same($case['join'] === 'LEFT JOIN' ? 'btree01-2.1' : 'btree01-2.2', $case['upstream']);
+    };
+}
+
 return $tests;

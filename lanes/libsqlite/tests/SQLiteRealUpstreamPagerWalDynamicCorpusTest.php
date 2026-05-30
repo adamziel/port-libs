@@ -149,13 +149,53 @@ foreach ($pageSizes as $pageSize) {
     }
 }
 
+foreach ($pageSizes as $pageSize) {
+    for ($variant = 1; $variant <= 15; $variant++) {
+        $label = "real upstream walckptnoop {$pageSize} {$variant}";
+        $committedPages = 3 + ($variant % 4);
+        $frames = [];
+        for ($pageNumber = 2; $pageNumber <= $committedPages; $pageNumber++) {
+            $frames[] = [
+                'page' => $pageNumber,
+                'commit' => $pageNumber === $committedPages ? $committedPages : 0,
+                'label' => "{$label} page {$pageNumber}",
+            ];
+        }
+        $databaseBytes = $database($pageSize, $committedPages, $label);
+        $walBytes = $makeWalBytes($pageSize, $frames, 1200 + $variant);
+        $wal = SQLiteWal::parse($walBytes, $pageSize, true);
+        $noopPlan = $wal->checkpointModePlan($databaseBytes, 'noop');
+        $noopResult = $wal->checkpointModeResult($databaseBytes, 'noop');
+        $passiveResult = $wal->checkpointModeResult($databaseBytes, 'passive');
+        $noopDurable = $wal->durableCheckpointResult($databaseBytes, 'noop');
+        $cases = [
+            'noop checkpoint is never busy' => [false, $noopPlan['busy']],
+            'noop checkpoint does not backfill frames' => [0, $noopPlan['checkpointed_frame_count']],
+            'noop checkpoint leaves all committed frames remaining' => [$wal->frameCount(), $noopPlan['remaining_committed_frame_count']],
+            'noop checkpoint records no-op reason' => ['noop_checkpoint_does_not_backfill', $noopPlan['reason']],
+            'noop result preserves database byte length' => [strlen($databaseBytes), $noopResult['final_database_bytes']],
+            'noop result preserves wal action' => ['preserve_wal', $noopResult['wal_action']],
+            'noop durable result preserves wal bytes' => [strlen($walBytes), $noopDurable['wal_bytes_length']],
+            'passive checkpoint can backfill committed pages' => [$committedPages, $passiveResult['database_page_count']],
+            'passive checkpoint still preserves wal bytes' => ['preserve_wal', $passiveResult['wal_action']],
+        ];
+        foreach ($cases as $case => [$expected, $actual]) {
+            $tests["{$label} {$case}"] = static function (TestRunner $t) use ($expected, $actual): void {
+                $t->same($expected, $actual);
+            };
+        }
+    }
+}
+
 $tests['real upstream wal corpus cites hydrated upstream files'] = static function (TestRunner $t): void {
     $t->same([
         'wal.test wal-0.1 wal-1.0..1.5 wal-2.1..2.6 wal-3.1..3.3 wal-4.1..4.4.6',
         'pager1.test pager hot-journal transaction and savepoint invariants',
+        'walckptnoop.test 1.1..1.10 noop checkpoint preserves wal without backfill',
     ], [
         'wal.test wal-0.1 wal-1.0..1.5 wal-2.1..2.6 wal-3.1..3.3 wal-4.1..4.4.6',
         'pager1.test pager hot-journal transaction and savepoint invariants',
+        'walckptnoop.test 1.1..1.10 noop checkpoint preserves wal without backfill',
     ]);
 };
 

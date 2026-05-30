@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLitePragmaSchemaCatalog;
+use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $records = [
@@ -106,7 +107,7 @@ $tests['real upstream pragma.test 6.2 t5 primary key ordinals follow declared li
     $rows = $makeCatalog()->execute('PRAGMA table_info(pragma_t5)')['rows'];
 
     $t->same(['cid' => 0, 'name' => 'a', 'type' => 'TEXT', 'notnull' => 0, 'dflt_value' => 'CURRENT_TIMESTAMP', 'pk' => 0], $rows[0]);
-    $t->same(['cid' => 1, 'name' => 'b', 'type' => '', 'notnull' => 1, 'dflt_value' => '(5+3)', 'pk' => 2], $rows[1]);
+    $t->same(['cid' => 1, 'name' => 'b', 'type' => '', 'notnull' => 1, 'dflt_value' => '5+3', 'pk' => 2], $rows[1]);
     $t->same(['cid' => 2, 'name' => 'c', 'type' => 'TEXT', 'notnull' => 1, 'dflt_value' => null, 'pk' => 3], $rows[2]);
     $t->same(['cid' => 3, 'name' => 'd', 'type' => 'INTEGER', 'notnull' => 0, 'dflt_value' => 'NULL', 'pk' => 0], $rows[3]);
     $t->same(['cid' => 4, 'name' => 'e', 'type' => 'TEXT', 'notnull' => 1, 'dflt_value' => "''", 'pk' => 1], $rows[4]);
@@ -228,7 +229,7 @@ foreach (range(1, 65) as $variant) {
         $t->same('key_name', $rows[1]['name']);
         $t->same(1, $rows[1]['pk']);
         $t->same("'setting_{$variant}'", $rows[1]['dflt_value']);
-        $t->same("(json_object('variant',{$variant}))", $rows[2]['dflt_value']);
+        $t->same("json_object('variant',{$variant})", $rows[2]['dflt_value']);
         $t->same("'lazy'", $rows[3]['dflt_value']);
     };
 
@@ -286,7 +287,7 @@ foreach (range(1, 80) as $variant) {
         $t->same('c', $rows[2]['name']);
         $t->same("+{$variant}.0", $rows[2]['dflt_value']);
         $t->same('d', $rows[3]['name']);
-        $t->same("('comment -- stays inside expression {$variant}')", $rows[3]['dflt_value']);
+        $t->same("'comment -- stays inside expression {$variant}'", $rows[3]['dflt_value']);
         $t->same('e', $rows[4]['name']);
         $t->same("'/* quoted comment marker {$variant} */'", $rows[4]['dflt_value']);
         $t->same("X'0A0B'", $rows[5]['dflt_value']);
@@ -337,6 +338,104 @@ foreach (range(1, 35) as $variant) {
         $t->same('tenant_id', $foreignKeys[0]['to']);
         $t->same('tenant_id', $primaryKey['name']);
         $t->same(1, $primaryKey['pk']);
+    };
+}
+
+foreach (range(1, 120) as $variant) {
+    $shared = 'dynamic_schema_settings_' . $variant;
+    $mainRecords = [
+        new SQLiteSchemaRecord(
+            'table',
+            $shared,
+            $shared,
+            900 + $variant,
+            "CREATE TABLE {$shared}(key_name TEXT, main_value INTEGER, PRIMARY KEY(key_name))",
+            900 + $variant,
+        ),
+        new SQLiteSchemaRecord('index', 'sqlite_autoindex_' . $shared . '_1', $shared, 1000 + $variant, null, 1000 + $variant),
+    ];
+    $tempRecords = [
+        new SQLiteSchemaRecord(
+            'table',
+            $shared,
+            $shared,
+            1100 + $variant,
+            "CREATE TABLE {$shared}(key_name TEXT, temp_value TEXT DEFAULT 'temp_{$variant}', PRIMARY KEY(key_name))",
+            1100 + $variant,
+        ),
+        new SQLiteSchemaRecord('index', 'sqlite_autoindex_temp_' . $shared . '_1', $shared, 1200 + $variant, null, 1200 + $variant),
+    ];
+    $auxRecords = [
+        new SQLiteSchemaRecord(
+            'table',
+            $shared,
+            $shared,
+            1300 + $variant,
+            "CREATE TABLE {$shared}(key_name TEXT, aux_value TEXT DEFAULT 'aux_{$variant}', PRIMARY KEY(key_name))",
+            1300 + $variant,
+        ),
+        new SQLiteSchemaRecord('index', 'sqlite_autoindex_aux_' . $shared . '_1', $shared, 1400 + $variant, null, 1400 + $variant),
+    ];
+
+    $makeAttachedCatalog = static function () use ($mainRecords, $tempRecords, $auxRecords): SQLiteAttachedSchemaCatalog {
+        $catalog = new SQLiteAttachedSchemaCatalog($mainRecords, $tempRecords);
+        $catalog->attach('aux', 'auxiliary.db', $auxRecords);
+
+        return $catalog;
+    };
+
+    $tests["real upstream pragma.test 6.1 database list dynamic attached schema variant {$variant}"] = static function (TestRunner $t) use ($makeAttachedCatalog): void {
+        $rows = $makeAttachedCatalog()->executeSchemaPragma('PRAGMA database_list')['rows'];
+
+        $t->same([0, 1, 2], array_column($rows, 'seq'));
+        $t->same(['main', 'temp', 'aux'], array_column($rows, 'name'));
+        $t->same([null, '', 'auxiliary.db'], array_column($rows, 'file'));
+    };
+
+    $tests["real upstream pragma.test 6.6 temp schema shadows main table_info variant {$variant}"] = static function (TestRunner $t) use ($makeAttachedCatalog, $shared, $variant): void {
+        $catalog = $makeAttachedCatalog();
+        $unqualified = $catalog->executeSchemaPragma("PRAGMA table_info({$shared})")['rows'];
+        $temp = $catalog->executeSchemaPragma("PRAGMA temp.table_info({$shared})")['rows'];
+        $main = $catalog->executeSchemaPragma("PRAGMA main.table_info({$shared})")['rows'];
+        $aux = $catalog->executeTableValuedPragma("pragma_table_info('{$shared}', 'aux')")['rows'];
+
+        $t->same('temp_value', $unqualified[1]['name']);
+        $t->same("'temp_{$variant}'", $unqualified[1]['dflt_value']);
+        $t->same($temp, $unqualified);
+        $t->same('main_value', $main[1]['name']);
+        $t->same('aux_value', $aux[1]['name']);
+        $t->same("'aux_{$variant}'", $aux[1]['dflt_value']);
+    };
+
+    $tests["real upstream schema3 dynamic schema cache invalidates prepared lookup variant {$variant}"] = static function (TestRunner $t) use ($makeAttachedCatalog, $shared, $variant): void {
+        $catalog = $makeAttachedCatalog();
+        $snapshot = $catalog->schemaCacheSnapshot('main');
+        $nextRecords = [
+            new SQLiteSchemaRecord(
+                'table',
+                $shared,
+                $shared,
+                1500 + $variant,
+                "CREATE TABLE {$shared}(key_name TEXT, main_value INTEGER, added_column TEXT DEFAULT 'added_{$variant}', PRIMARY KEY(key_name))",
+                1500 + $variant,
+            ),
+            new SQLiteSchemaRecord('index', 'sqlite_autoindex_' . $shared . '_1', $shared, 1600 + $variant, null, 1600 + $variant),
+        ];
+
+        $catalog->replaceSchemaRecords('main', $nextRecords);
+        $invalidation = $catalog->schemaCacheInvalidation($snapshot);
+        $mainRows = $catalog->executeSchemaPragma("PRAGMA main.table_info({$shared})")['rows'];
+        $unqualifiedRows = $catalog->executeSchemaPragma("PRAGMA table_info({$shared})")['rows'];
+
+        $t->same(false, $invalidation['current']);
+        $t->same(1, $invalidation['before_generation']);
+        $t->same(2, $invalidation['after_generation']);
+        $t->same([], $invalidation['added_schemas']);
+        $t->same([], $invalidation['removed_schemas']);
+        $t->same(false, $invalidation['sequence_changed']);
+        $t->same('added_column', $mainRows[2]['name']);
+        $t->same("'added_{$variant}'", $mainRows[2]['dflt_value']);
+        $t->same('temp_value', $unqualifiedRows[1]['name']);
     };
 }
 

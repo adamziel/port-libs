@@ -301,71 +301,6 @@ final class SQLiteWindowFunction
     }
 
     /**
-     * @param iterable<mixed> $values
-     * @param iterable<mixed> $orderKeys
-     * @return list<mixed>
-     */
-    public static function valueFrameBetweenValues(
-        string $function,
-        iterable $values,
-        iterable $orderKeys,
-        string $frameUnit,
-        string $startBoundary,
-        string $endBoundary,
-        string $exclude = 'NO OTHERS',
-        ?int $nth = null,
-    ): array {
-        $function = strtolower($function);
-        if (!in_array($function, ['first_value', 'last_value', 'nth_value'], true)) {
-            throw new \InvalidArgumentException("SQLite window value function {$function} is not supported");
-        }
-        if ($function === 'nth_value' && ($nth === null || $nth <= 0)) {
-            throw new \InvalidArgumentException('SQLite nth_value() index must be positive');
-        }
-
-        $rows = self::rows($values);
-        $keys = self::rows($orderKeys);
-        if (count($rows) !== count($keys)) {
-            throw new \InvalidArgumentException('SQLite window values and ORDER BY keys must have the same row count');
-        }
-
-        $excludeMode = strtoupper(trim($exclude));
-        if (!in_array($excludeMode, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
-            throw new \InvalidArgumentException('SQLite window EXCLUDE mode is not supported');
-        }
-
-        $unit = strtoupper(trim($frameUnit));
-        if (!in_array($unit, ['ROWS', 'RANGE', 'GROUPS'], true)) {
-            throw new \InvalidArgumentException('SQLite window frame unit is not supported');
-        }
-        if ($unit === 'RANGE') {
-            foreach ($keys as $key) {
-                if (!is_int($key) && !is_float($key) && !is_bool($key)) {
-                    throw new \InvalidArgumentException('SQLite RANGE frame offsets require numeric ORDER BY keys');
-                }
-            }
-        }
-
-        $start = self::parseFrameBoundary($startBoundary);
-        $end = self::parseFrameBoundary($endBoundary);
-        $result = [];
-        foreach (array_keys($rows) as $index) {
-            $frameIndexes = self::frameIndexesBetween($keys, $index, $unit, $start, $end);
-            $frameIndexes = self::applyExclude($frameIndexes, $keys, $index, $excludeMode);
-
-            $target = match ($function) {
-                'first_value' => $frameIndexes[0] ?? null,
-                'last_value' => $frameIndexes === [] ? null : $frameIndexes[count($frameIndexes) - 1],
-                'nth_value' => $frameIndexes[($nth ?? 1) - 1] ?? null,
-                default => null,
-            };
-            $result[] = $target === null ? null : $rows[$target];
-        }
-
-        return $result;
-    }
-
-    /**
      * @param iterable<mixed> $rows
      * @return array{rowNumber:list<int>,rank:list<int>,denseRank:list<int>,percentRank:list<float>,cumeDist:list<float>,ntile:list<int>}
      */
@@ -562,6 +497,86 @@ final class SQLiteWindowFunction
                 'max' => self::minMaxFrameValues($values, false),
                 'group_concat' => self::groupConcatFrameValues($values, $separator),
             };
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @param iterable<mixed> $orderKeys
+     * @param iterable<int|float|string>|int|float|string|null $nth
+     * @param iterable<bool|int|float|string|null>|null $filters
+     * @return list<mixed>
+     */
+    public static function valueFrameBetweenValues(
+        string $function,
+        iterable $values,
+        iterable $orderKeys,
+        string $frameUnit,
+        string $startBoundary,
+        string $endBoundary,
+        string $exclude = 'NO OTHERS',
+        iterable|int|float|string|null $nth = null,
+        ?iterable $filters = null,
+    ): array {
+        $function = strtolower($function);
+        if (!in_array($function, ['first_value', 'last_value', 'nth_value'], true)) {
+            throw new \InvalidArgumentException("SQLite window value function {$function} is not supported");
+        }
+
+        $rows = self::rows($values);
+        $keys = self::rows($orderKeys);
+        if (count($rows) !== count($keys)) {
+            throw new \InvalidArgumentException('SQLite window values and ORDER BY keys must have the same row count');
+        }
+
+        $nthRows = null;
+        if ($function === 'nth_value') {
+            if ($nth === null) {
+                throw new \InvalidArgumentException('SQLite nth_value() index must be positive');
+            }
+            $nthRows = is_iterable($nth) ? self::rows($nth) : array_fill(0, count($rows), $nth);
+            if (count($nthRows) !== count($rows)) {
+                throw new \InvalidArgumentException('SQLite nth_value() values, indexes, and ORDER BY keys must have the same row count');
+            }
+        }
+
+        $filterRows = $filters === null ? null : self::rows($filters);
+        if ($filterRows !== null && count($filterRows) !== count($rows)) {
+            throw new \InvalidArgumentException('SQLite window FILTER values must have the same row count');
+        }
+
+        $excludeMode = strtoupper(trim($exclude));
+        if (!in_array($excludeMode, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
+            throw new \InvalidArgumentException('SQLite window EXCLUDE mode is not supported');
+        }
+
+        $unit = strtoupper(trim($frameUnit));
+        if (!in_array($unit, ['ROWS', 'RANGE', 'GROUPS'], true)) {
+            throw new \InvalidArgumentException('SQLite window frame unit is not supported');
+        }
+
+        $start = self::parseFrameBoundary($startBoundary);
+        $end = self::parseFrameBoundary($endBoundary);
+        $result = [];
+        foreach (array_keys($rows) as $index) {
+            $frameIndexes = self::frameIndexesBetween($keys, $index, $unit, $start, $end);
+            $frameIndexes = self::applyExclude($frameIndexes, $keys, $index, $excludeMode);
+            if ($filterRows !== null) {
+                $frameIndexes = array_values(array_filter(
+                    $frameIndexes,
+                    static fn (int $frameIndex): bool => self::sqlTruthy($filterRows[$frameIndex]),
+                ));
+            }
+
+            $target = match ($function) {
+                'first_value' => $frameIndexes[0] ?? null,
+                'last_value' => $frameIndexes === [] ? null : $frameIndexes[count($frameIndexes) - 1],
+                'nth_value' => $frameIndexes[self::nthIndexValue($nthRows[$index]) - 1] ?? null,
+                default => null,
+            };
+            $result[] = $target === null ? null : $rows[$target];
         }
 
         return $result;
@@ -805,6 +820,10 @@ final class SQLiteWindowFunction
 
         if ($unit === 'RANGE') {
             if (!is_int($orderKeys[$currentIndex]) && !is_float($orderKeys[$currentIndex]) && !is_bool($orderKeys[$currentIndex])) {
+                if (in_array($start['type'], ['PRECEDING', 'FOLLOWING'], true) || in_array($end['type'], ['PRECEDING', 'FOLLOWING'], true)) {
+                    throw new \InvalidArgumentException('SQLite RANGE frame offsets require numeric ORDER BY keys');
+                }
+
                 $groups = self::peerGroups($orderKeys);
                 $groupByIndex = [];
                 foreach ($groups as $groupIndex => $group) {
