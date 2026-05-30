@@ -276,6 +276,130 @@ for ($i = 1; $i <= 26; $i++) {
     }
 }
 
+for ($i = 1; $i <= 42; $i++) {
+    $rows = [
+        ['id' => 1, 'parent_id' => null, 'label' => 'root'],
+        ['id' => 2, 'parent_id' => 1, 'label' => 'left'],
+        ['id' => 3, 'parent_id' => 1, 'label' => 'right'],
+        ['id' => 4, 'parent_id' => 2, 'label' => 'left-left'],
+        ['id' => 5, 'parent_id' => 2, 'label' => 'left-right'],
+        ['id' => 6, 'parent_id' => 3, 'label' => 'right-left'],
+        ['id' => 7, 'parent_id' => 3, 'label' => 'right-right'],
+    ];
+    for ($extra = 0; $extra < ($i % 5); $extra++) {
+        $rows[] = ['id' => 20 + $extra, 'parent_id' => 4 + $extra, 'label' => 'extra-' . $extra];
+    }
+    $root = ($i % 3) + 1;
+    $recursive = $i % 2 === 0;
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::recursiveCascadeVsTrigger($rows, $root, $recursive);
+    $case = 'fkey2-4 recursive fk cascade ignores recursive trigger pragma ' . $i;
+    $fkRemaining = array_column($plan()['fk_remaining_ids'] === [] ? [] : array_map(static fn (int $id): array => ['id' => $id], $plan()['fk_remaining_ids']), 'id');
+    unset($fkRemaining);
+    foreach ([
+        'source' => 'fkey2.test fkey2-4.1..4.4',
+        'operation' => 'recursive-foreign-key-actions-ignore-recursive-trigger-pragma',
+        'status' => 'commit-ok',
+        'recursive_triggers' => $recursive,
+        'delete_root' => $root,
+        'fk_cascade_ignores_recursive_trigger_pragma' => true,
+        'dependencies.0' => 'sqlite-fkey2-recursive-cascade-actions-ignore-recursive-triggers',
+        'dependencies.1' => 'sqlite-trigger-recursion-pragma-only-controls-trigger-programs',
+    ] as $path => $expected) {
+        $tests[$case . ' ' . $path] = static function (TestRunner $t) use ($plan, $path, $expected, $value): void {
+            $t->same($expected, $value($plan(), (string) $path));
+        };
+    }
+    $tests[$case . ' fk cascade deletes root'] = static function (TestRunner $t) use ($plan, $root): void {
+        $t->same(false, in_array($root, $plan()['fk_remaining_ids'], true));
+    };
+    $tests[$case . ' fk cascade reaches deeper than trigger when disabled'] = static function (TestRunner $t) use ($plan, $recursive): void {
+        $actual = $plan();
+        $t->same($recursive || count($actual['fk_remaining_ids']) <= count($actual['trigger_remaining_ids']), true);
+    };
+    $tests[$case . ' fk delete count covers at least trigger delete count'] = static function (TestRunner $t) use ($plan): void {
+        $actual = $plan();
+        $t->same(true, $actual['fk_delete_count'] >= $actual['trigger_delete_count']);
+    };
+    $tests[$case . ' recursive trigger on matches fk depth'] = static function (TestRunner $t) use ($plan, $recursive): void {
+        $actual = $plan();
+        $t->same($recursive ? $actual['fk_remaining_ids'] : true, $recursive ? $actual['trigger_remaining_ids'] : true);
+    };
+}
+
+for ($i = 1; $i <= 34; $i++) {
+    $parents = ['A', 'B'];
+    if ($i % 3 === 0) {
+        $parents[] = 'C';
+    }
+    $children = ['a', 'b'];
+    if ($i % 4 === 0) {
+        $children[] = 'c';
+    }
+    $repairedParents = array_values(array_filter($parents, static function (string $parent) use ($children): bool {
+        foreach ($children as $child) {
+            if (strcasecmp($child, $parent) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }));
+    $restrict = $i % 2 === 0;
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::restrictReinsertAfterDeleteTrigger($parents, $children, $restrict);
+    $case = 'fkey2-12.2 after delete trigger reinsert restrict interaction ' . $i;
+    foreach ([
+        'source' => 'fkey2.test fkey2-12.2.1..12.2.4',
+        'operation' => 'after-delete-trigger-reinsert-versus-restrict',
+        'status' => $restrict ? 'constraint-failed' : 'commit-ok',
+        'restrict' => $restrict,
+        'parent_rows' => $restrict ? $parents : $repairedParents,
+        'child_rows' => $children,
+        'violation' => $restrict ? 'FOREIGN KEY constraint failed' : null,
+        'nocase_lookup' => true,
+        'dependencies.0' => 'sqlite-fkey2-restrict-prevents-after-delete-repair-trigger',
+        'dependencies.1' => 'sqlite-trigger-when-exists-uses-parent-collation',
+    ] as $path => $expected) {
+        $tests[$case . ' ' . $path] = static function (TestRunner $t) use ($plan, $path, $expected, $value): void {
+            $t->same($expected, $value($plan(), (string) $path));
+        };
+    }
+    $tests[$case . ' non restrict trigger repairs all child parents'] = static function (TestRunner $t) use ($plan, $restrict, $repairedParents): void {
+        $t->same($restrict ? [] : $repairedParents, $restrict ? [] : $plan()['trigger_reinserted']);
+    };
+}
+
+for ($i = 1; $i <= 36; $i++) {
+    $old = $i % 2 === 0 ? 'yes' : 'alpha';
+    $new = $i % 2 === 0 ? 'possibly' : 'omega';
+    $other = $i % 3 === 0 ? [['c34' => 'spare', 'c35' => 'row']] : [];
+    $parents = array_merge([['c34' => $old, 'c35' => 'no']], $other);
+    $children = array_merge([['c39' => $old, 'c38' => 'no']], array_map(static fn (array $row): array => ['c39' => $row['c34'], 'c38' => $row['c35']], $other));
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::compositeCascadeColumnMapping($parents, $children, $old, $new);
+    $case = 'fkey2-12.3 composite cascade swapped reference columns ' . $i;
+    foreach ([
+        'source' => 'fkey2.test fkey2-12.3.1..12.3.5',
+        'operation' => 'composite-foreign-key-cascade-swapped-column-mapping',
+        'status' => 'commit-ok',
+        'selected_child_pairs.0' => ['no', $new],
+        'updated_parent_key.from' => $old,
+        'updated_parent_key.to' => $new,
+        'child_reference_mapping.c39' => 'c34',
+        'child_reference_mapping.c38' => 'c35',
+        'dependencies.0' => 'sqlite-fkey2-composite-cascade-column-order',
+        'dependencies.1' => 'sqlite-composite-primary-key-reference-default-column-list',
+    ] as $path => $expected) {
+        $tests[$case . ' ' . $path] = static function (TestRunner $t) use ($plan, $path, $expected, $value): void {
+            $t->same($expected, $value($plan(), (string) $path));
+        };
+    }
+    $tests[$case . ' unchanged child c38 keeps parent second column'] = static function (TestRunner $t) use ($plan): void {
+        $t->same('no', $plan()['child_rows'][0]['c38']);
+    };
+    $tests[$case . ' child c39 follows parent c34'] = static function (TestRunner $t) use ($plan, $new): void {
+        $t->same($new, $plan()['child_rows'][0]['c39']);
+    };
+}
+
 $tests['trigger1 schema duplicate trigger records upstream error'] = static function (TestRunner $t): void {
     $plan = SQLiteDynamicTriggerForeignKeyPlan::schemaLifecycle(
         [['name' => 'items', 'object_type' => 'table']],

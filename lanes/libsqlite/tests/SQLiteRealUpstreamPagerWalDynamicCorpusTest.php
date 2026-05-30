@@ -142,4 +142,98 @@ for ($variant = 1; $variant <= 12; $variant++) {
     };
 }
 
+for ($variant = 1; $variant <= 24; $variant++) {
+    $frames = [
+        [2, 0, $page(sprintf('wal-mvcc-%02d-page2-draft', $variant))],
+        [3, 3, $page(sprintf('wal-mvcc-%02d-page3-commit', $variant))],
+        [2, 0, $page(sprintf('wal-mvcc-%02d-page2-writer', $variant))],
+        [4, 4, $page(sprintf('wal-mvcc-%02d-page4-commit', $variant))],
+        [2, 0, $page(sprintf('wal-mvcc-%02d-page2-tail', $variant))],
+        [3, 4, $page(sprintf('wal-mvcc-%02d-page3-next', $variant))],
+    ];
+    $walBytes = $makeWal($frames, 1300 + $variant, 0xb1b10000 + $variant, 0xc1c10000 + $variant);
+    $wal = SQLiteWal::parse($walBytes, $pageSize, true);
+    $upstream = ($variant % 2) === 0
+        ? 'wal.test wal-2.1..2.6 reader keeps old snapshot until commit'
+        : 'wal.test wal-1.4..1.5 committed writer rows become visible';
+
+    $tests[sprintf('real upstream pager wal dynamic corpus mvcc %02d %s', $variant, $upstream)] = static function (TestRunner $t) use ($wal, $databaseBytes, $variant): void {
+        $transactions = $wal->committedTransactions();
+        $pageImages = $wal->pageImagesThroughLastCommit();
+        $earlyPage2 = $wal->readerSnapshotPageImage($databaseBytes, 2, 2);
+        $latePage2 = $wal->readerSnapshotPageImage($databaseBytes, 2, 6);
+        $latePage3 = $wal->readerSnapshotPageImage($databaseBytes, 3, 6);
+        $basePage1 = $wal->readerSnapshotPageImage($databaseBytes, 1, 6);
+        $map = $wal->readerSnapshotPageMap($databaseBytes, 6);
+
+        $t->same(3, count($transactions));
+        $t->same(['first_frame' => 1, 'last_frame' => 2, 'database_page_count' => 3, 'page_numbers' => [2, 3]], $transactions[0]);
+        $t->same(['first_frame' => 3, 'last_frame' => 4, 'database_page_count' => 4, 'page_numbers' => [2, 4]], $transactions[1]);
+        $t->same(['first_frame' => 5, 'last_frame' => 6, 'database_page_count' => 4, 'page_numbers' => [2, 3]], $transactions[2]);
+        $t->same(6, $wal->lastCommitFrame()?->index);
+        $t->same(0, $wal->uncommittedFrameCount());
+        $t->same([2, 3, 4], array_keys($pageImages));
+        $t->contains(sprintf('wal-mvcc-%02d-page2-tail', $variant), $pageImages[2]);
+        $t->contains(sprintf('wal-mvcc-%02d-page3-next', $variant), $pageImages[3]);
+        $t->contains(sprintf('wal-mvcc-%02d-page4-commit', $variant), $pageImages[4]);
+        $t->same('wal', $earlyPage2['source']);
+        $t->same(1, $earlyPage2['frame_index']);
+        $t->same(2, $earlyPage2['snapshot_commit_frame']);
+        $t->same('wal', $latePage2['source']);
+        $t->same(5, $latePage2['frame_index']);
+        $t->same(6, $latePage2['snapshot_commit_frame']);
+        $t->same('wal', $latePage3['source']);
+        $t->same(6, $latePage3['frame_index']);
+        $t->same('database', $basePage1['source']);
+        $t->same(null, $basePage1['frame_index']);
+        $t->same([1, 2, 3, 4], array_column($map, 'page_number'));
+        $t->same(['database', 'wal', 'wal', 'wal'], array_column($map, 'source'));
+        $t->same([null, 5, 6, 4], array_column($map, 'frame_index'));
+    };
+}
+
+for ($variant = 1; $variant <= 20; $variant++) {
+    $currentFrames = [
+        [2, 0, $page(sprintf('wal2-current-%02d-page2-draft', $variant))],
+        [3, 4, $page(sprintf('wal2-current-%02d-page3-commit', $variant))],
+    ];
+    $nextFrames = [
+        [2, 0, $page(sprintf('wal2-next-%02d-page2-draft', $variant))],
+        [4, 4, $page(sprintf('wal2-next-%02d-page4-commit', $variant))],
+        [3, 0, $page(sprintf('wal2-next-%02d-page3-stale-tail', $variant))],
+    ];
+    $currentWalBytes = $makeWal($currentFrames, 1500 + $variant, 0xd1d10000 + $variant, 0xe1e10000 + $variant);
+    $nextWalBytes = $makeWal($nextFrames, 1600 + $variant, 0xf1f10000 + $variant, 0xa2a20000 + $variant);
+    if (($variant % 3) === 0) {
+        $nextWalBytes .= substr($currentWalBytes, -12);
+    }
+    $upstream = ($variant % 2) === 0
+        ? 'wal2.test wal2-2 stale wal-index header drops to previous snapshot'
+        : 'walrestart.test 1.2..1.5 checkpoint restart observes new salt snapshot';
+
+    $tests[sprintf('real upstream pager wal dynamic corpus salt restart %02d %s', $variant, $upstream)] = static function (TestRunner $t) use ($currentWalBytes, $nextWalBytes, $databaseBytes, $variant): void {
+        $restart = SQLiteWal::checksumSaltRecoveryCurrentNext($currentWalBytes, $nextWalBytes, $databaseBytes, [2, 3, 4]);
+        $current = $restart['current'];
+        $next = $restart['next'];
+
+        $t->same('salt-recovered-current-next', $restart['status']);
+        $t->same(true, $restart['salt_changed']);
+        $t->same(2, $restart['current_committed_frame_count']);
+        $t->same(2, $restart['next_committed_frame_count']);
+        $t->same([], $restart['current_reader_errors']);
+        $t->same([], $restart['next_reader_errors']);
+        $t->same(['wal', 'wal', 'database'], $restart['current_reader_sources']);
+        $t->same(['wal', 'database', 'wal'], $restart['next_reader_sources']);
+        $t->same([1, 2, null], $restart['current_reader_frame_indexes']);
+        $t->same([1, null, 2], $restart['next_reader_frame_indexes']);
+        $t->same(true, $restart['images_changed']);
+        $t->same(4, $current['last_commit_page_count']);
+        $t->same(4, $next['last_commit_page_count']);
+        $t->same(true, $current['can_checkpoint']);
+        $t->same(true, $next['can_checkpoint']);
+        $t->same(($variant % 3) === 0 ? 1 : 0, $restart['next_discarded_corrupt_tail_frame_count']);
+        $t->contains('sqlite-wal-checksum-salt-recovery-current-next70', implode(',', $restart['dependencies']));
+    };
+}
+
 return $tests;

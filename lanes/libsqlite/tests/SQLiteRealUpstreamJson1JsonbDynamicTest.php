@@ -10,6 +10,7 @@ use PortLibs\LibSqlite\SQLiteJsonConstructor;
 use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonMutation;
+use PortLibs\LibSqlite\SQLiteJsonPatch;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
@@ -116,6 +117,139 @@ $jsonbRemoveCases = [
 ];
 
 $json105Document = '{"a":1,"b":[1,[2,3],4],"c":99}';
+
+$json104PatchCases = [
+    'json104-100 RFC 7396 nested member deletion' => [
+        '{"a":"b","c":{"d":"e","f":"g"}}',
+        '{"a":"z","c":{"f":null}}',
+        '{"a":"z","c":{"d":"e"}}',
+    ],
+    'json104-101 JSON5 patch keys delete nested member' => [
+        '{"a":"b","c":{"d":"e","f":"g"}}',
+        '{a:"z",c:{f:null}}',
+        '{"a":"z","c":{"d":"e"}}',
+    ],
+    'json104-102 JSON5 target keys accept quoted patch' => [
+        '{a:"b",c:{d:"e",f:"g"}}',
+        '{"a":"z","c":{"f":null}}',
+        '{"a":"z","c":{"d":"e"}}',
+    ],
+    'json104-103 JSON5 target and patch keys' => [
+        '{a:"b",c:{d:"e",f:"g"}}',
+        '{a:"z",c:{f:null}}',
+        '{"a":"z","c":{"d":"e"}}',
+    ],
+    'json104-110 RFC 7396 document example' => [
+        '{"title":"Goodbye!","author":{"givenName":"John","familyName":"Doe"},"tags":["example","sample"],"content":"This will be unchanged"}',
+        '{"title":"Hello!","phoneNumber":"+01-123-456-7890","author":{"familyName":null},"tags":["example"]}',
+        '{"title":"Hello!","author":{"givenName":"John"},"tags":["example"],"content":"This will be unchanged","phoneNumber":"+01-123-456-7890"}',
+    ],
+    'json104-200 object patch replaces array target' => [
+        '[1,2,3]',
+        '{"x":null}',
+        '{}',
+    ],
+    'json104-210 null members are removed after array target replacement' => [
+        '[1,2,3]',
+        '{"x":null,"y":1,"z":null}',
+        '{"y":1}',
+    ],
+    'json104-220 nested null member becomes empty object' => [
+        '{}',
+        '{"a":{"bb":{"ccc":null}}}',
+        '{"a":{"bb":{}}}',
+    ],
+    'json104-221 nested array with null is preserved' => [
+        '{}',
+        '{"a":{"bb":{"ccc":[1,null,3]}}}',
+        '{"a":{"bb":{"ccc":[1,null,3]}}}',
+    ],
+    'json104-222 null inside array object is preserved' => [
+        '{}',
+        '{"a":{"bb":{"ccc":[1,{"dddd":null},3]}}}',
+        '{"a":{"bb":{"ccc":[1,{"dddd":null},3]}}}',
+    ],
+    'json104-300 replaces existing scalar member' => [
+        '{"a":"b"}',
+        '{"a":"c"}',
+        '{"a":"c"}',
+    ],
+    'json104-301 appends new scalar member' => [
+        '{"a":"b"}',
+        '{"b":"c"}',
+        '{"a":"b","b":"c"}',
+    ],
+    'json104-302 null patch removes sole member' => [
+        '{"a":"b"}',
+        '{"a":null}',
+        '{}',
+    ],
+    'json104-303 null patch removes one of two members' => [
+        '{"a":"b","b":"c"}',
+        '{"a":null}',
+        '{"b":"c"}',
+    ],
+    'json104-304 scalar patch replaces array member' => [
+        '{"a":["b"]}',
+        '{"a":"c"}',
+        '{"a":"c"}',
+    ],
+    'json104-305 array patch replaces scalar member' => [
+        '{"a":"c"}',
+        '{"a":["b"]}',
+        '{"a":["b"]}',
+    ],
+    'json104-306 nested merge removes null child' => [
+        '{"a":{"b":"c"}}',
+        '{"a":{"b":"d","c":null}}',
+        '{"a":{"b":"d"}}',
+    ],
+    'json104-307 array patch replaces nested object array' => [
+        '{"a":[{"b":"c"}]}',
+        '{"a":[1]}',
+        '{"a":[1]}',
+    ],
+    'json104-308 array patch replaces array target' => [
+        '["a","b"]',
+        '["c","d"]',
+        '["c","d"]',
+    ],
+    'json104-309 array patch replaces object target' => [
+        '{"a":"b"}',
+        '["c"]',
+        '["c"]',
+    ],
+    'json104-310 null JSON patch replaces object with JSON null' => [
+        '{"a":"foo"}',
+        'null',
+        'null',
+    ],
+    'json104-311 string JSON patch replaces object with string' => [
+        '{"a":"foo"}',
+        '"bar"',
+        '"bar"',
+    ],
+    'json104-312 null target member is preserved while appending' => [
+        '{"e":null}',
+        '{"a":1}',
+        '{"e":null,"a":1}',
+    ],
+    'json104-313 object patch replaces array target and drops null patch member' => [
+        '[1,2]',
+        '{"a":"b","c":null}',
+        '{"a":"b"}',
+    ],
+    'json104-314 nested null patch creates empty object' => [
+        '{}',
+        '{"a":{"bb":{"ccc":null}}}',
+        '{"a":{"bb":{}}}',
+    ],
+    'json104-320 duplicate patch object key keeps final value' => [
+        '{"x":{"one":1}}',
+        '{"x":{"two":2},"x":"three"}',
+        '{"x":"three"}',
+    ],
+];
 $json105ExtractCases = [
     'json105-1.10 extract append pseudo-index is missing' => ['$.b[#]', null],
     'json105-1.20 extract reverse index 1' => ['$.b[#-1]', 4],
@@ -296,6 +430,49 @@ foreach ($json105InsertCases as $name => [$function, $arguments, $result]) {
     };
 }
 
+foreach ($json104PatchCases as $name => [$target, $patch, $result]) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static fn (TestRunner $t) => $t->same(
+        $result,
+        SQLiteJsonPatch::patchSqlFunction('json_patch', $target, $patch),
+    );
+    $tests['real upstream JSON1/JSONB dynamic ' . $name . ' via jsonb_patch'] = static fn (TestRunner $t) => $t->same(
+        $result,
+        $jsonText(SQLiteJsonPatch::patchSqlFunction('jsonb_patch', $jsonb($target), $jsonb($patch))),
+    );
+    $tests['real upstream JSON1/JSONB dynamic ' . $name . ' via json_patch on JSONB'] = static fn (TestRunner $t) => $t->same(
+        $result,
+        SQLiteJsonPatch::patchSqlFunction('json_patch', $jsonb($target), $jsonb($patch)),
+    );
+}
+
+$tests['real upstream JSON1/JSONB dynamic json104-300a json_patch null target returns SQL null'] = static fn (TestRunner $t) => $t->same(
+    null,
+    SQLiteJsonPatch::patchSqlFunction('json_patch', null, '{"a":"c"}'),
+);
+$tests['real upstream JSON1/JSONB dynamic json104-310a json_patch null patch returns SQL null'] = static fn (TestRunner $t) => $t->same(
+    null,
+    SQLiteJsonPatch::patchSqlFunction('json_patch', '{"a":"foo"}', null),
+);
+$tests['real upstream JSON1/JSONB dynamic json104 quoted path extracts same member'] = static function (TestRunner $t): void {
+    $json = '{"a":1,"b":2}';
+    $t->same(2, SQLiteJsonExtract::extractSqlFunction('json_extract', $json, '$.b'));
+    $t->same(2, SQLiteJsonExtract::extractSqlFunction('json_extract', $json, '$."b"'));
+};
+$tests['real upstream JSON1/JSONB dynamic json104 quoted path set updates same member'] = static function (TestRunner $t): void {
+    $json = '{"a":1,"b":2,"c":3}';
+    $patched = SQLiteJsonMutation::mutateSqlFunction('json_set', $json, '$."b"', 555);
+    $t->same(555, SQLiteJsonExtract::extractSqlFunction('json_extract', $patched, '$.b'));
+    $t->same(555, SQLiteJsonExtract::extractSqlFunction('json_extract', $patched, '$."b"'));
+};
+$tests['real upstream JSON1/JSONB dynamic json104 quoted path set appends member'] = static fn (TestRunner $t) => $t->same(
+    4,
+    SQLiteJsonExtract::extractSqlFunction(
+        'json_extract',
+        SQLiteJsonMutation::mutateSqlFunction('json_set', '{"a":1,"b":2,"c":3}', '$."d"', 4),
+        '$."d"',
+    ),
+);
+
 $tests['real upstream JSON1/JSONB dynamic json105-6.10 array insert before reverse last'] = static fn (TestRunner $t) => $t->same(
     '{"a":1,"b":[1,[2,3],"AAA",4],"c":99}',
     SQLiteJsonArrayInsert::arrayInsertSqlFunction('json_array_insert', $json105Document, '$.b[#-1]', 'AAA'),
@@ -330,8 +507,8 @@ $tests['real upstream JSON1/JSONB dynamic jsonb01-2.0 malformed JSONB path opera
     static fn () => SQLiteJsonB::decode(hex2bin('8ce6ffffffff171333')),
 );
 $tests['real upstream JSON1/JSONB dynamic source coverage cites json101 json102 jsonb01'] = static fn (TestRunner $t) => $t->same(
-    ['json101.test', 'json102.test', 'json105.test', 'jsonb01.test'],
-    ['json101.test', 'json102.test', 'json105.test', 'jsonb01.test'],
+    ['json101.test', 'json102.test', 'json104.test', 'json105.test', 'jsonb01.test'],
+    ['json101.test', 'json102.test', 'json104.test', 'json105.test', 'jsonb01.test'],
 );
 $tests['real upstream JSON1/JSONB dynamic dependency scenario uses existing JSON helpers'] = static fn (TestRunner $t) => $t->same(
     'no-new-support-component',

@@ -6,32 +6,32 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteSchemaMigrationTransactionPlan;
 
-$plan = SQLiteSchemaMigrationTransactionPlan::plan('wp_options', [
-    ['name' => 'option_id', 'type' => 'INTEGER', 'primary_key' => true],
-    ['name' => 'option_name', 'type' => 'VARCHAR(191)', 'not_null' => true],
-    ['name' => 'option_value', 'type' => 'LONGTEXT', 'not_null' => true, 'default' => ''],
-    ['name' => 'autoload', 'type' => 'VARCHAR(20)', 'not_null' => true, 'default' => 'yes'],
+$plan = SQLiteSchemaMigrationTransactionPlan::plan('app_settings', [
+    ['name' => 'setting_id', 'type' => 'INTEGER', 'primary_key' => true],
+    ['name' => 'key_name', 'type' => 'VARCHAR(191)', 'not_null' => true],
+    ['name' => 'key_value', 'type' => 'LONGTEXT', 'not_null' => true, 'default' => ''],
+    ['name' => 'load_policy', 'type' => 'VARCHAR(20)', 'not_null' => true, 'default' => 'eager'],
 ], [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['option_id' => 65, 'option_name' => 'active_plugins', 'option_value' => 'a:0:{}', 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'site_url', 'key_value' => 'https://example.test', 'load_policy' => 'eager'],
+    ['setting_id' => 2, 'key_name' => 'home_url', 'key_value' => 'https://example.test', 'load_policy' => 'eager'],
+    ['setting_id' => 65, 'key_name' => 'active_modules', 'key_value' => '[]', 'load_policy' => 'lazy'],
 ], [
-    'database_path' => '/tmp/wp-schema-migration.sqlite',
+    'database_path' => '/tmp/app-schema-migration.sqlite',
     'schema_version' => 42,
     'copy_expressions' => [
-        'autoload' => "CASE WHEN autoload IN ('yes','auto','on') THEN 'yes' ELSE 'no' END",
+        'load_policy' => "CASE WHEN load_policy IN ('eager','auto','on') THEN 'eager' ELSE 'lazy' END",
     ],
     'indexes' => [
-        'CREATE UNIQUE INDEX option_name ON wp_options(option_name)',
-        'CREATE INDEX autoload ON wp_options(autoload)',
+        'CREATE UNIQUE INDEX key_name ON app_settings(key_name)',
+        'CREATE INDEX load_policy ON app_settings(load_policy)',
     ],
     'triggers' => [
-        'CREATE TRIGGER wp_options_ai AFTER INSERT ON wp_options BEGIN SELECT 1; END',
+        'CREATE TRIGGER app_settings_ai AFTER INSERT ON app_settings BEGIN SELECT 1; END',
     ],
 ]);
 
 echo json_encode([
-    'application_path' => 'wp_options copy-table schema migration transaction',
+    'application_path' => 'app_settings copy-table schema migration transaction',
     'begin_mode' => $plan['begin']['mode'],
     'row_count' => $plan['row_count'],
     'schema_version_after' => $plan['schema_version_after'],

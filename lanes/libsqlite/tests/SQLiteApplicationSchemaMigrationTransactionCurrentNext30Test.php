@@ -5,35 +5,35 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSchemaMigrationTransactionPlan;
 
 $columns = static fn (): array => [
-    ['name' => 'option_id', 'type' => 'INTEGER', 'primary_key' => true],
-    ['name' => 'option_name', 'type' => 'VARCHAR(191)', 'not_null' => true],
-    ['name' => 'option_value', 'type' => 'LONGTEXT', 'not_null' => true, 'default' => ''],
-    ['name' => 'autoload', 'type' => 'VARCHAR(20)', 'not_null' => true, 'default' => 'yes'],
+    ['name' => 'setting_id', 'type' => 'INTEGER', 'primary_key' => true],
+    ['name' => 'key_name', 'type' => 'VARCHAR(191)', 'not_null' => true],
+    ['name' => 'key_value', 'type' => 'LONGTEXT', 'not_null' => true, 'default' => ''],
+    ['name' => 'load_policy', 'type' => 'VARCHAR(20)', 'not_null' => true, 'default' => 'eager'],
 ];
 
 $rows = static fn (): array => [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
-    ['option_id' => 65, 'option_name' => 'active_plugins', 'option_value' => 'a:0:{}', 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'site_url', 'key_value' => 'https://old.example', 'load_policy' => 'eager'],
+    ['setting_id' => 2, 'key_name' => 'home_url', 'key_value' => 'https://old.example', 'load_policy' => 'eager'],
+    ['setting_id' => 65, 'key_name' => 'active_modules', 'key_value' => '[]', 'load_policy' => 'lazy'],
 ];
 
 $plan = static fn (array $options = []): array => SQLiteSchemaMigrationTransactionPlan::plan(
-    'wp_options',
+    'app_settings',
     $columns(),
     $rows(),
     array_replace([
-        'database_path' => '/tmp/wp-schema-migration.sqlite',
+        'database_path' => '/tmp/app-schema-migration.sqlite',
         'schema_version' => 42,
         'page_size' => 1024,
         'indexes' => [
-            'CREATE UNIQUE INDEX option_name ON wp_options(option_name)',
-            'CREATE INDEX autoload ON wp_options(autoload)',
+            'CREATE UNIQUE INDEX key_name ON app_settings(key_name)',
+            'CREATE INDEX load_policy ON app_settings(load_policy)',
         ],
         'triggers' => [
-            'CREATE TRIGGER wp_options_ai AFTER INSERT ON wp_options BEGIN SELECT 1; END',
+            'CREATE TRIGGER app_settings_ai AFTER INSERT ON app_settings BEGIN SELECT 1; END',
         ],
         'copy_expressions' => [
-            'autoload' => "CASE WHEN autoload IN ('yes','auto','on') THEN 'yes' ELSE 'no' END",
+            'load_policy' => "CASE WHEN load_policy IN ('eager','auto','on') THEN 'eager' ELSE 'lazy' END",
         ],
     ], $options)
 );
@@ -57,8 +57,8 @@ $cases = [
     'primary key column is tracked' => static fn (): mixed => $plan()['columns'][0]['primary_key'],
     'not null column is tracked' => static fn (): mixed => $plan()['columns'][1]['not_null'],
     'default string is tracked' => static fn (): mixed => $plan()['columns'][2]['default'],
-    'copy columns preserve option id identifier' => static fn (): mixed => $plan()['copy_columns']['option_id'],
-    'copy expression overrides autoload' => static fn (): mixed => $plan()['copy_columns']['autoload'],
+    'copy columns preserve setting id identifier' => static fn (): mixed => $plan()['copy_columns']['setting_id'],
+    'copy expression overrides load policy' => static fn (): mixed => $plan()['copy_columns']['load_policy'],
     'two indexes are preserved' => static fn (): mixed => count($plan()['indexes']),
     'trigger is preserved' => static fn (): mixed => $plan()['triggers'][0],
     'dirty pages include table page' => static fn (): mixed => $plan()['dirty_pages'][0],
@@ -69,14 +69,14 @@ $cases = [
     'first statement disables foreign keys' => static fn (): mixed => $plan()['statements'][0]['sql'],
     'second statement begins transaction' => static fn (): mixed => $plan()['statements'][1]['op'],
     'create statement names temporary table' => static fn (): mixed => $plan()['statements'][2]['table'],
-    'create SQL includes primary key' => static fn (): mixed => str_contains($plan()['statements'][2]['sql'], '"option_id" INTEGER PRIMARY KEY'),
+    'create SQL includes primary key' => static fn (): mixed => str_contains($plan()['statements'][2]['sql'], '"setting_id" INTEGER PRIMARY KEY'),
     'create SQL includes default literal' => static fn (): mixed => str_contains($plan()['statements'][2]['sql'], "DEFAULT ''"),
     'copy statement copies three rows' => static fn (): mixed => $plan()['statements'][3]['rows'],
     'copy statement lists migrated columns' => static fn (): mixed => $plan()['statements'][3]['columns'],
-    'copy SQL uses source table' => static fn (): mixed => str_contains($plan()['statements'][3]['sql'], 'FROM "wp_options"'),
-    'copy SQL uses autoload expression' => static fn (): mixed => str_contains($plan()['statements'][3]['sql'], "CASE WHEN autoload"),
+    'copy SQL uses source table' => static fn (): mixed => str_contains($plan()['statements'][3]['sql'], 'FROM "app_settings"'),
+    'copy SQL uses load policy expression' => static fn (): mixed => str_contains($plan()['statements'][3]['sql'], "CASE WHEN load_policy"),
     'drop statement drops source table' => static fn (): mixed => $plan()['statements'][4]['sql'],
-    'rename statement targets wp options' => static fn (): mixed => $plan()['statements'][5]['to'],
+    'rename statement targets app settings' => static fn (): mixed => $plan()['statements'][5]['to'],
     'index recreation follows rename' => static fn (): mixed => $plan()['statements'][6]['op'],
     'second index recreation follows first' => static fn (): mixed => $plan()['statements'][7]['op'],
     'trigger recreation follows indexes' => static fn (): mixed => $plan()['statements'][8]['op'],
@@ -94,18 +94,18 @@ $cases = [
     'foreign keys off skips check statement' => static fn (): mixed => in_array('PRAGMA foreign_key_check', array_column($plan(['foreign_keys' => false])['statements'], 'sql'), true),
     'strict create suffix is emitted' => static fn (): mixed => str_ends_with($plan(['strict' => true])['statements'][2]['sql'], ' STRICT'),
     'without rowid create suffix is emitted' => static fn (): mixed => str_contains($plan(['without_rowid' => true])['statements'][2]['sql'], 'WITHOUT ROWID'),
-    'custom temporary name is preserved' => static fn (): mixed => $plan(['temporary_name' => '__wp_tmp_options'])['temporary_table'],
-    'custom target name is preserved' => static fn (): mixed => $plan(['target_name' => 'wp_options_new'])['target_table'],
+    'custom temporary name is preserved' => static fn (): mixed => $plan(['temporary_name' => '__app_tmp_settings'])['temporary_table'],
+    'custom target name is preserved' => static fn (): mixed => $plan(['target_name' => 'app_settings_new'])['target_table'],
     'larger row count expands dirty table pages' => static function () use ($columns): mixed {
         $many = [];
         for ($i = 1; $i <= 97; $i++) {
-            $many[] = ['option_id' => $i, 'option_name' => 'option_' . $i, 'option_value' => 'v', 'autoload' => 'no'];
+            $many[] = ['setting_id' => $i, 'key_name' => 'setting_' . $i, 'key_value' => 'v', 'load_policy' => 'lazy'];
         }
-        return SQLiteSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $many, ['database_path' => '/tmp/wp-schema-migration.sqlite'])['dirty_pages'];
+        return SQLiteSchemaMigrationTransactionPlan::plan('app_settings', $columns(), $many, ['database_path' => '/tmp/app-schema-migration.sqlite'])['dirty_pages'];
     },
     'deferred begin is rejected' => static function () use ($columns, $rows): mixed {
         try {
-            SQLiteSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $rows(), ['begin' => 'BEGIN DEFERRED']);
+            SQLiteSchemaMigrationTransactionPlan::plan('app_settings', $columns(), $rows(), ['begin' => 'BEGIN DEFERRED']);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -113,7 +113,7 @@ $cases = [
     },
     'unsafe database path is rejected' => static function () use ($columns, $rows): mixed {
         try {
-            SQLiteSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $rows(), ['database_path' => '../wp.sqlite']);
+            SQLiteSchemaMigrationTransactionPlan::plan('app_settings', $columns(), $rows(), ['database_path' => '../app.sqlite']);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -121,7 +121,7 @@ $cases = [
     },
     'invalid table name is rejected' => static function () use ($columns, $rows): mixed {
         try {
-            SQLiteSchemaMigrationTransactionPlan::plan('wp-options', $columns(), $rows());
+            SQLiteSchemaMigrationTransactionPlan::plan('app-settings', $columns(), $rows());
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -129,7 +129,7 @@ $cases = [
     },
     'invalid copy expression target is rejected' => static function () use ($columns, $rows): mixed {
         try {
-            SQLiteSchemaMigrationTransactionPlan::plan('wp_options', $columns(), $rows(), ['copy_expressions' => ['missing' => '1']]);
+            SQLiteSchemaMigrationTransactionPlan::plan('app_settings', $columns(), $rows(), ['copy_expressions' => ['missing' => '1']]);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -139,10 +139,10 @@ $cases = [
 
 $expected = [
     'status is planned' => 'planned',
-    'database path is preserved' => '/tmp/wp-schema-migration.sqlite',
-    'source table is preserved' => 'wp_options',
-    'default temporary table is derived' => '__wp_migrate_wp_options',
-    'default target table matches source' => 'wp_options',
+    'database path is preserved' => '/tmp/app-schema-migration.sqlite',
+    'source table is preserved' => 'app_settings',
+    'default temporary table is derived' => '__app_migrate_app_settings',
+    'default target table matches source' => 'app_settings',
     'begin mode is immediate' => 'immediate',
     'begin write lock is acquired' => true,
     'foreign keys default enabled' => true,
@@ -156,10 +156,10 @@ $expected = [
     'primary key column is tracked' => true,
     'not null column is tracked' => true,
     'default string is tracked' => '',
-    'copy columns preserve option id identifier' => '"option_id"',
-    'copy expression overrides autoload' => "CASE WHEN autoload IN ('yes','auto','on') THEN 'yes' ELSE 'no' END",
+    'copy columns preserve setting id identifier' => '"setting_id"',
+    'copy expression overrides load policy' => "CASE WHEN load_policy IN ('eager','auto','on') THEN 'eager' ELSE 'lazy' END",
     'two indexes are preserved' => 2,
-    'trigger is preserved' => 'CREATE TRIGGER wp_options_ai AFTER INSERT ON wp_options BEGIN SELECT 1; END',
+    'trigger is preserved' => 'CREATE TRIGGER app_settings_ai AFTER INSERT ON app_settings BEGIN SELECT 1; END',
     'dirty pages include table page' => 2,
     'dirty pages include first index page' => 3,
     'dirty pages include second index page' => 4,
@@ -167,15 +167,15 @@ $expected = [
     'sync targets are journal database directory' => ['rollback_journal', 'database', 'directory'],
     'first statement disables foreign keys' => 'PRAGMA foreign_keys=OFF',
     'second statement begins transaction' => 'begin',
-    'create statement names temporary table' => '__wp_migrate_wp_options',
+    'create statement names temporary table' => '__app_migrate_app_settings',
     'create SQL includes primary key' => true,
     'create SQL includes default literal' => true,
     'copy statement copies three rows' => 3,
-    'copy statement lists migrated columns' => ['option_id', 'option_name', 'option_value', 'autoload'],
+    'copy statement lists migrated columns' => ['setting_id', 'key_name', 'key_value', 'load_policy'],
     'copy SQL uses source table' => true,
-    'copy SQL uses autoload expression' => true,
-    'drop statement drops source table' => 'DROP TABLE "wp_options"',
-    'rename statement targets wp options' => 'wp_options',
+    'copy SQL uses load policy expression' => true,
+    'drop statement drops source table' => 'DROP TABLE "app_settings"',
+    'rename statement targets app settings' => 'app_settings',
     'index recreation follows rename' => 'recreate_index',
     'second index recreation follows first' => 'recreate_index',
     'trigger recreation follows indexes' => 'recreate_trigger',
@@ -183,7 +183,7 @@ $expected = [
     'foreign key check follows schema pragma' => 'PRAGMA foreign_key_check',
     'foreign key restore follows check' => 'PRAGMA foreign_keys=ON',
     'sync statements are appended' => ['sync', 'sync', 'sync'],
-    'rollback drops temporary table' => '__wp_migrate_wp_options',
+    'rollback drops temporary table' => '__app_migrate_app_settings',
     'rollback restores schema version' => 42,
     'rollback restores foreign key state' => true,
     'rollback records discarded statements' => 15,
@@ -193,8 +193,8 @@ $expected = [
     'foreign keys off skips check statement' => false,
     'strict create suffix is emitted' => true,
     'without rowid create suffix is emitted' => true,
-    'custom temporary name is preserved' => '__wp_tmp_options',
-    'custom target name is preserved' => 'wp_options_new',
+    'custom temporary name is preserved' => '__app_tmp_settings',
+    'custom target name is preserved' => 'app_settings_new',
     'larger row count expands dirty table pages' => [2, 3, 4],
     'deferred begin is rejected' => 'rejected',
     'unsafe database path is rejected' => 'rejected',

@@ -25,7 +25,7 @@ final class SQLiteSchemaMigrationTransactionPlan
         $indexes = self::normalizeSqlList($options['indexes'] ?? [], 'index');
         $triggers = self::normalizeSqlList($options['triggers'] ?? [], 'trigger');
         $copyExpressions = self::normalizeCopyExpressions($options['copy_expressions'] ?? [], $columns);
-        $temporaryName = self::normalizeIdentifier((string) ($options['temporary_name'] ?? '__wp_migrate_' . $tableName), 'temporary table name');
+        $temporaryName = self::normalizeIdentifier((string) ($options['temporary_name'] ?? '__app_migrate_' . $tableName), 'temporary table name');
         $targetName = self::normalizeIdentifier((string) ($options['target_name'] ?? $tableName), 'target table name');
 
         if ($databasePath === '' || $databasePath[0] !== '/' || str_contains($databasePath, "\0") || str_contains($databasePath, '..')) {

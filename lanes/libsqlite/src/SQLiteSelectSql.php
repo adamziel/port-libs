@@ -718,6 +718,7 @@ final class SQLiteSelectSql
      */
     private static function compoundOrderByMatchedColumn(string $sql, array $columns, array $selectArms): ?string
     {
+        $sql = self::unquoteIdentifier($sql) ?? $sql;
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $sql) === 1) {
             foreach ($selectArms as $select) {
                 foreach ($select as $index => $term) {
@@ -773,6 +774,9 @@ final class SQLiteSelectSql
      */
     private static function projectionExpressionForComparison(array $expression): array
     {
+        if (isset($expression['sourceExpression']) && is_array($expression['sourceExpression'])) {
+            $expression = $expression['sourceExpression'];
+        }
         unset($expression['alias'], $expression['hiddenOrderColumn']);
 
         return $expression;
@@ -3176,6 +3180,7 @@ final class SQLiteSelectSql
 
         $expression = trim(substr($item, 0, $as));
         $alias = trim(substr($item, $as + 2));
+        $alias = self::unquoteIdentifier($alias) ?? $alias;
         self::assertIdentifier($alias, 'SQLite SELECT SQL projection alias');
 
         return [$expression, $alias];
@@ -4433,10 +4438,13 @@ final class SQLiteSelectSql
         $rewritten = [];
         foreach ($select as $term) {
             $alias = $term['alias'] ?? null;
+            $sourceExpression = $term;
+            unset($sourceExpression['alias'], $sourceExpression['hiddenOrderColumn']);
             $term = self::rewriteAggregateExpression($term, $valueColumn);
             if ($alias !== null && !isset($term['alias'])) {
                 $term['alias'] = $alias;
             }
+            $term['sourceExpression'] = $sourceExpression;
             $rewritten[] = $term;
         }
 
@@ -5335,6 +5343,16 @@ final class SQLiteSelectSql
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $value) !== 1) {
             throw new \InvalidArgumentException("{$context} must be a simple identifier");
         }
+    }
+
+    private static function unquoteIdentifier(string $value): ?string
+    {
+        $value = trim($value);
+        if (strlen($value) < 2 || $value[0] !== '"' || $value[strlen($value) - 1] !== '"') {
+            return null;
+        }
+
+        return str_replace('""', '"', substr($value, 1, -1));
     }
 
     private static function assertBareIdentifier(string $value, string $context): void

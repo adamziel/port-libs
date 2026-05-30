@@ -98,6 +98,7 @@ final class SQLiteUpsertDoUpdateWherePlan
         self::validateRows($incomingRows, 'incoming');
         $uniqueConstraints = self::normalizeUniqueConstraints($uniqueConstraints[0] ?? [], $uniqueConstraints);
         $conflictArms = self::normalizeConflictArms($conflictArms);
+        self::validateConflictArmTargets($conflictArms, $uniqueConstraints);
 
         $before = $rows;
         $inserted = [];
@@ -365,6 +366,44 @@ final class SQLiteUpsertDoUpdateWherePlan
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param list<array{target:list<string>|null,action:string,assignments:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,where:callable(array<string,mixed>,array<string,mixed>):bool|null}> $conflictArms
+     * @param list<list<string>> $uniqueConstraints
+     */
+    private static function validateConflictArmTargets(array $conflictArms, array $uniqueConstraints): void
+    {
+        foreach ($conflictArms as $arm) {
+            if ($arm['target'] === null) {
+                continue;
+            }
+            if (!self::targetMatchesUniqueConstraint($arm['target'], $uniqueConstraints)) {
+                throw new \InvalidArgumentException('SQLite UPSERT ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint');
+            }
+        }
+    }
+
+    /**
+     * @param list<string> $target
+     * @param list<list<string>> $uniqueConstraints
+     */
+    private static function targetMatchesUniqueConstraint(array $target, array $uniqueConstraints): bool
+    {
+        $sortedTarget = $target;
+        sort($sortedTarget);
+        foreach ($uniqueConstraints as $constraint) {
+            if (count($constraint) !== count($target)) {
+                continue;
+            }
+            $sortedConstraint = $constraint;
+            sort($sortedConstraint);
+            if ($sortedConstraint === $sortedTarget) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

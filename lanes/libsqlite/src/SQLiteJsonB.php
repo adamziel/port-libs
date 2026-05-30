@@ -727,7 +727,7 @@ final class SQLiteJsonB
             throw new \InvalidArgumentException('SQLite JSONB object payload is malformed');
         }
 
-        if ($object === [] && $emptyObjectsAsStdClass) {
+        if ($object === []) {
             return new \stdClass();
         }
 

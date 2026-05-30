@@ -208,6 +208,46 @@ $tests['real upstream corpus select core dynamic select3 group aggregate cases']
 
 $addCases($tests, 'real upstream corpus select core dynamic', $select3Cases, $select3Tables);
 
+$select4Tables = ['t1' => $t1];
+
+$select4Cases = [
+    'select4.test select4-1.0 distinct logs' => ['SELECT DISTINCT log FROM t1 ORDER BY log', [0, 1, 2, 3, 4, 5]],
+    'select4.test select4-1.1a distinct logs unsorted arm' => ['SELECT DISTINCT log FROM t1 ORDER BY log', [0, 1, 2, 3, 4, 5]],
+    'select4.test select4-1.1b log three source values' => ['SELECT n FROM t1 WHERE log=3 ORDER BY n', [5, 6, 7, 8]],
+    'select4.test select4-1.1c union all ordered compound' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY log', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-1.1e union all descending compound' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY log DESC', [8, 7, 6, 5, 5, 4, 3, 2, 1, 0]],
+    'select4.test select4-1.1f union all without final order' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=2', [0, 1, 2, 3, 4, 5, 3, 4]],
+    'select4.test select4-2.1 union distinct ordered compound' => ['SELECT DISTINCT log FROM t1 UNION SELECT n FROM t1 WHERE log=3 ORDER BY log', [0, 1, 2, 3, 4, 5, 6, 7, 8]],
+    'select4.test select4-3.1.1 except ordered compound' => ['SELECT DISTINCT log FROM t1 EXCEPT SELECT n FROM t1 WHERE log=3 ORDER BY log', [0, 1, 2, 3, 4]],
+    'select4.test select4-3.1.3 except descending compound' => ['SELECT DISTINCT log FROM t1 EXCEPT SELECT n FROM t1 WHERE log=3 ORDER BY log DESC', [4, 3, 2, 1, 0]],
+    'select4.test select4-4.1.1 intersect ordered compound' => ['SELECT DISTINCT log FROM t1 INTERSECT SELECT n FROM t1 WHERE log=3 ORDER BY log', [5]],
+    'select4.test select4-4.1.2 union-all intersect precedence' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT 6 INTERSECT SELECT n FROM t1 WHERE log=3 ORDER BY log', [5, 6]],
+    'select4.test select4-4.1.4 union-all intersect descending' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT 6 INTERSECT SELECT n FROM t1 WHERE log=3 ORDER BY log DESC', [6, 5]],
+    'select4.test select4-5.2 quoted alias order' => ['SELECT DISTINCT log AS "xyzzy" FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY xyzzy', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-5.2b quoted order by alias' => ['SELECT DISTINCT log AS xyzzy FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY "xyzzy"', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-5.2e right-arm order name resolves' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY n', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-5.2f catchsql success ordered by log' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY log', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-5.2g ordinal order by one' => ['SELECT DISTINCT log FROM t1 UNION ALL SELECT n FROM t1 WHERE log=3 ORDER BY 1', [0, 1, 2, 3, 4, 5, 5, 6, 7, 8]],
+    'select4.test select4-5.2i two-column ordinal order' => ['SELECT DISTINCT 1, log FROM t1 UNION ALL SELECT 2, n FROM t1 WHERE log=3 ORDER BY 2, 1', [1, 0, 1, 1, 1, 2, 1, 3, 1, 4, 1, 5, 2, 5, 2, 6, 2, 7, 2, 8]],
+    'select4.test select4-5.2j two-column descending secondary order' => ['SELECT DISTINCT 1, log FROM t1 UNION ALL SELECT 2, n FROM t1 WHERE log=3 ORDER BY 1, 2 DESC', [1, 5, 1, 4, 1, 3, 1, 2, 1, 1, 1, 0, 2, 8, 2, 7, 2, 6, 2, 5]],
+    'select4.test select4-5.2k right-arm name with ordinal tiebreaker' => ['SELECT DISTINCT 1, log FROM t1 UNION ALL SELECT 2, n FROM t1 WHERE log=3 ORDER BY n, 1', [1, 0, 1, 1, 1, 2, 1, 3, 1, 4, 1, 5, 2, 5, 2, 6, 2, 7, 2, 8]],
+    'select4.test select4-5.4 chained union all order' => ['SELECT log FROM t1 WHERE n=2 UNION ALL SELECT log FROM t1 WHERE n=3 UNION ALL SELECT log FROM t1 WHERE n=4 UNION ALL SELECT log FROM t1 WHERE n=5 ORDER BY log', [1, 2, 2, 3]],
+    'select4.test select4-6.1 grouped arm union order by alias' => ['SELECT log, count(*) as cnt FROM t1 GROUP BY log UNION SELECT log, n FROM t1 WHERE n=7 ORDER BY cnt, log', [0, 1, 1, 1, 2, 2, 3, 4, 3, 7, 4, 8, 5, 15]],
+    'select4.test select4-6.2 grouped arm union order by aggregate text' => ['SELECT log, count(*) FROM t1 GROUP BY log UNION SELECT log, n FROM t1 WHERE n=7 ORDER BY count(*), log', [0, 1, 1, 1, 2, 2, 3, 4, 3, 7, 4, 8, 5, 15]],
+    'select4.test select4-6.3 union treats nulls as indistinct' => ['SELECT NULL UNION SELECT NULL UNION SELECT 1 UNION SELECT 2 AS x ORDER BY x', [null, 1, 2]],
+    'select4.test select4-6.3.1 union all preserves null duplicates' => ['SELECT NULL UNION ALL SELECT NULL UNION ALL SELECT 1 UNION ALL SELECT 2 AS x ORDER BY x', [null, null, 1, 2]],
+    'select4.test select4-6.7 null except null is empty' => ['SELECT NULL EXCEPT SELECT NULL', []],
+];
+
+$tests['real upstream corpus select core dynamic select4 compound cases'] = static function (TestRunner $t) use ($select4Cases, $select4Tables, $assertSelect): void {
+    foreach ($select4Cases as $name => [$sql, $expected]) {
+        $assertSelect($t, $sql, $select4Tables, $expected);
+        $t->contains('select4.test', $name);
+    }
+};
+
+$addCases($tests, 'real upstream corpus select core dynamic', $select4Cases, $select4Tables);
+
 $tests['real upstream corpus select core dynamic rejects missing table like select1-1.1'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT * FROM missing_table', []));
 };

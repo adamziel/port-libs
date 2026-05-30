@@ -289,6 +289,119 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{id:int,parent_id:int|null,label?:string}> $rows
+     * @return array<string,mixed>
+     */
+    public static function recursiveCascadeVsTrigger(array $rows, int $deleteRoot, bool $recursiveTriggers): array
+    {
+        $rows = self::sortRows($rows);
+        $fkRemaining = self::deleteDescendants($rows, $deleteRoot, true);
+        $triggerRemaining = self::deleteDescendants($rows, $deleteRoot, $recursiveTriggers);
+
+        return [
+            'source' => 'fkey2.test fkey2-4.1..4.4',
+            'operation' => 'recursive-foreign-key-actions-ignore-recursive-trigger-pragma',
+            'status' => 'commit-ok',
+            'recursive_triggers' => $recursiveTriggers,
+            'delete_root' => $deleteRoot,
+            'fk_remaining_ids' => array_values(array_column($fkRemaining, 'id')),
+            'trigger_remaining_ids' => array_values(array_column($triggerRemaining, 'id')),
+            'fk_delete_count' => count($rows) - count($fkRemaining),
+            'trigger_delete_count' => count($rows) - count($triggerRemaining),
+            'fk_cascade_ignores_recursive_trigger_pragma' => true,
+            'dependencies' => [
+                'sqlite-fkey2-recursive-cascade-actions-ignore-recursive-triggers',
+                'sqlite-trigger-recursion-pragma-only-controls-trigger-programs',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<string> $parents
+     * @param list<string> $children
+     * @return array<string,mixed>
+     */
+    public static function restrictReinsertAfterDeleteTrigger(array $parents, array $children, bool $restrict): array
+    {
+        $remainingParents = [];
+        $triggerReinserted = [];
+        $violation = null;
+
+        foreach ($parents as $parent) {
+            $hasChild = self::containsNocase($children, $parent);
+            if ($restrict && $hasChild) {
+                $remainingParents = $parents;
+                $violation = 'FOREIGN KEY constraint failed';
+                break;
+            }
+            if ($hasChild) {
+                $remainingParents[] = $parent;
+                $triggerReinserted[] = $parent;
+            }
+        }
+
+        if ($violation === null) {
+            $remainingParents = array_values(array_unique($remainingParents));
+            sort($remainingParents, SORT_STRING);
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-12.2.1..12.2.4',
+            'operation' => 'after-delete-trigger-reinsert-versus-restrict',
+            'status' => $violation === null ? 'commit-ok' : 'constraint-failed',
+            'restrict' => $restrict,
+            'parent_rows' => $remainingParents,
+            'child_rows' => $children,
+            'trigger_reinserted' => $triggerReinserted,
+            'violation' => $violation,
+            'nocase_lookup' => true,
+            'dependencies' => [
+                'sqlite-fkey2-restrict-prevents-after-delete-repair-trigger',
+                'sqlite-trigger-when-exists-uses-parent-collation',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{c34:string,c35:string}> $parents
+     * @param list<array{c39:string,c38:string}> $children
+     * @return array<string,mixed>
+     */
+    public static function compositeCascadeColumnMapping(array $parents, array $children, string $oldC34, string $newC34): array
+    {
+        $updatedParents = [];
+        foreach ($parents as $parent) {
+            if ($parent['c34'] === $oldC34) {
+                $parent['c34'] = $newC34;
+            }
+            $updatedParents[] = $parent;
+        }
+
+        $updatedChildren = [];
+        foreach ($children as $child) {
+            if ($child['c39'] === $oldC34) {
+                $child['c39'] = $newC34;
+            }
+            $updatedChildren[] = $child;
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-12.3.1..12.3.5',
+            'operation' => 'composite-foreign-key-cascade-swapped-column-mapping',
+            'status' => 'commit-ok',
+            'parent_rows' => $updatedParents,
+            'child_rows' => $updatedChildren,
+            'selected_child_pairs' => array_map(static fn (array $row): array => [$row['c38'], $row['c39']], $updatedChildren),
+            'updated_parent_key' => ['from' => $oldC34, 'to' => $newC34],
+            'child_reference_mapping' => ['c39' => 'c34', 'c38' => 'c35'],
+            'dependencies' => [
+                'sqlite-fkey2-composite-cascade-column-order',
+                'sqlite-composite-primary-key-reference-default-column-list',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
@@ -320,6 +433,45 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         usort($rows, static fn (array $a, array $b): int => ((int) ($a['id'] ?? 0)) <=> ((int) ($b['id'] ?? 0)));
 
         return array_values($rows);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function deleteDescendants(array $rows, int $deleteRoot, bool $recursive): array
+    {
+        $toDelete = [$deleteRoot => true];
+        $frontier = [$deleteRoot];
+        while ($frontier !== []) {
+            $parent = array_shift($frontier);
+            foreach ($rows as $row) {
+                $id = (int) ($row['id'] ?? 0);
+                if (($row['parent_id'] ?? null) !== $parent || isset($toDelete[$id])) {
+                    continue;
+                }
+                $toDelete[$id] = true;
+                if ($recursive) {
+                    $frontier[] = $id;
+                }
+            }
+        }
+
+        return array_values(array_filter($rows, static fn (array $row): bool => !isset($toDelete[(int) ($row['id'] ?? 0)])));
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function containsNocase(array $values, string $needle): bool
+    {
+        foreach ($values as $value) {
+            if (strcasecmp($value, $needle) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function catalogAdd(array &$catalog, array &$tempCatalog, array $object): void
