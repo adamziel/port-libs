@@ -619,7 +619,7 @@ final class SQLiteSelectExpression
             '-' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric - (int) $rightNumeric : $leftNumeric - $rightNumeric,
             '*' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric * (int) $rightNumeric : $leftNumeric * $rightNumeric,
             '/' => self::integerLike($leftNumeric, $rightNumeric) ? intdiv((int) $leftNumeric, (int) $rightNumeric) : $leftNumeric / $rightNumeric,
-            '%' => (int) $leftNumeric % (int) $rightNumeric,
+            '%' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric % (int) $rightNumeric : (float) ((int) $leftNumeric % (int) $rightNumeric),
             default => throw new \InvalidArgumentException("SQLite SELECT numeric operator {$operator} is not supported"),
         };
     }
