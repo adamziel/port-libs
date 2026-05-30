@@ -19921,6 +19921,14 @@ final class SQLiteUpstreamSuiteEvidence
         $scriptList = array_keys($scripts);
         sort($scriptList, SORT_STRING);
 
+        if (count($advanced) > 1) {
+            $blockers[] = [
+                'id' => 'suite-evidence-multiple-advanced-rows',
+                'unit' => implode(', ', $advanced),
+                'evidence' => 'suite evidence slices may advance only one bounded row; additional next rows must use separate focused evidence slices',
+            ];
+        }
+
         $blocked = $blockers !== [];
         $mappedDelta = count($advanced) > 0 ? 1 : 0;
         $currentNextIds = [];

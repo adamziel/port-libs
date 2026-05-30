@@ -151,6 +151,18 @@ $tests['upstream corpus window groups range current next18 inline base window gr
     $t->same([40, 40, 80, 100, 100, 40], array_column($rows, 'window_sum'));
 };
 
+$tests['upstream corpus window groups range current next18 inline base window partitioned groups frame inherits order'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute('SELECT sum(bytes) OVER (framed GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_sum FROM app_cache_entries WINDOW framed AS (PARTITION BY autoload ORDER BY bytes) ORDER BY option_id', ['app_cache_entries' => $options]);
+
+    $t->same([20, 20, 80, 100, 100, 40], array_column($rows, 'window_sum'));
+};
+
+$tests['upstream corpus window groups range current next18 inline base window partitioned range frame inherits order'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute('SELECT count(*) OVER (framed RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING) AS window_count FROM app_cache_entries WINDOW framed AS (PARTITION BY autoload ORDER BY bytes) ORDER BY option_id', ['app_cache_entries' => $options]);
+
+    $t->same([2, 2, 3, 3, 3, 1], array_column($rows, 'window_count'));
+};
+
 $tests['upstream corpus window groups range current next18 inline base window range frame without inherited order rejects'] = static function (TestRunner $t) use ($options): void {
     try {
         SQLiteSelectSql::execute('SELECT count(*) OVER (framed RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING) FROM app_cache_entries WINDOW framed AS (PARTITION BY autoload)', ['app_cache_entries' => $options]);
@@ -160,6 +172,17 @@ $tests['upstream corpus window groups range current next18 inline base window ra
     }
 
     throw new RuntimeException('Expected inline base-window RANGE frame without inherited ORDER BY to be rejected');
+};
+
+$tests['upstream corpus window groups range current next18 inline base window groups frame without inherited order rejects'] = static function (TestRunner $t) use ($options): void {
+    try {
+        SQLiteSelectSql::execute('SELECT sum(bytes) OVER (framed GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM app_cache_entries WINDOW framed AS (PARTITION BY autoload)', ['app_cache_entries' => $options]);
+    } catch (InvalidArgumentException $exception) {
+        $t->same('SQLite SELECT SQL RANGE/GROUPS window frame needs ORDER BY', $exception->getMessage());
+        return;
+    }
+
+    throw new RuntimeException('Expected inline base-window GROUPS frame without inherited ORDER BY to be rejected');
 };
 
 $tests['upstream corpus window groups range current next18 rows frame without order remains valid'] = static function (TestRunner $t) use ($options): void {

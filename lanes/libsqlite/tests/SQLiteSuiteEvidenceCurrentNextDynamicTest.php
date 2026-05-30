@@ -389,4 +389,72 @@ return [
         $t->same(true, $record['counts_suite_evidence_current_next104']);
         $t->contains('current-next104 suite evidence', $record['dependency_closure']);
     },
+    'current next dynamic evidence blocks multiple advanced rows in one slice' => static function (TestRunner $t): void {
+        $head = '6fee21f03a85ab614d3e639763183bc5480347a3';
+        $record = libsqlite_suite_evidence_dynamic()->suiteEvidenceSlice(
+            [
+                [
+                    'unit' => 'suite-evidence-current-next108-focused-artifact',
+                    'tier' => 'focused',
+                    'repository_head' => $head,
+                    'current_countable' => false,
+                    'next_countable' => true,
+                    'artifact_path' => 'lanes/libsqlite/notes/suite-evidence-current-next108.md',
+                    'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick attach3.test wal2.test',
+                    'scripts' => ['pager-current-next108-01.test', 'attach3.test', 'wal2.test'],
+                    'exit' => 0,
+                    'errors' => 0,
+                    'current_tests' => 0,
+                    'next_tests' => 1081,
+                    'evidence' => 'current-next108 records a bounded dynamic suite evidence row without release/all parity',
+                ],
+                [
+                    'unit' => 'suite-evidence-current-next109-focused-artifact',
+                    'tier' => 'focused',
+                    'repository_head' => $head,
+                    'current_countable' => false,
+                    'next_countable' => true,
+                    'artifact_path' => 'lanes/libsqlite/notes/suite-evidence-current-next109.md',
+                    'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick attach3.test wal2.test',
+                    'scripts' => ['pager-current-next109-01.test', 'attach3.test', 'wal2.test'],
+                    'exit' => 0,
+                    'errors' => 0,
+                    'current_tests' => 0,
+                    'next_tests' => 1091,
+                    'evidence' => 'current-next109 is a second advanced row that must not be hidden behind one mapped delta',
+                ],
+                [
+                    'unit' => 'suite-evidence-current-next107-preserved-baseline',
+                    'tier' => 'focused',
+                    'repository_head' => $head,
+                    'current_countable' => true,
+                    'next_countable' => true,
+                    'artifact_path' => 'lanes/libsqlite/notes/suite-evidence-current-next107.md',
+                    'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick attach3.test wal2.test',
+                    'scripts' => ['pager-current-next107-01.test', 'attach3.test', 'wal2.test'],
+                    'exit' => 0,
+                    'errors' => 0,
+                    'current_tests' => 1071,
+                    'next_tests' => 1071,
+                    'evidence' => 'accepted current-next107 baseline remains preserved',
+                ],
+            ],
+            494,
+            29318,
+            $head,
+            'lanes/libsqlite/tests/SQLiteSuiteEvidenceCurrentNextDynamicTest.php',
+            libsqlite_suite_evidence_dynamic_output(),
+            'current-next108 dynamic suite evidence attempts to carry current-next109 in the same slice and must be blocked',
+            3
+        );
+
+        $t->same('blocked', $record['status']);
+        $t->same(false, $record['countable']);
+        $t->same(0, $record['mapped_delta']);
+        $t->same(0, $record['php_pass_delta']);
+        $t->same(false, $record['counts_suite_evidence_current_next108']);
+        $t->same(false, $record['counts_suite_evidence_current_next109']);
+        $t->same(['suite-evidence-current-next108-focused-artifact', 'suite-evidence-current-next109-focused-artifact'], $record['advanced_units']);
+        $t->contains('suite-evidence-multiple-advanced-rows', implode('; ', array_column($record['blockers'], 'id')));
+    },
 ];
