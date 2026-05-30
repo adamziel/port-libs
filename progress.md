@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 23:15 UTC):
+  Latest libsqlite source is integrated as `91d79cbb`
+  (`libsqlite: add twenty-second rapid current corpus sweep`). The batch
+  accepted 16 current-base handoffs on top of `5f1ef3dd`: date-affinity
+  timezone/calendar coverage, pager/WAL setlk and dynamic corpus coverage,
+  JSON105 negative-index behavior, UPSERT/RETURNING yield matrix and real
+  corpus coverage, trigger/FK drop-trigger and wide-mask conflict behavior,
+  expression-affinity real conversion coverage, PRAGMA schema data-version and
+  join-matrix coverage, B-tree index3 unique rollback behavior, VFS quota
+  behavior, select3 core coverage, and window dynamic real corpus coverage.
+  Verification passed PHP lint for changed/new PHP files, `git diff --check --
+  lanes/libsqlite`, source-neutral guards, focused selected tests `16 files /
+  169973 assertions / 0 failures / 36313 PASS lines`, related regression `56
+  files / 638739 assertions / 0 failures / 241365 PASS lines`, and accepted
+  base overlap `0 PASS`, so the public row should move to `1110235 pass / 0
+  fail` with coverage still `1589 / 1589`. Rejected from this batch: stale
+  app-WAL parity patches, a JSON blocked note-only handoff, SELECT/overflow-
+  expression source handoffs that reproduced cast-affinity/compound-order
+  regressions, and a window nonnumeric RANGE handoff that regressed existing
+  text/blob exception behavior. The live pool remains at 10-11 visible
+  libsqlite workers with no long sleepers.
+
 - 2026-05-30 supervisor continuation (integration sample 22:24 UTC):
   Accepted `f5bdff4f` (`libsqlite: add sixteenth rapid current corpus sweep`)
   immediately after the fifteenth sweep. The batch integrated 12
