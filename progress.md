@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 17:58 UTC):
+  Latest accepted libsqlite source is `dfa4a2935`
+  (`libsqlite: add bulk corpus throughput batch`). The batch accepts 13
+  compatible current-base handoffs on top of `e35ca6042`, covering expression
+  precedence bulk corpus, UPSERT generalized matrix behavior, window value
+  frames, pager/WAL warm-body and checkpoint cases, PRAGMA schema/default
+  comments, B-tree/index corpus growth, JSON1/JSONB follow-ups, trigger/FK
+  savepoint behavior, expression affinity growth, VFS I/O transactions, SELECT
+  WHERE/ORDER behavior, and upstream runner map-gap closure. Focused
+  verification passed `14 files / 24593 assertions / 0 failures / 11962 PASS
+  lines`; the accepted-base comparison over existing selected files was `6
+  files / 14358 assertions / 146 pre-existing failures / 7995 PASS lines`, so
+  the honest selected PASS-line delta is `+3967` and the selected PRAGMA
+  failures are fixed in current source. Manifest-backed mapped coverage moves
+  from `958 / 1589` to `1189 / 1589`. The public row should report `223524
+  pass / 0 fail`. The slowdown was a publication/integration cadence problem
+  more than worker idleness: the fix is 10-15 minute accepted batches, a hard
+  preference for >=1000 PASS-case or >=5000 assertion handoffs, and rejecting
+  low-yield crumbs unless they unblock a larger real-corpus/current-base slice.
+  Existing older domain-specific source names remain cleanup debt, but this
+  batch added no new domain-specific production source or numbered source
+  suffixes in changed files.
+
 - 2026-05-30 supervisor continuation (integration sample 17:44 UTC):
   Prepared the next libsqlite source batch on top of `0bcc6fa83`. The batch
   applied 12 compatible current-base handoffs and a native SQLite text `RANGE`

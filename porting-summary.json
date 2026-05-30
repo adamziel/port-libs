@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 17:49:01 UTC",
-    "sourceCommit": "10d482a5ed3d17fdf440ef1f885875af2f430ed3",
-    "sourceCommitShort": "10d482a5ed3d",
+    "generated": "2026-05-30 17:57:33 UTC",
+    "sourceCommit": "dfa4a29353b0ead78134df6d05be40abaa2e4f00",
+    "sourceCommitShort": "dfa4a29353b0",
     "sourceBranch": "unknown",
-    "dashboardCommit": "10d482a5ed3d17fdf440ef1f885875af2f430ed3",
-    "dashboardCommitShort": "10d482a5ed3d",
+    "dashboardCommit": "dfa4a29353b0ead78134df6d05be40abaa2e4f00",
+    "dashboardCommitShort": "dfa4a29353b0",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "958",
-            "coverage": "958 / 1589",
-            "php": "219557 pass / 0 fail",
+            "mapped": "1189",
+            "coverage": "1189 / 1589",
+            "php": "223524 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted follow-up current-base batch aft...",
-            "currentWork": "Prepared source with a +1200 honest focused PASS-line libsqlite batch and native text RAN...",
-            "nextTarget": "Publish this source/dashboard batch, consume its handoffs, then integrate the next fresh...",
-            "blocker": "The active speed limiter is handoff yield per worker, not worker idleness.",
-            "commit": "10d482a"
+            "audit": "Accepted 13 compatible current-base hando...",
+            "currentWork": "Published source dfa4a29353 with a +3967 honest selected PASS-line libsqlite batch, 146 s...",
+            "nextTarget": "Consume this handoff batch, refill/monitor 10-11 visible libsqlite workers, prioritize bu...",
+            "blocker": "Not worker idleness: current blockers are yield quality and integration b...",
+            "commit": "dfa4a29"
         },
         {
             "library": "LightningCSS",
