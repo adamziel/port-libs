@@ -44,8 +44,20 @@
 - Provider/live-service tests that require credentials or unconstrained network state.
 - Status pages that hide dependency gates or imply richer coverage than committed evidence supports.
 
+## Libsqlite Generic API Rule 2026-05-30T13:20Z
+- User priority update: the libsqlite port must have zero WordPress-specific
+  classes, interfaces, traits, functions, or methods. Do not accept libsqlite
+  patches that add declarations whose names contain `WordPress`, `wordpress`,
+  `WP`, `Wp`, or `wp_`.
+- New libsqlite handoffs should use generic application scenario names, not
+  WordPress-specific smokes/examples. Existing fixture table strings are test
+  data only and are not permission to expose WordPress-named APIs.
+- Required gate for source-moving libsqlite batches: run the committed
+  `SQLiteNoWordPressSpecificApiTest.php` guard or the equivalent declaration
+  `rg` audit, plus focused slice tests and `git diff --check`.
+
 ## Final Acceptance Criteria
-- Each lane has native PHP behavior mapped to upstream evidence, WordPress scenarios, and status metadata.
+- Each lane has native PHP behavior mapped to upstream evidence, generic application scenarios, and status metadata.
 - Required support libraries are tracked at bounded native component granularity.
 - Public dashboard is current and evidence-based.
 - No unreviewed broad dirty handoffs are treated as accepted progress.

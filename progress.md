@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 13:20 UTC):
+  Latest libsqlite source is integrated as `ef3fc70b3`
+  (`libsqlite: consolidate veryquick shard helpers`). The batch accepts
+  current-base next213/next368 veryquick shard helper consolidation, final
+  numbered STAT4 dynamic consolidation coverage, and window RANGE/GROUPS
+  root-gate coverage. Verification passed PHP lint for changed PHP files,
+  `git diff --check -- lanes/libsqlite`, focused gate `10 files / 12728
+  assertions / 0 failures`, full libsqlite lane `2 test files / 759091
+  assertions / 0 failures / 188337 PASS lines`, no `WordPress`/`wordpress`
+  text in `lanes/libsqlite/src` PHP, and no WordPress/WP/wp_ class, interface,
+  trait, function, or method declarations under `lanes/libsqlite` PHP. The
+  worker handoff guard and current worker prompt now also reject
+  WordPress-specific libsqlite declarations and stale WordPress-specific
+  libsqlite smoke/example requirements. Public pass/fail should move to
+  `188337 pass / 0 fail`; mapped coverage remains `830 / 1589` until a fresh
+  denominator-mapped SQLite suite row is accepted. The latest live sample had
+  11 visible libsqlite Codex workers and 0 long sleepers.
+
 - 2026-05-30 supervisor continuation (integration sample 12:50 UTC):
   Latest libsqlite source is integrated as `c0a63cce8`
   (`libsqlite: consolidate wal suite window helpers`). The batch accepts three

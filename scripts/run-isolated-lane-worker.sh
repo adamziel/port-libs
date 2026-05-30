@@ -118,6 +118,10 @@ if [[ "$LANE" == "libsqlite" ]]; then
       printf 'libsqlite handoff guard failed: numbered production source class remains. No ready marker written.\n' >&2
       exit 4
     fi
+    if rg -n '^\s*(?:(?:final|abstract)\s+)?(?:class|interface|trait)\s+\w*(?:WordPress|wordpress|WP|Wp|wp_)\w*|^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+\w*(?:WordPress|wordpress|WP|Wp|wp_)\w*\s*\(' lanes/libsqlite --glob '*.php'; then
+      printf 'libsqlite handoff guard failed: WordPress-specific PHP declaration remains. No ready marker written.\n' >&2
+      exit 4
+    fi
   ) || exit $?
 fi
 
@@ -137,6 +141,13 @@ fi
 if [[ "$LANE" == "libsqlite" ]] &&
   grep -E '^\+.*(CurrentSourceNext150Plan|CurrentSourceNext150)' "$PATCH_FILE" >/dev/null; then
   printf 'libsqlite handoff guard failed: patch adds the user-named CurrentSourceNext150 suffix. No ready marker written.\n' >&2
+  printf 'Patch: %s\n' "$PATCH_FILE" >&2
+  exit 4
+fi
+
+if [[ "$LANE" == "libsqlite" ]] &&
+  grep -E '^\+.*((class|interface|trait)[[:space:]]+[[:alnum:]_]*(WordPress|wordpress|WP|Wp|wp_)|function[[:space:]]+[[:alnum:]_]*(WordPress|wordpress|WP|Wp|wp_)[[:alnum:]_]*[[:space:]]*\()' "$PATCH_FILE" >/dev/null; then
+  printf 'libsqlite handoff guard failed: patch adds a WordPress-specific PHP declaration. No ready marker written.\n' >&2
   printf 'Patch: %s\n' "$PATCH_FILE" >&2
   exit 4
 fi
