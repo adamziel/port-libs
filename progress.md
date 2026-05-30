@@ -43,10 +43,28 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 54G available, 89% used; `/tmp` has about 8.7G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 11G available, 98% used; `/tmp` has about 8.4G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-30 supervisor continuation (shell samples 00:46 UTC):
+  Latest libsqlite consolidation is integrated and pushed as `ad7466efa`
+  (`libsqlite: consolidate pager stat4 compound helper names`). The batch
+  accepts 5 current-base handoffs covering pager reader-cache member
+  digest/current-source helper naming across the 415-558 variant band, STAT4
+  expression partial `Next236`/`Next237` dynamic helper naming plus `Next230`
+  private-helper cleanup, and compound recursive-limit `Next219`
+  private-helper naming. Validation passed PHP lint for 33 changed PHP files,
+  13 changed WordPress/self-test examples, `git diff --check -- lanes/libsqlite`,
+  pager reader-cache family `149 files / 9983 assertions / 0 failures`, STAT4
+  expression partial family `133 files / 7537 assertions / 0 failures`, and
+  compound family `78 files / 29418 assertions / 0 failures`. Public
+  pass/mapped counters remain `154019 pass / 0 fail` and `830 / 1589` because
+  this is consolidation-only. Visible tmux pool remains in the requested band
+  with 11 isolated libsqlite workers and 0 long sleepers. Disk is very tight at
+  roughly `11G` free on `/`, so the next supervisor pass must prioritize
+  consumed-worktree cleanup while continuing current-base integration.
 
 - 2026-05-30 supervisor continuation (shell samples 00:21 UTC):
   Latest libsqlite consolidation is integrated and pushed as `f5eb42d29`
