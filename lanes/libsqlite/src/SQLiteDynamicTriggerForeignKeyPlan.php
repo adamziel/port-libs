@@ -1074,6 +1074,102 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<string> $updatedColumns
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyUpdateReadSet(array $updatedColumns, bool $whereUsesParentReference = false): array
+    {
+        $updatedColumns = array_values(array_map(
+            static fn (string $column): string => self::identifier($column, 'updated parent column'),
+            $updatedColumns
+        ));
+
+        $reads = ['par' => true];
+        if (in_array('b', $updatedColumns, true)) {
+            $reads['s1'] = true;
+        }
+        if (in_array('a', $updatedColumns, true) || $whereUsesParentReference) {
+            $reads['c1'] = true;
+            $reads['c2'] = true;
+        }
+        if (in_array('c', $updatedColumns, true)) {
+            $reads['c3'] = true;
+        }
+
+        $ordered = array_keys($reads);
+        sort($ordered, SORT_STRING);
+
+        return [
+            'source' => 'fkey7.test fkey7-1.2..1.5',
+            'operation' => 'foreign-key-update-authorizer-read-set',
+            'status' => 'commit-ok',
+            'updated_columns' => $updatedColumns,
+            'where_uses_parent_reference' => $whereUsesParentReference,
+            'read_tables' => $ordered,
+            'read_table_count' => count($ordered),
+            'reads_parent_reference_table' => isset($reads['s1']),
+            'reads_child_primary_key_refs' => isset($reads['c1']) && isset($reads['c2']),
+            'reads_child_unique_refs' => isset($reads['c3']),
+            'dependencies' => [
+                'sqlite-fkey7-parent-update-reads-new-parent-reference',
+                'sqlite-fkey7-parent-key-update-probes-child-references',
+                'sqlite-fkey7-unique-parent-key-update-probes-dependent-child',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<mixed> $parentKeys
+     * @param list<mixed> $existingChildKeys
+     * @param list<mixed> $incomingChildKeys
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyOrFailInsert(array $parentKeys, array $existingChildKeys, array $incomingChildKeys): array
+    {
+        $parentSet = array_fill_keys(array_map(static fn (mixed $key): string => self::valueKey($key), $parentKeys), true);
+        $rows = array_values($existingChildKeys);
+        $error = null;
+        $failed_key = null;
+
+        foreach ($incomingChildKeys as $key) {
+            if (!isset($parentSet[self::valueKey($key)])) {
+                $error = 'FOREIGN KEY constraint failed';
+                $failed_key = $key;
+                break;
+            }
+            if (in_array($key, $rows, true)) {
+                $error = 'UNIQUE constraint failed: child.c';
+                $failed_key = $key;
+                break;
+            }
+            $rows[] = $key;
+        }
+
+        sort($rows);
+        $preservedPriorSuccessfulRows = str_starts_with((string) $error, 'UNIQUE constraint failed') && (count($rows) > count($existingChildKeys));
+
+        return [
+            'source' => 'fkey7.test fkey7-4.1..4.6',
+            'operation' => 'insert-or-fail-foreign-key-before-unique',
+            'status' => $error === null ? 'commit-ok' : 'constraint-failed',
+            'error' => $error,
+            'failed_key' => $failed_key,
+            'parent_keys' => array_values($parentKeys),
+            'incoming_child_keys' => array_values($incomingChildKeys),
+            'committed_child_keys' => $rows,
+            'committed_child_count' => count($rows),
+            'foreign_key_checked_before_unique' => $error === 'FOREIGN KEY constraint failed',
+            'or_fail_preserved_prior_successful_rows' => $preservedPriorSuccessfulRows,
+            'foreign_key_check_rows' => [],
+            'dependencies' => [
+                'sqlite-fkey7-insert-or-fail-checks-foreign-key-before-unique',
+                'sqlite-fkey7-insert-or-fail-preserves-prior-row-on-unique-failure',
+                'sqlite-fkey7-foreign-key-check-clean-after-failed-statement',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int}> $leftRows
      * @param list<array{c:int,d:int}> $rightRows
      * @param list<array{op:string,where?:callable(array<string,mixed>):bool,row?:array{a:int,b:int,c:int,d:int}}>
@@ -1996,6 +2092,11 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         return false;
     }
 
+    private static function valueKey(mixed $value): string
+    {
+        return get_debug_type($value) . ':' . (string) $value;
+    }
+
     private static function catalogAdd(array &$catalog, array &$tempCatalog, array $object): void
     {
         $name = self::identifier((string) ($object['name'] ?? ''), 'object name');
@@ -2103,6 +2204,208 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{name:string,schema?:string,columns:list<array{name:string,collation?:string}>,rows?:list<array<string,mixed>>,primary_key?:list<string>,unique?:list<list<string>>,without_rowid?:bool}> $parents
+     * @param list<array{name:string,schema?:string,columns:list<array{name:string,collation?:string}>,rows:list<array<string,mixed>>,foreign_key:array{parent_table:string,parent_schema?:string,child_columns:list<string>,parent_columns:list<string>,id?:int}}> $children
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyCheckCorpus(array $parents, array $children, ?string $table = null, ?string $schema = null): array
+    {
+        $parentMap = [];
+        foreach ($parents as $parent) {
+            $name = self::identifier((string) $parent['name'], 'foreign key check parent table');
+            $parentSchema = self::identifier((string) ($parent['schema'] ?? 'main'), 'foreign key check parent schema');
+            $parentMap[$parentSchema . '.' . $name] = $parent + ['name' => $name, 'schema' => $parentSchema];
+        }
+
+        $violations = [];
+        $mismatch = null;
+        foreach ($children as $child) {
+            $childName = self::identifier((string) $child['name'], 'foreign key check child table');
+            $childSchema = self::identifier((string) ($child['schema'] ?? 'main'), 'foreign key check child schema');
+            if ($table !== null && $childName !== $table) {
+                continue;
+            }
+            if ($schema !== null && $childSchema !== $schema) {
+                continue;
+            }
+
+            $foreignKey = $child['foreign_key'];
+            $parentName = self::identifier((string) $foreignKey['parent_table'], 'foreign key check referenced table');
+            $parentSchema = self::identifier((string) ($foreignKey['parent_schema'] ?? $childSchema), 'foreign key check referenced schema');
+            $parent = $parentMap[$parentSchema . '.' . $parentName] ?? null;
+            if ($parent === null) {
+                foreach ($child['rows'] as $index => $row) {
+                    if (self::hasNullForeignKeyValue($row, $foreignKey['child_columns'])) {
+                        continue;
+                    }
+                    $violations[] = self::foreignKeyCheckViolation($childName, $row, $index, $parentName, (int) ($foreignKey['id'] ?? 0), (bool) ($child['without_rowid'] ?? false));
+                }
+                continue;
+            }
+
+            if (!self::parentKeyIsValid($parent, $foreignKey['parent_columns'])) {
+                $mismatch = 'foreign key mismatch - "' . $childName . '" referencing "' . $parentName . '"';
+                break;
+            }
+
+            foreach ($child['rows'] as $index => $row) {
+                if (self::hasNullForeignKeyValue($row, $foreignKey['child_columns'])) {
+                    continue;
+                }
+                if (self::parentRowMatchesForeignKey($parent, $row, $foreignKey['child_columns'], $foreignKey['parent_columns'])) {
+                    continue;
+                }
+                $violations[] = self::foreignKeyCheckViolation($childName, $row, $index, $parentName, (int) ($foreignKey['id'] ?? 0), (bool) ($child['without_rowid'] ?? false));
+            }
+        }
+
+        usort($violations, static fn (array $a, array $b): int => [$a['table'], $a['rowid'], $a['parent'], $a['fkid']] <=> [$b['table'], $b['rowid'], $b['parent'], $b['fkid']]);
+
+        return [
+            'source' => 'fkey5.test fkey5-1.1..13.12',
+            'operation' => 'pragma-foreign-key-check-corpus',
+            'status' => $mismatch === null ? 'check-ok' : 'schema-mismatch',
+            'table_filter' => $table,
+            'schema_filter' => $schema,
+            'mismatch_error' => $mismatch,
+            'violation_rows' => $violations,
+            'violation_count' => count($violations),
+            'dependencies' => [
+                'sqlite-fkey5-foreign-key-check-row-shape',
+                'sqlite-fkey5-parent-key-unique-validation',
+                'sqlite-fkey5-without-rowid-null-rowid',
+                'sqlite-fkey5-schema-scoped-pragma-argument',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     */
+    private static function hasNullForeignKeyValue(array $row, array $columns): bool
+    {
+        foreach ($columns as $column) {
+            self::identifier($column, 'foreign key check child column');
+            if (($row[$column] ?? null) === null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array{table:string,rowid:int|string|null,parent:string,fkid:int}
+     */
+    private static function foreignKeyCheckViolation(string $childName, array $row, int $index, string $parentName, int $foreignKeyId, bool $withoutRowid): array
+    {
+        return [
+            'table' => $childName,
+            'rowid' => $withoutRowid ? null : ($row['rowid'] ?? $index + 1),
+            'parent' => $parentName,
+            'fkid' => $foreignKeyId,
+        ];
+    }
+
+    /**
+     * @param array{name:string,columns:list<array{name:string,collation?:string}>,primary_key?:list<string>,unique?:list<list<string>>} $parent
+     * @param list<string> $columns
+     */
+    private static function parentKeyIsValid(array $parent, array $columns): bool
+    {
+        $wanted = array_values($columns);
+        foreach ($wanted as $column) {
+            self::identifier($column, 'foreign key check parent column');
+            if (!self::columnExists($parent, $column)) {
+                return false;
+            }
+        }
+        if (($parent['primary_key'] ?? []) === $wanted) {
+            return true;
+        }
+        foreach (($parent['unique'] ?? []) as $unique) {
+            if (array_values($unique) === $wanted) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{columns:list<array{name:string,collation?:string}>} $table
+     */
+    private static function columnExists(array $table, string $column): bool
+    {
+        foreach ($table['columns'] as $definition) {
+            if (($definition['name'] ?? null) === $column) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{name:string,columns:list<array{name:string,collation?:string}>,rows?:list<array<string,mixed>>} $parent
+     * @param array<string,mixed> $childRow
+     * @param list<string> $childColumns
+     * @param list<string> $parentColumns
+     */
+    private static function parentRowMatchesForeignKey(array $parent, array $childRow, array $childColumns, array $parentColumns): bool
+    {
+        foreach (($parent['rows'] ?? []) as $parentRow) {
+            $matches = true;
+            foreach ($childColumns as $index => $childColumn) {
+                $parentColumn = $parentColumns[$index] ?? '';
+                self::identifier($childColumn, 'foreign key check child column');
+                self::identifier($parentColumn, 'foreign key check parent column');
+                $collation = self::columnCollation($parent, $parentColumn);
+                if (!self::foreignKeyValuesEqual($childRow[$childColumn] ?? null, $parentRow[$parentColumn] ?? null, $collation)) {
+                    $matches = false;
+                    break;
+                }
+            }
+            if ($matches) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{columns:list<array{name:string,collation?:string}>} $table
+     */
+    private static function columnCollation(array $table, string $column): string
+    {
+        foreach ($table['columns'] as $definition) {
+            if (($definition['name'] ?? null) === $column) {
+                return strtolower((string) ($definition['collation'] ?? 'binary'));
+            }
+        }
+
+        return 'binary';
+    }
+
+    private static function foreignKeyValuesEqual(mixed $child, mixed $parent, string $collation): bool
+    {
+        if ($child === null || $parent === null) {
+            return $child === $parent;
+        }
+        $child = (string) $child;
+        $parent = (string) $parent;
+
+        return match ($collation) {
+            'nocase' => strcasecmp($child, $parent) === 0,
+            'rtrim' => rtrim($child) === rtrim($parent),
+            default => $child === $parent,
+        };
     }
 
     private static function identifier(string $value, string $label): string

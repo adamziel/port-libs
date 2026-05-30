@@ -106,6 +106,62 @@ $tests['real upstream corpus vfs io dynamic avfs tiny appended databases are ref
     }
 };
 
+$avfsShellCases = [];
+foreach ([0, 1, 8, 31, 50, 511, 512, 513, 1023, 1024, 1025, 2047, 2048, 2049, 4095, 4096, 4097, 8191, 8192, 8193] as $prefixBytes) {
+    foreach ([512, 1024, 2048, 4096] as $pageSize) {
+        foreach ([true, false] as $archiveMode) {
+            foreach ([false, true] as $updateExisting) {
+                foreach ([1, 2, 4, 8] as $appendedEntries) {
+                    $avfsShellCases[] = [$prefixBytes, $pageSize, $archiveMode, $updateExisting, $appendedEntries];
+                }
+            }
+        }
+    }
+}
+
+$tests['real upstream corpus vfs io dynamic avfs shell append lifecycle follows avfs 4'] = static function (TestRunner $t) use ($avfsShellCases): void {
+    foreach ($avfsShellCases as [$prefixBytes, $pageSize, $archiveMode, $updateExisting, $appendedEntries]) {
+        $profile = SQLiteVfsIoDynamicPlan::appendShellLifecycleProfile($prefixBytes, $pageSize, $archiveMode, $updateExisting, $appendedEntries);
+        $expectedOffset = $prefixBytes === 0 ? 0 : (int) (ceil($prefixBytes / $pageSize) * $pageSize);
+        $expectedInitialRows = $archiveMode ? 0 : 1;
+        $expectedRows = $updateExisting ? $expectedInitialRows + $appendedEntries : $expectedInitialRows;
+
+        $t->same('ok', $profile['status']);
+        $t->same('avfs.test', $profile['script']);
+        $t->same($prefixBytes, $profile['prefix_bytes']);
+        $t->same($pageSize, $profile['page_size']);
+        $t->same($archiveMode, $profile['archive_mode']);
+        $t->same($updateExisting, $profile['update_existing_append_database']);
+        $t->same($expectedOffset, $profile['database_offset']);
+        $t->same($expectedOffset - $prefixBytes, $profile['padding_bytes']);
+        $t->same('Start-Of-SQLite3-', $profile['trailer_magic']);
+        $t->same($expectedOffset, $profile['trailer_offset']);
+        $t->same(true, $profile['prefix_intact']);
+        $t->same(true, $profile['aligned']);
+        $t->same(0, $profile['shell_exit_code']);
+        $t->same($archiveMode ? 'sqlar' : 'appended_rows', $profile['table_name']);
+        $t->same([$profile['table_name']], $profile['tables_output']);
+        $t->same($expectedInitialRows, $profile['initial_rows']);
+        $t->same($appendedEntries, $profile['appended_entries']);
+        $t->same($expectedRows, $profile['updated_rows']);
+        $t->same($updateExisting ? $appendedEntries : 0, $profile['shell_output_rows']);
+        $t->same($expectedRows, $profile['reopen_count']);
+        $t->same('&vfs=apndvfs', $profile['append_uri']);
+        $t->same(true, in_array('avfs.test avfs-4.1', $profile['upstream'], true));
+        $t->same(true, in_array('avfs.test avfs-4.2', $profile['upstream'], true));
+        $t->same(true, in_array('avfs.test avfs-4.3', $profile['upstream'], true));
+        $t->same(true, in_array('upstream-avfs-shell-append-lifecycle', $profile['dependencies'], true));
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $profile['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic avfs shell lifecycle rejects malformed inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::appendShellLifecycleProfile(-1, 512, true, false));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::appendShellLifecycleProfile(0, 500, true, false));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::appendShellLifecycleProfile(0, 768, true, false));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::appendShellLifecycleProfile(0, 512, true, false, 0));
+};
+
 $ioCases = [
     [['powersafe_overwrite'], 2, 'delete', 'full', 4, false, false, false],
     [['atomic'], 2, 'delete', 'full', 1, true, false, false],

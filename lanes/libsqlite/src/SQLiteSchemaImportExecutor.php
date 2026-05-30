@@ -143,7 +143,8 @@ final class SQLiteSchemaImportExecutor
         $this->records[$schema][] = $record;
 
         $autoindexes = [];
-        $autoindexCount = self::autoIndexCount($body);
+        $withoutRowid = preg_match('/\)\s*without\s+rowid\s*$/i', trim($sql)) === 1;
+        $autoindexCount = self::autoIndexCount($body, $withoutRowid);
         for ($i = 1; $i <= $autoindexCount; $i++) {
             $indexName = 'sqlite_autoindex_' . $name . '_' . $i;
             $autoindexes[] = $indexName;
@@ -504,7 +505,7 @@ final class SQLiteSchemaImportExecutor
         return null;
     }
 
-    private static function autoIndexCount(string $body): int
+    private static function autoIndexCount(string $body, bool $withoutRowid = false): int
     {
         $count = 0;
         $signatures = [];
@@ -520,7 +521,7 @@ final class SQLiteSchemaImportExecutor
                 continue;
             }
             if (preg_match('/\b(unique|primary\s+key)\b/', $lower) === 1 && preg_match('/^\s*(constraint\b|check\b|foreign\b)/', $lower) !== 1) {
-                if (self::isIntegerPrimaryKeyAliasWithoutUnique($term)) {
+                if (!$withoutRowid && self::isIntegerPrimaryKeyAliasWithoutUnique($term)) {
                     continue;
                 }
                 $signature = self::columnConstraintSignature($term);

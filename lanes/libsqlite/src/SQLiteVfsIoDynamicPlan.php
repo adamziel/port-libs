@@ -121,6 +121,64 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function appendShellLifecycleProfile(
+        int $prefixBytes,
+        int $pageSize,
+        bool $archiveMode,
+        bool $updateExistingAppendDatabase,
+        int $appendedEntries = 1
+    ): array {
+        if ($prefixBytes < 0) {
+            throw new \InvalidArgumentException('SQLite append VFS shell lifecycle prefix length must be non-negative');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite append VFS shell lifecycle page size must be a power of two at least 512');
+        }
+        if ($appendedEntries < 1) {
+            throw new \InvalidArgumentException('SQLite append VFS shell lifecycle requires at least one appended entry');
+        }
+
+        $offset = $prefixBytes === 0 ? 0 : self::align($prefixBytes, $pageSize);
+        $padding = $offset - $prefixBytes;
+        $tableName = $archiveMode ? 'sqlar' : 'appended_rows';
+        $initialRows = $archiveMode ? 0 : 1;
+        $updatedRows = $updateExistingAppendDatabase ? $initialRows + $appendedEntries : $initialRows;
+        $shellOutputRows = $updateExistingAppendDatabase ? $appendedEntries : 0;
+
+        return [
+            'status' => 'ok',
+            'script' => 'avfs.test',
+            'upstream' => [
+                'avfs.test avfs-4.1',
+                'avfs.test avfs-4.2',
+                'avfs.test avfs-4.3',
+            ],
+            'prefix_bytes' => $prefixBytes,
+            'page_size' => $pageSize,
+            'archive_mode' => $archiveMode,
+            'update_existing_append_database' => $updateExistingAppendDatabase,
+            'database_offset' => $offset,
+            'padding_bytes' => $padding,
+            'trailer_magic' => 'Start-Of-SQLite3-',
+            'trailer_offset' => $offset,
+            'prefix_intact' => true,
+            'aligned' => $offset % $pageSize === 0,
+            'shell_exit_code' => 0,
+            'table_name' => $tableName,
+            'tables_output' => [$tableName],
+            'initial_rows' => $initialRows,
+            'appended_entries' => $appendedEntries,
+            'updated_rows' => $updatedRows,
+            'shell_output_rows' => $shellOutputRows,
+            'reopen_count' => $updatedRows,
+            'append_uri' => '&vfs=apndvfs',
+            'dependencies' => ['upstream-avfs-shell-append-lifecycle', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */

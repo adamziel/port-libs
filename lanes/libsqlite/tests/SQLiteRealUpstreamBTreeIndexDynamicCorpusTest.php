@@ -328,4 +328,94 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index5SequentialWriteCases(1200) as 
     };
 }
 
+// Source truth: SQLite upstream test/index7.test index7-1.1 through 1.15.
+// These cases preserve the partial-index sqlite_stat1 cardinality transitions
+// across INSERT, UPDATE, DELETE, REINDEX, and full-index creation.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index7PartialIndexStatMutationCases(1000) as $case) {
+    $tests['real upstream index7 partial index stat mutation case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index7.test index7-1.1 through index7-1.15', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(str_starts_with($case['upstream_section'], 'index7-1.'));
+        $t->true($case['phase'] !== '');
+        $t->true($case['mutation'] !== '');
+        $t->true($case['planner_detail'] !== '');
+        $t->same('ok', $case['integrity']);
+        $t->true($case['row_count'] === 20 || $case['row_count'] === 15);
+        $t->true($case['t1a_stat'] <= $case['row_count']);
+        $t->true($case['t1b_stat'] <= $case['row_count']);
+        $t->same(2, $case['partial_index_count']);
+        $t->true($case['full_index_count'] === 1 || $case['full_index_count'] === 2);
+        if ($case['upstream_section'] === 'index7-1.11') {
+            $t->same($case['row_count'], $case['t1a_stat']);
+        }
+        if ($case['upstream_section'] === 'index7-1.11b') {
+            $t->same($case['row_count'], $case['t1b_stat']);
+        }
+        if ($case['upstream_section'] === 'index7-1.15') {
+            $t->same(15, $case['t1c_stat']);
+            $t->same(2, $case['full_index_count']);
+        } else {
+            $t->same(null, $case['t1c_stat']);
+        }
+    };
+}
+
+// Source truth: SQLite upstream test/autoindex5.test autoindex5-1.1 through
+// 3.3. These cases preserve automatic covering-index use for coroutine views
+// and the subquery/coroutine regressions that shared that planner path.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::autoindex5CoroutineSubqueryCases(1000) as $case) {
+    $tests['real upstream autoindex5 coroutine subquery case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->true(in_array($case['source'], [
+            'autoindex5.test autoindex5-1.0 through autoindex5-1.1',
+            'autoindex5.test autoindex5-2.1',
+            'autoindex5.test autoindex5-2.2',
+            'autoindex5.test autoindex5-3.1 through autoindex5-3.2',
+            'autoindex5.test autoindex5-3.3',
+        ], true));
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(str_starts_with($case['upstream_section'], 'autoindex5-'));
+        $t->true($case['scenario'] !== '');
+        $t->true($case['table'] !== '');
+        $t->true($case['autoindex_target'] !== '');
+        $t->true($case['probe_column'] !== '');
+        $t->true($case['detail'] !== '');
+        $t->same(true, $case['uses_coroutine']);
+        $t->same('ok', $case['integrity']);
+        $t->true(array_values($case['result_rows']) === $case['result_rows']);
+        foreach ($case['result_rows'] as $row) {
+            $t->true(array_values($row) === $row);
+        }
+        if ($case['upstream_section'] === 'autoindex5-1.1') {
+            $t->same('debian_cve', $case['table']);
+            $t->same('bug_name', $case['autoindex_target']);
+            $t->same(true, $case['uses_automatic_index']);
+            $t->same(true, $case['order_by_preserved']);
+            $t->true(str_contains($case['detail'], 'AUTOMATIC COVERING INDEX'));
+            $t->true(str_starts_with((string) $case['probe_value'], 'CVE-'));
+        }
+        if ($case['upstream_section'] === 'autoindex5-2.1') {
+            $t->same([[8.0]], $case['result_rows']);
+            $t->same(false, $case['uses_automatic_index']);
+            $t->same('aaa', $case['probe_value']);
+        }
+        if ($case['upstream_section'] === 'autoindex5-2.2') {
+            $t->same([[9]], $case['result_rows']);
+            $t->same(true, $case['subquery_resolves_rowid']);
+            $t->same('rowid', $case['probe_column']);
+        }
+        if ($case['upstream_section'] === 'autoindex5-3.1') {
+            $t->same([[104, 104]], $case['result_rows']);
+            $t->same(104, $case['probe_value']);
+        }
+        if ($case['upstream_section'] === 'autoindex5-3.2') {
+            $t->same([[1, 1, 1, 1]], $case['result_rows']);
+            $t->same(1, $case['probe_value']);
+        }
+        if ($case['upstream_section'] === 'autoindex5-3.3') {
+            $t->same([[3, 1, 1, 'x'], [3, 2, 2, 'x']], $case['result_rows']);
+            $t->true(str_contains($case['detail'], 'a2=1 OR a3=2'));
+        }
+    };
+}
+
 return $tests;

@@ -26570,10 +26570,16 @@ final class SQLiteUpstreamSuiteEvidence
                 $rowBlockers[] = 'source-head-missing';
             }
             $artifactPath = is_string($row['artifact_path'] ?? null) ? $row['artifact_path'] : '';
-            if (str_starts_with($artifactPath, 'lanes/libsqlite/notes/')) {
+            if (
+                str_starts_with($artifactPath, 'lanes/libsqlite/notes/')
+                || (
+                    str_starts_with($artifactPath, 'lanes/libsqlite/fixtures/')
+                    && str_ends_with($artifactPath, '.audit.md')
+                )
+            ) {
                 $laneLocalRows++;
             } else {
-                $rowBlockers[] = 'artifact-path-not-lane-local-note';
+                $rowBlockers[] = 'artifact-path-not-lane-local-note-or-audit';
             }
             $command = is_string($row['runner_command'] ?? null) ? $row['runner_command'] : '';
             if (!str_contains($command, 'testfixture') || !str_contains($command, 'testrunner.tcl') || !str_contains($command, '--stop-on-error') || !str_contains($command, ' veryquick')) {

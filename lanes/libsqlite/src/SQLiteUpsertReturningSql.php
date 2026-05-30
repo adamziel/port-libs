@@ -55,6 +55,35 @@ final class SQLiteUpsertReturningSql
     public static function parse(string $sql): array
     {
         $sql = trim(rtrim($sql, " \t\n\r\0\x0B;"));
+        $withRows = null;
+        $withColumns = null;
+        $withName = null;
+        if (preg_match('/^WITH\s+/i', $sql, $withMatch) === 1) {
+            $offset = strlen($withMatch[0]);
+            $withName = self::readIdentifier($sql, $offset, 'SQLite UPSERT RETURNING CTE name');
+            $offset += strlen($withName);
+            $offset = self::skipWhitespace($sql, $offset);
+            if (($sql[$offset] ?? null) !== '(') {
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING CTE requires a column list');
+            }
+            [$withColumnSql, $offset] = self::consumeParenthesized($sql, $offset);
+            $withColumns = self::identifierList($withColumnSql, 'SQLite UPSERT RETURNING CTE column');
+            $offset = self::skipWhitespace($sql, $offset);
+            if (preg_match('/\GAS\s*/i', $sql, $asMatch, 0, $offset) !== 1) {
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING CTE requires AS');
+            }
+            $offset += strlen($asMatch[0]);
+            if (($sql[$offset] ?? null) !== '(') {
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING CTE body must be parenthesized');
+            }
+            [$withBody, $offset] = self::consumeParenthesized($sql, $offset);
+            $withBody = trim($withBody);
+            if (preg_match('/^VALUES\b/i', $withBody, $valuesMatch) !== 1) {
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING only supports VALUES CTE input');
+            }
+            $withRows = self::parseValues(trim(substr($withBody, strlen($valuesMatch[0]))), $withColumns);
+            $sql = trim(substr($sql, $offset));
+        }
         if (preg_match('/^INSERT\s+INTO\s+/i', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite UPSERT RETURNING SQL must start with INSERT INTO');
         }
@@ -75,18 +104,22 @@ final class SQLiteUpsertReturningSql
             throw new \InvalidArgumentException('SQLite UPSERT RETURNING target columns must be unique');
         }
 
-        $offset = self::skipWhitespace($sql, $offset);
-        if (preg_match('/\GVALUES\b/i', $sql, $valuesMatch, 0, $offset) !== 1) {
-            throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires VALUES input');
-        }
-        $offset += strlen($valuesMatch[0]);
         $conflictOffset = self::keywordOffset($sql, 'ON CONFLICT', $offset);
         if ($conflictOffset === null) {
             throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires ON CONFLICT');
         }
 
-        $valuesSql = trim(substr($sql, $offset, $conflictOffset - $offset));
-        $incomingRows = self::parseValues($valuesSql, $columns);
+        $inputSql = trim(substr($sql, $offset, $conflictOffset - $offset));
+        if (preg_match('/^VALUES\b/i', $inputSql, $valuesMatch) === 1) {
+            $incomingRows = self::parseValues(trim(substr($inputSql, strlen($valuesMatch[0]))), $columns);
+        } elseif (preg_match('/^SELECT\b/i', $inputSql) === 1) {
+            if ($withName === null || $withColumns === null || $withRows === null) {
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING SELECT input requires a VALUES CTE');
+            }
+            $incomingRows = self::parseSelectInput($inputSql, $columns, $withName, $withColumns, $withRows);
+        } else {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires VALUES or SELECT input');
+        }
 
         $offset = $conflictOffset + strlen('ON CONFLICT');
         $offset = self::skipWhitespace($sql, $offset);
@@ -349,6 +382,51 @@ final class SQLiteUpsertReturningSql
     }
 
     /**
+     * @param list<string> $targetColumns
+     * @param list<string> $cteColumns
+     * @param list<array<string,mixed>> $cteRows
+     * @return list<array<string,mixed>>
+     */
+    private static function parseSelectInput(string $sql, array $targetColumns, string $cteName, array $cteColumns, array $cteRows): array
+    {
+        if (preg_match('/^SELECT\s+(.+?)\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+WHERE\s+(.+))?$/is', trim($sql), $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SELECT input is unsupported');
+        }
+        if (strcasecmp($match[2], $cteName) !== 0) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SELECT source CTE is missing');
+        }
+        $where = isset($match[3]) ? trim($match[3]) : null;
+        if ($where !== null && !in_array(strtolower($where), ['true', '1'], true)) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SELECT input only supports WHERE true');
+        }
+
+        $selectColumns = self::identifierList($match[1], 'SQLite UPSERT RETURNING SELECT column');
+        if (count($selectColumns) !== count($targetColumns)) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SELECT column count does not match target columns');
+        }
+        foreach ($selectColumns as $column) {
+            if (!in_array($column, $cteColumns, true)) {
+                throw new \InvalidArgumentException("SQLite UPSERT RETURNING SELECT column {$column} is missing from CTE");
+            }
+        }
+
+        $rows = [];
+        foreach ($cteRows as $cteRow) {
+            $row = [];
+            foreach ($targetColumns as $index => $targetColumn) {
+                $sourceColumn = $selectColumns[$index];
+                $row[$targetColumn] = $cteRow[$sourceColumn];
+            }
+            $rows[] = $row;
+        }
+        if ($rows === []) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SELECT input must not be empty');
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array<string,string>
      */
     private static function parseAssignments(string $sql): array
@@ -540,14 +618,6 @@ final class SQLiteUpsertReturningSql
             }
             if (preg_match('/^(?:(excluded|[A-Za-z_][A-Za-z0-9_]*)\.)?([A-Za-z_][A-Za-z0-9_]*)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?$/i', $term, $match) !== 1) {
                 if (preg_match('/^(.+?)\s+AS\s+(.+)$/is', $term, $expressionMatch) !== 1) {
-                    if (preg_match('/\s*[\+\-\|]{1,2}\s*/', $term) === 1) {
-                        if (preg_match('/^excluded\./i', $term) === 1 || preg_match('/[^A-Za-z0-9_]excluded\./i', $term) === 1) {
-                            throw new \InvalidArgumentException('SQLite UPSERT RETURNING cannot reference excluded columns');
-                        }
-                        $projection[$term] = static fn (array $row): mixed => self::evaluateExpression($term, $target, $row, $row);
-                        continue;
-                    }
-
                     throw new \InvalidArgumentException('SQLite UPSERT RETURNING only supports columns, aliases, expressions with aliases, literals, and *');
                 }
                 $expression = trim($expressionMatch[1]);

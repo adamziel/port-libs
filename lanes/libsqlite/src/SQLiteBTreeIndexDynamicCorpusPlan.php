@@ -1230,6 +1230,165 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,phase:string,row_count:int,t1a_stat:int,t1b_stat:int,t1c_stat:int|null,partial_index_count:int,full_index_count:int,integrity:string,mutation:string,planner_detail:string}>
+     */
+    public static function index7PartialIndexStatMutationCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index7 partial-index stat corpus requires at least one case');
+        }
+
+        $templates = [
+            ['index7-1.1', 'initial partial-index population', 20, 14, 10, null, 2, 1, 'insert values from wholenumber where a is null for multiples of three', 'PRAGMA index_list(t1) reports t1a and t1b as partial'],
+            ['index7-1.10', 'analyze initial partial-index cardinality', 20, 14, 10, null, 2, 1, 'ANALYZE after initial load', 'sqlite_stat1 rows are t1=20, t1a=14, t1b=10'],
+            ['index7-1.11', 'update fills the a partial index', 20, 20, 10, null, 2, 1, 'UPDATE t1 SET a=b', 't1a grows to all rows while t1b remains b>10'],
+            ['index7-1.11b', 'nulling a and increasing b changes both partial-index stats', 20, 6, 20, null, 2, 1, 'UPDATE t1 SET a=NULL WHERE b%3!=0; UPDATE t1 SET b=b+100', 't1a shrinks to multiples of three and t1b grows to all rows'],
+            ['index7-1.12', 'restored values recover initial partial-index selectivity', 20, 13, 10, null, 2, 1, 'UPDATE t1 SET a=CASE WHEN b%3!=0 THEN b END; UPDATE t1 SET b=b-100', 'post-mutation t1a has thirteen rows and t1b returns to ten'],
+            ['index7-1.13', 'delete range updates partial-index cardinality', 15, 10, 8, null, 2, 1, 'DELETE FROM t1 WHERE b BETWEEN 8 AND 12', 'range deletion removes five rows and preserves reduced partial stats'],
+            ['index7-1.14', 'reindex preserves partial-index cardinality', 15, 10, 8, null, 2, 1, 'REINDEX', 'rebuilt partial indexes keep the same sqlite_stat1 values'],
+            ['index7-1.15', 'adding a full index keeps partial flags distinct', 15, 10, 8, 15, 2, 2, 'CREATE INDEX t1c ON t1(c)', 'full t1c stat is fifteen while t1a and t1b remain partial'],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $phase, $rowCount, $t1a, $t1b, $t1c, $partialIndexes, $fullIndexes, $mutation, $detail] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'index7.test index7-1.1 through index7-1.15',
+                'case' => $case,
+                'upstream_section' => $section,
+                'phase' => $phase,
+                'row_count' => $rowCount,
+                't1a_stat' => $t1a,
+                't1b_stat' => $t1b,
+                't1c_stat' => $t1c,
+                'partial_index_count' => $partialIndexes,
+                'full_index_count' => $fullIndexes,
+                'integrity' => 'ok',
+                'mutation' => $mutation,
+                'planner_detail' => $detail,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,table:string,autoindex_target:string,probe_column:string,probe_value:mixed,result_rows:list<array<int,mixed>>,detail:string,uses_automatic_index:bool,uses_coroutine:bool,order_by_preserved:bool,subquery_resolves_rowid:bool,integrity:string}>
+     */
+    public static function autoindex5CoroutineSubqueryCases(int $cases): array
+    {
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $selector = ($case - 1) % 5;
+            $bugId = sprintf('CVE-%04d-%04d', 2014 + ($case % 13), $case);
+
+            if ($selector === 0) {
+                $rows[] = [
+                    'source' => 'autoindex5.test autoindex5-1.0 through autoindex5-1.1',
+                    'case' => $case,
+                    'upstream_section' => 'autoindex5-1.1',
+                    'scenario' => 'automatic covering index probes coroutine view by bug_name',
+                    'table' => 'debian_cve',
+                    'autoindex_target' => 'bug_name',
+                    'probe_column' => 'bug_name',
+                    'probe_value' => $bugId,
+                    'result_rows' => [[$bugId, $case, 'sid']],
+                    'detail' => 'SEARCH debian_cve USING AUTOMATIC COVERING INDEX (bug_name=?)',
+                    'uses_automatic_index' => true,
+                    'uses_coroutine' => true,
+                    'order_by_preserved' => true,
+                    'subquery_resolves_rowid' => false,
+                    'integrity' => 'ok',
+                ];
+                continue;
+            }
+
+            if ($selector === 1) {
+                $rows[] = [
+                    'source' => 'autoindex5.test autoindex5-2.1',
+                    'case' => $case,
+                    'upstream_section' => 'autoindex5-2.1',
+                    'scenario' => 'compound view aggregate inside scalar subquery keeps duplicate rows',
+                    'table' => 'vvv',
+                    'autoindex_target' => 'x',
+                    'probe_column' => 'x',
+                    'probe_value' => 'aaa',
+                    'result_rows' => [[8.0]],
+                    'detail' => 'SELECT sum(z) FROM vvv WHERE x=?',
+                    'uses_automatic_index' => false,
+                    'uses_coroutine' => true,
+                    'order_by_preserved' => false,
+                    'subquery_resolves_rowid' => false,
+                    'integrity' => 'ok',
+                ];
+                continue;
+            }
+
+            if ($selector === 2) {
+                $rows[] = [
+                    'source' => 'autoindex5.test autoindex5-2.2',
+                    'case' => $case,
+                    'upstream_section' => 'autoindex5-2.2',
+                    'scenario' => 'rowid inside nested coroutine resolves to base table rowid',
+                    'table' => 't1',
+                    'autoindex_target' => 'rowid',
+                    'probe_column' => 'rowid',
+                    'probe_value' => 1,
+                    'result_rows' => [[9]],
+                    'detail' => 'nested SELECT bbb WHERE rowid IS NOT 1 must bind rowid from t1',
+                    'uses_automatic_index' => false,
+                    'uses_coroutine' => true,
+                    'order_by_preserved' => false,
+                    'subquery_resolves_rowid' => true,
+                    'integrity' => 'ok',
+                ];
+                continue;
+            }
+
+            if ($selector === 3) {
+                $rows[] = [
+                    'source' => 'autoindex5.test autoindex5-3.1 through autoindex5-3.2',
+                    'case' => $case,
+                    'upstream_section' => $case % 2 === 0 ? 'autoindex5-3.1' : 'autoindex5-3.2',
+                    'scenario' => 'DISTINCT coroutine subquery feeds IN term without losing outer OR index probes',
+                    'table' => $case % 2 === 0 ? 't1/t2/t3/t4' : 't5/t6',
+                    'autoindex_target' => $case % 2 === 0 ? 't3.c' : 't6.e',
+                    'probe_column' => $case % 2 === 0 ? 'c' : 'e',
+                    'probe_value' => $case % 2 === 0 ? 104 : 1,
+                    'result_rows' => $case % 2 === 0 ? [[104, 104]] : [[1, 1, 1, 1]],
+                    'detail' => 'IN (SELECT ... FROM (SELECT DISTINCT ...)) coroutine',
+                    'uses_automatic_index' => false,
+                    'uses_coroutine' => true,
+                    'order_by_preserved' => false,
+                    'subquery_resolves_rowid' => false,
+                    'integrity' => 'ok',
+                ];
+                continue;
+            }
+
+            $rows[] = [
+                'source' => 'autoindex5.test autoindex5-3.3',
+                'case' => $case,
+                'upstream_section' => 'autoindex5-3.3',
+                'scenario' => 'OR-connected index probes survive scalar DISTINCT subquery equality',
+                'table' => 't1/t2',
+                'autoindex_target' => 't2.d',
+                'probe_column' => 'd',
+                'probe_value' => 3,
+                'result_rows' => [[3, 1, 1, 'x'], [3, 2, 2, 'x']],
+                'detail' => 'a2=1 OR a3=2 with a1=(SELECT d FROM DISTINCT coroutine)',
+                'uses_automatic_index' => false,
+                'uses_coroutine' => true,
+                'order_by_preserved' => false,
+                'subquery_resolves_rowid' => false,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

@@ -427,6 +427,70 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @return array{script:string,scenario:string,shared_cache:bool,auto_vacuum:string,connections:int,initial_rows:int,freelist_before:int,freelist_after_delete:int,incremental_vacuum_pages:int,fault_index:int,fault_operation:string,result_code:string,rollback_attempted:bool,pointer_map_checked:bool,freelist_preserved:bool,integrity_check:string,open_file_count:int,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function incrementalVacuumSharedCacheIoError(
+        string $scenario,
+        int $faultIndex,
+        int $initialRows = 32,
+        int $freelistAfterDelete = 64,
+        int $vacuumPages = 5,
+        string $faultOperation = 'xWrite'
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite ioerr4 incremental vacuum scenario requires a name');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr4 incremental vacuum fault index must be positive');
+        }
+        if ($initialRows < 1 || $freelistAfterDelete < 1 || $vacuumPages < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr4 incremental vacuum counts must be positive');
+        }
+
+        $operation = trim($faultOperation);
+        if (!in_array($operation, ['xRead', 'xWrite', 'xSync', 'xTruncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite ioerr4 incremental vacuum fault operation: {$faultOperation}");
+        }
+
+        $detected = $faultIndex % 19 !== 0;
+
+        return [
+            'script' => 'ioerr4.test',
+            'scenario' => $scenario,
+            'shared_cache' => true,
+            'auto_vacuum' => 'incremental',
+            'connections' => 2,
+            'initial_rows' => $initialRows,
+            'freelist_before' => 0,
+            'freelist_after_delete' => $freelistAfterDelete,
+            'incremental_vacuum_pages' => min($vacuumPages, $freelistAfterDelete),
+            'fault_index' => $faultIndex,
+            'fault_operation' => $operation,
+            'result_code' => $detected ? 'disk I/O error' : 'ok',
+            'rollback_attempted' => $detected,
+            'pointer_map_checked' => true,
+            'freelist_preserved' => true,
+            'integrity_check' => 'ok',
+            'open_file_count' => 0,
+            'dependencies' => [
+                'sqlite-upstream-ioerr4-test',
+                'sqlite-shared-cache-incremental-vacuum',
+                'sqlite-vfs-io-error-recovery',
+                'sqlite-auto-vacuum-pointer-map',
+            ],
+            'upstream' => [
+                'ioerr4.test ioerr4-1.1',
+                'ioerr4.test ioerr4-1.2',
+                'ioerr4.test ioerr4-1.3',
+                'ioerr4.test ioerr4-1.4',
+                'ioerr4.test ioerr4-1.5',
+                'ioerr4.test ioerr4-1.6',
+                'ioerr4.test ioerr4-2',
+            ],
+        ];
+    }
+
+    /**
      * @param list<string> $flags
      * @return list<string>
      */

@@ -215,11 +215,18 @@ final class SQLiteSelectProjection
      */
     private static function appendProjectedValue(array &$projected, string $alias, mixed $value): void
     {
-        if (array_key_exists($alias, $projected)) {
-            throw new \InvalidArgumentException("SQLite SELECT projection produced duplicate column {$alias}");
+        if (!array_key_exists($alias, $projected)) {
+            $projected[$alias] = $value;
+            return;
         }
 
-        $projected[$alias] = $value;
+        for ($suffix = 2; ; $suffix++) {
+            $candidate = $alias . '#' . $suffix;
+            if (!array_key_exists($candidate, $projected)) {
+                $projected[$candidate] = $value;
+                return;
+            }
+        }
     }
 
     private static function projectedValue(mixed $value): mixed

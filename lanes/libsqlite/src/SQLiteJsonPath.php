@@ -121,9 +121,11 @@ final class SQLiteJsonPath
             switch ($escape) {
                 case '"':
                 case "'":
-                case '\\':
                 case '/':
                     $decoded .= $escape;
+                    break;
+                case '\\':
+                    $decoded .= '\\\\';
                     break;
                 case 'b':
                     $decoded .= "\x08";

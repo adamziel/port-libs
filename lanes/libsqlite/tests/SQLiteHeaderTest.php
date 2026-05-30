@@ -19688,12 +19688,14 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
             ['type' => 'wildcard', 'prefix' => ''],
         ]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project([
+        $duplicateProjection = SQLiteSelectProjection::project([
             ['x.a' => 1, 'a' => 2],
         ], [
             ['type' => 'wildcard', 'prefix' => 'x'],
             ['type' => 'column', 'name' => 'a'],
-        ]));
+        ]);
+        $t->same(['a', 'a#2'], array_keys($duplicateProjection[0]));
+        $t->same([1, 2], array_values($duplicateProjection[0]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project([
             ['' => 1],
         ], [
@@ -22570,7 +22572,7 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::orderBy($rows, [['column' => 'missing']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::orderBy($rows, [['column' => 'bytes', 'direction' => 'SIDEWAYS']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::orderBy([['bytes' => []]], [['column' => 'bytes']]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::limitOffset($rows, 1, -1));
+        $t->same(['orphaned'], array_column(SQLiteSelectResult::limitOffset($ordered, 1, -1), 'key_name'));
     },
     'filters sqlite select rows with exists and in subquery semantics' => static function (TestRunner $t): void {
         $options = [

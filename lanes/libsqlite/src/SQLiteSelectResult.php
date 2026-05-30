@@ -138,9 +138,7 @@ final class SQLiteSelectResult
      */
     public static function limitOffset(array $rows, ?int $limit, int $offset = 0): array
     {
-        if ($offset < 0) {
-            throw new \InvalidArgumentException('SQLite OFFSET must be non-negative');
-        }
+        $offset = max(0, $offset);
         if ($limit !== null && $limit < 0) {
             return array_slice($rows, $offset);
         }
