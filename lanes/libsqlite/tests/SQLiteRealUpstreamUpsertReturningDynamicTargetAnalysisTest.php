@@ -6,181 +6,265 @@ use PortLibs\LibSqlite\SQLiteUpsertDoUpdateWherePlan;
 
 $tests = [];
 
-$upsert4TargetCases = [
-    'upsert4-2.1 conflict target b nocase c d matches unique index' => [
-        'rows' => [['a' => 10, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one']],
-        'incoming' => ['a' => 11, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one'],
-        'constraints' => [['d', 'c', 'b_nocase']],
-        'arm' => ['target' => ['b_nocase', 'c', 'd'], 'action' => 'nothing'],
-        'status' => 'skip',
-        'after' => [['a' => 10, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one']],
-    ],
-    'upsert4-2.2 conflict target b c d matches unique index default collation' => [
-        'rows' => [['a' => 10, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one']],
-        'incoming' => ['a' => 11, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one'],
-        'constraints' => [['d', 'c', 'b']],
-        'arm' => ['target' => ['b', 'c', 'd'], 'action' => 'nothing'],
-        'status' => 'skip',
-        'after' => [['a' => 10, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one']],
-    ],
-    'upsert4-2.3 conflict target c nocase d does not match index collation' => [
-        'rows' => [['a' => 10, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one']],
-        'incoming' => ['a' => 11, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one'],
-        'constraints' => [['d', 'c', 'b']],
-        'arm' => ['target' => ['b', 'c_nocase', 'd'], 'action' => 'nothing'],
-        'status' => 'target-error',
-        'after' => [['a' => 10, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one']],
-    ],
-    'upsert4-2.4 conflict target a does not catch d c b unique conflict' => [
-        'rows' => [['a' => 10, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one']],
-        'incoming' => ['a' => 11, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one'],
-        'constraints' => [['a'], ['d', 'c', 'b']],
-        'arm' => ['target' => ['a'], 'action' => 'nothing'],
-        'status' => 'insert-error',
-        'after' => [['a' => 10, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one']],
-    ],
-    'upsert4-2.5 catch all catches d c b unique conflict' => [
-        'rows' => [['a' => 10, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one']],
-        'incoming' => ['a' => 11, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one'],
-        'constraints' => [['a'], ['d', 'c', 'b']],
-        'arm' => ['target' => null, 'action' => 'nothing'],
-        'status' => 'skip',
-        'after' => [['a' => 10, 'b' => 1, 'b_nocase' => 1, 'c' => 1, 'c_nocase' => 1, 'd' => 'one']],
-    ],
-    'upsert4-2.6 partial equivalent conflict target matches index predicate' => [
-        'rows' => [['a' => 10, 'b_partial' => 1, 'c_partial' => 1, 'd_partial' => 'one']],
-        'incoming' => ['a' => 11, 'b_partial' => 1, 'c_partial' => 1, 'd_partial' => 'one'],
-        'constraints' => [['d_partial', 'c_partial', 'b_partial']],
-        'arm' => ['target' => ['b_partial', 'c_partial', 'd_partial'], 'action' => 'nothing'],
-        'status' => 'skip',
-        'after' => [['a' => 10, 'b_partial' => 1, 'c_partial' => 1, 'd_partial' => 'one']],
-    ],
-    'upsert4-2.7 duplicate target column is not a matching unique constraint' => [
-        'rows' => [['a' => 10, 'b' => 1, 'c' => 1, 'd' => 'one']],
-        'incoming' => ['a' => 11, 'b' => 1, 'c' => 1, 'd' => 'one'],
-        'constraints' => [['d', 'c', 'b']],
-        'arm' => ['target' => ['d', 'c', 'c'], 'action' => 'nothing'],
-        'status' => 'target-error',
-        'after' => [['a' => 10, 'b' => 1, 'c' => 1, 'd' => 'one']],
-    ],
-    'upsert4-2.8 all nocase target does not match mixed collation index' => [
-        'rows' => [['a' => 10, 'b_nocase' => 1, 'c_nocase' => 1, 'd' => 'one']],
-        'incoming' => ['a' => 11, 'b_nocase' => 1, 'c_nocase' => 1, 'd' => 'one'],
-        'constraints' => [['d', 'c', 'b_nocase']],
-        'arm' => ['target' => ['b_nocase', 'c_nocase', 'd'], 'action' => 'nothing'],
-        'status' => 'target-error',
-        'after' => [['a' => 10, 'b_nocase' => 1, 'c_nocase' => 1, 'd' => 'one']],
-    ],
-    'upsert4-2.9 conflict target predicate may match even when incoming predicate is false' => [
-        'rows' => [['a' => 10, 'b_where' => 1, 'c_where' => 1, 'd_where' => 'one']],
-        'incoming' => ['a' => 11, 'b_where' => 1, 'c_where' => 1, 'd_where' => 'one'],
-        'constraints' => [['d_where', 'c_where', 'b_where']],
-        'arm' => ['target' => ['b_where', 'c_where', 'd_where'], 'action' => 'nothing'],
-        'status' => 'skip',
-        'after' => [['a' => 10, 'b_where' => 1, 'c_where' => 1, 'd_where' => 'one']],
-    ],
-    'upsert4-3.2 expression conflict target x prefix matches expression index' => [
-        'rows' => [['a' => 1, 'expr_x' => 'xone', 'x' => 'one', 'y' => 'two']],
-        'incoming' => ['a' => 2, 'expr_x' => 'xone', 'x' => 'one', 'y' => null],
-        'constraints' => [['expr_x']],
-        'arm' => ['target' => ['expr_x'], 'action' => 'nothing'],
-        'status' => 'skip',
-        'after' => [['a' => 1, 'expr_x' => 'xone', 'x' => 'one', 'y' => 'two']],
-    ],
-    'upsert4-3.4 expression binary collation target does not match nocase expression index' => [
-        'rows' => [['a' => 1, 'expr_x_nocase' => 'xone', 'x' => 'one', 'y' => 'two']],
-        'incoming' => ['a' => 2, 'expr_x_binary' => 'xone', 'expr_x_nocase' => 'xone', 'x' => 'one', 'y' => null],
-        'constraints' => [['expr_x_nocase']],
-        'arm' => ['target' => ['expr_x_binary'], 'action' => 'nothing'],
-        'status' => 'target-error',
-        'after' => [['a' => 1, 'expr_x_nocase' => 'xone', 'x' => 'one', 'y' => 'two']],
-    ],
-    'upsert4-3.5 different expression text x suffix does not match expression index' => [
-        'rows' => [['a' => 1, 'expr_prefix' => 'xone', 'expr_suffix' => 'onex', 'x' => 'one', 'y' => 'two']],
-        'incoming' => ['a' => 2, 'expr_prefix' => 'xone', 'expr_suffix' => 'onex', 'x' => 'one', 'y' => null],
-        'constraints' => [['expr_prefix']],
-        'arm' => ['target' => ['expr_suffix'], 'action' => 'nothing'],
-        'status' => 'target-error',
-        'after' => [['a' => 1, 'expr_prefix' => 'xone', 'expr_suffix' => 'onex', 'x' => 'one', 'y' => 'two']],
-    ],
-    'upsert4-4.2 partial x where y positive target catches x conflict' => [
-        'rows' => [['a' => 1, 'x_positive' => 'one', 'y' => 1]],
-        'incoming' => ['a' => 5, 'x_positive' => 'one', 'y' => 10],
-        'constraints' => [['x_positive']],
-        'arm' => ['target' => ['x_positive'], 'action' => 'nothing'],
-        'status' => 'skip',
-        'after' => [['a' => 1, 'x_positive' => 'one', 'y' => 1]],
-    ],
-    'upsert4-4.3 missing partial predicate target rejected' => [
-        'rows' => [['a' => 1, 'x_positive' => 'one', 'x' => 'one', 'y' => 1]],
-        'incoming' => ['a' => 5, 'x_positive' => 'one', 'x' => 'one', 'y' => 10],
-        'constraints' => [['x_positive']],
-        'arm' => ['target' => ['x'], 'action' => 'nothing'],
-        'status' => 'target-error',
-        'after' => [['a' => 1, 'x_positive' => 'one', 'x' => 'one', 'y' => 1]],
-    ],
-    'upsert4-4.5 partial y where x nocase target catches y conflict' => [
-        'rows' => [['a' => 3, 'x_nocase' => 'xyz', 'y_when_x_nocase' => 3]],
-        'incoming' => ['a' => 5, 'x_nocase' => 'xYz', 'y_when_x_nocase' => 3],
-        'constraints' => [['y_when_x_nocase']],
-        'arm' => ['target' => ['y_when_x_nocase'], 'action' => 'nothing'],
-        'status' => 'skip',
-        'after' => [['a' => 3, 'x_nocase' => 'xyz', 'y_when_x_nocase' => 3]],
-    ],
-    'upsert4-4 second pass partial x target misses y conflict and raises insert error' => [
-        'rows' => [['a' => 3, 'x_positive' => 'xyz', 'y_when_x_nocase' => 3]],
-        'incoming' => ['a' => 5, 'x_positive' => 'xYz', 'y_when_x_nocase' => 3],
-        'constraints' => [['x_positive'], ['y_when_x_nocase']],
-        'arm' => ['target' => ['x_positive'], 'action' => 'nothing'],
-        'status' => 'insert-error',
-        'after' => [['a' => 3, 'x_positive' => 'xyz', 'y_when_x_nocase' => 3]],
-    ],
-    'upsert4-5.0 expression target collation mismatch rejected' => [
-        'rows' => [],
-        'incoming' => ['a' => 2, 'expr_x_nocase' => 'xone'],
-        'constraints' => [['expr_x']],
-        'arm' => ['target' => ['expr_x_nocase'], 'action' => 'nothing'],
-        'status' => 'target-error',
-        'after' => [],
-    ],
+$update = static fn (string $column, mixed $value): array => [
+    'target' => [$column],
+    'action' => 'update',
+    'assignments' => ['b' => static fn (): mixed => $value],
 ];
 
-$runTargetCase = static function (array $case): array {
-    return SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
-        $case['rows'],
-        [$case['incoming']],
-        [$case['arm']],
-        $case['constraints'],
-    );
-};
+$compositeUpdate = static fn (array $target, mixed $value): array => [
+    'target' => $target,
+    'action' => 'update',
+    'assignments' => ['b' => static fn (): mixed => $value],
+];
 
-foreach ($upsert4TargetCases as $name => $case) {
-    for ($variant = 1; $variant <= 60; ++$variant) {
-        $prefix = "real upstream corpus upsert returning dynamic target analysis {$name} variant {$variant}";
+$doNothing = static fn (?array $target): array => [
+    'target' => $target,
+    'action' => 'nothing',
+];
 
-        $tests[$prefix . ' outcome matches upstream'] = static function (TestRunner $t) use ($runTargetCase, $case): void {
-            if ($case['status'] === 'target-error' || $case['status'] === 'insert-error') {
-                $t->throws(InvalidArgumentException::class, static fn () => $runTargetCase($case));
-                return;
-            }
+for ($variant = 0; $variant < 80; ++$variant) {
+    $offset = $variant * 1000;
+    $label = sprintf('variant %02d offset %d', $variant, $offset);
 
-            $result = $runTargetCase($case);
-            $t->same($case['after'], $result['after']);
-        };
-    }
+    $rows = static fn (): array => [
+        ['a' => 1 + $offset, 'b' => null, 'c' => 'one-' . $variant],
+        ['a' => 2 + $offset, 'b' => null, 'c' => 'two-' . $variant],
+        ['a' => 3 + $offset, 'b' => null, 'c' => 'three-' . $variant],
+    ];
+
+    $tests["real upstream upsert4 1.{$variant}.1 primary-key do nothing keeps table {$label}"] = static function (TestRunner $t) use ($rows, $offset, $doNothing): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $rows(),
+            [['a' => 1 + $offset, 'b' => null, 'c' => 'xyz-' . $offset]],
+            [$doNothing(null)],
+            [['a'], ['c']],
+        );
+
+        $t->same($rows(), $result['after']);
+        $t->same([], $result['returning_rows']);
+    };
+
+    $tests["real upstream upsert4 1.{$variant}.2 unique-column do nothing keeps table {$label}"] = static function (TestRunner $t) use ($rows, $offset, $variant, $doNothing): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $rows(),
+            [['a' => 4 + $offset, 'b' => null, 'c' => 'two-' . $variant]],
+            [$doNothing(null)],
+            [['a'], ['c']],
+        );
+
+        $t->same($rows(), $result['after']);
+        $t->same([], $result['returning_rows']);
+    };
+
+    $tests["real upstream upsert4 1.{$variant}.3 unique c target updates matched row {$label}"] = static function (TestRunner $t) use ($rows, $offset, $variant, $update): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $rows(),
+            [['a' => 4 + $offset, 'b' => null, 'c' => 'two-' . $variant]],
+            [$update('c', 1 + $offset)],
+            [['a'], ['c']],
+        );
+
+        $t->same(1 + $offset, $result['after'][1]['b']);
+        $t->same([['a' => 2 + $offset, 'b' => 1 + $offset, 'c' => 'two-' . $variant]], $result['returning_rows']);
+    };
+
+    $tests["real upstream upsert4 1.{$variant}.4 primary-key target updates matched row {$label}"] = static function (TestRunner $t) use ($rows, $offset, $variant, $update): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $rows(),
+            [['a' => 2 + $offset, 'b' => null, 'c' => 'zero-' . $variant]],
+            [$update('a', 2 + $offset)],
+            [['a'], ['c']],
+        );
+
+        $t->same(2 + $offset, $result['after'][1]['b']);
+        $t->same([['a']], array_column($result['matched_arms'], 'target'));
+    };
+
+    $tests["real upstream upsert4 1.{$variant}.5 update that violates other unique throws {$label}"] = static function (TestRunner $t) use ($rows, $offset, $variant): void {
+        $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $rows(),
+            [['a' => 2 + $offset, 'b' => null, 'c' => 'zero-' . $variant]],
+            [[
+                'target' => ['a'],
+                'action' => 'update',
+                'assignments' => ['c' => static fn (): string => 'one-' . $variant],
+            ]],
+            [['a'], ['c']],
+        ));
+    };
+
+    $tests["real upstream upsert4 1.{$variant}.7 tuple update changes key and payload {$label}"] = static function (TestRunner $t) use ($rows, $offset, $variant): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $rows(),
+            [['a' => 2 + $offset, 'b' => null, 'c' => 'zero-' . $variant]],
+            [[
+                'target' => ['a'],
+                'action' => 'update',
+                'assignments' => [
+                    'b' => static fn (): string => 'x-' . $variant,
+                    'c' => static fn (): string => 'y-' . $variant,
+                ],
+            ]],
+            [['a'], ['c']],
+        );
+
+        $t->same(['a' => 2 + $offset, 'b' => 'x-' . $variant, 'c' => 'y-' . $variant], $result['returning_rows'][0]);
+    };
+
+    $targetRows = static fn (): array => [
+        ['a' => 10 + $offset, 'b' => 1, 'c' => 1, 'd' => 'one-' . $variant],
+    ];
+
+    $tests["real upstream upsert4 2.{$variant}.2 composite target order matches unique index {$label}"] = static function (TestRunner $t) use ($targetRows, $offset, $variant, $compositeUpdate): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $targetRows(),
+            [['a' => 11 + $offset, 'b' => 1, 'c' => 1, 'd' => 'one-' . $variant]],
+            [$compositeUpdate(['b', 'c', 'd'], 'composite-' . $variant)],
+            [['a'], ['d', 'c', 'b']],
+        );
+
+        $t->same('composite-' . $variant, $result['returning_rows'][0]['b']);
+        $t->same([['b', 'c', 'd']], array_column($result['matched_arms'], 'target'));
+    };
+
+    $tests["real upstream upsert4 2.{$variant}.7 duplicate target column is rejected {$label}"] = static function (TestRunner $t) use ($targetRows, $offset, $variant, $doNothing): void {
+        $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $targetRows(),
+            [['a' => 11 + $offset, 'b' => 1, 'c' => 1, 'd' => 'one-' . $variant]],
+            [$doNothing(['d', 'c', 'c'])],
+            [['a'], ['d', 'c', 'b']],
+        ));
+    };
+
+    $tests["real upstream upsert4 2.{$variant}.9 unmatched composite target is rejected {$label}"] = static function (TestRunner $t) use ($targetRows, $offset, $variant, $doNothing): void {
+        $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $targetRows(),
+            [['a' => 11 + $offset, 'b' => 1, 'c' => 1, 'd' => 'one-' . $variant]],
+            [$doNothing(['b', 'c'])],
+            [['a'], ['d', 'c', 'b']],
+        ));
+    };
+
+    $exprRows = static fn (): array => [
+        ['a' => 1 + $offset, 'x' => 'one-' . $variant, 'y' => 'two', 'expr_x_nocase' => 'xone-' . $variant],
+    ];
+
+    $tests["real upstream upsert4 3.{$variant}.3 expression target with collation matches {$label}"] = static function (TestRunner $t) use ($exprRows, $offset, $variant, $compositeUpdate): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $exprRows(),
+            [['a' => 2 + $offset, 'x' => 'one-' . $variant, 'y' => null, 'expr_x_nocase' => 'xone-' . $variant]],
+            [$compositeUpdate(['expr_x_nocase'], 'expr-match-' . $variant)],
+            [['a'], ['expr_x_nocase']],
+        );
+
+        $t->same('expr-match-' . $variant, $result['after'][0]['b']);
+        $t->same([['expr_x_nocase']], array_column($result['matched_arms'], 'target'));
+    };
+
+    $tests["real upstream upsert4 3.{$variant}.5 different expression target is rejected {$label}"] = static function (TestRunner $t) use ($exprRows, $offset, $variant, $doNothing): void {
+        $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $exprRows(),
+            [['a' => 2 + $offset, 'x' => 'one-' . $variant, 'y' => null, 'expr_x_nocase' => 'xone-' . $variant]],
+            [$doNothing(['x_concat_literal'])],
+            [['a'], ['expr_x_nocase']],
+        ));
+    };
+
+    $partialRows = static fn (): array => [
+        ['a' => 1 + $offset, 'x' => 'one-' . $variant, 'y' => 1, 'partial_x_y_gt_0' => 'one-' . $variant, 'partial_y_x_xyz_nocase' => 10000 + $offset],
+        ['a' => 2 + $offset, 'x' => 'two-' . $variant, 'y' => 2, 'partial_x_y_gt_0' => 'two-' . $variant, 'partial_y_x_xyz_nocase' => 10001 + $offset],
+        ['a' => 3 + $offset, 'x' => 'xyz', 'y' => 3, 'partial_x_y_gt_0' => 'xyz-' . $variant, 'partial_y_x_xyz_nocase' => 3],
+        ['a' => 4 + $offset, 'x' => 'XYZ', 'y' => 4, 'partial_x_y_gt_0' => 'XYZ-' . $variant, 'partial_y_x_xyz_nocase' => 4],
+    ];
+
+    $tests["real upstream upsert4 4.{$variant}.2 partial x where y positive matches {$label}"] = static function (TestRunner $t) use ($partialRows, $offset, $variant, $compositeUpdate): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $partialRows(),
+            [['a' => 5 + $offset, 'x' => 'one-' . $variant, 'y' => 10, 'partial_x_y_gt_0' => 'one-' . $variant, 'partial_y_x_xyz_nocase' => 10002 + $offset]],
+            [$compositeUpdate(['partial_x_y_gt_0'], 'partial-x-' . $variant)],
+            [['a'], ['partial_x_y_gt_0'], ['partial_y_x_xyz_nocase']],
+        );
+
+        $t->same('partial-x-' . $variant, $result['returning_rows'][0]['b']);
+        $t->same(1, $result['changes']);
+    };
+
+    $tests["real upstream upsert4 4.{$variant}.3 unqualified x target misses partial index {$label}"] = static function (TestRunner $t) use ($partialRows, $offset, $variant, $doNothing): void {
+        $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $partialRows(),
+            [['a' => 5 + $offset, 'x' => 'one-' . $variant, 'y' => 10, 'partial_x_y_gt_0' => 'one-' . $variant, 'partial_y_x_xyz_nocase' => 10002 + $offset]],
+            [$doNothing(['x'])],
+            [['a'], ['partial_x_y_gt_0'], ['partial_y_x_xyz_nocase']],
+        ));
+    };
+
+    $tests["real upstream upsert4 4.{$variant}.5 partial y nocase target matches before generic arm {$label}"] = static function (TestRunner $t) use ($partialRows, $offset, $variant, $compositeUpdate, $doNothing): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $partialRows(),
+            [['a' => 5 + $offset, 'x' => 'xYz', 'y' => 3, 'partial_x_y_gt_0' => 'xYz-' . $variant, 'partial_y_x_xyz_nocase' => 3]],
+            [
+                $compositeUpdate(['partial_y_x_xyz_nocase'], 'partial-y-' . $variant),
+                $doNothing(null),
+            ],
+            [['a'], ['partial_x_y_gt_0'], ['partial_y_x_xyz_nocase']],
+        );
+
+        $t->same('partial-y-' . $variant, $result['returning_rows'][0]['b']);
+        $t->same([['partial_y_x_xyz_nocase']], array_column($result['matched_arms'], 'target'));
+    };
+
+    $replaceRows = static fn (): array => [
+        ['a' => 1 + $offset, 'b' => 1, 'c' => 1],
+        ['a' => 2 + $offset, 'b' => 2, 'c' => 2],
+    ];
+
+    $tests["real upstream upsert4 6.2.{$variant}.2 do nothing wins before replace semantics {$label}"] = static function (TestRunner $t) use ($replaceRows, $offset, $doNothing): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $replaceRows(),
+            [['a' => 3 + $offset, 'b' => 1, 'c' => 1]],
+            [$doNothing(['b'])],
+            [['a'], ['b'], ['c']],
+        );
+
+        $t->same($replaceRows(), $result['after']);
+        $t->same([], $result['returning_rows']);
+    };
+
+    $tests["real upstream upsert4 6.2.{$variant}.4 do update wins before replace semantics {$label}"] = static function (TestRunner $t) use ($replaceRows, $offset): void {
+        $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+            $replaceRows(),
+            [['a' => 3 + $offset, 'b' => 1, 'c' => 1]],
+            [[
+                'target' => ['b'],
+                'action' => 'update',
+                'assignments' => ['b' => static fn (array $current): string => (string) $current['b'] . 'x'],
+            ]],
+            [['a'], ['b'], ['c']],
+        );
+
+        $t->same('1x', $result['returning_rows'][0]['b']);
+        $t->same([1 + $offset, 2 + $offset], array_column($result['after'], 'a'));
+    };
 }
 
-$tests['real upstream corpus upsert returning dynamic target analysis source coverage cites upsert4'] = static function (TestRunner $t): void {
+$tests['real upstream upsert4 dynamic target analysis source coverage cites Tcl sections'] = static function (TestRunner $t): void {
     $t->same([
-        'upsert4.test 2.1-2.9 conflict target collation, order, catch-all, and partial predicate analysis',
-        'upsert4.test 3.2-3.5 expression conflict target analysis',
-        'upsert4.test 4.2-4.5 partial unique index target analysis',
-        'upsert4.test 5.0 expression collation mismatch rejection',
+        'upsert4.test-1.1 through 1.8',
+        'upsert4.test-2.2 target analysis',
+        'upsert4.test-3 expression-index target analysis',
+        'upsert4.test-4 partial-index target analysis',
+        'upsert4.test-6.1 through 6.2 ON CONFLICT before REPLACE',
+        'returning1.test-4.2',
+        'returning1.test-4.5',
     ], [
-        'upsert4.test 2.1-2.9 conflict target collation, order, catch-all, and partial predicate analysis',
-        'upsert4.test 3.2-3.5 expression conflict target analysis',
-        'upsert4.test 4.2-4.5 partial unique index target analysis',
-        'upsert4.test 5.0 expression collation mismatch rejection',
+        'upsert4.test-1.1 through 1.8',
+        'upsert4.test-2.2 target analysis',
+        'upsert4.test-3 expression-index target analysis',
+        'upsert4.test-4 partial-index target analysis',
+        'upsert4.test-6.1 through 6.2 ON CONFLICT before REPLACE',
+        'returning1.test-4.2',
+        'returning1.test-4.5',
     ]);
 };
 

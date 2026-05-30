@@ -2,213 +2,270 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVfsFileControlPersistencePlan;
+use PortLibs\LibSqlite\SQLiteRollbackJournal;
+use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
+use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $tests = [];
 
-$pageSize = 512;
-$page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
+$pageSizes = [512, 1024, 2048, 4096];
+$checkpointModes = ['passive', 'full', 'restart', 'truncate'];
+$readerFrames = [null, 0, 1, 2, 4];
 
-$makeWalBytes = static function (int $case, array $frames) use ($pageSize, $page): string {
-    $salt1 = 0x41000000 + $case;
-    $salt2 = 0x42000000 + $case;
-    $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 700 + $case, $salt1, $salt2);
-    $seed = SQLiteWal::checksumPair($prefix, false);
+$page = static fn (string $label, int $pageSize): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
+$database = static function (int $pageSize, int $pageCount, string $prefix) use ($page): string {
+    $bytes = '';
+    for ($pageNumber = 1; $pageNumber <= $pageCount; $pageNumber++) {
+        $bytes .= $page("{$prefix} database page {$pageNumber}", $pageSize);
+    }
+
+    return $bytes;
+};
+$walSize = static fn (int $frameCount, int $pageSize): int => 32 + ($frameCount * (24 + $pageSize));
+
+$makeWalBytes = static function (
+    int $pageSize,
+    array $frames,
+    int $sequence,
+    int $salt1,
+    int $salt2,
+    ?callable $mutate = null,
+    bool $littleEndianChecksums = false
+) use ($page): string {
+    $magic = $littleEndianChecksums ? SQLiteWalHeader::MAGIC_LITTLE_ENDIAN : SQLiteWalHeader::MAGIC_BIG_ENDIAN;
+    $prefix = pack('N*', $magic, 3007000, $pageSize, $sequence, $salt1, $salt2);
+    $seed = SQLiteWal::checksumPair($prefix, $littleEndianChecksums);
     $bytes = $prefix . pack('N*', $seed[0], $seed[1]);
 
-    foreach ($frames as $frame) {
-        $image = $frame['image'] ?? $page(sprintf('wal dynamic case %04d page %d frame', $case, $frame['page']));
-        $framePrefix = pack('N*', $frame['page'], $frame['commit'], $salt1, $salt2);
-        $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $image, false, $seed[0], $seed[1]);
-        $bytes .= $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
+    foreach ($frames as $index => $frame) {
+        $image = $page((string) $frame['label'], $pageSize);
+        $framePrefix = pack('N*', (int) $frame['page'], (int) $frame['commit'], $salt1, $salt2);
+        $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $image, $littleEndianChecksums, $seed[0], $seed[1]);
+        $frameBytes = $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
+        $bytes .= $mutate === null ? $frameBytes : $mutate($frameBytes, $index + 1);
     }
 
     return $bytes;
 };
 
-$baseDatabase = static function (int $case, int $pages = 4) use ($page): string {
-    $bytes = '';
-    for ($pageNumber = 1; $pageNumber <= $pages; $pageNumber++) {
-        $bytes .= $page(sprintf('base case %04d page %02d', $case, $pageNumber));
+$makeJournalBytes = static function (int $pageSize, int $initialPageCount, array $records, int $nonce, int $sectorSize = 512): string {
+    $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', count($records), $nonce, $initialPageCount, $sectorSize, $pageSize);
+    $bytes = str_pad($header, $sectorSize, "\0");
+    foreach ($records as $record) {
+        $image = str_pad((string) $record['label'], $pageSize, '.', STR_PAD_RIGHT);
+        $bytes .= pack('N', (int) $record['page']) . $image . pack('N', SQLiteRollbackJournal::pageChecksum($image, $nonce));
     }
 
     return $bytes;
 };
 
-$matrix = [
-    'wal.test wal-1 committed schema frame remains reader-visible' => [
-        [[1, 0], [2, 2]],
-        2,
-        2,
-        0,
-        'valid',
-        'all_frames_valid',
-        [1 => 'wal', 2 => 'wal'],
-    ],
-    'wal.test wal-2 mvcc reader ignores writer tail before commit' => [
-        [[1, 0], [2, 2], [2, 0], [3, 0]],
-        2,
-        4,
-        2,
-        'recovered_committed_prefix',
-        'uncommitted_valid_tail_after_last_commit',
-        [1 => 'wal', 2 => 'wal'],
-    ],
-    'wal.test wal-3 rollback leaves last committed image in snapshot' => [
-        [[1, 0], [2, 2], [2, 0], [2, 2]],
-        4,
-        4,
-        0,
-        'valid',
-        'all_frames_valid',
-        [1 => 'wal', 2 => 'wal'],
-    ],
-    'wal.test wal-4 savepoint rollback commits retained prefix' => [
-        [[1, 0], [2, 0], [3, 3], [3, 0]],
-        3,
-        4,
-        1,
-        'recovered_committed_prefix',
-        'uncommitted_valid_tail_after_last_commit',
-        [1 => 'wal', 2 => 'wal', 3 => 'wal'],
-    ],
-    'wal2.test wal-index recovery ignores corrupted reader tail' => [
-        [[1, 0], [2, 2], [1, 0], [2, 0], [3, 3]],
-        5,
-        5,
-        0,
-        'valid',
-        'all_frames_valid',
-        [1 => 'wal', 2 => 'wal', 3 => 'wal'],
-    ],
-    'walcksum.test checksum recovery stops before corrupt salt tail' => [
-        [[1, 0], [2, 2], [4, 0]],
-        2,
-        2,
-        0,
-        'recovered_committed_prefix',
-        'corrupt_tail_after_committed_prefix',
-        [1 => 'wal', 2 => 'wal'],
-        'salt',
-    ],
-    'walcrash.test crash recovery discards valid no-commit tail' => [
-        [[1, 0], [2, 2], [3, 0], [4, 0]],
-        2,
-        4,
-        2,
-        'recovered_committed_prefix',
-        'uncommitted_valid_tail_after_last_commit',
-        [1 => 'wal', 2 => 'wal'],
-    ],
-    'walcrash2.test crash recovery stops before truncated frame' => [
-        [[1, 0], [2, 2], [3, 3]],
-        2,
-        2,
-        0,
-        'recovered_committed_prefix',
-        'corrupt_tail_after_committed_prefix',
-        [1 => 'wal', 2 => 'wal'],
-        'truncate',
-    ],
-];
-
-for ($case = 1; $case <= 512; $case++) {
-    $upstream = array_keys($matrix)[($case - 1) % count($matrix)];
-    $scenario = $matrix[$upstream];
-    [$frames, $commitFrame, $validFrames, $discardedTail, $status, $reason, $sources, $corruption] = array_pad($scenario, 8, null);
-    $frameSpecs = [];
-    foreach ($frames as $ordinal => [$pageNumber, $commit]) {
-        $frameSpecs[] = [
-            'page' => $pageNumber,
-            'commit' => $commit,
-            'image' => $page(sprintf('case %04d upstream frame %02d page %02d', $case, $ordinal + 1, $pageNumber)),
+/*
+ * Source truth:
+ * - wal.test wal-1.*..wal-4.* and wal2.test: committed frame visibility,
+ *   reader-pinned checkpoint blocking, restart/truncate reset behavior, and
+ *   new-reader database visibility after checkpoint.
+ * - walckptnoop.test 1.1..1.10: noop checkpoints do not backfill or reset WAL
+ *   bytes while passive checkpoints can backfill committed pages.
+ * - walcksum.test walcksum-1.big.* / walcksum-1.little.*: checksum byte-order
+ *   chains, corrupt tails, truncated tails, and salt mismatch recovery.
+ * - savepoint.test savepoint-1.*..5.*, 10.*, 14.*..16.*: rollback-to keeps
+ *   the pre-savepoint WAL prefix and discards later frames.
+ * - pager1.test: hot rollback journal recovery restores only pages within the
+ *   original database size and preserves non-hot journals.
+ */
+foreach ($pageSizes as $pageSize) {
+    for ($variant = 1; $variant <= 50; $variant++) {
+        $basePages = 4 + ($variant % 3);
+        $commitPages = $basePages + 1;
+        $label = "real upstream pager wal dynamic matrix {$pageSize} {$variant}";
+        $databaseBytes = $database($pageSize, $basePages, $label);
+        $frames = [
+            ['page' => 1, 'commit' => 0, 'label' => "{$label} begin page one"],
+            ['page' => 2, 'commit' => $basePages, 'label' => "{$label} first commit page two"],
+            ['page' => 3, 'commit' => 0, 'label' => "{$label} draft page three"],
+            ['page' => $commitPages, 'commit' => $commitPages, 'label' => "{$label} append commit page"],
+            ['page' => 2, 'commit' => 0, 'label' => "{$label} uncommitted tail page two"],
         ];
+        $walBytes = $makeWalBytes(
+            $pageSize,
+            $frames,
+            1000 + $variant,
+            (0x11110000 + $variant) & 0xffffffff,
+            (0x22220000 + $variant) & 0xffffffff
+        );
+        $wal = SQLiteWal::parse($walBytes, $pageSize, true);
+        $lastCommit = $wal->lastCommitFrame();
+
+        foreach ($checkpointModes as $mode) {
+            foreach ($readerFrames as $readerFrame) {
+                $readerLabel = $readerFrame === null ? 'none' : (string) $readerFrame;
+                $tests["{$label} {$mode} reader {$readerLabel} checkpoint invariants"] = static function (TestRunner $t) use ($wal, $walBytes, $databaseBytes, $mode, $readerFrame, $pageSize, $walSize, $lastCommit, $commitPages): void {
+                    $plan = $wal->checkpointModePlan($databaseBytes, $mode, $readerFrame);
+                    $result = $wal->checkpointModeResult($databaseBytes, $mode, $readerFrame);
+                    $durable = $wal->durableCheckpointResult($databaseBytes, $mode, $readerFrame);
+
+                    $t->same($mode, $plan['mode']);
+                    $t->same($plan['busy'], $result['busy']);
+                    $t->same($plan['reason'], $result['reason']);
+                    $t->same($plan['checkpointed_frame_count'], $result['checkpointed_frame_count']);
+                    $t->same($plan['remaining_committed_frame_count'], $result['remaining_committed_frame_count']);
+                    $t->same($plan['uncommitted_frame_count'], $result['uncommitted_frame_count']);
+                    $t->same($plan['can_reset'], $result['can_reset']);
+                    $t->same($plan['can_truncate'], $result['can_truncate']);
+                    $t->same($commitPages, $lastCommit?->databasePageCountAfterCommit);
+                    $t->same($walSize(5, $pageSize), strlen($walBytes));
+                    $t->true(in_array($durable['wal_action'], ['preserve_wal', 'restart_wal', 'truncate_wal'], true));
+                    $t->true($durable['wal_bytes_length'] === strlen($walBytes) || $durable['wal_bytes_length'] === 32 || $durable['wal_bytes_length'] === 0);
+                };
+            }
+        }
     }
-
-    $tests[sprintf('real upstream pager wal dynamic matrix %04d %s', $case, $upstream)] = static function (TestRunner $t) use ($makeWalBytes, $baseDatabase, $case, $frameSpecs, $commitFrame, $validFrames, $discardedTail, $status, $reason, $sources, $corruption, $pageSize): void {
-        $bytes = $makeWalBytes($case, $frameSpecs);
-        if ($corruption === 'salt') {
-            $offset = 32 + (2 * (24 + $pageSize)) + 8;
-            $bytes = substr_replace($bytes, pack('N', 0x7fffffff), $offset, 4);
-        } elseif ($corruption === 'truncate') {
-            $bytes = substr($bytes, 0, -37);
-        }
-
-        $database = $baseDatabase($case);
-        $boundary = SQLiteWal::transactionRecoveryBoundary($bytes, $database, $pageSize);
-        $wal = $boundary['committed_wal'];
-        $snapshot = $wal->readerSnapshot($database);
-        $checkpoint = $wal->checkpointDatabaseImage($database);
-        $map = $wal->readerPageMap($database);
-
-        $t->same($status, $boundary['status']);
-        $t->same($reason, $boundary['reason']);
-        $t->same($commitFrame, $boundary['committed_frame_count']);
-        $t->same($validFrames, $boundary['valid_frame_count']);
-        $t->same($discardedTail, $boundary['discarded_valid_tail_frame_count']);
-        $t->same($commitFrame, $snapshot['commit_frame']?->index);
-        $t->same(true, $boundary['can_checkpoint']);
-        $t->same($snapshot['database_page_count'] * $pageSize, strlen($checkpoint));
-        $t->same($snapshot['database_page_count'], count($map));
-        foreach ($sources as $pageNumber => $source) {
-            $image = $wal->readerPageImage($database, $pageNumber);
-            $t->same($source, $image['source']);
-            $t->same($pageNumber, $image['page_number']);
-        }
-        $t->same(true, in_array('sqlite-wal-transaction-recovery-boundary', $boundary['dependencies'], true));
-    };
 }
 
-$controlSequences = [
-    'walpersist.test walpersist-1.6 enable persist wal' => [['file_control(persist_wal, on)'], true, true, 1],
-    'walpersist.test walpersist-1.8 disable persist wal' => [['file_control(persist_wal, off)'], false, false, 1],
-    'walpersist.test walpersist-1.10 persists through close reopen' => [['file_control(persist_wal, on)', 'close', 'reopen'], true, false, 2],
-    'walpersist.test walpersist-2.2 journal limit zero keeps persistent sidecar' => [['file_control(persist_wal, on)', ['op' => 'journal_size_limit', 'value' => 0]], true, false, 1],
-    'walpersist.test walpersist-3.3 reopen reads existing persist wal flag' => [['close', 'reopen', ['op' => 'persist_wal', 'value' => true]], true, true, 2],
-    'walpersist.test walpersist-4.1 mode switch preserves persist wal file-control' => [['file_control(persist_wal, on)', ['op' => 'journal_size_limit', 'value' => 12000], ['op' => 'persist_wal', 'value' => true]], true, false, 1],
-    'wal.test wal-0.1 wal mode leaves persist wal disabled' => [[['op' => 'persist_wal', 'value' => false]], false, false, 1],
-    'walro2.test readonly shm replay cannot flip persist wal on closed handle' => [['close', 'file_control(persist_wal, on)', 'reopen'], false, false, 2],
-];
+foreach ($pageSizes as $pageSize) {
+    for ($variant = 1; $variant <= 60; $variant++) {
+        $label = "real upstream walcksum matrix {$pageSize} {$variant}";
+        $databaseBytes = $database($pageSize, 5, $label);
+        $littleEndian = ($variant % 2) === 0;
+        $frames = [
+            ['page' => 1, 'commit' => 0, 'label' => "{$label} create table"],
+            ['page' => 2, 'commit' => 5, 'label' => "{$label} first commit"],
+            ['page' => 3, 'commit' => 0, 'label' => "{$label} valid tail"],
+            ['page' => 4, 'commit' => 5, 'label' => "{$label} second commit"],
+            ['page' => 5, 'commit' => 0, 'label' => "{$label} corrupt tail"],
+        ];
+        $walBytes = $makeWalBytes(
+            $pageSize,
+            $frames,
+            3000 + $variant,
+            (0x33330000 + $variant) & 0xffffffff,
+            (0x44440000 + $variant) & 0xffffffff,
+            static fn (string $frameBytes, int $index): string => $index === 5 ? substr_replace($frameBytes, 'Z', 31, 1) : $frameBytes,
+            $littleEndian
+        );
 
-for ($case = 1; $case <= 512; $case++) {
-    $upstream = array_keys($controlSequences)[($case - 1) % count($controlSequences)];
-    $scenario = $controlSequences[$upstream];
-    [$operations, $expectedPersistWal, $lastChange, $generation] = $scenario;
+        $tests["{$label} corrupt tail recovery preserves committed prefix"] = static function (TestRunner $t) use ($walBytes, $databaseBytes, $pageSize, $littleEndian): void {
+            $boundary = SQLiteWal::transactionRecoveryBoundary($walBytes, $databaseBytes, $pageSize);
+            $currentNext = SQLiteWal::corruptRecoveryCurrentNextBoundary($walBytes, $databaseBytes, [1, 2, 3, 4, 5], $pageSize);
 
-    $tests[sprintf('real upstream pager wal persistent control matrix %04d %s', $case, $upstream)] = static function (TestRunner $t) use ($operations, $expectedPersistWal, $lastChange, $generation, $case): void {
-        $plan = SQLiteVfsFileControlPersistencePlan::persistentFileControlSequence($operations, [
-            'filename' => '/srv/app/data/upstream-wal-dynamic-' . $case . '.sqlite',
-            'file_controls' => ['persist_wal' => false],
-        ]);
-        $lastEvent = $plan['events'][array_key_last($plan['events'])];
-
-        $t->same($expectedPersistWal, $plan['persistent']['persist_wal']);
-        $t->same($expectedPersistWal, $plan['next']['persistent']['persist_wal']);
-        $t->same(count($operations), $plan['count']);
-        $t->same($generation, $plan['next']['open_generation']);
-        $t->same(true, $plan['next']['handle_open']);
-        $t->same($lastChange, (bool) ($lastEvent['result']['persistent_changed'] ?? false));
-        $t->same(true, in_array('vfs-filecontrol-persistence-sequence', $plan['dependencies'], true));
-    };
+            $t->same('recovered_committed_prefix', $boundary['status']);
+            $t->same('corrupt_tail_after_committed_prefix', $boundary['reason']);
+            $t->same(4, $boundary['valid_frame_count']);
+            $t->same(4, $boundary['committed_frame_count']);
+            $t->same(5, $boundary['first_invalid_frame']);
+            $t->same(0, $boundary['discarded_valid_tail_frame_count']);
+            $t->same(1, $boundary['discarded_corrupt_tail_frame_count']);
+            $t->same($littleEndian ? 'little-endian' : 'big-endian', $boundary['wal']->header->byteOrder());
+            $t->same(['wal', 'wal', 'wal', 'wal', 'database'], $currentNext['current_reader_sources']);
+            $t->same(['wal', 'wal', 'wal', 'wal', 'database'], $currentNext['next_reader_sources']);
+            $t->true($currentNext['next_uses_checkpoint_database']);
+        };
+    }
 }
 
-$tests['real upstream pager wal dynamic matrix records upstream files and subtests'] = static function (TestRunner $t): void {
+foreach ($pageSizes as $pageSize) {
+    for ($variant = 1; $variant <= 50; $variant++) {
+        $label = "real upstream savepoint wal matrix {$pageSize} {$variant}";
+        $databaseBytes = $database($pageSize, 5, $label);
+        $frames = [
+            ['page' => 1, 'commit' => 0, 'label' => "{$label} outer frame one"],
+            ['page' => 2, 'commit' => 5, 'label' => "{$label} outer commit"],
+            ['page' => 3, 'commit' => 0, 'label' => "{$label} inner frame one"],
+            ['page' => 4, 'commit' => 5, 'label' => "{$label} inner commit"],
+            ['page' => 5, 'commit' => 0, 'label' => "{$label} inner tail"],
+        ];
+        $walBytes = $makeWalBytes(
+            $pageSize,
+            $frames,
+            5000 + $variant,
+            (0x55550000 + $variant) & 0xffffffff,
+            (0x66660000 + $variant) & 0xffffffff
+        );
+        $wal = SQLiteWal::parse($walBytes, $pageSize, true);
+        $stack = new SQLiteSavepointStack();
+        $stack->beginTransaction('txn');
+        $stack->recordWalFrameWrite(1, 1);
+        $stack->recordWalFrameWrite(2, 2, true);
+        $stack->savepoint('inner');
+        $stack->recordWalFrameWrite(3, 3);
+        $stack->recordWalFrameWrite(4, 4, true);
+        $stack->recordWalFrameWrite(5, 5);
+
+        $tests["{$label} rollback to savepoint truncates inner wal frames"] = static function (TestRunner $t) use ($stack, $wal, $walBytes, $databaseBytes, $pageSize, $walSize): void {
+            $plan = $stack->walRollbackToByteTruncationPlan('inner', $wal, $walBytes);
+            $truncatedBytes = $stack->walRollbackToWalBytes('inner', $wal, $walBytes);
+            $truncatedWal = SQLiteWal::parse($truncatedBytes, $pageSize, true);
+            $checkpoint = $truncatedWal->checkpointModeResult($databaseBytes, 'restart');
+
+            $t->same(2, $plan['rollback_to_frame']);
+            $t->same(5, $plan['original_frame_count']);
+            $t->same(2, $plan['retained_frame_count']);
+            $t->same(3, $plan['discarded_frame_count']);
+            $t->same($walSize(2, $pageSize), $plan['truncate_to_bytes']);
+            $t->same($walSize(5, $pageSize), $plan['original_wal_bytes']);
+            $t->same($walSize(2, $pageSize), strlen($truncatedBytes));
+            $t->same(2, $truncatedWal->frameCount());
+            $t->same(2, $truncatedWal->lastCommitFrame()?->index);
+            $t->same(2, $checkpoint['checkpointed_frame_count']);
+            $t->same(['inner'], array_values(array_unique(array_column($plan['discarded_wal_frames'], 'frame_name'))));
+        };
+    }
+}
+
+foreach ($pageSizes as $pageSize) {
+    for ($variant = 1; $variant <= 50; $variant++) {
+        $initialPageCount = 3 + ($variant % 3);
+        $label = "real upstream pager hot journal matrix {$pageSize} {$variant}";
+        $databaseBytes = $database($pageSize, $initialPageCount + 1, $label);
+        $nonce = (0x77770000 + $variant) & 0xffffffff;
+        $journalBytes = $makeJournalBytes($pageSize, $initialPageCount, [
+            ['page' => 1, 'label' => "{$label} journal page one"],
+            ['page' => $initialPageCount, 'label' => "{$label} journal last page"],
+            ['page' => $initialPageCount + 2, 'label' => "{$label} skipped future page"],
+        ], $nonce);
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+
+        $tests["{$label} hot rollback journal restores bounded original pages"] = static function (TestRunner $t) use ($journal, $journalBytes, $databaseBytes, $pageSize, $initialPageCount): void {
+            $candidate = SQLiteRollbackJournal::hotJournalCandidate($journalBytes);
+            $reserved = SQLiteRollbackJournal::hotJournalCandidate($journalBytes, true);
+            $missingSuper = SQLiteRollbackJournal::hotJournalCandidate($journalBytes, false, true, false);
+            $plan = $journal->recoveryPlan($databaseBytes);
+            $result = $journal->hotJournalRecoveryResult($databaseBytes, $journalBytes);
+            $preserved = $journal->hotJournalRecoveryResult($databaseBytes, $journalBytes, true);
+
+            $t->true($candidate['hot']);
+            $t->same('hot_journal_recovery_required', $candidate['reason']);
+            $t->same('database_has_reserved_lock', $reserved['reason']);
+            $t->same('missing_super_journal', $missingSuper['reason']);
+            $t->same($initialPageCount, $plan['initial_database_page_count']);
+            $t->same($initialPageCount * $pageSize, $plan['final_database_bytes']);
+            $t->same([true, true, false], array_column($plan['pages'], 'applied'));
+            $t->same(['restored_from_journal', 'restored_from_journal', 'beyond_initial_database_size'], array_column($plan['pages'], 'reason'));
+            $t->true($result['recovered']);
+            $t->same('delete_journal_after_recovery', $result['journal_action']);
+            $t->same($initialPageCount * $pageSize, $result['final_database_bytes']);
+            $t->same('preserve_journal', $preserved['journal_action']);
+        };
+    }
+}
+
+$tests['real upstream pager wal dynamic matrix cites hydrated upstream files'] = static function (TestRunner $t): void {
     $t->same([
-        'wal.test: wal-1.* wal-2.* wal-3.* wal-4.* WAL reader, rollback, savepoint, and checkpoint boundaries',
-        'wal2.test: wal2-1.* wal-index recovery after reader header corruption',
-        'walcksum.test: WAL checksum recovery truncates at corrupt frame',
-        'walcrash.test/walcrash2.test: crash recovery keeps only committed WAL prefix',
-        'walpersist.test: walpersist-1.* walpersist-2.2 walpersist-3.3 walpersist-4.1 persistent WAL file-control transitions',
-        'walro2.test: readonly_shm clients do not mutate persistent WAL state',
+        'wal.test wal-1.*..wal-4.* reader-pinned checkpoint and committed-frame visibility',
+        'wal2.test drained restart/truncate and new-reader database visibility',
+        'walckptnoop.test 1.1..1.10 noop checkpoint preserves WAL bytes',
+        'walcksum.test walcksum-1.big.* walcksum-1.little.* checksum byte-order and corrupt-tail recovery',
+        'savepoint.test savepoint-1.*..5.* 10.* 14.*..16.* rollback-to WAL prefix retention',
+        'pager1.test hot rollback journal page restore and non-hot preservation',
     ], [
-        'wal.test: wal-1.* wal-2.* wal-3.* wal-4.* WAL reader, rollback, savepoint, and checkpoint boundaries',
-        'wal2.test: wal2-1.* wal-index recovery after reader header corruption',
-        'walcksum.test: WAL checksum recovery truncates at corrupt frame',
-        'walcrash.test/walcrash2.test: crash recovery keeps only committed WAL prefix',
-        'walpersist.test: walpersist-1.* walpersist-2.2 walpersist-3.3 walpersist-4.1 persistent WAL file-control transitions',
-        'walro2.test: readonly_shm clients do not mutate persistent WAL state',
+        'wal.test wal-1.*..wal-4.* reader-pinned checkpoint and committed-frame visibility',
+        'wal2.test drained restart/truncate and new-reader database visibility',
+        'walckptnoop.test 1.1..1.10 noop checkpoint preserves WAL bytes',
+        'walcksum.test walcksum-1.big.* walcksum-1.little.* checksum byte-order and corrupt-tail recovery',
+        'savepoint.test savepoint-1.*..5.* 10.* 14.*..16.* rollback-to WAL prefix retention',
+        'pager1.test hot rollback journal page restore and non-hot preservation',
     ]);
 };
 

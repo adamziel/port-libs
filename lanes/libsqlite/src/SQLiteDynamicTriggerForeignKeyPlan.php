@@ -143,6 +143,104 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @return array<string,mixed>
+     */
+    public static function deferredRestrictDeleteTriggerRepair(
+        array $parents,
+        array $children,
+        string $parentKeyColumn,
+        string $childKeyColumn,
+        mixed $deleteKey,
+        bool $deferForeignKeys,
+        bool $afterDeleteTriggerRepair = true
+    ): array {
+        $parentKeyColumn = self::identifier($parentKeyColumn, 'parent key column');
+        $childKeyColumn = self::identifier($childKeyColumn, 'child key column');
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $originalParents = $parents;
+        $deletedParents = [];
+
+        foreach ($parents as $index => $parent) {
+            if (!array_key_exists($parentKeyColumn, $parent)) {
+                throw new \InvalidArgumentException('SQLite fkey6 parent row is missing the parent key column');
+            }
+            if ($parent[$parentKeyColumn] !== $deleteKey) {
+                continue;
+            }
+
+            $deletedParents[] = $parent;
+            unset($parents[$index]);
+        }
+        $parents = array_values($parents);
+
+        foreach ($children as $child) {
+            if (!array_key_exists($childKeyColumn, $child)) {
+                throw new \InvalidArgumentException('SQLite fkey6 child row is missing the child key column');
+            }
+        }
+
+        $referencingChildren = self::matchingChildIndexes($children, $childKeyColumn, $deleteKey);
+        if (!$deferForeignKeys && $referencingChildren !== []) {
+            return [
+                'source' => 'fkey6.test 3.3.1..3.3.4',
+                'operation' => 'deferred-restrict-delete-trigger-repair',
+                'status' => 'constraint-failed',
+                'defer_foreign_keys' => false,
+                'after_delete_trigger_repair' => $afterDeleteTriggerRepair,
+                'deleted_parent_keys' => [],
+                'trigger_inserted_keys' => [],
+                'referencing_child_indexes' => $referencingChildren,
+                'deferred_violation_count' => 0,
+                'parent_keys_after_statement' => array_values(array_column($originalParents, $parentKeyColumn)),
+                'parent_keys_after_commit' => array_values(array_column($originalParents, $parentKeyColumn)),
+                'child_keys_after_commit' => array_values(array_column($children, $childKeyColumn)),
+                'commit_boundary' => 'restrict-checked-before-trigger-repair',
+                'dependencies' => [
+                    'sqlite-fkey6-restrict-is-immediate-without-defer-foreign-keys',
+                    'sqlite-fkey6-after-delete-trigger-can-repair-deferred-restrict',
+                ],
+            ];
+        }
+
+        $triggerInserted = [];
+        if ($afterDeleteTriggerRepair) {
+            foreach ($deletedParents as $deletedParent) {
+                $repair = $deletedParent;
+                $repair['trigger_payload'] = 'deleted!';
+                $parents[] = $repair;
+                $triggerInserted[] = $repair;
+            }
+        }
+
+        $violations = self::foreignKeyMissingParentKeys($parents, $children, $parentKeyColumn, $childKeyColumn);
+
+        return [
+            'source' => 'fkey6.test 3.3.1..3.3.4',
+            'operation' => 'deferred-restrict-delete-trigger-repair',
+            'status' => $violations === [] ? 'commit-ok' : 'deferred-commit-failed',
+            'defer_foreign_keys' => $deferForeignKeys,
+            'after_delete_trigger_repair' => $afterDeleteTriggerRepair,
+            'deleted_parent_keys' => array_values(array_column($deletedParents, $parentKeyColumn)),
+            'trigger_inserted_keys' => array_values(array_column($triggerInserted, $parentKeyColumn)),
+            'referencing_child_indexes' => $referencingChildren,
+            'deferred_violation_count' => count($violations),
+            'violations' => $violations,
+            'parent_keys_after_statement' => array_values(array_column($parents, $parentKeyColumn)),
+            'parent_keys_after_commit' => array_values(array_column($violations === [] ? self::sortRows($parents) : $originalParents, $parentKeyColumn)),
+            'child_keys_after_commit' => array_values(array_column($children, $childKeyColumn)),
+            'commit_boundary' => $violations === [] ? 'outer-commit-after-trigger-repair' : 'outer-commit-foreign-key-check',
+            'dependencies' => [
+                'sqlite-fkey6-defer-foreign-keys-delays-restrict',
+                'sqlite-fkey6-after-delete-trigger-can-repair-deferred-restrict',
+                'sqlite-fkey6-defer-foreign-keys-resets-at-transaction-boundary',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{c34:string,c35:string,label?:string}> $parents
      * @param list<array{c38:string,c39:string,label?:string}> $children
      * @return array<string,mixed>
@@ -1927,6 +2025,51 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int|null,b:int|float|string|null,c:int|null}> $rows
+     * @return array<string,mixed>
+     */
+    public static function deleteUndoTriggerStatements(array $rows, callable $where): array
+    {
+        $remaining = [];
+        $deleted = [];
+        $undo = [];
+
+        foreach ($rows as $row) {
+            if ($where($row)) {
+                $deleted[] = $row;
+                $undo[] = 'INSERT INTO Item (a,b,c) VALUES ('
+                    . SQLiteRealExpressionAffinityCorpusPlan::quote($row['a'] ?? null)
+                    . ','
+                    . SQLiteRealExpressionAffinityCorpusPlan::quote($row['b'] ?? null)
+                    . ','
+                    . SQLiteRealExpressionAffinityCorpusPlan::quote($row['c'] ?? null)
+                    . ');';
+                continue;
+            }
+
+            $remaining[] = $row;
+        }
+
+        return [
+            'source' => 'trigger5.test trigger5-1.1',
+            'operation' => 'after-delete-trigger-undo-sql-generation',
+            'status' => 'commit-ok',
+            'deleted_rows' => $deleted,
+            'remaining_rows' => self::sortRows($remaining),
+            'undo_statements' => $undo,
+            'deleted_count' => count($deleted),
+            'undo_count' => count($undo),
+            'remaining_count' => count($remaining),
+            'quote_function_used' => true,
+            'dependencies' => [
+                'sqlite-trigger5-after-delete-old-row-undo-sql',
+                'sqlite-trigger5-quote-function-preserves-real-text-null-values',
+                'sqlite-trigger5-delete-trigger-emits-one-undo-row-per-deleted-row',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{id:int,a:int}> $leftRows
      * @param list<array{id:int,b:int}> $rightRows
      * @return list<array{id:int,a:int,b:int}>
@@ -2495,6 +2638,47 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'rtrim' => rtrim($child) === rtrim($parent),
             default => $child === $parent,
         };
+    }
+
+    /**
+     * @param list<array<string,mixed>> $children
+     * @return list<int>
+     */
+    private static function matchingChildIndexes(array $children, string $childKeyColumn, mixed $parentKey): array
+    {
+        $matches = [];
+        foreach ($children as $index => $child) {
+            if (($child[$childKeyColumn] ?? null) === $parentKey) {
+                $matches[] = $index;
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @return list<array{child_index:int,child_key:mixed,reason:string}>
+     */
+    private static function foreignKeyMissingParentKeys(array $parents, array $children, string $parentKeyColumn, string $childKeyColumn): array
+    {
+        $parentKeys = array_values(array_column($parents, $parentKeyColumn));
+        $violations = [];
+        foreach ($children as $index => $child) {
+            $childKey = $child[$childKeyColumn] ?? null;
+            if ($childKey === null || in_array($childKey, $parentKeys, true)) {
+                continue;
+            }
+
+            $violations[] = [
+                'child_index' => $index,
+                'child_key' => $childKey,
+                'reason' => 'missing-parent-at-deferred-commit',
+            ];
+        }
+
+        return $violations;
     }
 
     private static function identifier(string $value, string $label): string

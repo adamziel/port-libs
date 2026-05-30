@@ -230,15 +230,229 @@ foreach ($recursiveReturningSeeds as $name => [$start, $label, $limit]) {
     }
 }
 
+$upsert5TableLayouts = [
+    'upsert5-1.1 integer primary key after secondary uniques' => ['primary_kind' => 'integer-rowid', 'column_order' => ['a', 'b', 'c', 'd', 'e']],
+    'upsert5-1.2 int primary key after secondary uniques' => ['primary_kind' => 'int-rowid', 'column_order' => ['a', 'b', 'c', 'd', 'e']],
+    'upsert5-1.3 without rowid primary key after secondary uniques' => ['primary_kind' => 'without-rowid', 'column_order' => ['a', 'b', 'c', 'd', 'e']],
+    'upsert5-1.4 integer primary key after reversed secondary uniques' => ['primary_kind' => 'integer-rowid', 'column_order' => ['e', 'd', 'c', 'a', 'b']],
+    'upsert5-1.5 int primary key after reversed secondary uniques' => ['primary_kind' => 'int-rowid', 'column_order' => ['e', 'd', 'c', 'a', 'b']],
+    'upsert5-1.6 without rowid primary key after reversed secondary uniques' => ['primary_kind' => 'without-rowid', 'column_order' => ['e', 'd', 'c', 'a', 'b']],
+];
+
+$upsert5CatchAllCases = [
+    'upsert5-1.%d.400 catch-all updates primary conflict after c and d miss' => [
+        'incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, 'x']],
+        'expected_b' => 'x',
+        'expected_action' => 'update',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.401 catch-all updates e conflict after c and d miss' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, 'x']],
+        'expected_b' => 'x',
+        'expected_action' => 'update',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.402 catch-all updates primary conflict when d misses' => [
+        'incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, 'x']],
+        'expected_b' => 'x',
+        'expected_action' => 'update',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.403 targeted c update wins before catch-all' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 94, 'e' => 95],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, 'x']],
+        'expected_b' => 'c',
+        'expected_action' => 'update',
+        'expected_target' => ['c'],
+    ],
+    'upsert5-1.%d.404 targeted c update wins before d and catch-all' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 4, 'e' => 95],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, 'x']],
+        'expected_b' => 'c',
+        'expected_action' => 'update',
+        'expected_target' => ['c'],
+    ],
+    'upsert5-1.%d.405 targeted d update wins before catch-all' => [
+        'incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 5],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, 'x']],
+        'expected_b' => 'd',
+        'expected_action' => 'update',
+        'expected_target' => ['d'],
+    ],
+    'upsert5-1.%d.410 bare catch-all updates primary conflict' => [
+        'incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95],
+        'arms' => [[null, 'x']],
+        'expected_b' => 'x',
+        'expected_action' => 'update',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.411 bare catch-all updates e conflict' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5],
+        'arms' => [[null, 'x']],
+        'expected_b' => 'x',
+        'expected_action' => 'update',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.412 bare catch-all updates d conflict' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 95],
+        'arms' => [[null, 'x']],
+        'expected_b' => 'x',
+        'expected_action' => 'update',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.413 bare catch-all updates c conflict' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 94, 'e' => 95],
+        'arms' => [[null, 'x']],
+        'expected_b' => 'x',
+        'expected_action' => 'update',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.420 catch-all updates primary conflict after c and d do nothing miss' => [
+        'incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95],
+        'arms' => [['c', null], ['d', null], [null, 'x']],
+        'expected_b' => 'x',
+        'expected_action' => 'update',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.421 catch-all updates e conflict after c and d do nothing miss' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5],
+        'arms' => [['c', null], ['d', null], [null, 'x']],
+        'expected_b' => 'x',
+        'expected_action' => 'update',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.422 targeted d do nothing suppresses catch-all' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 95],
+        'arms' => [['c', null], ['d', null], [null, 'x']],
+        'expected_b' => 2,
+        'expected_action' => 'nothing',
+        'expected_target' => ['d'],
+    ],
+    'upsert5-1.%d.423 targeted c do nothing suppresses catch-all' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 94, 'e' => 95],
+        'arms' => [['c', null], ['d', null], [null, 'x']],
+        'expected_b' => 2,
+        'expected_action' => 'nothing',
+        'expected_target' => ['c'],
+    ],
+    'upsert5-1.%d.500 trailing do nothing skips primary conflict after c and d miss' => [
+        'incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, null]],
+        'expected_b' => 2,
+        'expected_action' => 'nothing',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.501 trailing do nothing skips e conflict after c and d miss' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 5],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, null]],
+        'expected_b' => 2,
+        'expected_action' => 'nothing',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.502 trailing do nothing skips primary conflict' => [
+        'incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 94, 'e' => 95],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, null]],
+        'expected_b' => 2,
+        'expected_action' => 'nothing',
+        'expected_target' => null,
+    ],
+    'upsert5-1.%d.503 targeted c update wins before trailing do nothing' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 94, 'e' => 95],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, null]],
+        'expected_b' => 'c',
+        'expected_action' => 'update',
+        'expected_target' => ['c'],
+    ],
+    'upsert5-1.%d.504 targeted c update wins when c and d both conflict' => [
+        'incoming' => ['a' => 91, 'b' => null, 'c' => 3, 'd' => 4, 'e' => 95],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, null]],
+        'expected_b' => 'c',
+        'expected_action' => 'update',
+        'expected_target' => ['c'],
+    ],
+    'upsert5-1.%d.505 targeted d update wins before trailing do nothing' => [
+        'incoming' => ['a' => 1, 'b' => null, 'c' => 93, 'd' => 4, 'e' => 5],
+        'arms' => [['c', 'c'], ['d', 'd'], [null, null]],
+        'expected_b' => 'd',
+        'expected_action' => 'update',
+        'expected_target' => ['d'],
+    ],
+];
+
+$upsert5Arms = static fn (array $armSpecs): array => array_map(
+    static fn (array $spec): array => [
+        'target' => $spec[0] === null ? null : [$spec[0]],
+        'action' => $spec[1] === null ? 'nothing' : 'update',
+        'assignments' => $spec[1] === null ? [] : ['b' => static fn () => $spec[1]],
+    ],
+    $armSpecs,
+);
+
+$layoutOrdinal = 0;
+foreach ($upsert5TableLayouts as $layout) {
+    ++$layoutOrdinal;
+    foreach ($upsert5CatchAllCases as $namePattern => $case) {
+        $caseName = sprintf($namePattern, $layoutOrdinal) . ' ' . $layout['primary_kind'];
+
+        $tests['real upstream ' . $caseName . ' preserves final row values'] = static function (TestRunner $t) use ($case, $upsert5Arms): void {
+            $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                [['a' => 1, 'b' => 2, 'c' => 3, 'd' => 4, 'e' => 5]],
+                [$case['incoming']],
+                $upsert5Arms($case['arms']),
+                [['a'], ['c'], ['d'], ['e']],
+            );
+
+            $t->same([1, $case['expected_b'], 3, 4, 5], array_values($plan['after'][0]));
+        };
+
+        $tests['real upstream ' . $caseName . ' records the selected conflict arm'] = static function (TestRunner $t) use ($case, $upsert5Arms): void {
+            $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                [['a' => 1, 'b' => 2, 'c' => 3, 'd' => 4, 'e' => 5]],
+                [$case['incoming']],
+                $upsert5Arms($case['arms']),
+                [['a'], ['c'], ['d'], ['e']],
+            );
+
+            $t->same([['target' => $case['expected_target'], 'action' => $case['expected_action']]], array_map(
+                static fn (array $row): array => ['target' => $row['target'], 'action' => $row['action']],
+                $plan['matched_arms'],
+            ));
+        };
+
+        $tests['real upstream ' . $caseName . ' yields RETURNING rows only for DO UPDATE arms'] = static function (TestRunner $t) use ($case, $upsert5Arms): void {
+            $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                [['a' => 1, 'b' => 2, 'c' => 3, 'd' => 4, 'e' => 5]],
+                [$case['incoming']],
+                $upsert5Arms($case['arms']),
+                [['a'], ['c'], ['d'], ['e']],
+            );
+
+            if ($case['expected_action'] === 'nothing') {
+                $t->same([], $plan['returning_rows']);
+                $t->same(0, $plan['changes']);
+                return;
+            }
+
+            $t->same([['b' => $case['expected_b']]], SQLiteUpsertDoUpdateWherePlan::returningRows($plan['returning_rows'], ['b']));
+            $t->same(1, $plan['changes']);
+        };
+    }
+}
+
 $tests['real upstream upsert returning dynamic tail source coverage'] = static function (TestRunner $t): void {
     $t->same([
         'upsert1.test upsert1-700 through upsert1-780 targeted constraint priority across rowid and without-rowid shapes',
         'upsert4.test upsert4-9.1 trigger-maintained UPSERT histogram behavior',
         'returning1.test returning1-23.1 and returning1-23.2 top-level RETURNING with recursive trigger side effects',
+        'upsert5.test upsert5-1.$tn.400 through upsert5-1.$tn.505 catch-all and DO NOTHING arm priority across six table layouts',
     ], [
         'upsert1.test upsert1-700 through upsert1-780 targeted constraint priority across rowid and without-rowid shapes',
         'upsert4.test upsert4-9.1 trigger-maintained UPSERT histogram behavior',
         'returning1.test returning1-23.1 and returning1-23.2 top-level RETURNING with recursive trigger side effects',
+        'upsert5.test upsert5-1.$tn.400 through upsert5-1.$tn.505 catch-all and DO NOTHING arm priority across six table layouts',
     ]);
 };
 

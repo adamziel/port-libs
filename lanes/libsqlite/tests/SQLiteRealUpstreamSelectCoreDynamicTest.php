@@ -700,4 +700,120 @@ for ($seed = 1; $seed <= 180; $seed++) {
     };
 }
 
+$selectETables = static function (): array {
+    return [
+        't1' => [
+            ['a' => 'abc'],
+            ['a' => 'def'],
+            ['a' => 'ghi'],
+        ],
+        't2' => [
+            ['a' => 'DEF'],
+            ['a' => 'abc'],
+        ],
+        't3' => [
+            ['a' => 'def'],
+            ['a' => 'jkl'],
+        ],
+    ];
+};
+
+$selectECases = [
+    'selectE.test selectE-1.0 except result ordered nocase without changing except collation' => ['SELECT a FROM t1 EXCEPT SELECT a FROM t2 ORDER BY a COLLATE nocase', ['def', 'ghi']],
+    'selectE.test selectE-1.1 except t2 minus t3 ordered nocase' => ['SELECT a FROM t2 EXCEPT SELECT a FROM t3 ORDER BY a COLLATE nocase', ['abc', 'DEF']],
+    'selectE.test selectE-1.2 except t2 minus t3 ordered binary' => ['SELECT a FROM t2 EXCEPT SELECT a FROM t3 ORDER BY a COLLATE binary', ['DEF', 'abc']],
+    'selectE.test selectE-1.3 except t2 minus t3 default binary order' => ['SELECT a FROM t2 EXCEPT SELECT a FROM t3 ORDER BY a', ['DEF', 'abc']],
+];
+
+foreach ($selectECases as $name => [$sql, $expected]) {
+    $tests['real upstream corpus ' . $name] = static function (TestRunner $t) use ($selectETables, $sql, $expected, $assertFlatValues, $flatValues, $name): void {
+        $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $selectETables()), $flatValues);
+        $t->contains('selectE.test', $name);
+        $t->contains('EXCEPT', $sql);
+    };
+}
+
+$selectFTablesFor = static function (int $seed): array {
+    return [
+        't1' => [
+            ['a' => 1, 'b' => 'one-' . $seed, 'c' => 'I'],
+            ['a' => 2, 'b' => 'one-' . ($seed + 1), 'c' => 'II'],
+        ],
+        't2' => [
+            ['d' => 5 + $seed, 'e' => 'ten-' . $seed, 'f' => 'XX'],
+            ['d' => 6 + $seed, 'e' => null, 'f' => null],
+        ],
+    ];
+};
+
+foreach ([0, 1, 2, 3, 4, 5, 6, 7] as $seed) {
+    $tests["real upstream corpus selectF.test selectF-2 dynamic wildcard compound order seed {$seed}"] = static function (TestRunner $t) use ($selectFTablesFor, $seed, $assertFlatValues, $flatValues): void {
+        $tables = $selectFTablesFor($seed);
+        $sql = 'SELECT * FROM t2 UNION ALL SELECT * FROM t1 WHERE a<5 ORDER BY 2, 1';
+        $expected = [
+            6 + $seed,
+            null,
+            null,
+            1,
+            'one-' . $seed,
+            'I',
+            2,
+            'one-' . ($seed + 1),
+            'II',
+            5 + $seed,
+            'ten-' . $seed,
+            'XX',
+        ];
+        $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $tables), $flatValues);
+        $t->contains('selectF.test', "selectF.test selectF-2 dynamic wildcard compound order seed {$seed}");
+        $t->contains('ORDER BY 2, 1', $sql);
+    };
+}
+
+foreach ([1, 2, 3, 4, 5, 6, 7, 8] as $upper) {
+    $tests["real upstream corpus selectF.test selectF-2 dynamic wildcard compound filtered upper {$upper}"] = static function (TestRunner $t) use ($upper, $assertFlatValues, $flatValues): void {
+        $tables = [
+            't1' => [
+                ['a' => 1, 'b' => 'one', 'c' => 'I'],
+                ['a' => 2, 'b' => 'two', 'c' => 'II'],
+                ['a' => 3, 'b' => 'three', 'c' => 'III'],
+            ],
+            't2' => [
+                ['d' => 5, 'e' => 'ten', 'f' => 'XX'],
+                ['d' => 6, 'e' => null, 'f' => null],
+                ['d' => 7, 'e' => 'seven', 'f' => 'VII'],
+            ],
+        ];
+        $sql = "SELECT * FROM t2 WHERE d<={$upper} UNION ALL SELECT * FROM t1 WHERE a<={$upper} ORDER BY 2, 1";
+        $rows = [];
+        foreach ($tables['t2'] as $row) {
+            if ($row['d'] <= $upper) {
+                $rows[] = ['d' => $row['d'], 'e' => $row['e'], 'f' => $row['f']];
+            }
+        }
+        foreach ($tables['t1'] as $row) {
+            if ($row['a'] <= $upper) {
+                $rows[] = ['d' => $row['a'], 'e' => $row['b'], 'f' => $row['c']];
+            }
+        }
+        usort($rows, static function (array $left, array $right): int {
+            $leftKey = $left['e'];
+            $rightKey = $right['e'];
+            if ($leftKey === null && $rightKey !== null) {
+                return -1;
+            }
+            if ($leftKey !== null && $rightKey === null) {
+                return 1;
+            }
+            $text = $leftKey <=> $rightKey;
+
+            return $text !== 0 ? $text : ($left['d'] <=> $right['d']);
+        });
+        $expected = $flatValues($rows);
+        $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $tables), $flatValues);
+        $t->contains('selectF.test', "selectF.test selectF-2 dynamic wildcard compound filtered upper {$upper}");
+        $t->true(count($expected) >= min($upper, 3) * 3);
+    };
+}
+
 return $tests;

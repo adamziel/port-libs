@@ -674,14 +674,14 @@ final class SQLiteSelectSql
     {
         $select = $selectArms[0] ?? [];
         $columns = [];
-        foreach ($select as $index => $term) {
-            if (isset($term['alias']) && is_string($term['alias'])) {
-                $columns[$index + 1] = $term['alias'];
-            } elseif (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name'])) {
-                $name = $term['name'];
-                $columns[$index + 1] = str_contains($name, '.') ? substr($name, strrpos($name, '.') + 1) : $name;
-            } else {
-                $columns[$index + 1] = 'expr' . ($index + 1);
+        $ordinal = 1;
+        foreach ($select as $term) {
+            if (!is_array($term)) {
+                continue;
+            }
+            foreach (self::compoundProjectionColumns($term, $ordinal) as $column) {
+                $columns[$ordinal] = $column;
+                $ordinal++;
             }
         }
 
@@ -906,22 +906,50 @@ final class SQLiteSelectSql
             if (!is_array($term)) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL compound arm select term is malformed');
             }
-            if (isset($term['alias']) && is_string($term['alias']) && $term['alias'] !== '') {
-                $columns[] = $term['alias'];
-                continue;
+            foreach (self::compoundProjectionColumns($term, $index + 1) as $column) {
+                $columns[] = $column;
             }
-            if (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name']) && $term['name'] !== '') {
-                $name = $term['name'];
-                $columns[] = str_contains($name, '.') ? substr($name, strrpos($name, '.') + 1) : $name;
-                continue;
-            }
-            $columns[] = 'expr' . ($index + 1);
         }
         if ($columns === []) {
             throw new \InvalidArgumentException('SQLite SELECT SQL compound SELECT needs output columns');
         }
 
         return $columns;
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     * @return list<string>
+     */
+    private static function compoundProjectionColumns(array $term, int $ordinal): array
+    {
+        if (($term['type'] ?? null) === 'wildcard') {
+            $columns = $term['columns'] ?? null;
+            if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL compound wildcard projection needs source columns');
+            }
+
+            $expanded = [];
+            foreach ($columns as $column) {
+                if (!is_string($column) || $column === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL compound wildcard projection column is malformed');
+                }
+                $expanded[] = $column;
+            }
+
+            return $expanded;
+        }
+
+        if (isset($term['alias']) && is_string($term['alias']) && $term['alias'] !== '') {
+            return [$term['alias']];
+        }
+        if (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name']) && $term['name'] !== '') {
+            $name = $term['name'];
+
+            return [str_contains($name, '.') ? substr($name, strrpos($name, '.') + 1) : $name];
+        }
+
+        return ['expr' . $ordinal];
     }
 
     /**

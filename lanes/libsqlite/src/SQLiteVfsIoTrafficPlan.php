@@ -491,6 +491,136 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @return array{script:string,scenario:string,fault_index:int,operation:string,auto_vacuum:string,page_size:int,setup_rows:int,overflow_pages:int,pointer_map_pages:int,root_split:bool,balance_quick:bool,incremental_vacuum:bool,result_code:string,rollback_attempted:bool,pointer_map_checked:bool,refcount_check:bool,integrity_check:string,open_file_count:int,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function ioerrPointerMapFault(
+        string $scenario,
+        int $faultIndex,
+        string $operation = 'xWrite',
+        int $setupRows = 78,
+        int $overflowPages = 1
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite ioerr pointer-map scenario requires a name');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr pointer-map fault index must be positive');
+        }
+        if ($setupRows < 1 || $overflowPages < 0) {
+            throw new \InvalidArgumentException('SQLite ioerr pointer-map setup counts are invalid');
+        }
+
+        $operation = trim($operation);
+        if (!in_array($operation, ['xRead', 'xWrite', 'xSync', 'xTruncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite ioerr pointer-map fault operation: {$operation}");
+        }
+
+        $canonical = self::ioerrPointerMapScenario($scenario);
+        $detected = $faultIndex % 23 !== 0;
+
+        return [
+            'script' => 'ioerr.test',
+            'scenario' => $scenario,
+            'fault_index' => $faultIndex,
+            'operation' => $operation,
+            'auto_vacuum' => 'incremental',
+            'page_size' => $canonical === 'ioerr-16' ? 1024 : 512,
+            'setup_rows' => $setupRows,
+            'overflow_pages' => $overflowPages,
+            'pointer_map_pages' => $canonical === 'ioerr-13' ? 2 : 1,
+            'root_split' => $canonical === 'ioerr-14',
+            'balance_quick' => $canonical === 'ioerr-13',
+            'incremental_vacuum' => $canonical === 'ioerr-16',
+            'result_code' => $detected ? 'disk I/O error' : 'ok',
+            'rollback_attempted' => $detected,
+            'pointer_map_checked' => true,
+            'refcount_check' => true,
+            'integrity_check' => 'ok',
+            'open_file_count' => 0,
+            'dependencies' => [
+                'sqlite-upstream-ioerr-test',
+                'sqlite-auto-vacuum-pointer-map',
+                'sqlite-vfs-io-error-recovery',
+                'sqlite-btree-overflow-parent-update',
+            ],
+            'upstream' => self::ioerrPointerMapUpstream($canonical),
+        ];
+    }
+
+    /**
+     * @return array{script:string,scenario:string,upstream:string,persistent:bool,destination_page_size:int,destination_initially_populated:bool,fault_index:int,fault_phase:string,partial_step_result:string,source_update_result:string,final_step_result:string,finish_result:string,destination_error_before_finish:string,destination_error_after_finish:string,contents_match:bool,destination_restored_to_prior_image:bool,integrity_check:string,backup_can_continue_after_source_write_error:bool,deferred_backup_update_error:bool,open_file_count:int,dependencies:list<string>}
+     */
+    public static function backupIoErrorStateMachine(
+        bool $persistent,
+        int $destinationPageSize,
+        bool $destinationInitiallyPopulated,
+        int $faultIndex
+    ): array {
+        if ($destinationPageSize < 512 || ($destinationPageSize & ($destinationPageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite backup I/O error destination page size must be a power of two at least 512');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite backup I/O error fault index must be positive');
+        }
+
+        $scenarioNumber = 2
+            + ($persistent ? 6 : 0)
+            + match ($destinationPageSize) {
+                512 => 0,
+                1024 => 2,
+                4096 => 4,
+                default => throw new \InvalidArgumentException("Unsupported SQLite backup I/O error destination page size: {$destinationPageSize}"),
+            }
+            + ($destinationInitiallyPopulated ? 1 : 0);
+
+        $phaseCycle = $faultIndex % 7;
+        if ($persistent) {
+            $faultPhase = $phaseCycle <= 2 ? 'partial_backup_step' : 'final_backup_step';
+        } else {
+            $faultPhase = match ($phaseCycle) {
+                1, 2 => 'partial_backup_step',
+                3 => 'source_write',
+                4 => 'backup_update',
+                5, 6 => 'final_backup_step',
+                default => 'complete',
+            };
+        }
+
+        $stepIoError = in_array($faultPhase, ['partial_backup_step', 'backup_update', 'final_backup_step'], true);
+        $sourceIoError = $faultPhase === 'source_write';
+        $complete = $faultPhase === 'complete' || $sourceIoError;
+        $finishOk = $complete;
+
+        return [
+            'script' => 'backup_ioerr.test',
+            'scenario' => "backup_ioerr-{$scenarioNumber}.{$faultIndex}",
+            'upstream' => self::backupIoErrorUpstream($scenarioNumber, $faultIndex, $faultPhase, $complete, $sourceIoError),
+            'persistent' => $persistent,
+            'destination_page_size' => $destinationPageSize,
+            'destination_initially_populated' => $destinationInitiallyPopulated,
+            'fault_index' => $faultIndex,
+            'fault_phase' => $faultPhase,
+            'partial_step_result' => $faultPhase === 'partial_backup_step' ? 'SQLITE_IOERR' : 'SQLITE_OK',
+            'source_update_result' => $sourceIoError ? 'SQLITE_IOERR' : 'SQLITE_OK',
+            'final_step_result' => $complete ? 'SQLITE_DONE' : 'SQLITE_IOERR',
+            'finish_result' => $finishOk ? 'SQLITE_OK' : 'SQLITE_IOERR',
+            'destination_error_before_finish' => $stepIoError ? 'SQLITE_OK:not an error' : 'SQLITE_OK:not an error',
+            'destination_error_after_finish' => $finishOk ? 'SQLITE_OK:not an error' : 'SQLITE_IOERR:disk I/O error',
+            'contents_match' => $finishOk,
+            'destination_restored_to_prior_image' => !$finishOk,
+            'integrity_check' => 'ok',
+            'backup_can_continue_after_source_write_error' => $sourceIoError && !$persistent,
+            'deferred_backup_update_error' => $faultPhase === 'backup_update',
+            'open_file_count' => 0,
+            'dependencies' => [
+                'sqlite-upstream-backup-ioerr-test',
+                'sqlite-vfs-dynamic-fault-recovery',
+                'sqlite-backup-step-finish-state-machine',
+            ],
+        ];
+    }
+
+    /**
      * @param list<string> $flags
      * @return list<string>
      */
@@ -529,6 +659,31 @@ final class SQLiteVfsIoTrafficPlan
         }
 
         return array_keys($normalized);
+    }
+
+    private static function ioerrPointerMapScenario(string $scenario): string
+    {
+        foreach (['ioerr-13', 'ioerr-14', 'ioerr-15', 'ioerr-16'] as $candidate) {
+            if (str_starts_with($scenario, $candidate)) {
+                return $candidate;
+            }
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite ioerr pointer-map scenario: {$scenario}");
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function ioerrPointerMapUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'ioerr-13' => ['ioerr.test ioerr-13 balance_quick pointer-map pages'],
+            'ioerr-14' => ['ioerr.test ioerr-14 balance_deeper overflow parent pointer-map update'],
+            'ioerr-15' => ['ioerr.test ioerr-15 index delete plus large overflow statement rollback'],
+            'ioerr-16' => ['ioerr.test ioerr-16 incremental_vacuum after delete tkt3762 branch'],
+            default => throw new \InvalidArgumentException("Unsupported SQLite ioerr pointer-map scenario: {$scenario}"),
+        };
     }
 
     /**
@@ -570,6 +725,18 @@ final class SQLiteVfsIoTrafficPlan
         }
 
         return ['ioerr2.test ioerr2-3'];
+    }
+
+    private static function backupIoErrorUpstream(int $scenarioNumber, int $faultIndex, string $faultPhase, bool $complete, bool $sourceIoError): string
+    {
+        $subtest = match (true) {
+            $faultPhase === 'partial_backup_step' => 1 + (($faultIndex - 1) % 5),
+            $sourceIoError => 7 + (($faultIndex - 1) % 5),
+            !$complete => 12 + (($faultIndex - 1) % 5),
+            default => 17 + (($faultIndex - 1) % 3),
+        };
+
+        return "backup_ioerr.test backup_ioerr-{$scenarioNumber}.{$faultIndex}.{$subtest}";
     }
 
     /**

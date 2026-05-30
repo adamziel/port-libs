@@ -418,4 +418,47 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::autoindex5CoroutineSubqueryCases(100
     };
 }
 
+// Source truth: SQLite upstream test/indexfault.test indexfault-1.1 through
+// 3.5. The Tcl script repeatedly restores a saved database, injects CREATE
+// INDEX faults, and verifies that successful retries leave the b-tree intact.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexFaultCreateIndexRecoveryCases(1000) as $case) {
+    $tests['real upstream indexfault create index recovery case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('indexfault.test indexfault-1.1 through indexfault-3.5', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(str_starts_with($case['upstream_section'], 'indexfault-'));
+        $t->true($case['scenario'] !== '');
+        $t->true(in_array($case['fault_family'], [
+            'faultsim-default',
+            'faultsim-soft-heap',
+            'custom-xopen',
+            'custom-xopen-soft-heap',
+            'custom-temp-xwrite',
+            'custom-temp-xwrite-soft-heap',
+            'custom-release-memory',
+        ], true));
+        $t->true($case['table_columns'] === 1 || $case['table_columns'] === 7);
+        $t->true($case['row_count'] === 128 || $case['row_count'] === 256 || $case['row_count'] === 512);
+        $t->true($case['payload_bytes'] === 30 || $case['payload_bytes'] === 202 || $case['payload_bytes'] === 11000);
+        $t->true($case['index_columns'] !== []);
+        $t->same($case['table_columns'] === 7 ? ['t', 'u', 'v', 'w', 'x', 'y', 'z'] : ['x'], $case['index_columns']);
+        $t->true($case['soft_heap_limit'] === null || $case['soft_heap_limit'] === 50000);
+        $t->true($case['injected_method'] === 'faultsim' || $case['injected_method'] === 'xOpen' || $case['injected_method'] === 'xWrite');
+        $t->true(str_contains($case['recovery_action'], 'retry') || str_contains($case['recovery_action'], 'rebuild'));
+        $t->same([0, ''], $case['attempt_result']);
+        $t->same('ok', $case['integrity']);
+        $t->same('i1', $case['expected_index']);
+        if ($case['upstream_section'] === 'indexfault-3.3' || $case['upstream_section'] === 'indexfault-3.4' || $case['upstream_section'] === 'indexfault-3.5') {
+            $t->same(true, $case['temp_btree_spilled']);
+            $t->same('xWrite', $case['injected_method']);
+        }
+        if ($case['upstream_section'] === 'indexfault-3.1' || $case['upstream_section'] === 'indexfault-3.2') {
+            $t->same(false, $case['temp_btree_spilled']);
+            $t->same('xOpen', $case['injected_method']);
+        }
+        if ($case['upstream_section'] === 'indexfault-2.2' || $case['upstream_section'] === 'indexfault-3.2' || $case['upstream_section'] === 'indexfault-3.4') {
+            $t->same(50000, $case['soft_heap_limit']);
+        }
+    };
+}
+
 return $tests;

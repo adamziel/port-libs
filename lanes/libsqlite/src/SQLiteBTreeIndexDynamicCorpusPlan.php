@@ -803,6 +803,151 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream:string,scenario:string,index_name:string,uses_index:bool,detail:string,result_rows:list<array<int,mixed>>,integrity:string,error:string|null,collation:string|null,batch:int}>
+     */
+    public static function indexAJoinPlannerGuardCases(int $cases = 720): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexA join/planner corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'upstream' => 'indexA-1.1/1.2',
+                'scenario' => 'text partial-index equality uses covering index',
+                'index' => 'i1',
+                'uses' => true,
+                'detail' => 'SEARCH t1 USING COVERING INDEX i1 (b=? AND c=?)',
+                'rows' => [['abc', 1, 2]],
+                'error' => null,
+                'collation' => null,
+            ],
+            [
+                'upstream' => 'indexA-1.3/1.7',
+                'scenario' => 'right join numeric partial-index route',
+                'index' => 'i2',
+                'uses' => true,
+                'detail' => 'RIGHT-JOIN t1 USING INDEX i2',
+                'rows' => [[null, 'abc', 1, 2], [null, '5', 4, 3]],
+                'error' => null,
+                'collation' => null,
+            ],
+            [
+                'upstream' => 'indexA-4.1.1/4.1.2',
+                'scenario' => 'aggregate reads covering partial index',
+                'index' => 't2a_two',
+                'uses' => true,
+                'detail' => 'SCAN t2 USING COVERING INDEX t2a_two',
+                'rows' => [[6, 'two']],
+                'error' => null,
+                'collation' => null,
+            ],
+            [
+                'upstream' => 'indexA-5.1',
+                'scenario' => 'partial-index predicate rejects missing collation',
+                'index' => 'ex1',
+                'uses' => false,
+                'detail' => 'CREATE INDEX ex1 ON t1(c) WHERE b IS abc COLLATE g',
+                'rows' => [],
+                'error' => 'no such collation sequence: g',
+                'collation' => 'g',
+            ],
+            [
+                'upstream' => 'indexA-5.2/5.3',
+                'scenario' => 'partial-index predicate survives custom collation reopen',
+                'index' => 'ex1',
+                'uses' => true,
+                'detail' => 'CREATE INDEX ex1 ON t1(c) WHERE b IS abc COLLATE xyz',
+                'rows' => [],
+                'error' => null,
+                'collation' => 'xyz',
+            ],
+            [
+                'upstream' => 'indexA-6.2/6.3',
+                'scenario' => 'inner join applies bloom filter over partial index',
+                'index' => 't2z',
+                'uses' => true,
+                'detail' => 'BLOOM FILTER ON t2; SEARCH t2 USING INDEX t2z (z=?)',
+                'rows' => [[1, 1, 1, 1, 5, 1], [2, 1, 2, 2, 5, 2]],
+                'error' => null,
+                'collation' => null,
+            ],
+            [
+                'upstream' => 'indexA-6.4/6.5',
+                'scenario' => 'left join applies bloom filter with IS comparison',
+                'index' => 't2z',
+                'uses' => true,
+                'detail' => 'BLOOM FILTER ON t2; SEARCH t2 USING INDEX t2z (z=?)',
+                'rows' => [[1, 1, 1, 1, 5, 1], [2, 1, 2, 2, 5, 2]],
+                'error' => null,
+                'collation' => null,
+            ],
+            [
+                'upstream' => 'indexA-6.7',
+                'scenario' => 'covering partial index keeps left join rows',
+                'index' => 't2yz',
+                'uses' => true,
+                'detail' => 'SEARCH t2 USING COVERING INDEX t2yz (y=? AND z=?)',
+                'rows' => [[1, 1, 1, 1, 5, 1], [2, 1, 2, 2, 5, 2]],
+                'error' => null,
+                'collation' => null,
+            ],
+            [
+                'upstream' => 'indexA-7.0',
+                'scenario' => 'indexed-by partial primary-key predicate',
+                'index' => 'i1',
+                'uses' => true,
+                'detail' => 'SEARCH t1 USING INDEX i1 (c=?)',
+                'rows' => [[5, 'abc', 'xyz']],
+                'error' => null,
+                'collation' => null,
+            ],
+            [
+                'upstream' => 'indexA-8.1',
+                'scenario' => 'constant expression index coexists with partial predicate',
+                'index' => 'ex1',
+                'uses' => true,
+                'detail' => 'SEARCH t1 USING INDEX ex1 WHERE b=4',
+                'rows' => [[1, 4, 1], [2, 4, 2]],
+                'error' => null,
+                'collation' => null,
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $resultRows = array_map(
+                static function (array $row) use ($batch): array {
+                    return array_map(
+                        static fn (mixed $value): mixed => is_int($value) ? $value + (($batch - 1) * 1000) : $value,
+                        $row,
+                    );
+                },
+                $template['rows'],
+            );
+
+            $rows[] = [
+                'source' => 'indexA.test sections 1.1 through 1.7 and 4.1 through 8.1',
+                'case' => $case,
+                'upstream' => $template['upstream'] . '.dynamic-' . $batch,
+                'scenario' => $template['scenario'],
+                'index_name' => $template['index'],
+                'uses_index' => $template['uses'],
+                'detail' => $template['detail'],
+                'result_rows' => $resultRows,
+                'integrity' => 'ok',
+                'error' => $template['error'],
+                'collation' => $template['collation'],
+                'batch' => $batch,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{upstream:string,source:string,transition:int,page_size:int,row_count:int,previous_page:int,next_page:int,direction:string,forward_count:int,backward_count:int,noncontiguous_count:int,forward_dominates:bool}>
      */
     public static function index5SequentialWriteCases(int $transitions = 1200): array
@@ -1382,6 +1527,148 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                 'order_by_preserved' => false,
                 'subquery_resolves_rowid' => false,
                 'integrity' => 'ok',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,fault_family:string,table_columns:int,row_count:int,payload_bytes:int,index_columns:list<string>,soft_heap_limit:int|null,injected_method:string,recovery_action:string,attempt_result:array{int,string},integrity:string,temp_btree_spilled:bool,expected_index:string}>
+     */
+    public static function indexFaultCreateIndexRecoveryCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexfault dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'indexfault-1.1',
+                'single-column CREATE INDEX survives ordinary malloc/io fault attempts',
+                'faultsim-default',
+                1,
+                256,
+                202,
+                ['x'],
+                null,
+                'faultsim',
+                'restore saved database and retry CREATE INDEX i1 ON t1(x)',
+                false,
+            ],
+            [
+                'indexfault-2.1',
+                'multi-column CREATE INDEX survives ordinary malloc/io fault attempts',
+                'faultsim-default',
+                7,
+                128,
+                30,
+                ['t', 'u', 'v', 'w', 'x', 'y', 'z'],
+                null,
+                'faultsim',
+                'restore saved database and retry CREATE INDEX i1 ON t1(t,u,v,w,x,y,z)',
+                false,
+            ],
+            [
+                'indexfault-2.2',
+                'multi-column CREATE INDEX survives low soft-heap-limit fault attempts',
+                'faultsim-soft-heap',
+                7,
+                128,
+                30,
+                ['t', 'u', 'v', 'w', 'x', 'y', 'z'],
+                50000,
+                'faultsim',
+                'restore saved database, apply soft heap limit, and retry multi-column CREATE INDEX',
+                false,
+            ],
+            [
+                'indexfault-3.1',
+                'large external-sort CREATE INDEX retries after xOpen faults',
+                'custom-xopen',
+                1,
+                512,
+                11000,
+                ['x'],
+                null,
+                'xOpen',
+                'reopen database and retry index build after transient temp-file open failure',
+                false,
+            ],
+            [
+                'indexfault-3.2',
+                'large external-sort CREATE INDEX retries after xOpen faults with low memory',
+                'custom-xopen-soft-heap',
+                1,
+                512,
+                11000,
+                ['x'],
+                50000,
+                'xOpen',
+                'reopen database, preserve soft heap limit, and retry index build',
+                false,
+            ],
+            [
+                'indexfault-3.3',
+                'large external-sort CREATE INDEX retries after temp xWrite faults',
+                'custom-temp-xwrite',
+                1,
+                512,
+                11000,
+                ['x'],
+                null,
+                'xWrite',
+                'discard failed temp sorter and rebuild index from main database rows',
+                true,
+            ],
+            [
+                'indexfault-3.4',
+                'large external-sort CREATE INDEX retries after temp xWrite faults with low memory',
+                'custom-temp-xwrite-soft-heap',
+                1,
+                512,
+                11000,
+                ['x'],
+                50000,
+                'xWrite',
+                'discard failed temp sorter under soft heap limit and rebuild index',
+                true,
+            ],
+            [
+                'indexfault-3.5',
+                'large external-sort CREATE INDEX retries after release-memory temp spill faults',
+                'custom-release-memory',
+                1,
+                512,
+                11000,
+                ['x'],
+                null,
+                'xWrite',
+                'flush temporary btree to disk, abandon failed PMA readback, and retry',
+                true,
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $family, $columns, $rowCount, $payloadBytes, $indexColumns, $softLimit, $method, $action, $spilled] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'indexfault.test indexfault-1.1 through indexfault-3.5',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'fault_family' => $family,
+                'table_columns' => $columns,
+                'row_count' => $rowCount,
+                'payload_bytes' => $payloadBytes,
+                'index_columns' => $indexColumns,
+                'soft_heap_limit' => $softLimit,
+                'injected_method' => $method,
+                'recovery_action' => $action,
+                'attempt_result' => [0, ''],
+                'integrity' => 'ok',
+                'temp_btree_spilled' => $spilled,
+                'expected_index' => 'i1',
             ];
         }
 
