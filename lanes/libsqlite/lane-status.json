@@ -13,5 +13,5 @@
     "nextTask": "Keep the worker pool in the 10-11 active band, integrate the next current-base libsqlite handoff with clean focused/family evidence, supersede old-base patches that collide with already-renamed files, and keep pruning inactive artifacts only after preserving patch/status evidence.",
     "wordpressScenarioLatest": "STAT4 expression partial, WAL hot-journal checkpoint, JSON generated-path rowid alias order, pager hot-recovery, UTF-16 LIKE/RTRIM, release-runner denominator burnup, and upstream-suite admission smokes remain green after suffix consolidation.",
     "latestCommit": "796fb2053 libsqlite: consolidate suite evidence suffix helpers",
-    "commit": "796fb20536f6782f6d7824e5c6349de3aa508de5"
+    "commit": "796fb2053c5493bf5812963137f3adfb404680c2"
 }
