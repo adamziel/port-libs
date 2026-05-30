@@ -3873,8 +3873,9 @@ final class SQLiteSelectSql
 
             return ['type' => 'literal', 'value' => new SQLiteBlobValue($bytes)];
         }
-        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $sql) === 1) {
-            return ['type' => 'column', 'name' => $sql];
+        $columnName = self::columnIdentifierExpression($sql);
+        if ($columnName !== null) {
+            return ['type' => 'column', 'name' => $columnName];
         }
         if (str_starts_with($sql, "'") && str_ends_with($sql, "'")) {
             return ['type' => 'literal', 'value' => str_replace("''", "'", substr($sql, 1, -1))];
@@ -3891,6 +3892,42 @@ final class SQLiteSelectSql
         }
 
         return (string) $value;
+    }
+
+    private static function columnIdentifierExpression(string $sql): ?string
+    {
+        $sql = trim($sql);
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $sql) === 1) {
+            return $sql;
+        }
+
+        if (preg_match('/^\[([^\]]+)\]$/', $sql, $match) === 1) {
+            return self::normalizedGeneratedColumnName($match[1]);
+        }
+
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\.\[([^\]]+)\]$/', $sql, $match) === 1) {
+            return $match[1] . '.' . self::normalizedGeneratedColumnName($match[2]);
+        }
+
+        return null;
+    }
+
+    private static function normalizedGeneratedColumnName(string $name): string
+    {
+        $name = trim($name);
+        if (preg_match('/^count\s*\(\s*\*\s*\)$/i', $name) === 1) {
+            return 'countAll';
+        }
+        if (preg_match('/^count\s*\(\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\s*\)$/i', $name) === 1) {
+            return 'countValue';
+        }
+        if (preg_match('/^(min|max|sum|total|avg)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\s*\)$/i', $name, $match) === 1) {
+            return strtolower($match[1]);
+        }
+
+        self::assertIdentifier($name, 'SQLite SELECT SQL bracket-quoted column');
+
+        return $name;
     }
 
     /**

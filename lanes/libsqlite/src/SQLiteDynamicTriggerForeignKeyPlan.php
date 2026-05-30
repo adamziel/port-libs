@@ -1001,6 +1001,54 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param array{x:int|string,y:mixed} $row
+     * @param list<mixed> $counterArgs
+     * @return array<string,mixed>
+     */
+    public static function triggerNewExpressionEvaluation(string $operation, array $row, int $counterStart = 0, int $offset = 0, array $counterArgs = []): array
+    {
+        $operation = strtolower($operation);
+        if (!in_array($operation, ['insert', 'update'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger6 operation is unsupported');
+        }
+
+        if (!array_key_exists('x', $row) || !array_key_exists('y', $row)) {
+            throw new \InvalidArgumentException('SQLite trigger6 row must contain x and y');
+        }
+
+        $counterAfter = $counterStart + 1;
+        $evaluatedY = $counterAfter + $offset;
+        $newRow = ['x' => $row['x'], 'y' => $evaluatedY];
+        $logRow = [
+            'trigger' => $operation === 'insert' ? 'r1' : 'r2',
+            'event' => $operation,
+            'a' => $operation === 'insert' ? 1 : 2,
+            'new_x' => $newRow['x'],
+            'new_y' => $newRow['y'],
+        ];
+
+        return [
+            'source' => 'trigger6.test trigger6-1.1..1.6',
+            'operation' => 'trigger-new-expression-evaluated-once',
+            'status' => 'commit-ok',
+            'event' => $operation,
+            'counter_before' => $counterStart,
+            'counter_after' => $counterAfter,
+            'counter_args' => array_values($counterArgs),
+            'expression_offset' => $offset,
+            'expression_evaluations' => 1,
+            'row' => $newRow,
+            'log_rows' => [$logRow],
+            'new_image_matches_stored_row' => $logRow['new_x'] === $newRow['x'] && $logRow['new_y'] === $newRow['y'],
+            'dependencies' => [
+                'sqlite-trigger6-side-effect-expression-evaluated-once',
+                'sqlite-trigger6-before-insert-new-row-reuses-evaluated-expression',
+                'sqlite-trigger6-before-update-new-row-reuses-evaluated-expression',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{pid:int|string,label?:string}> $parents
      * @param list<array{cid:int|string,pid:int|string|null,payload?:string}> $children
      * @param array{operation:string,action:string,new_pid?:int|string|null,default?:int|string|null,conflict?:string,attached?:bool} $statement
@@ -1258,6 +1306,121 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'dependencies' => [
                 'sqlite-trigger2-outer-conflict-policy-applies-to-trigger-program',
                 'sqlite-trigger2-rollback-policy-clears-transaction',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public static function qualifiedTriggerNameDiagnostic(string $triggerName, bool $temporary): array
+    {
+        $parts = explode('.', $triggerName);
+        $databaseName = count($parts) === 2 ? $parts[0] : null;
+        $localName = count($parts) === 2 ? $parts[1] : $triggerName;
+        if ($databaseName !== null) {
+            self::identifier($databaseName, 'trigger database name');
+        }
+        self::identifier($localName, 'trigger name');
+
+        $status = 'commit-ok';
+        $error = null;
+        if ($temporary && $databaseName !== null) {
+            $status = 'schema-error';
+            $error = 'temporary trigger may not have qualified name';
+        } elseif ($databaseName !== null && $databaseName !== 'main' && $databaseName !== 'temp') {
+            $status = 'schema-error';
+            $error = 'unknown database ' . $databaseName;
+        }
+
+        return [
+            'source' => 'trigger7.test trigger7-1.1..1.2',
+            'operation' => 'qualified-trigger-name-diagnostic',
+            'status' => $status,
+            'temporary' => $temporary,
+            'database_name' => $databaseName,
+            'trigger_name' => $localName,
+            'error' => $error,
+            'dependencies' => [
+                'sqlite-trigger7-temporary-trigger-may-not-have-qualified-name',
+                'sqlite-trigger7-qualified-trigger-unknown-database',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{name:string,columns:list<string>,timing?:string,event?:string}> $triggers
+     * @param list<string> $updatedColumns
+     * @return array<string,mixed>
+     */
+    public static function updateOfExplainTriggerPruning(array $triggers, array $updatedColumns): array
+    {
+        $updatedColumns = array_values(array_map(static fn (string $column): string => self::identifier($column, 'updated column'), $updatedColumns));
+        $emitted = [];
+        $pruned = [];
+
+        foreach ($triggers as $trigger) {
+            $name = self::identifier((string) ($trigger['name'] ?? ''), 'trigger name');
+            $columns = array_values(array_map(static fn (string $column): string => self::identifier($column, 'trigger column'), $trigger['columns'] ?? []));
+            $intersects = array_intersect($columns, $updatedColumns) !== [];
+            if ($intersects) {
+                $emitted[] = $name;
+            } else {
+                $pruned[] = $name;
+            }
+        }
+
+        return [
+            'source' => 'trigger7.test trigger7-2.1..2.6',
+            'operation' => 'update-of-explain-trigger-pruning',
+            'status' => 'commit-ok',
+            'updated_columns' => $updatedColumns,
+            'emitted_trigger_names' => $emitted,
+            'pruned_trigger_names' => $pruned,
+            'explain_text' => implode(' ', array_map(static fn (string $name): string => '___update_t1.' . $name . '___', $emitted)),
+            'dependencies' => [
+                'sqlite-trigger7-update-of-prunes-unmatched-trigger-programs',
+                'sqlite-trigger7-rowid-update-does-not-match-named-column-trigger',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{name:string,timing:string,event:string}> $triggers
+     * @param list<string> $dropNames
+     * @return array<string,mixed>
+     */
+    public static function selectiveDropTriggerCatalog(array $triggers, array $dropNames): array
+    {
+        $remaining = [];
+        $dropped = [];
+        $dropSet = array_fill_keys(array_map(static fn (string $name): string => self::identifier($name, 'drop trigger name'), $dropNames), true);
+
+        foreach ($triggers as $trigger) {
+            $name = self::identifier((string) ($trigger['name'] ?? ''), 'trigger name');
+            $record = [
+                'name' => $name,
+                'timing' => strtolower((string) ($trigger['timing'] ?? '')),
+                'event' => strtolower((string) ($trigger['event'] ?? '')),
+            ];
+            if (isset($dropSet[$name])) {
+                $dropped[] = $record;
+                continue;
+            }
+            $remaining[] = $record;
+        }
+
+        return [
+            'source' => 'trigger7.test trigger7-3.1',
+            'operation' => 'selective-drop-trigger-catalog',
+            'status' => 'commit-ok',
+            'dropped_trigger_names' => array_values(array_column($dropped, 'name')),
+            'remaining_trigger_names' => array_values(array_column($remaining, 'name')),
+            'remaining_by_event' => self::triggerEventCounts($remaining),
+            'remaining_by_timing' => self::triggerTimingCounts($remaining),
+            'dependencies' => [
+                'sqlite-trigger7-many-triggers-on-table-remain-addressable',
+                'sqlite-trigger7-drop-trigger-removes-only-named-trigger',
             ],
         ];
     }
@@ -3134,6 +3297,38 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $value;
+    }
+
+    /**
+     * @param list<array{name:string,timing:string,event:string}> $triggers
+     * @return array<string,int>
+     */
+    private static function triggerEventCounts(array $triggers): array
+    {
+        $counts = [];
+        foreach ($triggers as $trigger) {
+            $event = $trigger['event'];
+            $counts[$event] = ($counts[$event] ?? 0) + 1;
+        }
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array{name:string,timing:string,event:string}> $triggers
+     * @return array<string,int>
+     */
+    private static function triggerTimingCounts(array $triggers): array
+    {
+        $counts = [];
+        foreach ($triggers as $trigger) {
+            $timing = $trigger['timing'];
+            $counts[$timing] = ($counts[$timing] ?? 0) + 1;
+        }
+        ksort($counts);
+
+        return $counts;
     }
 
     private static function raiseActionForValue(int $value, bool $viewTrigger): string

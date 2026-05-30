@@ -521,6 +521,14 @@ final class SQLiteSelectPredicate
         if (($expression['type'] ?? null) === 'collate') {
             return self::operandAffinity($row, $expression['operand'] ?? null);
         }
+        if (($expression['type'] ?? null) === 'cast') {
+            $target = $expression['target'] ?? null;
+            if (!is_string($target) || trim($target) === '') {
+                return null;
+            }
+
+            return self::castExpressionAffinity($target);
+        }
 
         $column = null;
         if (array_key_exists('column', $expression)) {
@@ -547,6 +555,30 @@ final class SQLiteSelectPredicate
         }
 
         return null;
+    }
+
+    private static function castExpressionAffinity(string $target): string
+    {
+        $normalized = strtoupper(trim($target));
+        $normalized = preg_replace('/\s+/', ' ', $normalized);
+        if (!is_string($normalized)) {
+            return 'NUMERIC';
+        }
+
+        if (str_contains($normalized, 'INT')) {
+            return 'INTEGER';
+        }
+        if (str_contains($normalized, 'CHAR') || str_contains($normalized, 'CLOB') || str_contains($normalized, 'TEXT')) {
+            return 'TEXT';
+        }
+        if (str_contains($normalized, 'BLOB') || $normalized === 'NONE') {
+            return 'BLOB';
+        }
+        if (str_contains($normalized, 'REAL') || str_contains($normalized, 'FLOA') || str_contains($normalized, 'DOUB')) {
+            return 'REAL';
+        }
+
+        return 'NUMERIC';
     }
 
     private static function compareText(string $left, string $right, string $collation): int

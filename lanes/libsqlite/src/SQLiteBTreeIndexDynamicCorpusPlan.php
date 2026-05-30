@@ -438,6 +438,54 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream:string,where_column:string,where_value:int,index_name:string,index_columns:list<string>,order_by:list<string>,limit:int,result_rows:list<array{a:int,b:int,c:int,d:int}>,first_d:int|null,last_d:int|null,matching_count:int,detail:string,uses_index:bool,requires_table_lookup:bool}>
+     */
+    public static function index8DynamicOrderByLimitCases(int $cases = 1000): array
+    {
+        $rows = [];
+        for ($x = 0; $x <= 100; $x++) {
+            $rows[] = [
+                'a' => intdiv($x, 10),
+                'b' => $x % 10,
+                'c' => $x % 19,
+                'd' => $x,
+            ];
+        }
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $whereValue = ($case - 1) % 19;
+            $limit = 1 + intdiv($case - 1, 19) % 8;
+            $covered = $case % 2 === 1;
+            $matching = array_values(array_filter($rows, static fn (array $row): bool => $row['c'] === $whereValue));
+            usort($matching, static fn (array $left, array $right): int => [$left['a'], $left['b']] <=> [$right['a'], $right['b']]);
+            $resultRows = array_slice($matching, 0, $limit);
+            $dValues = array_column($resultRows, 'd');
+
+            $out[] = [
+                'source' => 'index8.test sections 1.0, 1.0eqp, 1.1, and 1.1eqp',
+                'case' => $case,
+                'upstream' => 'index8-1.dynamic-' . $case,
+                'where_column' => 'c',
+                'where_value' => $whereValue,
+                'index_name' => $covered ? 't1abc' : 't1abd',
+                'index_columns' => $covered ? ['a', 'b', 'c'] : ['a', 'b', 'd'],
+                'order_by' => ['a', 'b'],
+                'limit' => $limit,
+                'result_rows' => $resultRows,
+                'first_d' => $dValues[0] ?? null,
+                'last_d' => $dValues === [] ? null : $dValues[count($dValues) - 1],
+                'matching_count' => count($matching),
+                'detail' => $covered ? 'SCAN t1 USING INDEX t1abc' : 'SCAN t1',
+                'uses_index' => $covered,
+                'requires_table_lookup' => !$covered,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,join:string,probe_values:list<int>,result_rows:list<array{y:int,c:int|null}>,page_size:int,primary_key:string,overflow_key:int,overflow_blob:int}>
      */
     public static function btree01OverflowJoinCases(): array

@@ -129,6 +129,9 @@ final class SQLiteSelectQuery
      */
     private static function isFilterAliasUnsafe(array $expression): bool
     {
+        if (isset($expression['sourceExpression']) && is_array($expression['sourceExpression'])) {
+            return self::isFilterAliasUnsafe($expression['sourceExpression']);
+        }
         if (($expression['type'] ?? null) === 'wildcard' || ($expression['type'] ?? null) === 'window') {
             return true;
         }

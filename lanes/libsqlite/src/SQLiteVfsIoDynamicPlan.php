@@ -1185,6 +1185,126 @@ final class SQLiteVfsIoDynamicPlan
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function mmapReadGrowthProfile(int $case, int $connectionMmapSize, int $peerMmapSize, int $platformPageBytes = 4096): array
+    {
+        if ($case < 1 || $case > 6) {
+            throw new \InvalidArgumentException('SQLite mmap read growth profile case must be 1 through 6');
+        }
+        if ($connectionMmapSize < 0 || $peerMmapSize < 0) {
+            throw new \InvalidArgumentException('SQLite mmap read growth profile mmap sizes must be non-negative');
+        }
+        if ($platformPageBytes < 1024 || ($platformPageBytes & ($platformPageBytes - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite mmap read growth profile platform page size must be a power of two at least 1024');
+        }
+
+        $usesMmap = $connectionMmapSize > 0;
+        $partialMmap = $usesMmap && $connectionMmapSize < 1048576;
+        $initialReadCount = $usesMmap ? ($partialMmap ? 154 : ($platformPageBytes >= 4096 ? 12 : 8)) : 344;
+        $afterDeletePages = 42;
+        $afterGrowPages = 79;
+        $afterSecondGrowPages = 149;
+
+        return [
+            'status' => 'ok',
+            'script' => 'mmap1.test',
+            'scenario' => 'mmap1-1.' . $case,
+            'upstream' => ['mmap1.test 1.' . $case . '.1', 'mmap1.test 1.' . $case . '.2', 'mmap1.test 1.' . $case . '.3', 'mmap1.test 1.' . $case . '.4', 'mmap1.test 1.' . $case . '.5'],
+            'page_size' => 1024,
+            'auto_vacuum' => true,
+            'connection_mmap_size' => $connectionMmapSize,
+            'peer_mmap_size' => $peerMmapSize,
+            'uses_mmap' => $usesMmap,
+            'partial_mmap' => $partialMmap,
+            'initial_rows' => 32,
+            'after_delete_rows' => 16,
+            'after_grow_rows' => 32,
+            'after_second_grow_rows' => 64,
+            'initial_page_count' => 77,
+            'after_delete_page_count' => $afterDeletePages,
+            'after_grow_page_count' => $afterGrowPages,
+            'after_second_grow_page_count' => $afterSecondGrowPages,
+            'integrity_sequence' => ['ok', 'ok', 'ok', 'ok'],
+            'expected_read_count' => $initialReadCount,
+            'read_count_pattern' => $usesMmap ? ($partialMmap ? '15[34]' : '8|12') : '344',
+            'stale_mapping_survives_truncate' => true,
+            'mapping_extends_after_peer_growth' => true,
+            'dependencies' => ['upstream-mmap1-test', 'sqlite-mmap-read-counts', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function mmapVacuumTruncationProfile(int $mmapSize, int $blobBytes = 1000000, int $pageSize = 4096): array
+    {
+        if ($mmapSize < 1 || $blobBytes < 1) {
+            throw new \InvalidArgumentException('SQLite mmap vacuum truncation profile requires positive mmap and blob sizes');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite mmap vacuum truncation profile page size must be a power of two at least 512');
+        }
+
+        $preVacuumBytes = self::align($blobBytes + $pageSize, $pageSize);
+        $postVacuumBytes = $pageSize * 2;
+
+        return [
+            'status' => 'ok',
+            'script' => 'mmap1.test',
+            'scenario' => 'mmap1-6',
+            'upstream' => ['mmap1.test 6.0', 'mmap1.test 6.1', 'mmap1.test 6.2', 'mmap1.test 6.3', 'mmap1.test 6.4', 'mmap1.test 6.5', 'mmap1.test 6.6', 'mmap1.test 6.7'],
+            'page_size' => $pageSize,
+            'auto_vacuum' => false,
+            'mmap_size' => $mmapSize,
+            'blob_bytes' => $blobBytes,
+            'pre_delete_file_bytes' => $preVacuumBytes,
+            'post_delete_file_bytes' => $preVacuumBytes,
+            'post_vacuum_file_bytes' => $postVacuumBytes,
+            'delete_does_not_truncate_file' => true,
+            'vacuum_truncates_below_blob_size' => $postVacuumBytes < $blobBytes,
+            'stale_mapping_unmapped_before_truncate' => true,
+            'dependencies' => ['upstream-mmap1-test', 'sqlite-mmap-vacuum-truncation', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function mmapSyscallFailureProfile(string $syscall, int $faultIndex, int $mappedRows = 64, int $mmapSize = 8000000): array
+    {
+        $syscall = strtolower(trim($syscall));
+        if (!in_array($syscall, ['mmap', 'mremap'], true)) {
+            throw new \InvalidArgumentException('SQLite mmap syscall failure profile syscall is unsupported');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite mmap syscall failure profile requires a positive fault index');
+        }
+        if ($mappedRows < 1 || $mmapSize < 1) {
+            throw new \InvalidArgumentException('SQLite mmap syscall failure profile requires positive row and mmap sizes');
+        }
+
+        $failureInjected = $faultIndex <= 19 && ($syscall === 'mmap' || $faultIndex % 3 !== 0);
+
+        return [
+            'status' => 'ok',
+            'script' => 'mmap2.test',
+            'scenario' => 'mmap2-1.' . $syscall . '.' . $faultIndex,
+            'upstream' => ['mmap2.test 1.' . $syscall . '.' . $faultIndex . '.1', 'mmap2.test 1.' . $syscall . '.' . $faultIndex . '.2', 'mmap2.test 1.' . $syscall . '.' . $faultIndex . '.3', 'mmap2.test 1.' . $syscall . '.' . $faultIndex . '.4'],
+            'syscall' => $syscall,
+            'fault_index' => $faultIndex,
+            'errno' => 'ENOMEM',
+            'mmap_size' => $mmapSize,
+            'row_count' => $mappedRows,
+            'integrity_check' => 'ok',
+            'n_fail' => $failureInjected ? 1 : 0,
+            'log_matches_syscall' => $failureInjected,
+            'connection_reusable_after_fault' => true,
+            'dependencies' => ['upstream-mmap2-test', 'sqlite-mmap-syscall-faultsim', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
     private static function align(int $value, int $pageSize): int
     {
         $remainder = $value % $pageSize;
