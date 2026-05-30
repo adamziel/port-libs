@@ -69,7 +69,7 @@ $tests = [];
 
 for ($i = 1; $i <= 64; $i++) {
     $tests['current next64 suite denominator admits unit ' . $i] = static function (TestRunner $t) use ($i, $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, $nonOverlap64): void {
-        $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorCurrentNext64(
+        $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorFocusedAdmission(
             libsqlite_suite_denominator64_rows($i),
             $currentHead64,
             $nextHead64,
@@ -95,7 +95,7 @@ for ($i = 1; $i <= 64; $i++) {
 }
 
 $tests['current next64 suite denominator summarizes tiers and open rows'] = static function (TestRunner $t) use ($currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, $nonOverlap64): void {
-    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorCurrentNext64(
+    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorFocusedAdmission(
         libsqlite_suite_denominator64_rows(1),
         $currentHead64,
         $nextHead64,
@@ -119,7 +119,7 @@ $tests['current next64 suite denominator blocks missing command evidence'] = sta
     $rows[0]['command'] = '';
     $rows[0]['evidence'] = '';
 
-    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorCurrentNext64($rows, $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64);
+    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorFocusedAdmission($rows, $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64);
 
     $t->same('blocked', $record['status']);
     $t->same(0, $record['mapped_delta']);
@@ -132,7 +132,7 @@ $tests['current next64 suite denominator blocks duplicate unit rows'] = static f
     $rows = libsqlite_suite_denominator64_rows(3);
     $rows[] = $rows[0];
 
-    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorCurrentNext64($rows, $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64);
+    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorFocusedAdmission($rows, $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64);
 
     $t->same('blocked', $record['status']);
     $t->true(in_array('duplicate-suite-denominator-unit', array_column($record['blockers'], 'evidence'), true), 'Expected duplicate unit blocker');
@@ -142,7 +142,7 @@ $tests['current next64 suite denominator blocks regressions'] = static function 
     $rows = libsqlite_suite_denominator64_rows(4);
     $rows[1]['next_status'] = 'unmapped';
 
-    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorCurrentNext64($rows, $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64);
+    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorFocusedAdmission($rows, $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64);
 
     $t->same('blocked', $record['status']);
     $t->same(['accepted-veryquick-baseline'], $record['regressed_units']);
@@ -150,7 +150,7 @@ $tests['current next64 suite denominator blocks regressions'] = static function 
 };
 
 $tests['current next64 suite denominator blocks under-threshold focused output'] = static function (TestRunner $t) use ($currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, $nonOverlap64): void {
-    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorCurrentNext64(
+    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorFocusedAdmission(
         libsqlite_suite_denominator64_rows(5),
         $currentHead64,
         $nextHead64,
@@ -167,7 +167,7 @@ $tests['current next64 suite denominator blocks under-threshold focused output']
 };
 
 $tests['current next64 suite denominator blocks unfocused output'] = static function (TestRunner $t) use ($currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, $nonOverlap64): void {
-    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorCurrentNext64(
+    $record = libsqlite_suite_denominator64_evidence()->releaseRunnerSuiteDenominatorFocusedAdmission(
         libsqlite_suite_denominator64_rows(6),
         $currentHead64,
         $nextHead64,
@@ -185,10 +185,10 @@ $tests['current next64 suite denominator blocks unfocused output'] = static func
 $tests['current next64 suite denominator rejects invalid setup'] = static function (TestRunner $t) use ($currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, $nonOverlap64): void {
     $evidence = libsqlite_suite_denominator64_evidence();
 
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentNext64([], $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentNext64(libsqlite_suite_denominator64_rows(7), '', $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentNext64(libsqlite_suite_denominator64_rows(7), $currentHead64, $nextHead64, -1, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentNext64(libsqlite_suite_denominator64_rows(7), $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64, 0));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorFocusedAdmission([], $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorFocusedAdmission(libsqlite_suite_denominator64_rows(7), '', $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorFocusedAdmission(libsqlite_suite_denominator64_rows(7), $currentHead64, $nextHead64, -1, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorFocusedAdmission(libsqlite_suite_denominator64_rows(7), $currentHead64, $nextHead64, $currentMapped64, $currentPhpPass64, $focusedPath64, libsqlite_suite_denominator64_output(), $nonOverlap64, 0));
 };
 
 return $tests;

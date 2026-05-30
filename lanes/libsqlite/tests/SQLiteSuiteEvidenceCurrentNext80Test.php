@@ -189,6 +189,13 @@ return [
         $t->contains('focused PHP PASS-line admission', $record['blockers'][0]['evidence']);
         $t->same(29030, $record['next_php_pass']);
     },
+    'current next80 records dependency closure without parity claim' => static function (TestRunner $t): void {
+        $record = libsqlite_suite_evidence80_record(libsqlite_suite_evidence80_rows());
+
+        $t->contains('current-next80 suite evidence', $record['dependency_closure']);
+        $t->contains('release/all parity remains blocked', $record['next_gate']);
+        $t->same(false, $record['counts_release_parity']);
+    },
     'current next80 rejects empty row list' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => libsqlite_suite_evidence80_record([]));
     },

@@ -79,8 +79,11 @@ return [
         $record = libsqlite_suite_evidence99_record(libsqlite_suite_evidence99_rows());
 
         $t->same('current-next99-suite-evidence-countable', $record['status']);
+        $t->same(true, $record['countable']);
         $t->same(485, $record['current_mapped']);
         $t->same(486, $record['next_mapped']);
+        $t->same(1, $record['mapped_delta']);
+        $t->same(12, $record['php_pass_delta']);
         $t->same(29258, $record['next_php_pass']);
         $t->same(1499, $record['tests_total_delta']);
         $t->same(['suite-evidence-current-next99-focused-artifact'], $record['advanced_units']);
@@ -88,6 +91,34 @@ return [
         $t->same(false, $record['counts_suite_evidence_current_next98']);
         $t->same(true, $record['counts_suite_evidence_current_next99']);
         $t->same(false, $record['counts_release_parity']);
+    },
+    'current next99 records tiers scripts and test delta' => static function (TestRunner $t): void {
+        $record = libsqlite_suite_evidence99_record(libsqlite_suite_evidence99_rows());
+
+        $t->same(['focused' => 2], $record['tiers']);
+        $t->same(1, $record['tier_count']);
+        $t->same(1499, $record['tests_total_delta']);
+        $t->same([
+            'attach3.test',
+            'pager-current-next98-08.test',
+            'pager-current-next99-09.test',
+            'wal2.test',
+        ], $record['target_scripts']);
+    },
+    'current next99 preserves already counted suite evidence' => static function (TestRunner $t): void {
+        $rows = libsqlite_suite_evidence99_rows();
+        $rows[0]['current_countable'] = true;
+        $rows[0]['current_tests'] = $rows[0]['next_tests'];
+
+        $record = libsqlite_suite_evidence99_record($rows);
+
+        $t->same('current-next99-suite-evidence-preserved', $record['status']);
+        $t->same(0, $record['mapped_delta']);
+        $t->same(485, $record['next_mapped']);
+        $t->same([
+            'suite-evidence-current-next99-focused-artifact',
+            'suite-evidence-current-next99-next98-baseline',
+        ], $record['preserved_units']);
     },
     'current next99 blocks runner and focused php admission mismatch' => static function (TestRunner $t): void {
         $rows = libsqlite_suite_evidence99_rows(head: '0000000000000000000000000000000000000000');
@@ -100,6 +131,13 @@ return [
         $t->contains('accepted-head-mismatch', $evidence);
         $t->contains('suite-runner-command-missing', $evidence);
         $t->contains('focused PHP PASS-line admission', $evidence);
+    },
+    'current next99 records dependency closure without parity claim' => static function (TestRunner $t): void {
+        $record = libsqlite_suite_evidence99_record(libsqlite_suite_evidence99_rows());
+
+        $t->contains('current-next99 suite evidence', $record['dependency_closure']);
+        $t->contains('release/all parity remains blocked', $record['next_gate']);
+        $t->same(false, $record['counts_release_parity']);
     },
     'current next99 rejects empty row list' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => libsqlite_suite_evidence99_record([]));

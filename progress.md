@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 09:25 UTC):
+  Latest libsqlite source is integrated as `70f6f27ba`
+  (`libsqlite: integrate planner suite helper batch`). The batch accepts six
+  handoffs that still applied cleanly to the latest integration head:
+  release-countability current-next70 stable naming, release-runner denominator
+  current-next64/current-next66 stable admission helpers, STAT4
+  expression-partial current-source helper cleanup, multicolumn range planner
+  cleanup, suite-evidence dependency-closure assertions for current-next78,
+  current-next79, current-next80, current-next99, and current-next100, and
+  window groups/range current-next18 evidence. Verification passed PHP lint for
+  changed PHP files, focused changed/direct tests `11 files / 2845 assertions /
+  0 failures`, release/suite/window/multicolumn family `35 files / 4400
+  assertions / 0 failures`, STAT4 expression partial family `134 files / 7590
+  assertions / 0 failures`, `git diff --check`, and source guards confirming no
+  numbered `CurrentSourceNext`/`CurrentNext` production filenames or classes
+  remain. Public pass/mapped counters remain `188257 pass / 0 fail` and `830 /
+  1589` until a new accepted broad runner snapshot is generated. Disk cleanup
+  compressed old Codex transcripts, rotated the live TUI log, cleared old `/tmp`
+  scratch, restored the tmux socket, and fixed worker launch failures by forcing
+  `umask 0022` plus a Git worktree lock in the worker launcher/refill path. The
+  pool is visible again in tmux `main` with 11 isolated Codex workers and no
+  long sleepers.
+
 - 2026-05-30 supervisor continuation (integration sample 07:16 UTC):
   Latest libsqlite source is integrated as `83fdf2feb`
   (`libsqlite: clear suite evidence window blockers`). The batch accepts

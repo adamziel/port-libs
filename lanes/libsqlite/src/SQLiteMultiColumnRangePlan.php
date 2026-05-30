@@ -96,7 +96,7 @@ final class SQLiteMultiColumnRangePlan
             'orderBy' => self::orderByDiagnostics($orderBy),
             'orderBySatisfied' => $orderBySatisfied,
             'blockSortRequired' => $blockSort,
-            'rangeOrderMode' => self::rangeOrderMode92($selected, $orderBy, $orderBySatisfied),
+            'rangeOrderMode' => self::rangeOrderMode($selected, $orderBy, $orderBySatisfied),
             'currentSourceColumn' => $selected['stat4CurrentSourceColumn'],
             'currentSourceOffset' => $selected['stat4CurrentSourceOffset'],
             'rangeColumn' => $selected['rangeColumn'],
@@ -106,7 +106,7 @@ final class SQLiteMultiColumnRangePlan
             'stat4MatchedSamples' => $selected['stat4MatchedSamples'],
             'stat4RangeCurrentNext' => $rangeBoundary,
             'stat4MatchedCurrentNext' => $selected['stat4MatchedCurrentNext'],
-            'rangeCurrentSourceKeys' => self::rangeCurrentSourceKeys92($rangeBoundary),
+            'rangeCurrentSourceKeys' => self::rangeCurrentSourceKeys($rangeBoundary),
             'matchedCurrentSourceKeys' => array_map(
                 static fn (array $pair): mixed => $pair['current']['key'] ?? null,
                 is_array($selected['stat4MatchedCurrentNext']) ? $selected['stat4MatchedCurrentNext'] : [],
@@ -117,7 +117,7 @@ final class SQLiteMultiColumnRangePlan
             'partial' => $selected['partial'],
             'residualPredicateRequired' => $selected['residualPredicateRequired'],
             'usesSkipScan' => $selected['usesSkipScan'],
-            'detail' => self::rangeOrderDetail92($selected, $orderBySatisfied, $blockSort),
+            'detail' => self::rangeOrderDetail($selected, $orderBySatisfied, $blockSort),
             'nextAlternative' => isset($plans[1]) ? [
                 'name' => $plans[1]['name'],
                 'estimatedRows' => $plans[1]['estimatedRows'],
@@ -1213,7 +1213,7 @@ final class SQLiteMultiColumnRangePlan
      * @param array<string,mixed> $selected
      * @param list<array{column:string,direction?:string}> $orderBy
      */
-    private static function rangeOrderMode92(array $selected, array $orderBy, bool $orderBySatisfied): string
+    private static function rangeOrderMode(array $selected, array $orderBy, bool $orderBySatisfied): string
     {
         if ($orderBy === []) {
             return 'unordered-range';
@@ -1232,7 +1232,7 @@ final class SQLiteMultiColumnRangePlan
      * @param array<string,mixed>|null $rangeBoundary
      * @return array{lower:mixed,lowerNext:mixed,upper:mixed,upperNext:mixed}
      */
-    private static function rangeCurrentSourceKeys92(?array $rangeBoundary): array
+    private static function rangeCurrentSourceKeys(?array $rangeBoundary): array
     {
         $lower = is_array($rangeBoundary['lower'] ?? null) ? $rangeBoundary['lower'] : null;
         $upper = is_array($rangeBoundary['upper'] ?? null) ? $rangeBoundary['upper'] : null;
@@ -1248,7 +1248,7 @@ final class SQLiteMultiColumnRangePlan
     /**
      * @param array<string,mixed> $selected
      */
-    private static function rangeOrderDetail92(array $selected, bool $orderBySatisfied, bool $blockSort): string
+    private static function rangeOrderDetail(array $selected, bool $orderBySatisfied, bool $blockSort): string
     {
         $detail = 'SEARCH ' . (string) $selected['name'] . ' (' . (string) $selected['rangeColumn'] . ' RANGE)';
         if (($selected['stat4Used'] ?? false) === true) {

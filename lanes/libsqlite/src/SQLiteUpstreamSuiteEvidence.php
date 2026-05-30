@@ -20460,7 +20460,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function releaseShardCountabilityCurrentNext70(
+    public function releaseShardCountability(
         array $artifactRows,
         int $currentPhpPass,
         string $acceptedRepositoryHead,
@@ -25009,7 +25009,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function releaseRunnerSuiteDenominatorCurrentNext64(
+    public function releaseRunnerSuiteDenominatorFocusedAdmission(
         array $rows,
         string $currentAcceptedHead,
         string $nextAcceptedHead,
@@ -25201,7 +25201,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function releaseRunnerSuiteDenominatorCurrentNext66(
+    public function releaseRunnerSuiteDenominatorCurrentHeadAdmission(
         array $rows,
         string $currentAcceptedHead,
         string $evidenceAcceptedHead,

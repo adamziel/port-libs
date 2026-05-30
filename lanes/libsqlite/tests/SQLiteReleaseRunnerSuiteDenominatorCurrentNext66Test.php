@@ -79,7 +79,7 @@ $tests = [];
 
 foreach (range(1, 66) as $case) {
     $tests[sprintf('current next66 admits accepted head denominator ready row %02d', $case)] = static function (TestRunner $t) use ($case, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, $nonOverlap66): void {
-        $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentNext66(
+        $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentHeadAdmission(
             libsqlite_suite_denominator66_rows($case),
             $currentHead66,
             $currentHead66,
@@ -113,7 +113,7 @@ foreach (range(1, 66) as $case) {
 }
 
 $tests['current next66 summarizes tiers without moving mapped coverage'] = static function (TestRunner $t) use ($currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, $nonOverlap66): void {
-    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentNext66(
+    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentHeadAdmission(
         libsqlite_suite_denominator66_rows(4),
         $currentHead66,
         $currentHead66,
@@ -132,7 +132,7 @@ $tests['current next66 summarizes tiers without moving mapped coverage'] = stati
 };
 
 $tests['current next66 blocks stale accepted head evidence'] = static function (TestRunner $t) use ($currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, $nonOverlap66): void {
-    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentNext66(
+    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentHeadAdmission(
         libsqlite_suite_denominator66_rows(7),
         $currentHead66,
         '1111111111111111111111111111111111111111',
@@ -152,7 +152,7 @@ $tests['current next66 blocks stale accepted head evidence'] = static function (
 
 $tests['current next66 blocks duplicate broad runner process'] = static function (TestRunner $t) use ($currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, $nonOverlap66): void {
     $snapshot = "1234 1 S 00:10 91.5 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error all\n";
-    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentNext66(
+    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentHeadAdmission(
         libsqlite_suite_denominator66_rows(8),
         $currentHead66,
         $currentHead66,
@@ -174,7 +174,7 @@ $tests['current next66 blocks missing concrete scripts'] = static function (Test
     $rows = libsqlite_suite_denominator66_rows(9);
     $rows[0]['scripts'] = [];
 
-    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentNext66($rows, $currentHead66, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66);
+    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentHeadAdmission($rows, $currentHead66, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66);
 
     $t->same('blocked', $record['status']);
     $t->same(['current-next66-denominator-ready-09'], $record['blocked_units']);
@@ -186,7 +186,7 @@ $tests['current next66 blocks missing artifact and command'] = static function (
     $rows[0]['artifact'] = '';
     $rows[0]['command'] = '';
 
-    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentNext66($rows, $currentHead66, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66);
+    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentHeadAdmission($rows, $currentHead66, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66);
 
     $t->same('blocked', $record['status']);
     $evidence = array_column($record['blockers'], 'evidence');
@@ -198,14 +198,14 @@ $tests['current next66 blocks duplicate denominator units'] = static function (T
     $rows = libsqlite_suite_denominator66_rows(11);
     $rows[] = $rows[0];
 
-    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentNext66($rows, $currentHead66, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66);
+    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentHeadAdmission($rows, $currentHead66, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66);
 
     $t->same('blocked', $record['status']);
     $t->true(in_array('duplicate-suite-denominator-unit', array_column($record['blockers'], 'evidence'), true), 'Expected duplicate unit blocker');
 };
 
 $tests['current next66 blocks under threshold pass output'] = static function (TestRunner $t) use ($currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, $nonOverlap66): void {
-    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentNext66(
+    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentHeadAdmission(
         libsqlite_suite_denominator66_rows(12),
         $currentHead66,
         $currentHead66,
@@ -222,7 +222,7 @@ $tests['current next66 blocks under threshold pass output'] = static function (T
 };
 
 $tests['current next66 blocks failing focused output'] = static function (TestRunner $t) use ($currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, $nonOverlap66): void {
-    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentNext66(
+    $record = libsqlite_suite_denominator66_evidence()->releaseRunnerSuiteDenominatorCurrentHeadAdmission(
         libsqlite_suite_denominator66_rows(13),
         $currentHead66,
         $currentHead66,
@@ -240,11 +240,11 @@ $tests['current next66 blocks failing focused output'] = static function (TestRu
 $tests['current next66 rejects invalid setup'] = static function (TestRunner $t) use ($currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, $nonOverlap66): void {
     $evidence = libsqlite_suite_denominator66_evidence();
 
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentNext66([], $currentHead66, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentNext66(libsqlite_suite_denominator66_rows(14), '', $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentNext66(libsqlite_suite_denominator66_rows(14), $currentHead66, '', $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentNext66(libsqlite_suite_denominator66_rows(14), $currentHead66, $currentHead66, -1, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentNext66(libsqlite_suite_denominator66_rows(14), $currentHead66, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66, '', 0));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentHeadAdmission([], $currentHead66, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentHeadAdmission(libsqlite_suite_denominator66_rows(14), '', $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentHeadAdmission(libsqlite_suite_denominator66_rows(14), $currentHead66, '', $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentHeadAdmission(libsqlite_suite_denominator66_rows(14), $currentHead66, $currentHead66, -1, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerSuiteDenominatorCurrentHeadAdmission(libsqlite_suite_denominator66_rows(14), $currentHead66, $currentHead66, $currentMapped66, $currentPhpPass66, $focusedPath66, libsqlite_suite_denominator66_output(), $nonOverlap66, '', 0));
 };
 
 return $tests;

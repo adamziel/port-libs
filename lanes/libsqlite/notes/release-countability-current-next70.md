@@ -1,6 +1,6 @@
 # Release Countability Current Next70
 
-This slice adds `SQLiteUpstreamSuiteEvidence::releaseShardCountabilityCurrentNext70()` and focused tests for accepted-HEAD release/all shard countability.
+This slice uses `SQLiteUpstreamSuiteEvidence::releaseShardCountability()` and focused tests for accepted-HEAD release/all shard countability.
 
 The gate admits only zero-error `release` or `all` shard artifacts whose repository head matches the accepted base, whose runner command and `.test` script evidence are present, and whose focused PHP `TestRunner` output has an exact PASS-line delta. It intentionally does not claim full release/all parity; parity remains gated on a complete broad zero-error artifact.
 

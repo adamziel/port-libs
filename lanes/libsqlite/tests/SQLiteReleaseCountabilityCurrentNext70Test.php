@@ -59,7 +59,7 @@ function libsqlite_current_next70_rows(int $case = 1): array
 function libsqlite_current_next70_record(array $rows, string $output, ?int $expected = null, string $evidenceHead = '103fc00c42f1ff0580cae8a7768e4a3da0979c2d', string $processSnapshot = ''): array
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json')
-        ->releaseShardCountabilityCurrentNext70(
+        ->releaseShardCountability(
             $rows,
             26014,
             '103fc00c42f1ff0580cae8a7768e4a3da0979c2d',

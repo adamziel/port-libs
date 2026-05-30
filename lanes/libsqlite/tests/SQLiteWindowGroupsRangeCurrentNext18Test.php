@@ -88,6 +88,35 @@ $tests['upstream corpus window groups range current next18 rejects json object f
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT json_group_object(option_name, bytes) OVER (RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
 };
 
+$tests['upstream corpus window groups range current next18 direct query rejects groups frame without order'] = static function (TestRunner $t) use ($options): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute([
+        'from' => $options,
+        'select' => [[
+            'type' => 'window',
+            'function' => 'sum',
+            'arguments' => [['type' => 'column', 'name' => 'bytes']],
+            'frame' => ['unit' => 'GROUPS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
+            'alias' => 'window_sum',
+        ]],
+    ]));
+};
+
+$tests['upstream corpus window groups range current next18 direct query rejects json object range frame without order'] = static function (TestRunner $t) use ($options): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute([
+        'from' => $options,
+        'select' => [[
+            'type' => 'window',
+            'function' => 'json_group_object',
+            'arguments' => [
+                ['type' => 'column', 'name' => 'option_name'],
+                ['type' => 'column', 'name' => 'bytes'],
+            ],
+            'frame' => ['unit' => 'RANGE', 'preceding' => 0, 'following' => 10, 'exclude' => 'NO OTHERS'],
+            'alias' => 'option_bytes',
+        ]],
+    ]));
+};
+
 $tests['upstream corpus window groups range current next18 rejects nonnumeric range key'] = static function (TestRunner $t) use ($options): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT sum(bytes) OVER (ORDER BY option_name RANGE BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
 };
