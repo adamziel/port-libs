@@ -3943,7 +3943,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return $impl::plan($databasePath, $databaseBytes, $pageSize, $innerSavepoint, $outerSavepoint, $hotJournalPages, $savepointBeforePages, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $readerCachePages, $checkpointPages, $releasedSavepointPages, $databaseWriteReceipts, $walSyncReceipt, $journalDeleteReceipt, $readerTickets, $mode, $readerEndFrame, $currentSourceEpoch);
     }
 
-    public static function next177Plan(array $resume, bool $exclusiveLockHeld = true, bool $directorySyncAvailable = true): array
+    public static function atomicResumeApplyPlan(array $resume, bool $exclusiveLockHeld = true, bool $directorySyncAvailable = true): array
     {
         $impl = new class {
                 /**

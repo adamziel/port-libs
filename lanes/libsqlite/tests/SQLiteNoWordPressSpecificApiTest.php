@@ -51,7 +51,7 @@ $sourceFilenameMatches = static function () use ($sourceFiles, $relativePath): a
 
     foreach ($sourceFiles as $file) {
         $relative = $relativePath($file);
-        if (preg_match('/WordPress|wordpress|WP|Wp|wp_|OptionRow|Multisite|Network/', $relative) === 1) {
+        if (preg_match('/WordPress|wordpress|WP|Wp|wp_|OptionRow|Multisite|Network|Autoload/', $relative) === 1) {
             $matches[] = $relative;
         }
     }

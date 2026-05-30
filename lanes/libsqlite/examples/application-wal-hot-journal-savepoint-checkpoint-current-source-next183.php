@@ -98,7 +98,7 @@ $resume = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Pl
     ]
 );
 $apply = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply(
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume),
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume),
     [
         $databasePath => $databasePayload,
         $journalPath => $journalBytes,

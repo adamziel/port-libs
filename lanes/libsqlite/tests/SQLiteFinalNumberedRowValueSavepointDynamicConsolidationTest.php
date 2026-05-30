@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointPlan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 /**
@@ -39,12 +40,16 @@ function libsqlite_final_rowvalue_savepoint_dynamic_numbered_methods(array $meth
 return [
     'final numbered rowvalue savepoint dynamic production APIs stay consolidated' => static function (TestRunner $t): void {
         $rowValueMethods = libsqlite_final_rowvalue_savepoint_dynamic_public_methods(SQLiteRowValueUpdateDeleteReturningSavepointPlan::class);
+        $windowMethods = libsqlite_final_rowvalue_savepoint_dynamic_public_methods(SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::class);
         $dynamicSelectMethods = libsqlite_final_rowvalue_savepoint_dynamic_public_methods(SQLiteSelectSql::class);
 
         $t->true(in_array('executeUpdateDeleteReturningSavepointBatch', $rowValueMethods, true));
         $t->true(in_array('executeRollbackToSavepoint', $rowValueMethods, true));
+        $t->true(in_array('executeStableFinalContinuationHandoff', $windowMethods, true));
+        $t->true(in_array('executeReadyPublicationContinuation', $windowMethods, true));
         $t->true(in_array('execute', $dynamicSelectMethods, true));
         $t->same([], libsqlite_final_rowvalue_savepoint_dynamic_numbered_methods($rowValueMethods));
+        $t->same([], libsqlite_final_rowvalue_savepoint_dynamic_numbered_methods($windowMethods));
         $t->same([], libsqlite_final_rowvalue_savepoint_dynamic_numbered_methods($dynamicSelectMethods));
     },
 ];

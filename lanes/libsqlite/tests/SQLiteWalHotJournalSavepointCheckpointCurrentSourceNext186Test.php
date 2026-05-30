@@ -123,7 +123,7 @@ $filesFrom = static function (array $completedRows) use ($base, $databasePath, $
 $matching = static fn (array $completedRows = []): array => $base($completedRows, $filesFrom($completedRows));
 $apply = static function (array $resume, array $files) use ($payloadBytesFrom): array {
     return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply(
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume),
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume),
         $files,
         $payloadBytesFrom($resume)
     );

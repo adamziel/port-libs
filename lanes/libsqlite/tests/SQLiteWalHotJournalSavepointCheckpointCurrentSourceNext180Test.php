@@ -135,7 +135,7 @@ $filesFrom = static function (array $completed, string $mode = 'restart') use ($
 };
 
 $matching = static fn (array $completed = [], string $mode = 'restart'): array => $base($completed, $filesFrom($completed, $mode), $mode);
-$next177 = static fn (array $resume): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
+$next177 = static fn (array $resume): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume);
 $apply = static fn (array $plan, array $files, array $payloads, ?int $fail = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($plan, $files, $payloads, $fail);
 
 $missingDatabaseResume = $base($currentComplete, [
@@ -185,7 +185,7 @@ $truncateReadyPlan = $next177($truncateReadyResume);
 $truncateReadyApply = static fn (): array => $apply($truncateReadyPlan, $filesFrom($allTruncate, 'truncate'), $payloadBytesFrom($truncateReadyResume));
 
 $failure = static fn (): array => $apply($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads, 1);
-$blockedNext177 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($matching(), false);
+$blockedNext177 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($matching(), false);
 
 $cases = [
     'status' => [static fn (): mixed => $missingDatabaseApply()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next180'],

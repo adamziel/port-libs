@@ -94,7 +94,7 @@ $resume = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Pl
         $walPath => (string) $payloads[$walPath . '#next165-current-reader'],
     ]
 );
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume);
 
 $summary = [
     'scenario' => 'application-wal-hot-journal-savepoint-checkpoint-current-source-next177',

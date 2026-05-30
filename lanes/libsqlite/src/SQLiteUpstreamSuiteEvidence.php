@@ -19944,8 +19944,10 @@ final class SQLiteUpstreamSuiteEvidence
                 }
 
                 $entryText = (string) $entry['unit'] . ' ' . (string) $entry['artifact_path'] . ' ' . (string) $entry['evidence'] . ' ' . implode(' ', $entry['scripts']);
-                if (preg_match('/current[\s_-]*next(\d+)/i', $entryText, $matches) === 1) {
-                    $primaryCurrentNext = 'current-next' . $matches[1];
+                $advancedIds = self::extractSuiteEvidenceCurrentNextIds($entryText);
+                if ($advancedIds !== []) {
+                    ksort($advancedIds, SORT_NUMERIC);
+                    $primaryCurrentNext = end($advancedIds);
                     break;
                 }
             }

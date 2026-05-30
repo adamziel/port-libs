@@ -96,7 +96,7 @@ $resume = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Pl
         $walPath => $walPayload,
     ]
 );
-$next177 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
+$next177 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume);
 $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply(
     $next177,
     [

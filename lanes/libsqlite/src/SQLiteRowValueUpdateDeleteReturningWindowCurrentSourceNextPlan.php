@@ -6,6 +6,7 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 {
+    private const READY_PUBLICATION_SAVEPOINT_PREFIX = 'application_rowvalue_window_current_step';
 
     /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php. */
 /**
@@ -9357,7 +9358,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window ready-publication continuation step must be between 670 and 1181');
         }
 
-        $savepoint ??= 'wp_options_rowvalue_window_current_step' . $publicationStep;
+        $savepoint ??= self::READY_PUBLICATION_SAVEPOINT_PREFIX . $publicationStep;
         if ($publicationStep < 734) {
             return self::readyPublicationLowerContinuation($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn, $publicationStep);
         }

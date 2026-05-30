@@ -126,7 +126,7 @@ $filesFrom = static function (array $completed, string $mode = 'restart') use ($
 };
 
 $matching = static fn (array $completed = [], string $mode = 'restart'): array => $base($completed, $filesFrom($completed, $mode), $mode);
-$plan = static fn (array $resume, bool $lock = true, bool $dirSync = true): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume, $lock, $dirSync);
+$plan = static fn (array $resume, bool $lock = true, bool $dirSync = true): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume, $lock, $dirSync);
 $noReplay = static fn (): array => $plan($matching());
 $missingDatabase = static fn (): array => $plan($base($currentComplete, [
     $journalPath => $journalBytes,
@@ -206,22 +206,22 @@ $throws = [
     'missing status rejected' => static function () use ($matching): void {
         $resume = $matching();
         unset($resume['status']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume);
     },
     'missing rows rejected' => static function () use ($matching): void {
         $resume = $matching();
         unset($resume['file_rows']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume);
     },
     'bad rows rejected' => static function () use ($matching): void {
         $resume = $matching();
         $resume['file_rows'] = 'bad';
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume);
     },
     'missing wal role rejected' => static function () use ($matching): void {
         $resume = $matching();
         $resume['file_rows'] = array_slice($resume['file_rows'], 0, 2);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan($resume);
     },
 ];
 

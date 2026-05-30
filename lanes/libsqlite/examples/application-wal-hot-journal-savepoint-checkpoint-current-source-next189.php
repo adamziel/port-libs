@@ -83,7 +83,7 @@ $files = [
     $walPath => (string) $payloads[$walPath . '#next165-current-reader'],
 ];
 $apply = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply(
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan(SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::atomicResumeApplyPlan(SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
         $databasePath,
         $dirtyDatabase,
         $journalBytes,
