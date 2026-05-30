@@ -65,13 +65,27 @@ final class SQLiteJsonMutation
      */
     public static function mutateSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue|null
     {
-        if (count($arguments) < 3 || count($arguments) % 2 !== 1) {
+        if ($arguments === [] || count($arguments) % 2 !== 1) {
             throw new \InvalidArgumentException('SQLite JSON mutation functions expect JSON plus path/value pairs');
         }
 
         $value = array_shift($arguments);
         if ($value !== null && !$value instanceof SQLiteBlobValue && !is_string($value) && !is_int($value) && !is_float($value) && !is_bool($value)) {
             throw new \InvalidArgumentException('SQLite JSON mutation input must be text, numeric, BLOB, or NULL');
+        }
+
+        if ($arguments === []) {
+            self::operationForFunction($function);
+            if ($value === null) {
+                return null;
+            }
+
+            $jsonb = self::jsonbBytes($value);
+            if (str_starts_with(strtolower($function), 'jsonb_')) {
+                return new SQLiteBlobValue($jsonb);
+            }
+
+            return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decode($jsonb));
         }
 
         $path = array_shift($arguments);

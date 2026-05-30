@@ -547,7 +547,7 @@ final class SQLiteSelectExpression
         }
 
         return match ($operator) {
-            '||' => self::textValue($left) . self::textValue($right),
+            '||' => self::concatenationTextValue($left, $leftExpression) . self::concatenationTextValue($right, $rightExpression),
             '+', '-', '*', '/', '%' => self::numericValue($left, $right, $operator),
             '&', '|', '<<', '>>' => self::bitwiseValue($left, $right, $operator),
             '->', '->>' => self::jsonOperatorValue($left, $right, $operator),
@@ -783,6 +783,19 @@ final class SQLiteSelectExpression
         }
 
         throw new \InvalidArgumentException('SQLite SELECT concatenation operands must be scalar, BLOB, or NULL');
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     */
+    private static function concatenationTextValue(mixed $value, array $expression): string
+    {
+        $literalText = $expression['literalText'] ?? null;
+        if (is_float($value) && is_string($literalText) && $literalText !== '') {
+            return $literalText;
+        }
+
+        return self::textValue($value);
     }
 
     private static function jsonPathText(mixed $value, string $context): string

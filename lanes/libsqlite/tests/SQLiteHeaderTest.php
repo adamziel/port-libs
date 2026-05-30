@@ -19454,7 +19454,7 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('timediff', ['2026-05-26']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('timediff', ['bad-date', '2026-05-26']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['bad-date']));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2026-05-26', 'weekday 7']));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2026-05-26', 'weekday 7']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('sqlite_version', [1]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('sqlite_compileoption_get', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('sqlite_compileoption_get', [['not' => 'scalar']]));

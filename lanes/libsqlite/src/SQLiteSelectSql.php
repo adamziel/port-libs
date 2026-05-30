@@ -3611,7 +3611,7 @@ final class SQLiteSelectSql
             return ['type' => 'literal', 'value' => (int) $sql];
         }
         if (preg_match('/^[+-]?(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)$/', $sql) === 1) {
-            return ['type' => 'literal', 'value' => (float) $sql];
+            return ['type' => 'literal', 'value' => (float) $sql, 'literalText' => self::realLiteralText($sql)];
         }
         if (strcasecmp($sql, 'NULL') === 0) {
             return ['type' => 'literal', 'value' => null];
@@ -3642,6 +3642,16 @@ final class SQLiteSelectSql
         }
 
         throw new \InvalidArgumentException("SQLite SELECT SQL expression {$sql} is not supported");
+    }
+
+    private static function realLiteralText(string $sql): string
+    {
+        $value = (float) $sql;
+        if (is_finite($value) && floor($value) === $value) {
+            return sprintf('%.1f', $value);
+        }
+
+        return (string) $value;
     }
 
     /**

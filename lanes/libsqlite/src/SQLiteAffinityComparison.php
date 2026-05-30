@@ -229,8 +229,36 @@ final class SQLiteAffinityComparison
         if ($real < -9223372036854775808.0) {
             return 1;
         }
+        if (abs($integer) > 9007199254740992 && floor($real) === $real) {
+            $realInteger = sprintf('%.0F', $real);
+            if (self::integerLiteralFitsInt64($realInteger)) {
+                $integerText = (string) $integer;
+
+                return self::compareIntegerText($integerText, $realInteger);
+            }
+        }
 
         return ((float) $integer) <=> $real;
+    }
+
+    private static function compareIntegerText(string $left, string $right): int
+    {
+        $leftNegative = str_starts_with($left, '-');
+        $rightNegative = str_starts_with($right, '-');
+        if ($leftNegative !== $rightNegative) {
+            return $leftNegative ? -1 : 1;
+        }
+
+        $leftDigits = ltrim($left, '+-0');
+        $rightDigits = ltrim($right, '+-0');
+        $leftDigits = $leftDigits === '' ? '0' : $leftDigits;
+        $rightDigits = $rightDigits === '' ? '0' : $rightDigits;
+        $comparison = strlen($leftDigits) <=> strlen($rightDigits);
+        if ($comparison === 0) {
+            $comparison = strcmp($leftDigits, $rightDigits);
+        }
+
+        return $leftNegative ? -($comparison <=> 0) : ($comparison <=> 0);
     }
 
     private static function assertComparable(mixed $value): void

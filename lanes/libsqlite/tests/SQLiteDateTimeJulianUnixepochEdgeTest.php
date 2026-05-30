@@ -75,8 +75,8 @@ $tests['upstream datetime julian unixepoch edge application cron mixed source su
     ], $summary);
 };
 
-$tests['upstream datetime julian unixepoch edge invalid modifier stays guarded'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2440587.5', 'julianday', 'unixepoch']));
+$tests['upstream datetime julian unixepoch edge invalid modifier returns null'] = static function (TestRunner $t): void {
+    $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2440587.5', 'julianday', 'unixepoch']));
 };
 
 return $tests;

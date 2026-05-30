@@ -96,8 +96,8 @@ $tests['upstream strftime modifier corpus time preserves fractional parse second
     $t->same('15:06:07', SQLiteCoreScalarFunction::sqlFunctionArguments('time', ['2024-02-29 15:06:07.890']));
 };
 
-$tests['upstream strftime modifier corpus unsupported modifier remains guarded'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%F', '2024-02-29', 'localtime']));
+$tests['upstream strftime modifier corpus unsupported modifier returns null'] = static function (TestRunner $t): void {
+    $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%F', '2024-02-29', 'localtime']));
 };
 
 $tests['upstream strftime modifier corpus bad fractional value remains guarded'] = static function (TestRunner $t): void {

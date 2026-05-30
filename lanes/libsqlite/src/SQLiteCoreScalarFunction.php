@@ -1169,7 +1169,7 @@ final class SQLiteCoreScalarFunction
                 continue;
             }
 
-            throw new \InvalidArgumentException("Unsupported SQLite date/time modifier: {$modifierText}");
+            return null;
         }
 
         return match ($functionName) {
@@ -1279,7 +1279,7 @@ final class SQLiteCoreScalarFunction
 
         $timeInterpretationModifiers = array_intersect($modifierTexts, ['unixepoch', 'julianday', 'auto']);
         if (count($timeInterpretationModifiers) > 1) {
-            throw new \InvalidArgumentException('Conflicting SQLite date/time interpretation modifiers');
+            return null;
         }
 
         $unixepochOffset = array_search('unixepoch', $modifierTexts, true);

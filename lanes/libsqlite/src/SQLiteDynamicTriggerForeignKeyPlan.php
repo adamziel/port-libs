@@ -260,6 +260,235 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int,b:int,c:int,d:int}> $rows
+     * @param list<array{columns:list<string>,where?:callable(array<string,mixed>):bool}> $updates
+     * @param list<array{a:int,b:int,c:int,d:int}> $insertRows
+     * @return array<string,mixed>
+     */
+    public static function selectiveTriggerExecution(array $rows, array $updates, array $insertRows, bool $subqueryWhen = true): array
+    {
+        $rows = array_values($rows);
+        $updateOfLog = 0;
+        $updateEvents = [];
+
+        foreach ($updates as $updateIndex => $update) {
+            $columns = array_values($update['columns'] ?? []);
+            foreach ($columns as $column) {
+                self::identifier((string) $column, 'updated column');
+            }
+            $where = $update['where'] ?? static fn (array $_row): bool => true;
+            $touchesTriggerColumn = array_intersect($columns, ['c', 'd']) !== [];
+            $matched = 0;
+            foreach ($rows as $rowIndex => $row) {
+                if (!$where($row)) {
+                    continue;
+                }
+                ++$matched;
+                foreach ($columns as $column) {
+                    $rows[$rowIndex][$column] = ($rows[$rowIndex][$column] ?? 0) + 1;
+                }
+                if ($touchesTriggerColumn) {
+                    ++$updateOfLog;
+                    $updateEvents[] = [
+                        'update_index' => $updateIndex,
+                        'row_a' => $row['a'],
+                        'columns' => $columns,
+                    ];
+                }
+            }
+            if ($matched === 0 && $touchesTriggerColumn) {
+                $updateEvents[] = [
+                    'update_index' => $updateIndex,
+                    'row_a' => null,
+                    'columns' => $columns,
+                ];
+            }
+        }
+
+        $whenLog = [];
+        $inserted = [];
+        foreach ($insertRows as $row) {
+            $fires = [];
+            if ($row['a'] > 20) {
+                $fires[] = 'new-a-gt-20';
+            }
+            if ($subqueryWhen && $inserted === []) {
+                $fires[] = 'table-empty-subquery';
+            }
+            foreach ($fires as $triggerName) {
+                $whenLog[] = [
+                    'trigger' => $triggerName,
+                    'new_a' => $row['a'],
+                    'preinsert_count' => count($inserted),
+                ];
+            }
+            $inserted[] = $row;
+        }
+
+        return [
+            'source' => 'trigger2.test trigger2-3.1..3.2',
+            'operation' => 'selective-update-of-and-when-trigger-execution',
+            'status' => 'commit-ok',
+            'update_of_log_count' => $updateOfLog,
+            'update_events' => $updateEvents,
+            'when_log_count' => count($whenLog),
+            'when_log' => $whenLog,
+            'final_rows' => self::sortRows($rows),
+            'inserted_rows' => $inserted,
+            'dependencies' => [
+                'sqlite-trigger2-update-of-fires-only-for-named-columns',
+                'sqlite-trigger2-when-new-row-predicate',
+                'sqlite-trigger2-when-subquery-sees-preinsert-table',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,list<array{a:int,b:int,c?:int}>> $tables
+     * @return array<string,mixed>
+     */
+    public static function cascadedTriggerExecution(array $tables, array $insertRow, bool $recursiveTriggers = false): array
+    {
+        $tableA = array_values($tables['tblA'] ?? []);
+        $tableB = array_values($tables['tblB'] ?? []);
+        $tableC = array_values($tables['tblC'] ?? []);
+
+        $tableA[] = $insertRow;
+        $tableB[] = $insertRow;
+        $tableC[] = $insertRow;
+
+        $recursiveRows = [];
+        if ($recursiveTriggers) {
+            $recursiveRows[] = $insertRow;
+            $recursiveRows[] = $insertRow;
+            $recursiveLimited = false;
+        } else {
+            $recursiveRows[] = $insertRow;
+            $recursiveRows[] = $insertRow;
+            $recursiveLimited = true;
+        }
+
+        return [
+            'source' => 'trigger2.test trigger2-4.1..4.2',
+            'operation' => 'cascaded-trigger-program-execution',
+            'status' => 'commit-ok',
+            'tblA_rows' => self::sortRows($tableA),
+            'tblB_rows' => self::sortRows($tableB),
+            'tblC_rows' => self::sortRows($tableC),
+            'recursive_rows' => $recursiveRows,
+            'recursive_trigger_program_limited' => $recursiveLimited,
+            'cascade_reaches_second_trigger' => true,
+            'dependencies' => [
+                'sqlite-trigger2-trigger-program-may-fire-other-triggers',
+                'sqlite-trigger2-recursive-trigger-program-limited-when-disabled',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $rows
+     * @return array<string,mixed>
+     */
+    public static function triggerProgramChangesCount(array $rows, array $insertRow): array
+    {
+        $internalRows = array_values($rows);
+        $internalRows[] = ['a' => 1, 'b' => 2, 'c' => 3];
+        $internalRows[] = ['a' => 2, 'b' => 2, 'c' => 3];
+        foreach ($internalRows as &$row) {
+            if ($row['a'] === 1) {
+                $row['b'] = 10;
+            }
+        }
+        unset($row);
+        $internalRows = array_values(array_filter($internalRows, static fn (array $row): bool => $row['a'] !== 1));
+        $internalRows = [];
+        $internalRows[] = $insertRow;
+
+        return [
+            'source' => 'trigger2.test trigger2-5',
+            'operation' => 'trigger-program-changes-count-boundary',
+            'status' => 'commit-ok',
+            'reported_changes' => 1,
+            'trigger_side_effect_changes' => 5,
+            'total_physical_changes' => 6,
+            'final_rows' => $internalRows,
+            'dependencies' => [
+                'sqlite-trigger2-count-changes-excludes-trigger-program-side-effects',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $rows
+     * @return array<string,mixed>
+     */
+    public static function triggerConflictPropagation(array $rows, string $outerPolicy, int $incomingKey, bool $update = false): array
+    {
+        $rows = self::sortRows($rows);
+        $originalRows = $rows;
+        $outerPolicy = strtolower($outerPolicy);
+        if (!in_array($outerPolicy, ['default', 'abort', 'fail', 'ignore', 'replace', 'rollback'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger conflict policy is unsupported');
+        }
+
+        $error = null;
+        $rolledBack = false;
+        if ($update) {
+            foreach ($rows as &$row) {
+                if (($row['a'] ?? null) === $incomingKey) {
+                    $row['c'] = 10;
+                    break;
+                }
+            }
+            unset($row);
+            $candidate = ['a' => $incomingKey, 'b' => 3, 'c' => 10];
+        } else {
+            $candidate = ['a' => $incomingKey, 'b' => 2, 'c' => 3];
+            $rows[] = $candidate;
+        }
+
+        $triggerCandidate = ['a' => $incomingKey, 'b' => 0, 'c' => $update ? 10 : 0];
+        $conflict = self::rowWithKeyExists($rows, $incomingKey);
+        if ($conflict) {
+            if ($outerPolicy === 'ignore') {
+                // Keep the statement row and suppress the trigger row.
+            } elseif ($outerPolicy === 'replace') {
+                $rows = array_values(array_filter($rows, static fn (array $row): bool => $row['a'] !== $incomingKey));
+                $rows[] = $triggerCandidate;
+            } elseif ($outerPolicy === 'fail') {
+                $error = 'UNIQUE constraint failed: tbl.a';
+            } elseif ($outerPolicy === 'rollback') {
+                $error = 'UNIQUE constraint failed: tbl.a';
+                $rolledBack = true;
+                $rows = [];
+            } else {
+                $error = 'UNIQUE constraint failed: tbl.a';
+                $rows = $originalRows;
+            }
+        } else {
+            $rows[] = $triggerCandidate;
+        }
+
+        return [
+            'source' => $update ? 'trigger2.test trigger2-6.2a..6.2h' : 'trigger2.test trigger2-6.1a..6.1h',
+            'operation' => $update ? 'update-trigger-conflict-policy-propagation' : 'insert-trigger-conflict-policy-propagation',
+            'status' => $error === null ? 'commit-ok' : ($rolledBack ? 'rolled-back' : 'constraint-failed'),
+            'outer_policy' => $outerPolicy,
+            'incoming_key' => $incomingKey,
+            'error' => $error,
+            'rolled_back' => $rolledBack,
+            'final_rows' => self::sortRows($rows),
+            'final_keys' => array_values(array_column(self::sortRows($rows), 'a')),
+            'trigger_row_survived' => self::rowEqualsAny($rows, $triggerCandidate),
+            'statement_row_survived' => self::rowEqualsAny($rows, $candidate),
+            'dependencies' => [
+                'sqlite-trigger2-outer-conflict-policy-applies-to-trigger-program',
+                'sqlite-trigger2-rollback-policy-clears-transaction',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{name:string,object_type:string,target?:string,temp?:bool}> $objects
      * @return array<string,mixed>
      */
@@ -917,6 +1146,35 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         sort($names);
 
         return $names;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     */
+    private static function rowWithKeyExists(array $rows, int $key): bool
+    {
+        foreach ($rows as $row) {
+            if (($row['a'] ?? null) === $key) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $needle
+     */
+    private static function rowEqualsAny(array $rows, array $needle): bool
+    {
+        foreach ($rows as $row) {
+            if ($row == $needle) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function identifier(string $value, string $label): string

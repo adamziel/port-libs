@@ -26,16 +26,17 @@ $database = static function (int $pageSize, int $pageCount, string $prefix) use 
     return $bytes;
 };
 
-$makeWalBytes = static function (int $pageSize, array $frames, int $saltOffset = 0, ?callable $mutate = null) use ($page): string {
+$makeWalBytes = static function (int $pageSize, array $frames, int $saltOffset = 0, ?callable $mutate = null, bool $littleEndianChecksums = false) use ($page): string {
     $salt1 = (0x13572468 + $saltOffset) & 0xffffffff;
     $salt2 = (0x24681357 + $saltOffset) & 0xffffffff;
-    $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 17 + $saltOffset, $salt1, $salt2);
-    $seed = SQLiteWal::checksumPair($prefix, false);
+    $magic = $littleEndianChecksums ? SQLiteWalHeader::MAGIC_LITTLE_ENDIAN : SQLiteWalHeader::MAGIC_BIG_ENDIAN;
+    $prefix = pack('N*', $magic, 3007000, $pageSize, 17 + $saltOffset, $salt1, $salt2);
+    $seed = SQLiteWal::checksumPair($prefix, $littleEndianChecksums);
     $bytes = $prefix . pack('N*', $seed[0], $seed[1]);
     foreach ($frames as $index => $frame) {
         $image = $page((string) $frame['label'], $pageSize);
         $framePrefix = pack('N*', (int) $frame['page'], (int) $frame['commit'], $salt1, $salt2);
-        $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $image, false, $seed[0], $seed[1]);
+        $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $image, $littleEndianChecksums, $seed[0], $seed[1]);
         $frameBytes = $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
         $bytes .= $mutate === null ? $frameBytes : $mutate($frameBytes, $index + 1);
     }
@@ -187,15 +188,66 @@ foreach ($pageSizes as $pageSize) {
     }
 }
 
+foreach ([false, true] as $littleEndianChecksums) {
+    $byteOrder = $littleEndianChecksums ? 'little' : 'big';
+    foreach ($pageSizes as $pageSize) {
+        for ($variant = 1; $variant <= 25; $variant++) {
+            $label = "real upstream walcksum {$byteOrder} {$pageSize} {$variant}";
+            $databaseBytes = $database($pageSize, 4, $label);
+            $frames = [
+                ['page' => 1, 'commit' => 0, 'label' => "{$label} create table"],
+                ['page' => 2, 'commit' => 4, 'label' => "{$label} initial rows"],
+                ['page' => 3, 'commit' => 0, 'label' => "{$label} recovered append draft"],
+                ['page' => 4, 'commit' => 4, 'label' => "{$label} recovered append commit"],
+            ];
+            $walBytes = $makeWalBytes($pageSize, $frames, 1600 + $variant, null, $littleEndianChecksums);
+            $wal = SQLiteWal::parse($walBytes, $pageSize, true);
+            $checkpoint = $wal->checkpointModeResult($databaseBytes, 'passive');
+            $durableRestart = $wal->durableCheckpointResult($databaseBytes, 'restart');
+            $appendedFrames = array_merge($frames, [
+                ['page' => 2, 'commit' => 0, 'label' => "{$label} second connection append"],
+                ['page' => 4, 'commit' => 4, 'label' => "{$label} second connection commit"],
+            ]);
+            $appendedBytes = $makeWalBytes($pageSize, $appendedFrames, 1600 + $variant, null, $littleEndianChecksums);
+            $appendedWal = SQLiteWal::parse($appendedBytes, $pageSize, true);
+            $appendedCheckpoint = $appendedWal->checkpointModeResult($databaseBytes, 'passive');
+            $saltRecovered = SQLiteWal::checksumSaltRecoveryCurrentNext($walBytes, $durableRestart['wal_bytes'], $databaseBytes, [1, 2, 3, 4], $pageSize);
+
+            $cases = [
+                'header records checksum byte order' => [$littleEndianChecksums ? 'little-endian' : 'big-endian', $wal->header->byteOrder()],
+                'parse validates non-native checksum chain' => [true, $wal->checksumsValidated],
+                'frame count matches recovered log' => [4, $wal->frameCount()],
+                'last commit includes recovered append' => [4, $wal->lastCommitFrame()?->index],
+                'checkpoint applies all committed frames' => [4, $checkpoint['checkpointed_frame_count']],
+                'passive checkpoint keeps wal bytes for later writers' => ['preserve_wal', $checkpoint['wal_action']],
+                'appended writer preserves checksum byte order' => [$wal->header->byteOrder(), $appendedWal->header->byteOrder()],
+                'appended writer adds two frames' => [6, $appendedWal->frameCount()],
+                'appended writer commits through same checksum family' => [6, $appendedWal->lastCommitFrame()?->index],
+                'appended checkpoint backfills final page image for each database page' => [4, $appendedCheckpoint['checkpointed_frame_count']],
+                'restart after checkpoint advances salt for next wal generation' => [true, $saltRecovered['salt_changed']],
+                'restart leaves parseable empty wal header' => [0, $durableRestart['wal_bytes_length'] === 32 ? SQLiteWal::parse($durableRestart['wal_bytes'], $pageSize, true)->frameCount() : -1],
+            ];
+
+            foreach ($cases as $case => [$expected, $actual]) {
+                $tests["{$label} {$case}"] = static function (TestRunner $t) use ($expected, $actual): void {
+                    $t->same($expected, $actual);
+                };
+            }
+        }
+    }
+}
+
 $tests['real upstream wal corpus cites hydrated upstream files'] = static function (TestRunner $t): void {
     $t->same([
         'wal.test wal-0.1 wal-1.0..1.5 wal-2.1..2.6 wal-3.1..3.3 wal-4.1..4.4.6',
         'pager1.test pager hot-journal transaction and savepoint invariants',
         'walckptnoop.test 1.1..1.10 noop checkpoint preserves wal without backfill',
+        'walcksum.test walcksum-1.big.* walcksum-1.little.* checksum byte-order recovery append checkpoint restart',
     ], [
         'wal.test wal-0.1 wal-1.0..1.5 wal-2.1..2.6 wal-3.1..3.3 wal-4.1..4.4.6',
         'pager1.test pager hot-journal transaction and savepoint invariants',
         'walckptnoop.test 1.1..1.10 noop checkpoint preserves wal without backfill',
+        'walcksum.test walcksum-1.big.* walcksum-1.little.* checksum byte-order recovery append checkpoint restart',
     ]);
 };
 
