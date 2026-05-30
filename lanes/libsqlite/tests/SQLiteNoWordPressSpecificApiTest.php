@@ -51,7 +51,7 @@ $sourceFilenameMatches = static function () use ($sourceFiles, $relativePath): a
 
     foreach ($sourceFiles as $file) {
         $relative = $relativePath($file);
-        if (preg_match('/WordPress|wordpress|WP|Wp|wp_/', $relative) === 1) {
+        if (preg_match('/WordPress|wordpress|WP|Wp|wp_|OptionRow|Multisite|Network/', $relative) === 1) {
             $matches[] = $relative;
         }
     }
@@ -61,7 +61,8 @@ $sourceFilenameMatches = static function () use ($sourceFiles, $relativePath): a
 
 $wordpressDeclarationMatches = static function () use ($libsqlitePhpFiles, $relativePath): array {
     $matches = [];
-    $pattern = '/^\s*(?:(?:final|abstract)\s+)?(?:class|interface|trait)\s+\w*(?:WordPress|wordpress|WP|Wp|wp_)\w*|^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+\w*(?:WordPress|wordpress|WP|Wp|wp_)\w*\s*\(/m';
+    $specificName = 'WordPress|wordpress|WP|Wp|wp_|OptionRow|Multisite|Network|Autoload';
+    $pattern = '/^\s*(?:(?:final|abstract)\s+)?(?:class|interface|trait)\s+\w*(?:' . $specificName . ')\w*|^\s*(?:(?:public|protected|private|static|final|abstract)\s+)*function\s+\w*(?:' . $specificName . ')\w*\s*\(/m';
 
     foreach ($libsqlitePhpFiles as $file) {
         $contents = file_get_contents($file);

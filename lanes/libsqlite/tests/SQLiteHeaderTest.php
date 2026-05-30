@@ -121,10 +121,10 @@ use PortLibs\LibSqlite\SQLiteVfsSidecarPlan;
 use PortLibs\LibSqlite\SQLiteWalOpenView;
 use PortLibs\LibSqlite\SQLiteShmIndex;
 use PortLibs\LibSqlite\SQLiteWindowFunction;
-use PortLibs\LibSqlite\SQLiteOptionRow;
-use PortLibs\LibSqlite\SQLiteOptionRowInsertOrReplacePlan;
-use PortLibs\LibSqlite\SQLiteOptionRowReplacementPlan;
-use PortLibs\LibSqlite\SQLiteOptionRowWritePlan;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRowInsertOrReplacePlan;
+use PortLibs\LibSqlite\SQLiteKeyValueRowReplacementPlan;
+use PortLibs\LibSqlite\SQLiteKeyValueRowWritePlan;
 use PortLibs\LibSqlite\SQLiteVarint;
 
 $makeFirstPage = static function (int $pageSize = 512, int $databaseSizePages = 1): string {
@@ -551,7 +551,7 @@ return [
         $entries = $database->pointerMapEntries();
         $btreeEntry = $database->pointerMapEntryForPage(4);
         $overflowEntry = $database->pointerMapEntryForPage(6);
-        $options = $database->optionRows();
+        $options = $database->keyValueRows();
 
         $t->true($database->isAutoVacuum());
         $t->true($database->isIncrementalVacuum());
@@ -576,7 +576,7 @@ return [
             'type_name' => 'first-overflow-page',
             'parent_page_number' => 4,
         ], $entries[5]->toArray());
-        $t->same(['siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
+        $t->same(['siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
         $t->throws(InvalidArgumentException::class, static fn () => $database->pointerMapEntryForPage(2));
 
         $plainDatabase = SQLiteDatabase::fromBytes($makeFirstPage($pageSize, 1));
@@ -788,7 +788,7 @@ return [
         $t->same(0, $postDatabase->pointerMapEntryForPage(106)->offset);
         $t->same(5, $postDatabase->pointerMapEntryForPage(107)->offset);
         $t->same([], $postDatabase->planPointerMapUpdates($apply->updatesByPage));
-        $t->same(['siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $postDatabase->optionRows()));
+        $t->same(['siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $postDatabase->keyValueRows()));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteAutoVacuumPointerMapApplyPlan::apply($database, []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteAutoVacuumPointerMapApplyPlan::apply(
@@ -1640,11 +1640,11 @@ return [
             SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1])),
         ]);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
-        $option = $database->optionRowByIndexedName('siteurl');
+        $option = $database->keyValueRowByIndexedName('siteurl');
 
         $t->same('index-leaf', $database->pageHeader(3)->pageType);
         $t->same(2, $database->pageHeader(3)->cellCount);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same('siteurl', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::assemble([str_repeat('x', 500), str_repeat('y', 500)]));
@@ -3762,7 +3762,7 @@ return [
             SQLiteIndexCell::encode(SQLiteRecord::encode(['stylesheet', 4])),
         ]);
         $database = SQLiteDatabase::fromBytes($schemaPage . $indexRootPage . $leftIndexLeafPage . $tablePage . $rightIndexLeafPage);
-        $option = $database->optionRowByIndexedName('siteurl');
+        $option = $database->keyValueRowByIndexedName('siteurl');
         $indexValues = array_map(
             static fn (SQLiteIndexCell $cell): string => $cell->record()->values[0],
             $database->indexCells(2),
@@ -3771,7 +3771,7 @@ return [
         $t->same('index-interior', $database->pageHeader(2)->pageType);
         $t->same(5, $database->pageHeader(2)->rightMostPointer);
         $t->same(['blogname', 'home', 'siteurl', 'stylesheet'], $indexValues);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same('siteurl', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
     },
@@ -3979,7 +3979,7 @@ return [
         ], 512, 100, $makeFirstPage(512, 2 + count($allocation['overflowPages'])));
         $tablePage = SQLiteTableLeafPage::assemble([$allocation['cell']]);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . implode('', $allocation['overflowPages']));
-        $options = $database->optionRows();
+        $options = $database->keyValueRows();
 
         $t->same(3, $database->pageCount());
         $t->same(1, count($allocation['overflowPages']));
@@ -4099,12 +4099,12 @@ return [
         $page1 = SQLiteTableLeafPage::assemble([$schemaCell], 512, 100, $makeFirstPage(512, 2));
         $page2 = SQLiteTableLeafPage::assemble([$siteUrlCell, $homeCell]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2);
-        $options = $database->optionRows();
+        $options = $database->keyValueRows();
 
         $t->same('table-leaf', $database->pageHeader(2)->pageType);
         $t->same(2, $database->pageHeader(2)->cellCount);
-        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test', 'https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test', 'https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::assemble([str_repeat('x', 500), str_repeat('y', 500)]));
     },
     'decodes sqlite_schema table records from a first-page table leaf cell' => static function (TestRunner $t) use ($makeFirstPage, $varint, $recordPayload): void {
@@ -4167,13 +4167,13 @@ return [
         $database = SQLiteDatabase::fromBytes($page1 . $page2);
 
         $rows = $database->tableRowsByName('wp_options');
-        $options = $database->optionRows(1);
+        $options = $database->keyValueRows(1);
 
         $t->same(2, count($rows));
         $t->same(1, $rows[0]->rowId);
         $t->same([null, 'siteurl', 'https://example.test', 'yes'], $rows[0]->values());
         $t->same(1, count($options));
-        $t->true($options[0] instanceof SQLiteOptionRow);
+        $t->true($options[0] instanceof SQLiteKeyValueRow);
         $t->same([
             'option_id' => 1,
             'option_name' => 'siteurl',
@@ -4195,10 +4195,10 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
 
-        $options = $database->optionRows(2);
-        $bounded = $database->optionRows(1);
+        $options = $database->keyValueRows(2);
+        $bounded = $database->keyValueRows(1);
 
-        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
+        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
         $t->same('https://example.test/blog', $options[1]->optionValue);
         $t->same(1, count($bounded));
         $t->same('siteurl', $bounded[0]->optionName);
@@ -4221,17 +4221,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $byName = $database->optionRowsOrdered('option_name', false, 3, 1);
-        $byAutoloadDesc = $database->optionRowsOrdered('autoload', true, 2);
-        $byRowIdDesc = $database->optionRowsOrdered('rowid', true, 2, 1);
+        $byName = $database->keyValueRowsOrdered('option_name', false, 3, 1);
+        $byAutoloadDesc = $database->keyValueRowsOrdered('autoload', true, 2);
+        $byRowIdDesc = $database->keyValueRowsOrdered('rowid', true, 2, 1);
 
-        $t->same(['home', 'rewrite_rules', 'siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $byName));
-        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $byAutoloadDesc));
-        $t->same([4, 3], array_map(static fn (SQLiteOptionRow $option): int => $option->rowId, $byRowIdDesc));
-        $t->same([], $database->optionRowsOrdered('option_name', false, 0));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsOrdered('missing_column'));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsOrdered('option_name', false, -1));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsOrdered('option_name', false, null, -1));
+        $t->same(['home', 'rewrite_rules', 'siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $byName));
+        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $byAutoloadDesc));
+        $t->same([4, 3], array_map(static fn (SQLiteKeyValueRow $option): int => $option->rowId, $byRowIdDesc));
+        $t->same([], $database->keyValueRowsOrdered('option_name', false, 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsOrdered('missing_column'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsOrdered('option_name', false, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsOrdered('option_name', false, null, -1));
     },
     'reads application options by bounded rowid range across table interior pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage): void {
         $page1 = $tableLeafPage([
@@ -4251,17 +4251,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByRowIdRange(2, 5, 3);
-        $inclusive = $database->optionRowsByRowIdRange(4, 4, null, true);
+        $options = $database->keyValueRowsByRowIdRange(2, 5, 3);
+        $inclusive = $database->keyValueRowsByRowIdRange(4, 4, null, true);
         $openLowerRows = $database->tableRowsByRowIdRangeByName('wp_options', null, 3);
-        $empty = $database->optionRowsByRowIdRange(4, 4);
+        $empty = $database->keyValueRowsByRowIdRange(4, 4);
 
-        $t->same([2, 3, 4], array_map(static fn (SQLiteOptionRow $option): int => $option->rowId, $options));
-        $t->same(['home', 'blogname', 'template'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['template'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusive));
+        $t->same([2, 3, 4], array_map(static fn (SQLiteKeyValueRow $option): int => $option->rowId, $options));
+        $t->same(['home', 'blogname', 'template'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['template'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusive));
         $t->same([1, 2], array_map(static fn (SQLiteTableRow $row): int => $row->rowId, $openLowerRows));
         $t->same([], $empty);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByRowIdRange(null, null, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByRowIdRange(null, null, -1));
     },
     'prunes unrelated damaged table branches during rowid range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage): void {
         $page1 = $tableLeafPage([
@@ -4274,10 +4274,10 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByRowIdRange(null, 2, null, true);
+        $options = $database->keyValueRowsByRowIdRange(null, 2, null, true);
 
-        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRows());
+        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRows());
     },
     'walks sqlite index btrees including interior index records' => static function (TestRunner $t) use ($makeFirstPage, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([], 512, 100, $makeFirstPage(512, 4));
@@ -4313,12 +4313,12 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $option = $database->optionRowByIndexedName('home');
-        $missing = $database->optionRowByIndexedName('missing');
+        $option = $database->keyValueRowByIndexedName('home');
+        $missing = $database->keyValueRowByIndexedName('missing');
 
         $t->same(1, count($database->indexRecordsForTable('wp_options')));
         $t->same(3, $database->indexRootPageForColumn('wp_options', 'option_name'));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(2, $option->optionId);
         $t->same('home', $option->optionName);
         $t->same('https://example.test/blog', $option->optionValue);
@@ -4657,9 +4657,9 @@ return [
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.null', 'json-null'));
         $t->same(4, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."123"', 'integer-label'));
         $t->same(5, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."1.25"', 'real-label'));
-        $t->same(['plugin_json_quote_null_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$.null', 'json-null')));
-        $t->same(['plugin_json_quote_integer_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$."123"', 'integer-label')));
-        $t->same(['plugin_json_quote_real_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$."1.25"', 'real-label')));
+        $t->same(['plugin_json_quote_null_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $database->keyValueRowsByIndexedJsonValue('$.null', 'json-null')));
+        $t->same(['plugin_json_quote_integer_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $database->keyValueRowsByIndexedJsonValue('$."123"', 'integer-label')));
+        $t->same(['plugin_json_quote_real_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $database->keyValueRowsByIndexedJsonValue('$."1.25"', 'real-label')));
     },
     'uses application json operator indexes with min max RHS constants' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $pageSize = 4096;
@@ -4690,9 +4690,9 @@ return [
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.cache', 'hit'));
         $t->same(4, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."plugin.enabled"', 'yes'));
         $t->same(5, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$[1]', 'one'));
-        $t->same(['plugin_min_cache_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$.cache', 'hit')));
-        $t->same(['plugin_max_enabled_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$."plugin.enabled"', 'yes')));
-        $t->same(['plugin_min_slot_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$[1]', 'one')));
+        $t->same(['plugin_min_cache_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $database->keyValueRowsByIndexedJsonValue('$.cache', 'hit')));
+        $t->same(['plugin_max_enabled_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $database->keyValueRowsByIndexedJsonValue('$."plugin.enabled"', 'yes')));
+        $t->same(['plugin_min_slot_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $database->keyValueRowsByIndexedJsonValue('$[1]', 'one')));
     },
     'skips malformed application json path expression indexes during preflight' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $pageSize = 1024;
@@ -4722,7 +4722,7 @@ return [
         $t->same(null, $extractPath('$.'));
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.""', 'empty-label'));
         $t->same(null, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.plugin', 'bad'));
-        $t->same(['plugin_empty_label_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$.""', 'empty-label')));
+        $t->same(['plugin_empty_label_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $database->keyValueRowsByIndexedJsonValue('$.""', 'empty-label')));
     },
     'parses sqlite substr expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
         $prefixIndex = SQLiteCreateIndex::firstSubstringExpression('CREATE INDEX idx_name_prefix ON wp_options(substr(main.wp_options."option_name", 1, 11) COLLATE nocase DESC) WHERE option_name IS NOT NULL');
@@ -4781,10 +4781,10 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $option = $database->optionRowByIndexedName('BLOGNAME');
+        $option = $database->keyValueRowByIndexedName('BLOGNAME');
 
         $t->same(3, $database->indexRootPageForColumn('wp_options', 'option_name'));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(3, $option->optionId);
         $t->same('blogname', $option->optionName);
         $t->same('Ported SQLite', $option->optionValue);
@@ -4807,16 +4807,16 @@ return [
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
         $wpcase = static fn (string $left, string $right): int => strcmp(strtolower($left), strtolower($right));
 
-        $matches = $database->optionRowsByIndexedNameWithCollation('HOME', 'WPCASE', $wpcase);
-        $limited = $database->optionRowsByIndexedNameWithCollation('siteurl', 'wpcase', $wpcase, 1);
+        $matches = $database->keyValueRowsByIndexedNameWithCollation('HOME', 'WPCASE', $wpcase);
+        $limited = $database->keyValueRowsByIndexedNameWithCollation('siteurl', 'wpcase', $wpcase, 1);
 
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedName('HOME'));
-        $t->same(['home', 'Home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $matches));
-        $t->same(['https://example.test/blog', 'https://example.test/home-alt'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $matches));
-        $t->same(['SiteURL'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameWithCollation('siteurl', '', $wpcase));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameWithCollation('siteurl', 'NO_SUCH', $wpcase));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameWithCollation('siteurl', 'WPCASE', static fn (): string => '0'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedName('HOME'));
+        $t->same(['home', 'Home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $matches));
+        $t->same(['https://example.test/blog', 'https://example.test/home-alt'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $matches));
+        $t->same(['SiteURL'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameWithCollation('siteurl', '', $wpcase));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameWithCollation('siteurl', 'NO_SUCH', $wpcase));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameWithCollation('siteurl', 'WPCASE', static fn (): string => '0'));
     },
     'uses supplied custom collation callback for application option_name range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -4852,22 +4852,22 @@ return [
             return strcmp(str_replace('_', '-', $asciiLower($left)), str_replace('_', '-', $asciiLower($right)));
         };
 
-        $options = $database->optionRowsByIndexedNameRangeWithCollation('cache-a', 'cache-c', 'WPSLUG', $wpslug);
-        $limited = $database->optionRowsByIndexedNameRangeWithCollation('cache-a', 'cache-c', 'wpslug', $wpslug, 1);
-        $exclusiveEqual = $database->optionRowsByIndexedNameRangeWithCollation('cache-beta', 'cache-beta', 'WPSLUG', $wpslug);
-        $inclusiveEqual = $database->optionRowsByIndexedNameRangeWithCollation('cache-beta', 'cache-beta', 'WPSLUG', $wpslug, null, true);
-        $inverted = $database->optionRowsByIndexedNameRangeWithCollation('cache-z', 'cache-a', 'WPSLUG', $wpslug);
+        $options = $database->keyValueRowsByIndexedNameRangeWithCollation('cache-a', 'cache-c', 'WPSLUG', $wpslug);
+        $limited = $database->keyValueRowsByIndexedNameRangeWithCollation('cache-a', 'cache-c', 'wpslug', $wpslug, 1);
+        $exclusiveEqual = $database->keyValueRowsByIndexedNameRangeWithCollation('cache-beta', 'cache-beta', 'WPSLUG', $wpslug);
+        $inclusiveEqual = $database->keyValueRowsByIndexedNameRangeWithCollation('cache-beta', 'cache-beta', 'WPSLUG', $wpslug, null, true);
+        $inverted = $database->keyValueRowsByIndexedNameRangeWithCollation('cache-z', 'cache-a', 'WPSLUG', $wpslug);
 
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRange('cache-a', 'cache-c'));
-        $t->same(['Cache_Alpha', 'cache-beta'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['alpha-payload', 'beta-payload'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['Cache_Alpha'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRange('cache-a', 'cache-c'));
+        $t->same(['Cache_Alpha', 'cache-beta'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['alpha-payload', 'beta-payload'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['Cache_Alpha'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $exclusiveEqual);
-        $t->same(['cache-beta'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusiveEqual));
+        $t->same(['cache-beta'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusiveEqual));
         $t->same([], $inverted);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithCollation('cache-a', 'cache-c', '', $wpslug));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithCollation(null, null, 'WPSLUG', $wpslug));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithCollation('cache-a', 'cache-c', 'WPSLUG', static fn (): string => '0'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithCollation('cache-a', 'cache-c', '', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithCollation(null, null, 'WPSLUG', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithCollation('cache-a', 'cache-c', 'WPSLUG', static fn (): string => '0'));
     },
     'uses supplied custom collation callback for composite application option_name range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -4902,14 +4902,14 @@ return [
             return strcmp(str_replace('_', '-', $asciiLower($left)), str_replace('_', '-', $asciiLower($right)));
         };
 
-        $options = $database->optionRowsByIndexedNameRangeWithPrefixAndCollation(
+        $options = $database->keyValueRowsByIndexedNameRangeWithPrefixAndCollation(
             ['autoload' => 'no'],
             'cache-a',
             'cache-c',
             'WPSLUG',
             $wpslug,
         );
-        $limited = $database->optionRowsByIndexedNameRangeWithPrefixAndCollation(
+        $limited = $database->keyValueRowsByIndexedNameRangeWithPrefixAndCollation(
             ['autoload' => 'no'],
             'cache-a',
             'cache-c',
@@ -4917,7 +4917,7 @@ return [
             $wpslug,
             1,
         );
-        $inclusiveEqual = $database->optionRowsByIndexedNameRangeWithPrefixAndCollation(
+        $inclusiveEqual = $database->keyValueRowsByIndexedNameRangeWithPrefixAndCollation(
             ['autoload' => 'no'],
             'cache-beta',
             'cache-beta',
@@ -4926,7 +4926,7 @@ return [
             null,
             true,
         );
-        $exclusiveEqual = $database->optionRowsByIndexedNameRangeWithPrefixAndCollation(
+        $exclusiveEqual = $database->keyValueRowsByIndexedNameRangeWithPrefixAndCollation(
             ['autoload' => 'no'],
             'cache-beta',
             'cache-beta',
@@ -4934,17 +4934,17 @@ return [
             $wpslug,
         );
 
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedAutoloadAndNameRange('no', 'cache-a', 'cache-c'));
-        $t->same(['Cache_Alpha', 'cache-beta'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['alpha-payload', 'beta-payload'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['Cache_Alpha'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->same(['cache-beta'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusiveEqual));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedLoadPolicyAndNameRange('no', 'cache-a', 'cache-c'));
+        $t->same(['Cache_Alpha', 'cache-beta'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['alpha-payload', 'beta-payload'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['Cache_Alpha'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->same(['cache-beta'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusiveEqual));
         $t->same([], $exclusiveEqual);
-        $t->same([], $database->optionRowsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'no'], 'cache-z', 'cache-a', 'WPSLUG', $wpslug));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'yes'], 'cache-a', 'cache-c', 'WPSLUG', $wpslug));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithPrefixAndCollation([], 'cache-a', 'cache-c', 'WPSLUG', $wpslug));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'no'], null, null, 'WPSLUG', $wpslug));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'no'], 'cache-a', 'cache-c', 'WPSLUG', static fn (): string => '0'));
+        $t->same([], $database->keyValueRowsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'no'], 'cache-z', 'cache-a', 'WPSLUG', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'yes'], 'cache-a', 'cache-c', 'WPSLUG', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithPrefixAndCollation([], 'cache-a', 'cache-c', 'WPSLUG', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'no'], null, null, 'WPSLUG', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'no'], 'cache-a', 'cache-c', 'WPSLUG', static fn (): string => '0'));
     },
     'matches sqlite like and glob patterns for application option names' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -4990,32 +4990,32 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
 
-        $likeTransient = $database->optionRowsByNameLike('\_transient\_%', '\\');
-        $indexedLikeTransient = $database->optionRowsByIndexedNameLikePrefixRange('\_transient\_%', '\\');
-        $indexedNoCaseLikeTransient = $database->optionRowsByIndexedNameLikePrefixRangeNoCase('\_transient\_%', '\\');
-        $indexedNoCaseUppercaseSite = $database->optionRowsByIndexedNameLikePrefixRangeNoCase('SITE%');
-        $indexedLikeLiteral = $database->optionRowsByIndexedNameLikePrefixRange('literal\_percent\_\%', '\\');
-        $indexedLikeLimited = $database->optionRowsByIndexedNameLikePrefixRange('\_transient\_%', '\\', 1);
-        $indexedNoCaseLikeLimited = $database->optionRowsByIndexedNameLikePrefixRangeNoCase('\_transient\_%', '\\', 1);
-        $caseSensitiveLike = $database->optionRowsByNameLike('_transient_%', null, null, true);
-        $escapedPercent = $database->optionRowsByNameLike('literal\_percent\_\%', '\\');
-        $utf8SingleCharacter = $database->optionRowsByNameLike('emoji__');
-        $likeLatinLower = $database->optionRowsByNameLike('plugin_å%');
-        $likeLatinUpper = $database->optionRowsByNameLike('plugin_Å%');
-        $likeEscapedWildcard = $database->optionRowsByNameLike('plugin\_\%\_literal', '\\');
-        $indexedNoCaseLatinLower = $database->optionRowsByIndexedNameLikePrefixRangeNoCase('plugin_å%');
-        $indexedNoCaseLatinUpper = $database->optionRowsByIndexedNameLikePrefixRangeNoCase('plugin_Å%');
-        $indexedNoCaseEscapedWildcard = $database->optionRowsByIndexedNameLikePrefixRangeNoCase('PLUGIN\_\%\_LITERAL', '\\');
-        $globTransient = $database->optionRowsByNameGlob('_Transient_[A-Z][A-Z][A-Z]');
-        $indexedGlobTransient = $database->optionRowsByIndexedNameGlobPrefixRange('_Transient_[A-Z][A-Z][A-Z]');
-        $indexedGlobUtf8 = $database->optionRowsByIndexedNameGlobPrefixRange('emoji_?');
-        $indexedGlobLiteral = $database->optionRowsByIndexedNameGlobPrefixRange('literal_percent_*');
-        $indexedGlobLimited = $database->optionRowsByIndexedNameGlobPrefixRange('_Transient_*', 1);
-        $globNegated = $database->optionRowsByNameGlob('*_[^0-9]');
-        $globLatinRange = $database->optionRowsByNameGlob('plugin_[À-ÿ]');
-        $globGreekRange = $database->optionRowsByNameGlob('plugin_[α-ω]');
-        $globCyrillicRange = $database->optionRowsByNameGlob('plugin_[А-Я]');
-        $globUnicodeNegated = $database->optionRowsByNameGlob('plugin_[^À-ÿ]');
+        $likeTransient = $database->keyValueRowsByNameLike('\_transient\_%', '\\');
+        $indexedLikeTransient = $database->keyValueRowsByIndexedNameLikePrefixRange('\_transient\_%', '\\');
+        $indexedNoCaseLikeTransient = $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase('\_transient\_%', '\\');
+        $indexedNoCaseUppercaseSite = $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase('SITE%');
+        $indexedLikeLiteral = $database->keyValueRowsByIndexedNameLikePrefixRange('literal\_percent\_\%', '\\');
+        $indexedLikeLimited = $database->keyValueRowsByIndexedNameLikePrefixRange('\_transient\_%', '\\', 1);
+        $indexedNoCaseLikeLimited = $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase('\_transient\_%', '\\', 1);
+        $caseSensitiveLike = $database->keyValueRowsByNameLike('_transient_%', null, null, true);
+        $escapedPercent = $database->keyValueRowsByNameLike('literal\_percent\_\%', '\\');
+        $utf8SingleCharacter = $database->keyValueRowsByNameLike('emoji__');
+        $likeLatinLower = $database->keyValueRowsByNameLike('plugin_å%');
+        $likeLatinUpper = $database->keyValueRowsByNameLike('plugin_Å%');
+        $likeEscapedWildcard = $database->keyValueRowsByNameLike('plugin\_\%\_literal', '\\');
+        $indexedNoCaseLatinLower = $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase('plugin_å%');
+        $indexedNoCaseLatinUpper = $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase('plugin_Å%');
+        $indexedNoCaseEscapedWildcard = $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase('PLUGIN\_\%\_LITERAL', '\\');
+        $globTransient = $database->keyValueRowsByNameGlob('_Transient_[A-Z][A-Z][A-Z]');
+        $indexedGlobTransient = $database->keyValueRowsByIndexedNameGlobPrefixRange('_Transient_[A-Z][A-Z][A-Z]');
+        $indexedGlobUtf8 = $database->keyValueRowsByIndexedNameGlobPrefixRange('emoji_?');
+        $indexedGlobLiteral = $database->keyValueRowsByIndexedNameGlobPrefixRange('literal_percent_*');
+        $indexedGlobLimited = $database->keyValueRowsByIndexedNameGlobPrefixRange('_Transient_*', 1);
+        $globNegated = $database->keyValueRowsByNameGlob('*_[^0-9]');
+        $globLatinRange = $database->keyValueRowsByNameGlob('plugin_[À-ÿ]');
+        $globGreekRange = $database->keyValueRowsByNameGlob('plugin_[α-ω]');
+        $globCyrillicRange = $database->keyValueRowsByNameGlob('plugin_[А-Я]');
+        $globUnicodeNegated = $database->keyValueRowsByNameGlob('plugin_[^À-ÿ]');
         $regexp = static function (string $pattern, string $value): bool {
             $result = preg_match('/' . str_replace('/', '\\/', $pattern) . '/u', $value);
             if ($result === false) {
@@ -5024,7 +5024,7 @@ return [
 
             return $result === 1;
         };
-        $regexpOptions = $database->optionRowsByNameRegexp('^_(?:t|T)ransient_[[:alpha:]]+$', $regexp);
+        $regexpOptions = $database->keyValueRowsByNameRegexp('^_(?:t|T)ransient_[[:alpha:]]+$', $regexp);
 
         $t->true(SQLiteDatabase::likeMatches('SiteURL', 'site%'));
         $t->same(false, SQLiteDatabase::likeMatches('SiteURL', 'site%', null, true));
@@ -5159,45 +5159,45 @@ return [
         $t->true(SQLiteDatabase::regexpMatches('_transient_feed', '^_transient_[[:alpha:]]+$', $regexp));
         $t->same(false, SQLiteDatabase::regexpMatches('siteurl', '^_transient_', $regexp));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::regexpMatches('siteurl', 'site', static fn (): int => 1));
-        $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $likeTransient));
-        $t->same(['_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedLikeTransient));
-        $t->same(['_Transient_API', '_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedNoCaseLikeTransient));
-        $t->same(['siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedNoCaseUppercaseSite));
-        $t->same(['literal_percent_%'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedLikeLiteral));
-        $t->same(['_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedLikeLimited));
-        $t->same(['_Transient_API'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedNoCaseLikeLimited));
-        $t->same(['_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $caseSensitiveLike));
-        $t->same(['literal_percent_%'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $escapedPercent));
-        $t->same(['emoji_é'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $utf8SingleCharacter));
-        $t->same(['plugin_å'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $likeLatinLower));
-        $t->same(['plugin_Å'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $likeLatinUpper));
-        $t->same(['plugin_%_literal'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $likeEscapedWildcard));
-        $t->same(['plugin_å'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedNoCaseLatinLower));
-        $t->same(['plugin_Å'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedNoCaseLatinUpper));
-        $t->same(['plugin_%_literal'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedNoCaseEscapedWildcard));
-        $t->same(['_Transient_API'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $globTransient));
-        $t->same(['_Transient_API'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedGlobTransient));
-        $t->same(['emoji_é'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedGlobUtf8));
-        $t->same(['literal_percent_%'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedGlobLiteral));
-        $t->same(['_Transient_API'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $indexedGlobLimited));
-        $t->same(['emoji_é', 'literal_percent_%', 'plugin_å', 'plugin_β', 'plugin_Ж', 'plugin_Å'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $globNegated));
-        $t->same(['plugin_å', 'plugin_Å'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $globLatinRange));
-        $t->same(['plugin_β'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $globGreekRange));
-        $t->same(['plugin_Ж'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $globCyrillicRange));
-        $t->same(['plugin_β', 'plugin_Ж'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $globUnicodeNegated));
-        $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $regexpOptions));
-        $t->same([], $database->optionRowsByNameLike('%', null, 0));
-        $t->same([], $database->optionRowsByIndexedNameLikePrefixRange('\_transient\_%', '\\', 0));
-        $t->same([], $database->optionRowsByIndexedNameLikePrefixRangeNoCase('\_transient\_%', '\\', 0));
-        $t->same([], $database->optionRowsByIndexedNameGlobPrefixRange('_Transient_*', 0));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameLikePrefixRange('%transient'));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameLikePrefixRangeNoCase('%transient'));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameGlobPrefixRange('*transient'));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameLikePrefixRange('site%', null, -1));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameLikePrefixRangeNoCase('site%', null, -1));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameGlobPrefixRange('site*', -1));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByNameGlob('*', -1));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByNameRegexp('.*', $regexp, -1));
+        $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $likeTransient));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedLikeTransient));
+        $t->same(['_Transient_API', '_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedNoCaseLikeTransient));
+        $t->same(['siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedNoCaseUppercaseSite));
+        $t->same(['literal_percent_%'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedLikeLiteral));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedLikeLimited));
+        $t->same(['_Transient_API'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedNoCaseLikeLimited));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $caseSensitiveLike));
+        $t->same(['literal_percent_%'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $escapedPercent));
+        $t->same(['emoji_é'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $utf8SingleCharacter));
+        $t->same(['plugin_å'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $likeLatinLower));
+        $t->same(['plugin_Å'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $likeLatinUpper));
+        $t->same(['plugin_%_literal'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $likeEscapedWildcard));
+        $t->same(['plugin_å'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedNoCaseLatinLower));
+        $t->same(['plugin_Å'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedNoCaseLatinUpper));
+        $t->same(['plugin_%_literal'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedNoCaseEscapedWildcard));
+        $t->same(['_Transient_API'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $globTransient));
+        $t->same(['_Transient_API'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedGlobTransient));
+        $t->same(['emoji_é'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedGlobUtf8));
+        $t->same(['literal_percent_%'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedGlobLiteral));
+        $t->same(['_Transient_API'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $indexedGlobLimited));
+        $t->same(['emoji_é', 'literal_percent_%', 'plugin_å', 'plugin_β', 'plugin_Ж', 'plugin_Å'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $globNegated));
+        $t->same(['plugin_å', 'plugin_Å'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $globLatinRange));
+        $t->same(['plugin_β'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $globGreekRange));
+        $t->same(['plugin_Ж'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $globCyrillicRange));
+        $t->same(['plugin_β', 'plugin_Ж'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $globUnicodeNegated));
+        $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $regexpOptions));
+        $t->same([], $database->keyValueRowsByNameLike('%', null, 0));
+        $t->same([], $database->keyValueRowsByIndexedNameLikePrefixRange('\_transient\_%', '\\', 0));
+        $t->same([], $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase('\_transient\_%', '\\', 0));
+        $t->same([], $database->keyValueRowsByIndexedNameGlobPrefixRange('_Transient_*', 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameLikePrefixRange('%transient'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase('%transient'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameGlobPrefixRange('*transient'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameLikePrefixRange('site%', null, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase('site%', null, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameGlobPrefixRange('site*', -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByNameGlob('*', -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByNameRegexp('.*', $regexp, -1));
 
         $lateRows = [];
         for ($rowId = 1; $rowId <= 105; $rowId++) {
@@ -5211,20 +5211,20 @@ return [
         $lateDatabase = SQLiteDatabase::fromBytes($latePage1 . $tableLeafPage($lateRows, 4096));
 
         $t->same(['late_plugin_flag', 'late_Plugin_GLOB'], array_map(
-            static fn (SQLiteOptionRow $option): string => $option->optionName,
-            $lateDatabase->optionRowsByNameLike('late\_plugin\_%', '\\'),
+            static fn (SQLiteKeyValueRow $option): string => $option->optionName,
+            $lateDatabase->keyValueRowsByNameLike('late\_plugin\_%', '\\'),
         ));
         $t->same(['late_plugin_flag'], array_map(
-            static fn (SQLiteOptionRow $option): string => $option->optionName,
-            $lateDatabase->optionRowsByNameLike('late_plugin_%', null, 1),
+            static fn (SQLiteKeyValueRow $option): string => $option->optionName,
+            $lateDatabase->keyValueRowsByNameLike('late_plugin_%', null, 1),
         ));
         $t->same(['late_Plugin_GLOB'], array_map(
-            static fn (SQLiteOptionRow $option): string => $option->optionName,
-            $lateDatabase->optionRowsByNameGlob('late_*_GLOB'),
+            static fn (SQLiteKeyValueRow $option): string => $option->optionName,
+            $lateDatabase->keyValueRowsByNameGlob('late_*_GLOB'),
         ));
         $t->same(['late_plugin_flag', 'late_Plugin_GLOB'], array_map(
-            static fn (SQLiteOptionRow $option): string => $option->optionName,
-            $lateDatabase->optionRowsByNameRegexp('^late_[[:alpha:]]+_', $regexp),
+            static fn (SQLiteKeyValueRow $option): string => $option->optionName,
+            $lateDatabase->keyValueRowsByNameRegexp('^late_[[:alpha:]]+_', $regexp),
         ));
     },
     'uses application option_name indexes for IN-list option lookups without duplicate rhs rows' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
@@ -5244,16 +5244,16 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedNames(['SITEURL', 'home', 'home', null]);
-        $limited = $database->optionRowsByIndexedNames(['SITEURL', 'home'], 1);
-        $nullOnly = $database->optionRowsByIndexedNames([null]);
+        $options = $database->keyValueRowsByIndexedNames(['SITEURL', 'home', 'home', null]);
+        $limited = $database->keyValueRowsByIndexedNames(['SITEURL', 'home'], 1);
+        $nullOnly = $database->keyValueRowsByIndexedNames([null]);
 
         $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['SITEURL', 'home']));
-        $t->same(['home', 'siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['home', 'siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $nullOnly);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNames([123]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNames([123]));
     },
     'uses IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -5270,11 +5270,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedNames(['siteurl', 'missing']);
+        $options = $database->keyValueRowsByIndexedNames(['siteurl', 'missing']);
 
         $t->same(2, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', 'missing']));
-        $t->same(['siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses partial is not null option_name indexes for application IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5292,12 +5292,12 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedNames(['siteurl', null]);
+        $options = $database->keyValueRowsByIndexedNames(['siteurl', null]);
 
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
         $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', null]));
-        $t->same(['siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses IN-list partial option_name indexes for covered application name lists' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5315,15 +5315,15 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedNames(['siteurl', 'home']);
+        $options = $database->keyValueRowsByIndexedNames(['siteurl', 'home']);
 
         $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', 'home']));
         $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['home', 'siteurl']));
         $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl']));
         $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', 'home', null]));
         $t->same(null, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', 'blogname']));
-        $t->same(['home', 'siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNames(['home', 'blogname']));
+        $t->same(['home', 'siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNames(['home', 'blogname']));
     },
     'uses lower expression index for case folded application option_name lookup' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5342,18 +5342,18 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $option = $database->optionRowByIndexedLowercaseName('SITEURL');
-        $missing = $database->optionRowByIndexedLowercaseName('missing');
+        $option = $database->keyValueRowByIndexedLowercaseName('SITEURL');
+        $missing = $database->keyValueRowByIndexedLowercaseName('missing');
 
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
         $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'SITEURL'));
         $t->same(3, $database->indexRootPageForLowercasePointLookup('wp_options', 'option_name', 'SITEURL'));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(1, $option->optionId);
         $t->same('SiteURL', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
         $t->same(null, $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedName('SITEURL'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedName('SITEURL'));
     },
     'uses supplied custom collation callback for lower expression application option_name lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5381,16 +5381,16 @@ return [
             return strcmp($normalizeSlug($left), $normalizeSlug($right));
         };
 
-        $options = $database->optionRowsByIndexedLowercaseNameWithCollation('PLUGIN-MODE', 'WPSLUG', $wpslug);
-        $limited = $database->optionRowsByIndexedLowercaseNameWithCollation('PLUGIN-MODE', 'WPSLUG', $wpslug, 1);
-        $missing = $database->optionRowsByIndexedLowercaseNameWithCollation('theme-mode', 'WPSLUG', $wpslug);
+        $options = $database->keyValueRowsByIndexedLowercaseNameWithCollation('PLUGIN-MODE', 'WPSLUG', $wpslug);
+        $limited = $database->keyValueRowsByIndexedLowercaseNameWithCollation('PLUGIN-MODE', 'WPSLUG', $wpslug, 1);
+        $missing = $database->keyValueRowsByIndexedLowercaseNameWithCollation('theme-mode', 'WPSLUG', $wpslug);
 
-        $t->same(['Plugin_Mode', 'plugin-mode'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['underscore payload', 'dash payload'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['Plugin_Mode'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['Plugin_Mode', 'plugin-mode'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['underscore payload', 'dash payload'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['Plugin_Mode'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedLowercaseName('PLUGIN-MODE'));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedLowercaseNameWithCollation('PLUGIN-MODE', '', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedLowercaseName('PLUGIN-MODE'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedLowercaseNameWithCollation('PLUGIN-MODE', '', $wpslug));
     },
     'uses supplied custom collation callback for lower expression IN-list and range lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5420,24 +5420,24 @@ return [
             return strcmp($normalizeSlug($left), $normalizeSlug($right));
         };
 
-        $inList = $database->optionRowsByIndexedLowercaseNamesWithCollation(['PLUGIN-MODE', 'plugin_mode', null], 'WPSLUG', $wpslug);
-        $limited = $database->optionRowsByIndexedLowercaseNamesWithCollation(['PLUGIN-MODE', 'theme-mode'], 'WPSLUG', $wpslug, 1);
-        $nullOnly = $database->optionRowsByIndexedLowercaseNamesWithCollation([null], 'WPSLUG', $wpslug);
-        $range = $database->optionRowsByIndexedLowercaseNameRangeWithCollation('PLUGIN-', 'PLUGIN.', 'WPSLUG', $wpslug);
-        $inclusive = $database->optionRowsByIndexedLowercaseNameRangeWithCollation('THEME-MODE', 'THEME-MODE', 'WPSLUG', $wpslug, null, true);
-        $emptyRange = $database->optionRowsByIndexedLowercaseNameRangeWithCollation('THEME.', 'PLUGIN-', 'WPSLUG', $wpslug);
+        $inList = $database->keyValueRowsByIndexedLowercaseNamesWithCollation(['PLUGIN-MODE', 'plugin_mode', null], 'WPSLUG', $wpslug);
+        $limited = $database->keyValueRowsByIndexedLowercaseNamesWithCollation(['PLUGIN-MODE', 'theme-mode'], 'WPSLUG', $wpslug, 1);
+        $nullOnly = $database->keyValueRowsByIndexedLowercaseNamesWithCollation([null], 'WPSLUG', $wpslug);
+        $range = $database->keyValueRowsByIndexedLowercaseNameRangeWithCollation('PLUGIN-', 'PLUGIN.', 'WPSLUG', $wpslug);
+        $inclusive = $database->keyValueRowsByIndexedLowercaseNameRangeWithCollation('THEME-MODE', 'THEME-MODE', 'WPSLUG', $wpslug, null, true);
+        $emptyRange = $database->keyValueRowsByIndexedLowercaseNameRangeWithCollation('THEME.', 'PLUGIN-', 'WPSLUG', $wpslug);
 
         $t->same(3, $database->indexRootPageForLowercaseInLookupWithCollation('wp_options', 'option_name', 'WPSLUG', ['PLUGIN-MODE']));
         $t->same(3, $database->indexRootPageForLowercaseRangeLookupWithCollation('wp_options', 'option_name', 'WPSLUG', 'PLUGIN-', 'PLUGIN.'));
-        $t->same(['Plugin_Mode', 'plugin-mode'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inList));
-        $t->same(['underscore payload', 'dash payload'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $inList));
-        $t->same(['Plugin_Mode'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['Plugin_Mode', 'plugin-mode'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inList));
+        $t->same(['underscore payload', 'dash payload'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $inList));
+        $t->same(['Plugin_Mode'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $nullOnly);
-        $t->same(['Plugin_Mode', 'plugin-mode'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $range));
-        $t->same(['theme-mode'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusive));
+        $t->same(['Plugin_Mode', 'plugin-mode'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $range));
+        $t->same(['theme-mode'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusive));
         $t->same([], $emptyRange);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedLowercaseNamesWithCollation([123], 'WPSLUG', $wpslug));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedLowercaseNameRangeWithCollation(null, null, 'WPSLUG', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedLowercaseNamesWithCollation([123], 'WPSLUG', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedLowercaseNameRangeWithCollation(null, null, 'WPSLUG', $wpslug));
     },
     'uses lower expression index for case folded application option_name IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5457,17 +5457,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedLowercaseNames(['SITEURL', 'home', 'HOME', null]);
-        $limited = $database->optionRowsByIndexedLowercaseNames(['SITEURL', 'home'], 1);
-        $nullOnly = $database->optionRowsByIndexedLowercaseNames([null]);
+        $options = $database->keyValueRowsByIndexedLowercaseNames(['SITEURL', 'home', 'HOME', null]);
+        $limited = $database->keyValueRowsByIndexedLowercaseNames(['SITEURL', 'home'], 1);
+        $nullOnly = $database->keyValueRowsByIndexedLowercaseNames([null]);
 
         $t->same(3, $database->indexRootPageForLowercaseInLookup('wp_options', 'option_name', ['SITEURL', 'home']));
         $t->same(null, $database->indexRootPageForInLookup('wp_options', 'option_name', ['SITEURL', 'home']));
-        $t->same(['HOME', 'SiteURL'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['HOME'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['HOME', 'SiteURL'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['HOME'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $nullOnly);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedLowercaseNames([123]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedLowercaseNames([123]));
     },
     'uses upper expression index for ascii folded application option_name lookup' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5486,18 +5486,18 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $option = $database->optionRowByIndexedUppercaseName('blogname');
-        $missing = $database->optionRowByIndexedUppercaseName('missing');
+        $option = $database->keyValueRowByIndexedUppercaseName('blogname');
+        $missing = $database->keyValueRowByIndexedUppercaseName('missing');
 
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
         $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'blogname'));
         $t->same(3, $database->indexRootPageForUppercasePointLookup('wp_options', 'option_name', 'blogname'));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(3, $option->optionId);
         $t->same('blogname', $option->optionName);
         $t->same('Ported SQLite', $option->optionValue);
         $t->same(null, $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedName('blogname'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedName('blogname'));
     },
     'uses trim expression index for whitespace-normalized application option_name lookup' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5515,21 +5515,21 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $option = $database->optionRowByIndexedTrimmedName('siteurl');
-        $spacePaddedLookup = $database->optionRowByIndexedTrimmedName('  SITEURL ');
-        $missing = $database->optionRowByIndexedTrimmedName('missing');
+        $option = $database->keyValueRowByIndexedTrimmedName('siteurl');
+        $spacePaddedLookup = $database->keyValueRowByIndexedTrimmedName('  SITEURL ');
+        $missing = $database->keyValueRowByIndexedTrimmedName('missing');
 
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
         $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'siteurl'));
         $t->same(3, $database->indexRootPageForTrimmedPointLookup('wp_options', 'option_name', '  SITEURL '));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(1, $option->optionId);
         $t->same(' SiteURL  ', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
         $t->same(' SiteURL  ', $spacePaddedLookup?->optionName);
         $t->same(null, $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedTrimmedName('siteurl', 'ltrim'));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedName('siteurl'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedTrimmedName('siteurl', 'ltrim'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedName('siteurl'));
 
         $customPage1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
@@ -5542,7 +5542,7 @@ return [
             $indexCell(['Plugin_Cache', 1]),
         ]);
         $customDatabase = SQLiteDatabase::fromBytes($customPage1 . $customPage2 . $customPage3);
-        $customOption = $customDatabase->optionRowByIndexedTrimmedName('__PLUGIN_CACHE__', 'trim', ' _');
+        $customOption = $customDatabase->keyValueRowByIndexedTrimmedName('__PLUGIN_CACHE__', 'trim', ' _');
 
         $t->same(3, $customDatabase->indexRootPageForTrimmedPointLookup('wp_options', 'option_name', '__PLUGIN_CACHE__', 'trim', ' _'));
         $t->same('__Plugin_Cache__', $customOption?->optionName);
@@ -5568,17 +5568,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedUppercaseNames(['siteurl', 'home', 'HOME', 'café', null]);
-        $limited = $database->optionRowsByIndexedUppercaseNames(['siteurl', 'home', 'café'], 2);
-        $nullOnly = $database->optionRowsByIndexedUppercaseNames([null]);
+        $options = $database->keyValueRowsByIndexedUppercaseNames(['siteurl', 'home', 'HOME', 'café', null]);
+        $limited = $database->keyValueRowsByIndexedUppercaseNames(['siteurl', 'home', 'café'], 2);
+        $nullOnly = $database->keyValueRowsByIndexedUppercaseNames([null]);
 
         $t->same(3, $database->indexRootPageForUppercaseInLookup('wp_options', 'option_name', ['siteurl', 'home']));
         $t->same(null, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', 'home']));
-        $t->same(['café', 'HOME', 'SiteURL'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['unicode-name', 'https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['café', 'HOME'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['café', 'HOME', 'SiteURL'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['unicode-name', 'https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['café', 'HOME'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $nullOnly);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedUppercaseNames([123]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedUppercaseNames([123]));
     },
     'uses lower expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -5595,11 +5595,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedLowercaseNames(['SITEURL', 'missing']);
+        $options = $database->keyValueRowsByIndexedLowercaseNames(['SITEURL', 'missing']);
 
         $t->same(2, $database->indexRootPageForLowercaseInLookup('wp_options', 'option_name', ['SITEURL', 'missing']));
-        $t->same(['SiteURL'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['SiteURL'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses length expression index for application option_name length buckets' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5621,17 +5621,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $shortNames = $database->optionRowsByIndexedNameLength(4);
-        $limited = $database->optionRowsByIndexedNameLength(4, 1);
-        $missing = $database->optionRowsByIndexedNameLength(5);
+        $shortNames = $database->keyValueRowsByIndexedNameLength(4);
+        $limited = $database->keyValueRowsByIndexedNameLength(4, 1);
+        $missing = $database->keyValueRowsByIndexedNameLength(5);
 
         $t->same(3, $database->indexRootPageForLengthPointLookup('wp_options', 'option_name', 4));
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
-        $t->same(['home', 'cron', 'café'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $shortNames));
-        $t->same(['https://example.test/blog', '1', 'unicode-name'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $shortNames));
-        $t->same(['home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['home', 'cron', 'café'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $shortNames));
+        $t->same(['https://example.test/blog', '1', 'unicode-name'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $shortNames));
+        $t->same(['home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameLength(-1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameLength(-1));
     },
     'uses length expression index for application option_name length IN-list buckets' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5655,17 +5655,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedNameLengths([4, 10, 4, null]);
-        $limited = $database->optionRowsByIndexedNameLengths([4, 10], 2);
-        $nullOnly = $database->optionRowsByIndexedNameLengths([null]);
+        $options = $database->keyValueRowsByIndexedNameLengths([4, 10, 4, null]);
+        $limited = $database->keyValueRowsByIndexedNameLengths([4, 10], 2);
+        $nullOnly = $database->keyValueRowsByIndexedNameLengths([null]);
 
         $t->same(3, $database->indexRootPageForLengthInLookup('wp_options', 'option_name', [4, 10]));
-        $t->same(['db_version', 'home', 'cron', 'café'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['58796', 'https://example.test/blog', '1', 'unicode-name'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['db_version', 'home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['db_version', 'home', 'cron', 'café'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['58796', 'https://example.test/blog', '1', 'unicode-name'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['db_version', 'home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $nullOnly);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameLengths([4, '7']));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameLengths([-1]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameLengths([4, '7']));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameLengths([-1]));
     },
     'uses integer cast expression index for application numeric option values' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5686,19 +5686,19 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $versions = $database->optionRowsByIndexedIntegerOptionValue(58796);
-        $limited = $database->optionRowsByIndexedIntegerOptionValue(58796, 1);
-        $zero = $database->optionRowsByIndexedIntegerOptionValue(0);
-        $missing = $database->optionRowsByIndexedIntegerOptionValue(-12);
+        $versions = $database->keyValueRowsByIndexedIntegerValue(58796);
+        $limited = $database->keyValueRowsByIndexedIntegerValue(58796, 1);
+        $zero = $database->keyValueRowsByIndexedIntegerValue(0);
+        $missing = $database->keyValueRowsByIndexedIntegerValue(-12);
 
         $t->same(3, $database->indexRootPageForIntegerCastPointLookup('wp_options', 'option_value', 58796));
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_value'));
-        $t->same(['db_version', 'legacy_db_version'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $versions));
-        $t->same(['58796', '58796abc'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $versions));
-        $t->same(['db_version'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->same(['non_numeric_counter'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $zero));
+        $t->same(['db_version', 'legacy_db_version'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $versions));
+        $t->same(['58796', '58796abc'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $versions));
+        $t->same(['db_version'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->same(['non_numeric_counter'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $zero));
         $t->same([], $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedIntegerOptionValue(58796, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedIntegerValue(58796, -1));
     },
     'uses integer cast expression index for application numeric option value IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5721,17 +5721,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $numericOptions = $database->optionRowsByIndexedIntegerOptionValues([58796, 0, 58796, null]);
-        $limited = $database->optionRowsByIndexedIntegerOptionValues([58796, 0], 2);
-        $nullOnly = $database->optionRowsByIndexedIntegerOptionValues([null]);
+        $numericOptions = $database->keyValueRowsByIndexedIntegerValues([58796, 0, 58796, null]);
+        $limited = $database->keyValueRowsByIndexedIntegerValues([58796, 0], 2);
+        $nullOnly = $database->keyValueRowsByIndexedIntegerValues([null]);
 
         $t->same(3, $database->indexRootPageForIntegerCastInLookup('wp_options', 'option_value', [58796, 0]));
-        $t->same(['non_numeric_counter', 'empty_numeric_counter', 'db_version', 'legacy_db_version'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $numericOptions));
-        $t->same(['abc', '', '58796', '58796abc'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $numericOptions));
-        $t->same(['non_numeric_counter', 'empty_numeric_counter'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['non_numeric_counter', 'empty_numeric_counter', 'db_version', 'legacy_db_version'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $numericOptions));
+        $t->same(['abc', '', '58796', '58796abc'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $numericOptions));
+        $t->same(['non_numeric_counter', 'empty_numeric_counter'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $nullOnly);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedIntegerOptionValues([58796, '0']));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedIntegerOptionValues([58796], -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedIntegerValues([58796, '0']));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedIntegerValues([58796], -1));
     },
     'uses integer cast expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -5748,11 +5748,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedIntegerOptionValues([58796, 60000]);
+        $options = $database->keyValueRowsByIndexedIntegerValues([58796, 60000]);
 
         $t->same(2, $database->indexRootPageForIntegerCastInLookup('wp_options', 'option_value', [58796, 60000]));
-        $t->same(['db_version'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['58796'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['db_version'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['58796'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses integer cast expression index for application numeric option value ranges' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5777,21 +5777,21 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $bounded = $database->optionRowsByIndexedIntegerOptionValueRange(100, 60000);
-        $limited = $database->optionRowsByIndexedIntegerOptionValueRange(100, 60000, 2);
-        $inclusiveSingle = $database->optionRowsByIndexedIntegerOptionValueRange(60000, 60000, null, true);
-        $exclusiveEmpty = $database->optionRowsByIndexedIntegerOptionValueRange(100, 100);
-        $zeroBucket = $database->optionRowsByIndexedIntegerOptionValueRange(null, 1);
+        $bounded = $database->keyValueRowsByIndexedIntegerValueRange(100, 60000);
+        $limited = $database->keyValueRowsByIndexedIntegerValueRange(100, 60000, 2);
+        $inclusiveSingle = $database->keyValueRowsByIndexedIntegerValueRange(60000, 60000, null, true);
+        $exclusiveEmpty = $database->keyValueRowsByIndexedIntegerValueRange(100, 100);
+        $zeroBucket = $database->keyValueRowsByIndexedIntegerValueRange(null, 1);
 
         $t->same(3, $database->indexRootPageForIntegerCastRangeLookup('wp_options', 'option_value', 100, 60000));
-        $t->same(['db_version', 'legacy_db_version', 'cron_lock'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $bounded));
-        $t->same(['58796', '58796abc', '123.9'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $bounded));
-        $t->same(['db_version', 'legacy_db_version'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->same(['future_db_version'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusiveSingle));
+        $t->same(['db_version', 'legacy_db_version', 'cron_lock'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $bounded));
+        $t->same(['58796', '58796abc', '123.9'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $bounded));
+        $t->same(['db_version', 'legacy_db_version'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->same(['future_db_version'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusiveSingle));
         $t->same([], $exclusiveEmpty);
-        $t->same(['non_numeric_counter', 'empty_numeric_counter'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $zeroBucket));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedIntegerOptionValueRange(null, null));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedIntegerOptionValueRange(100, 60000, -1));
+        $t->same(['non_numeric_counter', 'empty_numeric_counter'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $zeroBucket));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedIntegerValueRange(null, null));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedIntegerValueRange(100, 60000, -1));
     },
     'uses integer cast expression range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -5808,11 +5808,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedIntegerOptionValueRange(50000, 60000);
+        $options = $database->keyValueRowsByIndexedIntegerValueRange(50000, 60000);
 
         $t->same(2, $database->indexRootPageForIntegerCastRangeLookup('wp_options', 'option_value', 50000, 60000));
-        $t->same(['db_version'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['58796'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['db_version'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['58796'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses json_extract expression index for application plugin option values' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5832,21 +5832,21 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $enabled = $database->optionRowsByIndexedJsonOptionValue('$.enabled', true);
-        $limited = $database->optionRowsByIndexedJsonOptionValue('$.enabled', true, 1);
-        $disabled = $database->optionRowsByIndexedJsonOptionValue('$.enabled', false);
-        $missing = $database->optionRowsByIndexedJsonOptionValue('$.enabled', 2);
+        $enabled = $database->keyValueRowsByIndexedJsonValue('$.enabled', true);
+        $limited = $database->keyValueRowsByIndexedJsonValue('$.enabled', true, 1);
+        $disabled = $database->keyValueRowsByIndexedJsonValue('$.enabled', false);
+        $missing = $database->keyValueRowsByIndexedJsonValue('$.enabled', 2);
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.enabled', true));
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_value'));
-        $t->same(['plugin_alpha_settings', 'theme_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $enabled));
-        $t->same(['{"enabled":true,"version":2}', '{"enabled":1,"label":"active"}'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $enabled));
-        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $disabled));
+        $t->same(['plugin_alpha_settings', 'theme_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $enabled));
+        $t->same(['{"enabled":true,"version":2}', '{"enabled":1,"label":"active"}'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $enabled));
+        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $disabled));
         $t->same([], $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValue('$[0]', true));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValue('$.enabled', new stdClass()));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValue('$.enabled', true, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValue('$[0]', true));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValue('$.enabled', new stdClass()));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValue('$.enabled', true, -1));
     },
     'uses json5 json_extract expression indexes for application plugin option values' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $json5Settings = "{enabled: true, mode: 'dark', /* import note */ rules: [{enabled:false}, {enabled:true,},],}";
@@ -5869,14 +5869,14 @@ return [
         ], 1024);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
 
-        $enabled = $database->optionRowsByIndexedJsonOptionValue('$.enabled', true);
-        $lastRuleEnabled = $database->optionRowsByIndexedJsonOptionValue('$.rules[#-1].enabled', true);
+        $enabled = $database->keyValueRowsByIndexedJsonValue('$.enabled', true);
+        $lastRuleEnabled = $database->keyValueRowsByIndexedJsonValue('$.rules[#-1].enabled', true);
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.enabled', true));
         $t->same(4, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.rules[#-1].enabled', true));
-        $t->same(['plugin_json5_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $enabled));
-        $t->same(['plugin_json5_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $lastRuleEnabled));
-        $t->same([$json5Settings], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $enabled));
+        $t->same(['plugin_json5_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $enabled));
+        $t->same(['plugin_json5_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $lastRuleEnabled));
+        $t->same([$json5Settings], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $enabled));
     },
     'normalizes json5 non-finite numbers for application json indexes and jsonb fixtures' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $json5Settings = '{limit:+Infinity,disabled:-Inf,missing:NaN}';
@@ -5916,11 +5916,11 @@ return [
         ], 1024);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $positiveLimit = $database->optionRowsByIndexedJsonOptionValue('$.limit', INF);
-        $negativeLimit = $database->optionRowsByIndexedJsonOptionValue('$.limit', -INF);
-        $positiveFragment = $database->optionRowsByIndexedJsonOptionFragment('$.limit', INF);
-        $negativeFragment = $database->optionRowsByIndexedJsonOptionFragment('$.limit', -INF);
-        $nanFragment = $database->optionRowsByIndexedJsonOptionFragment('$.missing', NAN);
+        $positiveLimit = $database->keyValueRowsByIndexedJsonValue('$.limit', INF);
+        $negativeLimit = $database->keyValueRowsByIndexedJsonValue('$.limit', -INF);
+        $positiveFragment = $database->keyValueRowsByIndexedJsonFragment('$.limit', INF);
+        $negativeFragment = $database->keyValueRowsByIndexedJsonFragment('$.limit', -INF);
+        $nanFragment = $database->keyValueRowsByIndexedJsonFragment('$.missing', NAN);
 
         $t->true(is_float($decoded['limit']) && is_infinite($decoded['limit']) && $decoded['limit'] > 0);
         $t->true(is_float($decoded['disabled']) && is_infinite($decoded['disabled']) && $decoded['disabled'] < 0);
@@ -5929,11 +5929,11 @@ return [
         $t->true(is_float($roundTripped['limit']) && is_infinite($roundTripped['limit']) && $roundTripped['limit'] > 0);
         $t->true(is_float($roundTripped['disabled']) && is_infinite($roundTripped['disabled']) && $roundTripped['disabled'] < 0);
         $t->same(null, $roundTripped['missing']);
-        $t->same(['plugin_json5_limit_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $positiveLimit));
-        $t->same(['plugin_json5_negative_limit'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $negativeLimit));
-        $t->same(['plugin_json5_limit_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $positiveFragment));
-        $t->same(['plugin_json5_negative_limit'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $negativeFragment));
-        $t->same(['plugin_json5_limit_settings', 'plugin_json5_negative_limit'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $nanFragment));
+        $t->same(['plugin_json5_limit_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $positiveLimit));
+        $t->same(['plugin_json5_negative_limit'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $negativeLimit));
+        $t->same(['plugin_json5_limit_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $positiveFragment));
+        $t->same(['plugin_json5_negative_limit'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $negativeFragment));
+        $t->same(['plugin_json5_limit_settings', 'plugin_json5_negative_limit'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $nanFragment));
     },
     'rejects malformed json5 while verifying application json expression indexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -5948,7 +5948,7 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValue('$.enabled', true));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValue('$.enabled', true));
     },
     'decodes focused sqlite jsonb blobs for json expression verification' => static function (TestRunner $t): void {
         $jsonb = hex2bin('cc0f1761cb0b133235332e350102001778');
@@ -9730,14 +9730,14 @@ return [
         ], 1024);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
 
-        $scalar = $database->optionRowsByIndexedJsonOptionValue('$.a[5]', 'x');
-        $fragment = $database->optionRowsByIndexedJsonOptionFragment('$.a', [2, 3.5, true, false, null, 'x']);
+        $scalar = $database->keyValueRowsByIndexedJsonValue('$.a[5]', 'x');
+        $fragment = $database->keyValueRowsByIndexedJsonFragment('$.a', [2, 3.5, true, false, null, 'x']);
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.a[5]', 'x'));
         $t->same(4, $database->indexRootPageForJsonValueOperatorPointLookup('wp_options', 'option_value', '$.a', [2, 3.5, true, false, null, 'x']));
         $t->same('cc0e1761bb133235332e350102001778', bin2hex($jsonbSettings));
-        $t->same(['plugin_jsonb_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $scalar));
-        $t->same(['plugin_jsonb_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $fragment));
+        $t->same(['plugin_jsonb_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $scalar));
+        $t->same(['plugin_jsonb_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $fragment));
         $t->same($jsonbSettings, $scalar[0]->optionValue);
     },
     'uses escaped sqlite json path labels for application plugin option values' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
@@ -9763,20 +9763,20 @@ return [
         ], 1024);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $hexLabel = $database->optionRowsByIndexedJsonOptionValue('$."abc"', 'enabled');
-        $quotedLabel = $database->optionRowsByIndexedJsonOptionValue('$."A\"Key"', true);
-        $bareQuoteLabel = $database->optionRowsByIndexedJsonOptionValue('$.A"Key', true);
-        $backslashLabel = $database->optionRowsByIndexedJsonOptionValue('$."plugin\\\\enabled"', 'yes');
+        $hexLabel = $database->keyValueRowsByIndexedJsonValue('$."abc"', 'enabled');
+        $quotedLabel = $database->keyValueRowsByIndexedJsonValue('$."A\"Key"', true);
+        $bareQuoteLabel = $database->keyValueRowsByIndexedJsonValue('$.A"Key', true);
+        $backslashLabel = $database->keyValueRowsByIndexedJsonValue('$."plugin\\\\enabled"', 'yes');
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.abc', 'enabled'));
         $t->same(4, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."A\"Key"', true));
         $t->same(4, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.A"Key', true));
         $t->same(5, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."plugin\\\\enabled"', 'yes'));
-        $t->same(['plugin_hex_label_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $hexLabel));
-        $t->same(['plugin_quote_label_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $quotedLabel));
-        $t->same(['plugin_quote_label_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $bareQuoteLabel));
-        $t->same(['plugin_backslash_label_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $backslashLabel));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValue('$."plugin\xZZ"', 'yes'));
+        $t->same(['plugin_hex_label_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $hexLabel));
+        $t->same(['plugin_quote_label_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $quotedLabel));
+        $t->same(['plugin_quote_label_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $bareQuoteLabel));
+        $t->same(['plugin_backslash_label_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $backslashLabel));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValue('$."plugin\xZZ"', 'yes'));
     },
     'uses json_extract expression index for application plugin settings array paths' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -9797,17 +9797,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $enabled = $database->optionRowsByIndexedJsonOptionValue('$."rules"[0].enabled', true);
-        $disabled = $database->optionRowsByIndexedJsonOptionValue('$.rules[0].enabled', false);
-        $missing = $database->optionRowsByIndexedJsonOptionValue('$.rules[0].enabled', 2);
+        $enabled = $database->keyValueRowsByIndexedJsonValue('$."rules"[0].enabled', true);
+        $disabled = $database->keyValueRowsByIndexedJsonValue('$.rules[0].enabled', false);
+        $missing = $database->keyValueRowsByIndexedJsonValue('$.rules[0].enabled', 2);
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.rules[0].enabled', true));
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."rules"[0].enabled', true));
-        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $enabled));
-        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $disabled));
+        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $enabled));
+        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $disabled));
         $t->same([], $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValue('$.rules[1].enabled', false));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValue('$.rules[#-1].enabled', true));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValue('$.rules[1].enabled', false));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValue('$.rules[#-1].enabled', true));
     },
     'uses json_extract expression index for application plugin settings reverse array paths' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -9828,16 +9828,16 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $enabled = $database->optionRowsByIndexedJsonOptionValue('$."rules"[#-000001].enabled', true);
-        $disabled = $database->optionRowsByIndexedJsonOptionValue('$.rules[#-1].enabled', false);
-        $missing = $database->optionRowsByIndexedJsonOptionValue('$.rules[#-1].enabled', 2);
+        $enabled = $database->keyValueRowsByIndexedJsonValue('$."rules"[#-000001].enabled', true);
+        $disabled = $database->keyValueRowsByIndexedJsonValue('$.rules[#-1].enabled', false);
+        $missing = $database->keyValueRowsByIndexedJsonValue('$.rules[#-1].enabled', 2);
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.rules[#-1].enabled', true));
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."rules"[#-000001].enabled', true));
-        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $enabled));
-        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $disabled));
+        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $enabled));
+        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $disabled));
         $t->same([], $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValue('$.rules[#-].enabled', true));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValue('$.rules[#-].enabled', true));
     },
     'uses json text operator expression index for application plugin option value lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -9856,14 +9856,14 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $enabled = $database->optionRowsByIndexedJsonOptionValue('$."enabled"', true);
-        $disabled = $database->optionRowsByIndexedJsonOptionValue('$.enabled', false);
+        $enabled = $database->keyValueRowsByIndexedJsonValue('$."enabled"', true);
+        $disabled = $database->keyValueRowsByIndexedJsonValue('$.enabled', false);
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.enabled', true));
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_value'));
-        $t->same(['plugin_alpha_settings', 'theme_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $enabled));
-        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $disabled));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedName('plugin_alpha_settings'));
+        $t->same(['plugin_alpha_settings', 'theme_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $enabled));
+        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $disabled));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedName('plugin_alpha_settings'));
     },
     'uses json text operator expression index for application root array option values' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -9882,12 +9882,12 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $enabled = $database->optionRowsByIndexedJsonOptionValue('$[0]', 'enabled');
-        $disabled = $database->optionRowsByIndexedJsonOptionValue('$[0]', 'disabled');
+        $enabled = $database->keyValueRowsByIndexedJsonValue('$[0]', 'enabled');
+        $disabled = $database->keyValueRowsByIndexedJsonValue('$[0]', 'disabled');
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$[0]', 'enabled'));
-        $t->same(['plugin_channels_alpha'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $enabled));
-        $t->same(['plugin_channels_beta'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $disabled));
+        $t->same(['plugin_channels_alpha'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $enabled));
+        $t->same(['plugin_channels_beta'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $disabled));
     },
     'uses json text operator expression index for application root array reverse lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -9906,15 +9906,15 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $beta = $database->optionRowsByIndexedJsonOptionValue('$[#-000001]', 'beta');
-        $disabled = $database->optionRowsByIndexedJsonOptionValue('$[#-1]', 'disabled');
+        $beta = $database->keyValueRowsByIndexedJsonValue('$[#-000001]', 'beta');
+        $disabled = $database->keyValueRowsByIndexedJsonValue('$[#-1]', 'disabled');
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$[#-1]', 'beta'));
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$[#-000001]', 'beta'));
         $t->same(null, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$[#]', 'beta'));
-        $t->same(['plugin_channels_alpha'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $beta));
-        $t->same(['plugin_channels_beta'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $disabled));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValue('$[#]', 'beta'));
+        $t->same(['plugin_channels_alpha'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $beta));
+        $t->same(['plugin_channels_beta'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $disabled));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValue('$[#]', 'beta'));
     },
     'uses json value operator expression index for application plugin setting fragments' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -9937,21 +9937,21 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $fragment = $database->optionRowsByIndexedJsonOptionFragment('$."settings.v1"', ['mode' => 'dark', 'flags' => [1, 2]]);
-        $string = $database->optionRowsByIndexedJsonOptionFragment('$."settings.v1"', 'dark');
-        $jsonNull = $database->optionRowsByIndexedJsonOptionFragment('$."settings.v1"', null);
+        $fragment = $database->keyValueRowsByIndexedJsonFragment('$."settings.v1"', ['mode' => 'dark', 'flags' => [1, 2]]);
+        $string = $database->keyValueRowsByIndexedJsonFragment('$."settings.v1"', 'dark');
+        $jsonNull = $database->keyValueRowsByIndexedJsonFragment('$."settings.v1"', null);
         $wrongPath = $database->indexRootPageForJsonValueOperatorPointLookup('wp_options', 'option_value', '$.settings.v1', ['mode' => 'dark', 'flags' => [1, 2]]);
 
         $t->same(3, $database->indexRootPageForJsonValueOperatorPointLookup('wp_options', 'option_value', '$."settings.v1"', ['mode' => 'dark', 'flags' => [1, 2]]));
         $t->same(null, $wrongPath);
         $t->same(null, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."settings.v1"', ['mode' => 'dark', 'flags' => [1, 2]]));
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_value'));
-        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $fragment));
-        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $string));
-        $t->same(['plugin_null_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $jsonNull));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionFragment('$."settings.v1"', new stdClass()));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionFragment('$."settings.v1"', ['mode' => 'dark'], -1));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValue('$."settings.v1"', ['mode' => 'dark']));
+        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $fragment));
+        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $string));
+        $t->same(['plugin_null_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $jsonNull));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonFragment('$."settings.v1"', new stdClass()));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonFragment('$."settings.v1"', ['mode' => 'dark'], -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValue('$."settings.v1"', ['mode' => 'dark']));
     },
     'uses json value operator expression index for application plugin setting fragment IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -9974,27 +9974,27 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedJsonOptionFragments('$."settings.v1"', [
+        $options = $database->keyValueRowsByIndexedJsonFragments('$."settings.v1"', [
             ['mode' => 'dark', 'flags' => [1, 2]],
             'dark',
             null,
             'dark',
         ]);
-        $limited = $database->optionRowsByIndexedJsonOptionFragments('$."settings.v1"', [
+        $limited = $database->keyValueRowsByIndexedJsonFragments('$."settings.v1"', [
             ['mode' => 'dark', 'flags' => [1, 2]],
             'dark',
             null,
         ], 2);
-        $jsonNull = $database->optionRowsByIndexedJsonOptionFragments('$."settings.v1"', [null]);
+        $jsonNull = $database->keyValueRowsByIndexedJsonFragments('$."settings.v1"', [null]);
 
         $t->same(3, $database->indexRootPageForJsonValueOperatorInLookup('wp_options', 'option_value', '$."settings.v1"', [['mode' => 'dark'], null]));
         $t->same(null, $database->indexRootPageForJsonValueOperatorInLookup('wp_options', 'option_value', '$."settings.v1"', []));
         $t->same(null, $database->indexRootPageForJsonExtractInLookup('wp_options', 'option_value', '$."settings.v1"', [['mode' => 'dark']]));
-        $t->same(['plugin_beta_settings', 'plugin_null_settings', 'plugin_alpha_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['plugin_beta_settings', 'plugin_null_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->same(['plugin_null_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $jsonNull));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionFragments('$."settings.v1"', [new stdClass()]));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionFragments('$."settings.v1"', ['dark'], -1));
+        $t->same(['plugin_beta_settings', 'plugin_null_settings', 'plugin_alpha_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['plugin_beta_settings', 'plugin_null_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->same(['plugin_null_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $jsonNull));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonFragments('$."settings.v1"', [new stdClass()]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonFragments('$."settings.v1"', ['dark'], -1));
     },
     'uses json value operator expression index for application plugin setting fragment ranges' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10017,21 +10017,21 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $exclusive = $database->optionRowsByIndexedJsonOptionFragmentRange('$.channel', 'beta', 'stable');
-        $inclusive = $database->optionRowsByIndexedJsonOptionFragmentRange('$.channel', 'beta', 'stable', null, true);
-        $limited = $database->optionRowsByIndexedJsonOptionFragmentRange('$.channel', 'beta', 'stable', 1, true);
-        $beforePreview = $database->optionRowsByIndexedJsonOptionFragmentRange('$.channel', null, 'preview', null, true);
-        $reversed = $database->optionRowsByIndexedJsonOptionFragmentRange('$.channel', 'stable', 'beta');
+        $exclusive = $database->keyValueRowsByIndexedJsonFragmentRange('$.channel', 'beta', 'stable');
+        $inclusive = $database->keyValueRowsByIndexedJsonFragmentRange('$.channel', 'beta', 'stable', null, true);
+        $limited = $database->keyValueRowsByIndexedJsonFragmentRange('$.channel', 'beta', 'stable', 1, true);
+        $beforePreview = $database->keyValueRowsByIndexedJsonFragmentRange('$.channel', null, 'preview', null, true);
+        $reversed = $database->keyValueRowsByIndexedJsonFragmentRange('$.channel', 'stable', 'beta');
 
         $t->same(3, $database->indexRootPageForJsonValueOperatorRangeLookup('wp_options', 'option_value', '$.channel', 'beta', 'stable'));
         $t->same(null, $database->indexRootPageForJsonExtractRangeLookup('wp_options', 'option_value', '$.channel', 'beta', 'stable'));
-        $t->same(['plugin_beta_channel', 'plugin_preview_channel'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $exclusive));
-        $t->same(['plugin_beta_channel', 'plugin_preview_channel', 'plugin_stable_channel'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusive));
-        $t->same(['plugin_beta_channel'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->same(['plugin_alpha_channel', 'plugin_beta_channel', 'plugin_preview_channel'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $beforePreview));
+        $t->same(['plugin_beta_channel', 'plugin_preview_channel'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $exclusive));
+        $t->same(['plugin_beta_channel', 'plugin_preview_channel', 'plugin_stable_channel'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusive));
+        $t->same(['plugin_beta_channel'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->same(['plugin_alpha_channel', 'plugin_beta_channel', 'plugin_preview_channel'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $beforePreview));
         $t->same([], $reversed);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionFragmentRange('$.channel', null, null));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionFragmentRange('$.channel', 'beta', 'stable', -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonFragmentRange('$.channel', null, null));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonFragmentRange('$.channel', 'beta', 'stable', -1));
     },
     'uses json_extract expression index for application plugin option value IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10052,20 +10052,20 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedJsonOptionValues('$.mode', ['ENABLED', 'disabled', 'ENABLED', null]);
-        $limited = $database->optionRowsByIndexedJsonOptionValues('$.mode', ['enabled', 'disabled'], 2);
-        $nullOnly = $database->optionRowsByIndexedJsonOptionValues('$.mode', [null]);
+        $options = $database->keyValueRowsByIndexedJsonValues('$.mode', ['ENABLED', 'disabled', 'ENABLED', null]);
+        $limited = $database->keyValueRowsByIndexedJsonValues('$.mode', ['enabled', 'disabled'], 2);
+        $nullOnly = $database->keyValueRowsByIndexedJsonValues('$.mode', [null]);
 
         $t->same(3, $database->indexRootPageForJsonExtractInLookup('wp_options', 'option_value', '$.mode', ['ENABLED', 'disabled']));
         $t->same(null, $database->indexRootPageForJsonExtractInLookup('wp_options', 'option_value', '$.mode', [null]));
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_value'));
-        $t->same(['plugin_beta_settings', 'plugin_alpha_settings', 'plugin_gamma_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['{"mode":"disabled","version":3}', '{"mode":"enabled","version":2}', '{"mode":"ENABLED","version":4}'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['plugin_beta_settings', 'plugin_alpha_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['plugin_beta_settings', 'plugin_alpha_settings', 'plugin_gamma_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['{"mode":"disabled","version":3}', '{"mode":"enabled","version":2}', '{"mode":"ENABLED","version":4}'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['plugin_beta_settings', 'plugin_alpha_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $nullOnly);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValues('$[0]', ['enabled']));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValues('$.mode', [new stdClass()]));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValues('$.mode', ['enabled'], -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValues('$[0]', ['enabled']));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValues('$.mode', [new stdClass()]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValues('$.mode', ['enabled'], -1));
     },
     'uses json_extract expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10082,11 +10082,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedJsonOptionValues('$.mode', ['enabled', 'missing']);
+        $options = $database->keyValueRowsByIndexedJsonValues('$.mode', ['enabled', 'missing']);
 
         $t->same(2, $database->indexRootPageForJsonExtractInLookup('wp_options', 'option_value', '$.mode', ['enabled', 'missing']));
-        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['{"mode":"enabled"}'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['{"mode":"enabled"}'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses json_extract expression index for application plugin option value ranges' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10109,20 +10109,20 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $exclusive = $database->optionRowsByIndexedJsonOptionValueRange('$.priority', 5, 15);
-        $inclusive = $database->optionRowsByIndexedJsonOptionValueRange('$.priority', 5, 15, null, true);
-        $limited = $database->optionRowsByIndexedJsonOptionValueRange('$.priority', 5, 15, 1);
-        $reversed = $database->optionRowsByIndexedJsonOptionValueRange('$.priority', 15, 5);
+        $exclusive = $database->keyValueRowsByIndexedJsonValueRange('$.priority', 5, 15);
+        $inclusive = $database->keyValueRowsByIndexedJsonValueRange('$.priority', 5, 15, null, true);
+        $limited = $database->keyValueRowsByIndexedJsonValueRange('$.priority', 5, 15, 1);
+        $reversed = $database->keyValueRowsByIndexedJsonValueRange('$.priority', 15, 5);
 
         $t->same(3, $database->indexRootPageForJsonExtractRangeLookup('wp_options', 'option_value', '$.priority', 5, 15));
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_value'));
-        $t->same(['plugin_beta_settings', 'plugin_gamma_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $exclusive));
-        $t->same(['plugin_beta_settings', 'plugin_gamma_settings', 'plugin_delta_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusive));
-        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['plugin_beta_settings', 'plugin_gamma_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $exclusive));
+        $t->same(['plugin_beta_settings', 'plugin_gamma_settings', 'plugin_delta_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusive));
+        $t->same(['plugin_beta_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $reversed);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValueRange('$[0]', 1, 10));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValueRange('$.priority', null, null));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedJsonOptionValueRange('$.priority', 1, 10, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValueRange('$[0]', 1, 10));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValueRange('$.priority', null, null));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedJsonValueRange('$.priority', 1, 10, -1));
     },
     'uses json_extract expression range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10139,11 +10139,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedJsonOptionValueRange('$.mode', 'enabled', 'enabled', null, true);
+        $options = $database->keyValueRowsByIndexedJsonValueRange('$.mode', 'enabled', 'enabled', null, true);
 
         $t->same(2, $database->indexRootPageForJsonExtractRangeLookup('wp_options', 'option_value', '$.mode', 'enabled', 'enabled', true));
-        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['{"mode":"Enabled"}'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['plugin_alpha_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['{"mode":"Enabled"}'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses length expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10160,11 +10160,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedNameLengths([10, 12]);
+        $options = $database->keyValueRowsByIndexedNameLengths([10, 12]);
 
         $t->same(2, $database->indexRootPageForLengthInLookup('wp_options', 'option_name', [10, 12]));
-        $t->same(['db_version'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['58796'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['db_version'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['58796'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses length expression index for application option_name length ranges' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10190,22 +10190,22 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $medium = $database->optionRowsByIndexedNameLengthRange(5, 11);
-        $limited = $database->optionRowsByIndexedNameLengthRange(5, 11, 1);
-        $inclusiveSingle = $database->optionRowsByIndexedNameLengthRange(4, 4, null, true);
-        $exclusiveEmpty = $database->optionRowsByIndexedNameLengthRange(4, 4);
-        $shortNames = $database->optionRowsByIndexedNameLengthRange(null, 5);
+        $medium = $database->keyValueRowsByIndexedNameLengthRange(5, 11);
+        $limited = $database->keyValueRowsByIndexedNameLengthRange(5, 11, 1);
+        $inclusiveSingle = $database->keyValueRowsByIndexedNameLengthRange(4, 4, null, true);
+        $exclusiveEmpty = $database->keyValueRowsByIndexedNameLengthRange(4, 4);
+        $shortNames = $database->keyValueRowsByIndexedNameLengthRange(null, 5);
 
         $t->same(3, $database->indexRootPageForLengthRangeLookup('wp_options', 'option_name', 5, 11));
-        $t->same(['db_version', 'siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $medium));
-        $t->same(['58796', 'https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $medium));
-        $t->same(['db_version'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->same(['home', 'cron', 'café'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusiveSingle));
+        $t->same(['db_version', 'siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $medium));
+        $t->same(['58796', 'https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $medium));
+        $t->same(['db_version'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->same(['home', 'cron', 'café'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusiveSingle));
         $t->same([], $exclusiveEmpty);
-        $t->same(['home', 'cron', 'café'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $shortNames));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameLengthRange(null, null));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameLengthRange(-1, 10));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameLengthRange(1, 10, -1));
+        $t->same(['home', 'cron', 'café'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $shortNames));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameLengthRange(null, null));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameLengthRange(-1, 10));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameLengthRange(1, 10, -1));
     },
     'uses length expression range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10222,11 +10222,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedNameLengthRange(9, 12);
+        $options = $database->keyValueRowsByIndexedNameLengthRange(9, 12);
 
         $t->same(2, $database->indexRootPageForLengthRangeLookup('wp_options', 'option_name', 9, 12));
-        $t->same(['db_version'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['58796'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['db_version'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['58796'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses substr expression index for application option_name prefix scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10247,17 +10247,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $transients = $database->optionRowsByIndexedNamePrefix('_TRANSIENT_');
-        $limited = $database->optionRowsByIndexedNamePrefix('_TRANSIENT_', 1);
-        $missing = $database->optionRowsByIndexedNamePrefix('_transientX');
+        $transients = $database->keyValueRowsByIndexedNamePrefix('_TRANSIENT_');
+        $limited = $database->keyValueRowsByIndexedNamePrefix('_TRANSIENT_', 1);
+        $missing = $database->keyValueRowsByIndexedNamePrefix('_transientX');
 
         $t->same(3, $database->indexRootPageForSubstringPointLookup('wp_options', 'option_name', 1, 11, '_TRANSIENT_'));
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
-        $t->same(['_Transient_Feed', '_transient_timeout_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $transients));
-        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $transients));
-        $t->same(['_Transient_Feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['_Transient_Feed', '_transient_timeout_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $transients));
+        $t->same(['_Transient_Feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNamePrefix(''));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNamePrefix(''));
     },
     'uses substr expression index for application option_name prefix IN-list scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10279,19 +10279,19 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedNamePrefixes(['_TRANSIENT_', '_site_trans', '_TRANSIENT_', null]);
-        $limited = $database->optionRowsByIndexedNamePrefixes(['_TRANSIENT_', '_site_trans'], 2);
-        $nullOnly = $database->optionRowsByIndexedNamePrefixes([null]);
+        $options = $database->keyValueRowsByIndexedNamePrefixes(['_TRANSIENT_', '_site_trans', '_TRANSIENT_', null]);
+        $limited = $database->keyValueRowsByIndexedNamePrefixes(['_TRANSIENT_', '_site_trans'], 2);
+        $nullOnly = $database->keyValueRowsByIndexedNamePrefixes([null]);
 
         $t->same(3, $database->indexRootPageForSubstringInLookup('wp_options', 'option_name', 1, 11, ['_TRANSIENT_', '_site_trans']));
         $t->same(null, $database->indexRootPageForSubstringInLookup('wp_options', 'option_name', 1, 10, ['_TRANSIENT_']));
-        $t->same(['_site_transient_update_plugins', '_Transient_Feed', '_transient_timeout_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['site-cache', 'cached-feed', '1700000000'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['_site_transient_update_plugins', '_Transient_Feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['_site_transient_update_plugins', '_Transient_Feed', '_transient_timeout_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['site-cache', 'cached-feed', '1700000000'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['_site_transient_update_plugins', '_Transient_Feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $nullOnly);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNamePrefixes([123]));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNamePrefixes(['']));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNamePrefixes(['_transient_', 'home']));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNamePrefixes([123]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNamePrefixes(['']));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNamePrefixes(['_transient_', 'home']));
     },
     'uses substr expression IN-list seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10310,11 +10310,11 @@ return [
         $page5 = str_repeat("\0", 512);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedNamePrefixes(['_transient_', '_site_trans']);
+        $options = $database->keyValueRowsByIndexedNamePrefixes(['_transient_', '_site_trans']);
 
         $t->same(2, $database->indexRootPageForSubstringInLookup('wp_options', 'option_name', 1, 11, ['_transient_', '_site_trans']));
-        $t->same(['_site_transient_update_plugins', '_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['site-cache', 'cached-feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['_site_transient_update_plugins', '_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['site-cache', 'cached-feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses negative-start substr expression index for application option_name suffix scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10334,17 +10334,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $settings = $database->optionRowsByIndexedNameSuffix('_SETTINGS');
-        $limited = $database->optionRowsByIndexedNameSuffix('_settings', 1);
-        $missing = $database->optionRowsByIndexedNameSuffix('_controls');
+        $settings = $database->keyValueRowsByIndexedNameSuffix('_SETTINGS');
+        $limited = $database->keyValueRowsByIndexedNameSuffix('_settings', 1);
+        $missing = $database->keyValueRowsByIndexedNameSuffix('_controls');
 
         $t->same(3, $database->indexRootPageForSubstringPointLookup('wp_options', 'option_name', -9, null, '_SETTINGS'));
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
-        $t->same(['theme_settings', 'plugin_SETTINGS'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $settings));
-        $t->same(['theme-payload', 'plugin-payload'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $settings));
-        $t->same(['theme_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['theme_settings', 'plugin_SETTINGS'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $settings));
+        $t->same(['theme-payload', 'plugin-payload'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $settings));
+        $t->same(['theme_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $missing);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameSuffix(''));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameSuffix(''));
         $t->throws(InvalidArgumentException::class, static fn () => $database->indexRootPageForSubstringPointLookup('wp_options', 'option_name', 0, null, ''));
     },
     'uses lower expression index range for case folded application option_name scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
@@ -10366,17 +10366,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $transients = $database->optionRowsByIndexedLowercaseNameRange('_TRANSIENT_', '_TRANSIENT`');
-        $limited = $database->optionRowsByIndexedLowercaseNameRange('_TRANSIENT_', '_TRANSIENT`', 1);
-        $site = $database->optionRowsByIndexedLowercaseNameRange('SITE', null);
+        $transients = $database->keyValueRowsByIndexedLowercaseNameRange('_TRANSIENT_', '_TRANSIENT`');
+        $limited = $database->keyValueRowsByIndexedLowercaseNameRange('_TRANSIENT_', '_TRANSIENT`', 1);
+        $site = $database->keyValueRowsByIndexedLowercaseNameRange('SITE', null);
 
         $t->same(3, $database->indexRootPageForLowercaseRangeLookup('wp_options', 'option_name', '_TRANSIENT_', '_TRANSIENT`'));
         $t->same(null, $database->indexRootPageForRangeLookup('wp_options', 'option_name', '_TRANSIENT_', '_TRANSIENT`'));
-        $t->same(['_Transient_Feed', '_transient_timeout_Feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $transients));
-        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $transients));
-        $t->same(['_Transient_Feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->same(['SiteURL'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $site));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedLowercaseNameRange(null, null));
+        $t->same(['_Transient_Feed', '_transient_timeout_Feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $transients));
+        $t->same(['_Transient_Feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->same(['SiteURL'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $site));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedLowercaseNameRange(null, null));
     },
     'uses lower expression range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10393,11 +10393,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedLowercaseNameRange('SITEURL', null);
+        $options = $database->keyValueRowsByIndexedLowercaseNameRange('SITEURL', null);
 
         $t->same(2, $database->indexRootPageForLowercaseRangeLookup('wp_options', 'option_name', 'SITEURL', null));
-        $t->same(['SiteURL'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['SiteURL'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses upper expression index range for ascii folded application option_name scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10418,17 +10418,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $transients = $database->optionRowsByIndexedUppercaseNameRange('_transient_', '_transient`');
-        $limited = $database->optionRowsByIndexedUppercaseNameRange('_transient_', '_transient`', 1);
-        $site = $database->optionRowsByIndexedUppercaseNameRange('site', 'sitev');
+        $transients = $database->keyValueRowsByIndexedUppercaseNameRange('_transient_', '_transient`');
+        $limited = $database->keyValueRowsByIndexedUppercaseNameRange('_transient_', '_transient`', 1);
+        $site = $database->keyValueRowsByIndexedUppercaseNameRange('site', 'sitev');
 
         $t->same(3, $database->indexRootPageForUppercaseRangeLookup('wp_options', 'option_name', '_transient_', '_transient`'));
         $t->same(null, $database->indexRootPageForRangeLookup('wp_options', 'option_name', '_transient_', '_transient`'));
-        $t->same(['_Transient_Feed', '_transient_timeout_Feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $transients));
-        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $transients));
-        $t->same(['_Transient_Feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->same(['SiteURL'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $site));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedUppercaseNameRange(null, null));
+        $t->same(['_Transient_Feed', '_transient_timeout_Feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $transients));
+        $t->same(['_Transient_Feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->same(['SiteURL'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $site));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedUppercaseNameRange(null, null));
     },
     'uses upper expression range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10445,11 +10445,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedUppercaseNameRange('siteurl', null);
+        $options = $database->keyValueRowsByIndexedUppercaseNameRange('siteurl', null);
 
         $t->same(2, $database->indexRootPageForUppercaseRangeLookup('wp_options', 'option_name', 'siteurl', null));
-        $t->same(['SiteURL'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['SiteURL'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'skips partial option_name indexes for whole-table application lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10465,7 +10465,7 @@ return [
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedName('siteurl'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedName('siteurl'));
     },
     'uses partial is not null option_name index for application point lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10482,11 +10482,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $option = $database->optionRowByIndexedName('home');
+        $option = $database->keyValueRowByIndexedName('home');
 
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
         $t->same(3, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'home'));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(2, $option->optionId);
         $t->same('home', $option->optionName);
         $t->same('https://example.test/blog', $option->optionValue);
@@ -10507,8 +10507,8 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $option = $database->optionRowByIndexedNameForAutoload('siteurl', 'yes');
-        $missingAutoloadedName = $database->optionRowByIndexedNameForAutoload('blogname', 'yes');
+        $option = $database->keyValueRowByIndexedNameForLoadPolicy('siteurl', 'yes');
+        $missingAutoloadedName = $database->keyValueRowByIndexedNameForLoadPolicy('blogname', 'yes');
 
         $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'siteurl'));
         $t->same(3, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'siteurl', [
@@ -10517,13 +10517,13 @@ return [
         $t->same(null, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'siteurl', [
             'autoload' => 'no',
         ]));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(1, $option->optionId);
         $t->same('siteurl', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
         $t->same('yes', $option->autoload);
         $t->same(null, $missingAutoloadedName);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedNameForAutoload('siteurl', 'no'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedNameForLoadPolicy('siteurl', 'no'));
     },
     'uses or equality partial option_name index when application autoload predicate matches one term' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10541,8 +10541,8 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $siteurl = $database->optionRowByIndexedNameForAutoload('siteurl', 'yes');
-        $home = $database->optionRowByIndexedNameForAutoload('home', 'on');
+        $siteurl = $database->keyValueRowByIndexedNameForLoadPolicy('siteurl', 'yes');
+        $home = $database->keyValueRowByIndexedNameForLoadPolicy('home', 'on');
 
         $t->same(3, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'siteurl', [
             'autoload' => 'yes',
@@ -10553,11 +10553,11 @@ return [
         $t->same(null, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'blogname', [
             'autoload' => 'no',
         ]));
-        $t->true($siteurl instanceof SQLiteOptionRow);
+        $t->true($siteurl instanceof SQLiteKeyValueRow);
         $t->same('https://example.test', $siteurl->optionValue);
-        $t->true($home instanceof SQLiteOptionRow);
+        $t->true($home instanceof SQLiteKeyValueRow);
         $t->same('https://example.test/blog', $home->optionValue);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedNameForAutoload('blogname', 'no'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedNameForLoadPolicy('blogname', 'no'));
     },
     'uses and equality partial option_name index only when every application predicate is known' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10575,7 +10575,7 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $option = $database->optionRowByIndexedNameForAutoload('home', 'yes');
+        $option = $database->keyValueRowByIndexedNameForLoadPolicy('home', 'yes');
 
         $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'home'));
         $t->same(3, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'home', [
@@ -10584,11 +10584,11 @@ return [
         $t->same(null, $database->indexRootPageForPointLookupWithConstraints('wp_options', 'option_name', 'home', [
             'autoload' => 'no',
         ]));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same('home', $option->optionName);
         $t->same('https://example.test/blog', $option->optionValue);
         $t->same('yes', $option->autoload);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowByIndexedNameForAutoload('home', 'no'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowByIndexedNameForLoadPolicy('home', 'no'));
     },
     'uses nonunique composite autoload index to scan duplicate application options' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10607,14 +10607,14 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $autoloaded = $database->optionRowsByIndexedAutoload('yes');
-        $limited = $database->optionRowsByIndexedAutoload('yes', 1);
-        $missing = $database->optionRowsByIndexedAutoload('maybe');
+        $autoloaded = $database->keyValueRowsByIndexedLoadPolicy('yes');
+        $limited = $database->keyValueRowsByIndexedLoadPolicy('yes', 1);
+        $missing = $database->keyValueRowsByIndexedLoadPolicy('maybe');
 
         $t->same(3, $database->indexRootPageForPointLookup('wp_options', 'autoload', 'yes'));
-        $t->same(['blogname', 'siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $autoloaded));
-        $t->same(['Ported SQLite', 'https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $autoloaded));
-        $t->same(['blogname'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['blogname', 'siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $autoloaded));
+        $t->same(['Ported SQLite', 'https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $autoloaded));
+        $t->same(['blogname'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $missing);
     },
     'uses composite autoload and option_name index to fetch one application option' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
@@ -10634,14 +10634,14 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $option = $database->optionRowByIndexedAutoloadAndName('yes', 'SITEURL');
-        $missing = $database->optionRowByIndexedAutoloadAndName('yes', 'missing');
+        $option = $database->keyValueRowByIndexedLoadPolicyAndName('yes', 'SITEURL');
+        $missing = $database->keyValueRowByIndexedLoadPolicyAndName('yes', 'missing');
 
         $t->same(3, $database->indexRootPageForPointLookupColumns('wp_options', [
             'autoload' => 'yes',
             'option_name' => 'SITEURL',
         ]));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(1, $option->optionId);
         $t->same('siteurl', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
@@ -10668,20 +10668,20 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $transients = $database->optionRowsByIndexedAutoloadAndNameRange('no', '_transient_', '_transient`');
-        $limited = $database->optionRowsByIndexedAutoloadAndNameRange('no', '_transient_', '_transient`', 1);
-        $inclusiveSingle = $database->optionRowsByIndexedAutoloadAndNameRange('no', '_transient_feed', '_transient_feed', null, true);
-        $exclusiveEmpty = $database->optionRowsByIndexedAutoloadAndNameRange('no', '_transient_feed', '_transient_feed');
+        $transients = $database->keyValueRowsByIndexedLoadPolicyAndNameRange('no', '_transient_', '_transient`');
+        $limited = $database->keyValueRowsByIndexedLoadPolicyAndNameRange('no', '_transient_', '_transient`', 1);
+        $inclusiveSingle = $database->keyValueRowsByIndexedLoadPolicyAndNameRange('no', '_transient_feed', '_transient_feed', null, true);
+        $exclusiveEmpty = $database->keyValueRowsByIndexedLoadPolicyAndNameRange('no', '_transient_feed', '_transient_feed');
 
         $t->same(3, $database->indexRootPageForPrefixRangeLookup('wp_options', [
             'autoload' => 'no',
         ], 'option_name', '_transient_', '_transient`'));
-        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $transients));
-        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $transients));
-        $t->same(['_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->same(['_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusiveSingle));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $transients));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusiveSingle));
         $t->same([], $exclusiveEmpty);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedAutoloadAndNameRange('no', null, null));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedLoadPolicyAndNameRange('no', null, null));
     },
     'uses composite equality range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10700,13 +10700,13 @@ return [
         $page5 = str_repeat("\0", 512);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $transients = $database->optionRowsByIndexedAutoloadAndNameRange('no', '_transient_', '_transient`');
+        $transients = $database->keyValueRowsByIndexedLoadPolicyAndNameRange('no', '_transient_', '_transient`');
 
         $t->same(2, $database->indexRootPageForPrefixRangeLookup('wp_options', [
             'autoload' => 'no',
         ], 'option_name', '_transient_', '_transient`'));
-        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $transients));
-        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $transients));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $transients));
     },
     'uses multi-column equality prefix and option_name range to scan application options' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10729,12 +10729,12 @@ return [
             'autoload' => 'no',
             'option_value' => 'cached-feed',
         ];
-        $transients = $database->optionRowsByIndexedNameRangeWithPrefix($prefix, '_transient_', '_transient`');
+        $transients = $database->keyValueRowsByIndexedNameRangeWithPrefix($prefix, '_transient_', '_transient`');
 
         $t->same(2, $database->indexRootPageForPrefixRangeLookup('wp_options', $prefix, 'option_name', '_transient_', '_transient`'));
-        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $transients));
-        $t->same(['cached-feed', 'cached-feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $transients));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithPrefix([], '_transient_', '_transient`'));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', 'cached-feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $transients));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithPrefix([], '_transient_', '_transient`'));
     },
     'uses supplied custom collation callbacks for composite equality prefix range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10771,13 +10771,13 @@ return [
         };
         $prefix = ['option_value' => 'plugin_core'];
 
-        $transients = $database->optionRowsByIndexedNameRangeWithPrefixCollations(
+        $transients = $database->keyValueRowsByIndexedNameRangeWithPrefixCollations(
             $prefix,
             '_transient_',
             '_transient`',
             ['WPSLUG' => $wpslug],
         );
-        $limited = $database->optionRowsByIndexedNameRangeWithPrefixCollations(
+        $limited = $database->keyValueRowsByIndexedNameRangeWithPrefixCollations(
             $prefix,
             '_transient_',
             '_transient`',
@@ -10787,12 +10787,12 @@ return [
 
         $t->same(2, $database->indexRootPageForPrefixRangeLookupWithCollations('wp_options', $prefix, 'option_name', '_transient_', '_transient`', ['WPSLUG' => $wpslug]));
         $t->same(null, $database->indexRootPageForPrefixRangeLookupWithCollations('wp_options', $prefix, 'option_name', '_transient_', '_transient`', []));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithPrefix($prefix, '_transient_', '_transient`'));
-        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $transients));
-        $t->same(['Plugin-Core', 'plugin_core'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $transients));
-        $t->same(['_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithPrefixCollations($prefix, null, null, ['WPSLUG' => $wpslug]));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRangeWithPrefixCollations($prefix, '_transient_', '_transient`', ['WPSLUG' => static fn (): string => '0']));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithPrefix($prefix, '_transient_', '_transient`'));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $transients));
+        $t->same(['Plugin-Core', 'plugin_core'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $transients));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithPrefixCollations($prefix, null, null, ['WPSLUG' => $wpslug]));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRangeWithPrefixCollations($prefix, '_transient_', '_transient`', ['WPSLUG' => static fn (): string => '0']));
     },
     'uses partial composite autoload and option_name range indexes when predicates are implied' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10811,7 +10811,7 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $transients = $database->optionRowsByIndexedAutoloadAndNameRange('no', '_TRANSIENT_', '_TRANSIENT`');
+        $transients = $database->keyValueRowsByIndexedLoadPolicyAndNameRange('no', '_TRANSIENT_', '_TRANSIENT`');
 
         $t->same(3, $database->indexRootPageForPrefixRangeLookup('wp_options', [
             'autoload' => 'no',
@@ -10819,9 +10819,9 @@ return [
         $t->same(null, $database->indexRootPageForPrefixRangeLookup('wp_options', [
             'autoload' => 'yes',
         ], 'option_name', '_TRANSIENT_', '_TRANSIENT`'));
-        $t->same(['_TRANSIENT_TIMEOUT_FEED', '_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $transients));
-        $t->same(['1700000000', 'cached-feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $transients));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedAutoloadAndNameRange('yes', '_TRANSIENT_', '_TRANSIENT`'));
+        $t->same(['_TRANSIENT_TIMEOUT_FEED', '_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $transients));
+        $t->same(['1700000000', 'cached-feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $transients));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedLoadPolicyAndNameRange('yes', '_TRANSIENT_', '_TRANSIENT`'));
     },
     'uses partial autoload is not null index for duplicate application option scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10837,11 +10837,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $autoloaded = $database->optionRowsByIndexedAutoload('yes');
+        $autoloaded = $database->keyValueRowsByIndexedLoadPolicy('yes');
 
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'autoload'));
         $t->same(3, $database->indexRootPageForPointLookup('wp_options', 'autoload', 'yes'));
-        $t->same(['siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $autoloaded));
+        $t->same(['siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $autoloaded));
     },
     'uses partial option_name in-list indexes for subset application option scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10861,17 +10861,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedNames(['home', 'siteurl']);
-        $withNull = $database->optionRowsByIndexedNames([null, 'blogname']);
+        $options = $database->keyValueRowsByIndexedNames(['home', 'siteurl']);
+        $withNull = $database->keyValueRowsByIndexedNames([null, 'blogname']);
 
         $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['home', 'siteurl']));
         $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl']));
         $t->same(3, $database->indexRootPageForInLookup('wp_options', 'option_name', ['home', null]));
         $t->same(null, $database->indexRootPageForInLookup('wp_options', 'option_name', ['siteurl', 'admin_email']));
-        $t->same(['home', 'siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['blogname'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $withNull));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNames(['siteurl', 'admin_email']));
+        $t->same(['home', 'siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test/blog', 'https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['blogname'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $withNull));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNames(['siteurl', 'admin_email']));
     },
     'uses option_name range bounds to scan transient application options through an index' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10892,13 +10892,13 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $transients = $database->optionRowsByIndexedNameRange('_transient_', '_transient`');
-        $limited = $database->optionRowsByIndexedNameRange('_transient_', '_transient`', 1);
-        $empty = $database->optionRowsByIndexedNameRange('blogname', 'blogname');
+        $transients = $database->keyValueRowsByIndexedNameRange('_transient_', '_transient`');
+        $limited = $database->keyValueRowsByIndexedNameRange('_transient_', '_transient`', 1);
+        $empty = $database->keyValueRowsByIndexedNameRange('blogname', 'blogname');
 
-        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $transients));
-        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $transients));
-        $t->same(['_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $transients));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
         $t->same([], $empty);
     },
     'uses partial option_name is not null indexes for indexed name range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
@@ -10917,12 +10917,12 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedNameRange('h', 'i');
+        $options = $database->keyValueRowsByIndexedNameRange('h', 'i');
 
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
         $t->same(3, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'home'));
-        $t->same(['home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test/blog'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test/blog'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses open ended and inclusive option_name range bounds through a application index' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10945,16 +10945,16 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $beforeBlog = $database->optionRowsByIndexedNameRange(null, 'blogname');
-        $throughBlog = $database->optionRowsByIndexedNameRange(null, 'blogname', null, true);
-        $afterSiteurl = $database->optionRowsByIndexedNameRange('siteurl', null);
-        $limited = $database->optionRowsByIndexedNameRange(null, 'zzzz', 1);
+        $beforeBlog = $database->keyValueRowsByIndexedNameRange(null, 'blogname');
+        $throughBlog = $database->keyValueRowsByIndexedNameRange(null, 'blogname', null, true);
+        $afterSiteurl = $database->keyValueRowsByIndexedNameRange('siteurl', null);
+        $limited = $database->keyValueRowsByIndexedNameRange(null, 'zzzz', 1);
 
         $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', null, 'blogname'));
-        $t->same(['alpha_option'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $beforeBlog));
-        $t->same(['alpha_option', 'blogname'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $throughBlog));
-        $t->same(['siteurl', 'zz_cleanup_marker'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $afterSiteurl));
-        $t->same(['alpha_option'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $limited));
+        $t->same(['alpha_option'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $beforeBlog));
+        $t->same(['alpha_option', 'blogname'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $throughBlog));
+        $t->same(['siteurl', 'zz_cleanup_marker'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $afterSiteurl));
+        $t->same(['alpha_option'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $limited));
     },
     'uses first-column range seek bounds without reading out-of-range index pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
         $page1 = $tableLeafPage([
@@ -10971,11 +10971,11 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $options = $database->optionRowsByIndexedNameRange('siteurl', null);
+        $options = $database->keyValueRowsByIndexedNameRange('siteurl', null);
 
         $t->same(2, $database->indexRootPageForRangeLookup('wp_options', 'option_name', 'siteurl', null));
-        $t->same(['siteurl'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
+        $t->same(['siteurl'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
     },
     'uses upper-only bounds to imply partial is not null option_name range indexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -10993,12 +10993,12 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $options = $database->optionRowsByIndexedNameRange(null, 'm');
+        $options = $database->keyValueRowsByIndexedNameRange(null, 'm');
 
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
         $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', null, 'm'));
-        $t->same(['alpha_option'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRange(null, null));
+        $t->same(['alpha_option'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRange(null, null));
     },
     'uses comparison partial option_name indexes for application transient range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -11016,17 +11016,17 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $transients = $database->optionRowsByIndexedNameRange('_transient_', '_transient`');
-        $single = $database->optionRowByIndexedName('_transient_feed');
+        $transients = $database->keyValueRowsByIndexedNameRange('_transient_', '_transient`');
+        $single = $database->keyValueRowByIndexedName('_transient_feed');
 
         $t->same(null, $database->indexRootPageForColumn('wp_options', 'option_name'));
         $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', '_transient_', '_transient`'));
         $t->same(3, $database->indexRootPageForPointLookup('wp_options', 'option_name', '_transient_feed'));
         $t->same(null, $database->indexRootPageForPointLookup('wp_options', 'option_name', 'siteurl'));
-        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $transients));
-        $t->true($single instanceof SQLiteOptionRow);
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $transients));
+        $t->true($single instanceof SQLiteKeyValueRow);
         $t->same('cached-feed', $single->optionValue);
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRowsByIndexedNameRange('blogname', 'siteurl'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRowsByIndexedNameRange('blogname', 'siteurl'));
     },
     'uses between partial option_name indexes for inclusive application range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -11044,12 +11044,12 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $inclusive = $database->optionRowsByIndexedNameRange('_transient_', '_transient_timeout_feed', null, true);
-        $exclusive = $database->optionRowsByIndexedNameRange('_transient_', '_transient_timeout_feed');
+        $inclusive = $database->keyValueRowsByIndexedNameRange('_transient_', '_transient_timeout_feed', null, true);
+        $exclusive = $database->keyValueRowsByIndexedNameRange('_transient_', '_transient_timeout_feed');
 
         $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', '_transient_', '_transient_timeout_feed', true));
-        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusive));
-        $t->same(['_transient_feed'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $exclusive));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusive));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $exclusive));
     },
     'uses descending option_name indexes for inclusive application range scans' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -11070,12 +11070,12 @@ return [
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $inclusive = $database->optionRowsByIndexedNameRange('blogname', 'siteurl', null, true);
-        $exclusive = $database->optionRowsByIndexedNameRange('blogname', 'siteurl');
+        $inclusive = $database->keyValueRowsByIndexedNameRange('blogname', 'siteurl', null, true);
+        $exclusive = $database->keyValueRowsByIndexedNameRange('blogname', 'siteurl');
 
         $t->same(3, $database->indexRootPageForRangeLookup('wp_options', 'option_name', 'blogname', 'siteurl'));
-        $t->same(['siteurl', 'home', 'blogname'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $inclusive));
-        $t->same(['home', 'blogname'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $exclusive));
+        $t->same(['siteurl', 'home', 'blogname'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $inclusive));
+        $t->same(['home', 'blogname'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $exclusive));
     },
     'infers sqlite automatic unique index columns from create table sql' => static function (TestRunner $t): void {
         $t->same([
@@ -11190,10 +11190,10 @@ SQL;
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
 
-        $option = $database->optionRowByIndexedName('siteurl');
+        $option = $database->keyValueRowByIndexedName('siteurl');
 
         $t->same(3, $database->indexRootPageForColumn('wp_options', 'option_name'));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(1, $option->optionId);
         $t->same('siteurl', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
@@ -11215,10 +11215,10 @@ SQL;
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $option = $database->optionRowByIndexedName('BLOGNAME');
+        $option = $database->keyValueRowByIndexedName('BLOGNAME');
 
         $t->same(3, $database->indexRootPageForColumn('wp_options', 'option_name'));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(3, $option->optionId);
         $t->same('blogname', $option->optionName);
         $t->same('Ported SQLite', $option->optionValue);
@@ -11240,16 +11240,16 @@ SQL;
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $option = $database->optionRowByIndexedName('cache_token');
-        $exclusiveRange = $database->optionRowsByIndexedNameRange('cache_token', 'cache_token');
-        $inclusiveRange = $database->optionRowsByIndexedNameRange('cache_token', 'cache_token', null, true);
+        $option = $database->keyValueRowByIndexedName('cache_token');
+        $exclusiveRange = $database->keyValueRowsByIndexedNameRange('cache_token', 'cache_token');
+        $inclusiveRange = $database->keyValueRowsByIndexedNameRange('cache_token', 'cache_token', null, true);
 
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(1, $option->optionId);
         $t->same('cache_token  ', $option->optionName);
         $t->same([], $exclusiveRange);
         $t->same(['cache_token  '], array_map(
-            static fn (SQLiteOptionRow $option): string => $option->optionName,
+            static fn (SQLiteKeyValueRow $option): string => $option->optionName,
             $inclusiveRange,
         ));
     },
@@ -11272,10 +11272,10 @@ SQL;
         $page6 = $tableLeafPage([]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5 . $page6);
 
-        $option = $database->optionRowByIndexedName('siteurl');
+        $option = $database->keyValueRowByIndexedName('siteurl');
 
         $t->same(4, $database->indexRootPageForColumn('wp_options', 'option_name'));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(1, $option->optionId);
         $t->same('siteurl', $option->optionName);
         $t->same('https://example.test', $option->optionValue);
@@ -11609,7 +11609,7 @@ SQL;
         $page2 = $tableLeafPage([$cell]);
         $page3 = $overflowPage($overflowPayload);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
-        $options = $database->optionRows();
+        $options = $database->keyValueRows();
 
         $t->same(78, $localLength);
         $t->same(1, count($options));
@@ -11629,7 +11629,7 @@ SQL;
         $page3 = $overflowPage(substr($overflowPayload, 0, 508), 4);
         $page4 = $overflowPage(substr($overflowPayload, 508));
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
-        $options = $database->optionRows();
+        $options = $database->keyValueRows();
 
         $t->same(1, count($options));
         $t->same('autoload_blob', $options[0]->optionName);
@@ -11666,7 +11666,7 @@ SQL;
             . $emptyPage
             . $overflowPages[7],
         );
-        $options = $database->optionRows();
+        $options = $database->keyValueRows();
 
         $t->same(500, $database->usablePageSize());
         $t->same(3, count($overflowPages));
@@ -11690,7 +11690,7 @@ SQL;
         $page3 = $overflowPage(substr($overflowPayload, 0, 508), 0);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
-        $t->throws(InvalidArgumentException::class, static fn () => $database->optionRows());
+        $t->throws(InvalidArgumentException::class, static fn () => $database->keyValueRows());
     },
     'plans application overflow reuse from sqlite freelist trunk metadata' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload): void {
         $usableSize = 500;
@@ -11736,7 +11736,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $options = $postDatabase->optionRows();
+        $options = $postDatabase->keyValueRows();
 
         $t->same([
             'allocated_page_numbers' => [3, 4],
@@ -12004,7 +12004,7 @@ SQL;
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage);
 
         $largeValue = str_repeat('rewrite-cache-fragment:', 58) . 'done';
-        $plan = $database->planOptionRowInsert(3, 'generated_large_cache', $largeValue, 'no');
+        $plan = $database->planKeyValueRowInsert(3, 'generated_large_cache', $largeValue, 'no');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -12016,9 +12016,9 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $options = $postDatabase->optionRows();
+        $options = $postDatabase->keyValueRows();
 
-        $t->same(SQLiteOptionRowWritePlan::class, get_class($plan));
+        $t->same(SQLiteKeyValueRowWritePlan::class, get_class($plan));
         $t->same(range(3, 2 + count($plan->overflowPageNumbers)), $plan->overflowPageNumbers);
         $t->same(array_merge([1, 2], $plan->overflowPageNumbers), array_keys($plan->pageImages()));
         $t->same(2 + count($plan->overflowPageNumbers), $plan->databasePageCount);
@@ -12033,7 +12033,7 @@ SQL;
             'updated_page_numbers' => array_merge([1, 2], $plan->overflowPageNumbers),
         ], $plan->toArray());
         $t->same(2, $postDatabase->pageHeader(2)->cellCount);
-        $t->same(['siteurl', 'generated_large_cache'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
+        $t->same(['siteurl', 'generated_large_cache'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
         $t->same($largeValue, $options[1]->optionValue);
         $t->same('no', $options[1]->autoload);
         $t->same(3, $options[1]->rowId);
@@ -12064,7 +12064,7 @@ SQL;
         $database = SQLiteDatabase::fromBytes($schemaPage . $pointerMapPage . $tablePage);
 
         $largeValue = str_repeat('autoloaded-cache-fragment:', 64) . 'done';
-        $plan = $database->planOptionRowInsert(2, 'theme_mods_twentyfive', $largeValue, 'yes');
+        $plan = $database->planKeyValueRowInsert(2, 'theme_mods_twentyfive', $largeValue, 'yes');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -12111,7 +12111,7 @@ SQL;
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage);
         $optionValue = 'Ported ' . "\u{1234}" . ' option';
 
-        $plan = $database->planOptionRowInsert(2, 'blogdescription', $optionValue, 'yes');
+        $plan = $database->planKeyValueRowInsert(2, 'blogdescription', $optionValue, 'yes');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -12120,12 +12120,12 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $options = $postDatabase->optionRows();
+        $options = $postDatabase->keyValueRows();
         $newRow = $postDatabase->tableRowByRowIdByName('wp_options', 2);
 
         $t->same($textEncoding, $database->header->textEncoding);
         $t->same([2], array_keys($plan->pageImages()));
-        $t->same(['siteurl', 'blogdescription'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
+        $t->same(['siteurl', 'blogdescription'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
         $t->same($optionValue, $options[1]->optionValue);
         $t->same([null, 'blogdescription', $optionValue, 'yes'], $newRow?->values());
         $t->contains(hex2bin('50006f0072007400650064002000341220006f007000740069006f006e00'), $plan->pageImages()[2]);
@@ -12157,7 +12157,7 @@ SQL;
         );
 
         $largeValue = str_repeat('freelist-backed-cache:', 46) . 'done';
-        $plan = $database->planOptionRowInsert(2, 'generated_reused_cache', $largeValue, 'yes', false);
+        $plan = $database->planKeyValueRowInsert(2, 'generated_reused_cache', $largeValue, 'yes', false);
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $database->page($pageNumber);
@@ -12202,7 +12202,7 @@ SQL;
         ], $pageSize);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
 
-        $plan = $database->planOptionRowInsert(2, 'home', 'https://example.test/blog', 'yes');
+        $plan = $database->planKeyValueRowInsert(2, 'home', 'https://example.test/blog', 'yes');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -12212,7 +12212,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedName('home');
+        $option = $postDatabase->keyValueRowByIndexedName('home');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -12223,7 +12223,7 @@ SQL;
             ['home', 2],
             ['siteurl', 1],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(2, $option->rowId);
         $t->same('https://example.test/blog', $option->optionValue);
         $t->same([
@@ -12263,7 +12263,7 @@ SQL;
         ], $pageSize);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
 
-        $plan = $database->planOptionRowInsert(2, 'home', 'https://example.test/blog', 'yes');
+        $plan = $database->planKeyValueRowInsert(2, 'home', 'https://example.test/blog', 'yes');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -12273,7 +12273,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedName('home');
+        $option = $postDatabase->keyValueRowByIndexedName('home');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -12285,7 +12285,7 @@ SQL;
             ['siteurl', 1],
         ], $indexRecords);
         $t->same(3, $postDatabase->indexRootPageForColumn('wp_options', 'option_name'));
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(2, $option->rowId);
         $t->same('https://example.test/blog', $option->optionValue);
     },
@@ -12315,7 +12315,7 @@ SQL;
         ], $pageSize);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
 
-        $plan = $database->planOptionRowInsert(2, 'home', 'https://example.test/blog', 'yes');
+        $plan = $database->planKeyValueRowInsert(2, 'home', 'https://example.test/blog', 'yes');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -12325,7 +12325,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedName('home');
+        $option = $postDatabase->keyValueRowByIndexedName('home');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -12336,7 +12336,7 @@ SQL;
             ['home', 2],
             ['siteurl', 1],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same('home', $option->optionName);
         $t->same('https://example.test/blog', $option->optionValue);
     },
@@ -12368,7 +12368,7 @@ SQL;
         ], $pageSize);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
 
-        $plan = $database->planOptionRowInsert(3, 'home', 'https://example.test/blog', 'yes');
+        $plan = $database->planKeyValueRowInsert(3, 'home', 'https://example.test/blog', 'yes');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -12378,7 +12378,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('yes', 'HOME');
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('yes', 'HOME');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -12394,7 +12394,7 @@ SQL;
             ['yes', 'siteurl', 1],
             ['yes', 'home', 3],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(3, $option->rowId);
         $t->same('home', $option->optionName);
         $t->same('https://example.test/blog', $option->optionValue);
@@ -12439,7 +12439,7 @@ SQL;
             . $rightIndexLeafPage,
         );
 
-        $plan = $database->planOptionRowInsert(4, 'stylesheet', 'twentytwentyfive', 'yes');
+        $plan = $database->planKeyValueRowInsert(4, 'stylesheet', 'twentytwentyfive', 'yes');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -12451,7 +12451,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedName('stylesheet');
+        $option = $postDatabase->keyValueRowByIndexedName('stylesheet');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -12464,7 +12464,7 @@ SQL;
             ['siteurl', 3],
             ['stylesheet', 4],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(4, $option->rowId);
         $t->same('twentytwentyfive', $option->optionValue);
     },
@@ -12512,7 +12512,7 @@ SQL;
         );
 
         $insertedName = str_repeat('z', 70);
-        $plan = $database->planOptionRowInsert(2, $insertedName, 'value', 'yes');
+        $plan = $database->planKeyValueRowInsert(2, $insertedName, 'value', 'yes');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -12527,7 +12527,7 @@ SQL;
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
         );
-        $insertedOption = $postDatabase->optionRowByIndexedName($insertedName);
+        $insertedOption = $postDatabase->keyValueRowByIndexedName($insertedName);
 
         $t->same([1, 2, 3, 5, 6], array_keys($plan->pageImages()));
         $t->same(6, $plan->databasePageCount);
@@ -12546,7 +12546,7 @@ SQL;
             [str_repeat('s', 70), 15],
             [$insertedName, 2],
         ], $indexRecords);
-        $t->true($insertedOption instanceof SQLiteOptionRow);
+        $t->true($insertedOption instanceof SQLiteKeyValueRow);
         $t->same(2, $insertedOption->rowId);
         $t->same($insertedName, $insertedOption->optionName);
         $t->same('value', $insertedOption->optionValue);
@@ -12580,7 +12580,7 @@ SQL;
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexRootPage);
 
         $insertedName = str_repeat('z', 70);
-        $plan = $database->planOptionRowInsert(2, $insertedName, 'root-grown-value', 'yes');
+        $plan = $database->planKeyValueRowInsert(2, $insertedName, 'root-grown-value', 'yes');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -12595,7 +12595,7 @@ SQL;
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
         );
-        $insertedOption = $postDatabase->optionRowByIndexedName($insertedName);
+        $insertedOption = $postDatabase->keyValueRowByIndexedName($insertedName);
 
         $t->same([1, 2, 3, 4, 5], array_keys($plan->pageImages()));
         $t->same(5, $plan->databasePageCount);
@@ -12612,13 +12612,13 @@ SQL;
             [str_repeat('f', 70), 15],
             [$insertedName, 2],
         ], $indexRecords);
-        $t->true($insertedOption instanceof SQLiteOptionRow);
+        $t->true($insertedOption instanceof SQLiteKeyValueRow);
         $t->same(2, $insertedOption->rowId);
         $t->same($insertedName, $insertedOption->optionName);
         $t->same('root-grown-value', $insertedOption->optionValue);
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowInsert(2, $insertedName, 'root-grown-value', 'yes', false),
+            static fn () => $database->planKeyValueRowInsert(2, $insertedName, 'root-grown-value', 'yes', false),
         );
     },
     'plans application indexed insert by splitting a leaf and growing a full index root interior' => static function (TestRunner $t) use ($makeFirstPage): void {
@@ -12673,7 +12673,7 @@ SQL;
         );
 
         $insertedName = str_repeat('z', 70);
-        $plan = $database->planOptionRowInsert(2, $insertedName, 'parent-grown-value', 'yes');
+        $plan = $database->planKeyValueRowInsert(2, $insertedName, 'parent-grown-value', 'yes');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -12688,7 +12688,7 @@ SQL;
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
         );
-        $insertedOption = $postDatabase->optionRowByIndexedName($insertedName);
+        $insertedOption = $postDatabase->keyValueRowByIndexedName($insertedName);
 
         $t->same([1, 2, 3, 10, 11, 12, 13], array_keys($plan->pageImages()));
         $t->same(13, $plan->databasePageCount);
@@ -12721,13 +12721,13 @@ SQL;
             [str_repeat('w', 70), 205],
             [$insertedName, 2],
         ], $indexRecords);
-        $t->true($insertedOption instanceof SQLiteOptionRow);
+        $t->true($insertedOption instanceof SQLiteKeyValueRow);
         $t->same(2, $insertedOption->rowId);
         $t->same($insertedName, $insertedOption->optionName);
         $t->same('parent-grown-value', $insertedOption->optionValue);
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowInsert(2, $insertedName, 'parent-grown-value', 'yes', false),
+            static fn () => $database->planKeyValueRowInsert(2, $insertedName, 'parent-grown-value', 'yes', false),
         );
     },
     'plans application automatic indexed insert by splitting a leaf and growing a full index root interior' => static function (TestRunner $t) use ($makeFirstPage): void {
@@ -12782,7 +12782,7 @@ SQL;
         );
 
         $insertedName = str_repeat('z', 70);
-        $plan = $database->planOptionRowInsert(2, $insertedName, 'auto-parent-grown-value', 'yes');
+        $plan = $database->planKeyValueRowInsert(2, $insertedName, 'auto-parent-grown-value', 'yes');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -12797,7 +12797,7 @@ SQL;
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
         );
-        $insertedOption = $postDatabase->optionRowByIndexedName($insertedName);
+        $insertedOption = $postDatabase->keyValueRowByIndexedName($insertedName);
 
         $t->same([1, 2, 3, 10, 11, 12, 13], array_keys($plan->pageImages()));
         $t->same(13, $plan->databasePageCount);
@@ -12831,13 +12831,13 @@ SQL;
             [str_repeat('w', 70), 205],
             [$insertedName, 2],
         ], $indexRecords);
-        $t->true($insertedOption instanceof SQLiteOptionRow);
+        $t->true($insertedOption instanceof SQLiteKeyValueRow);
         $t->same(2, $insertedOption->rowId);
         $t->same($insertedName, $insertedOption->optionName);
         $t->same('auto-parent-grown-value', $insertedOption->optionValue);
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowInsert(2, $insertedName, 'auto-parent-grown-value', 'yes', false),
+            static fn () => $database->planKeyValueRowInsert(2, $insertedName, 'auto-parent-grown-value', 'yes', false),
         );
     },
     'plans application composite indexed insert by splitting a leaf and growing a full index root interior' => static function (TestRunner $t) use ($makeFirstPage): void {
@@ -12893,7 +12893,7 @@ SQL;
         );
 
         $insertedName = str_repeat('z', $nameLength);
-        $plan = $database->planOptionRowInsert(2, $insertedName, 'composite-parent-grown-value', 'yes');
+        $plan = $database->planKeyValueRowInsert(2, $insertedName, 'composite-parent-grown-value', 'yes');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -12908,7 +12908,7 @@ SQL;
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
         );
-        $insertedOption = $postDatabase->optionRowByIndexedAutoloadAndName('yes', $insertedName);
+        $insertedOption = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('yes', $insertedName);
 
         $t->same([1, 2, 3, 10, 11, 12, 13], array_keys($plan->pageImages()));
         $t->same(13, $plan->databasePageCount);
@@ -12945,14 +12945,14 @@ SQL;
             ['yes', str_repeat('w', $nameLength), 205],
             ['yes', $insertedName, 2],
         ], $indexRecords);
-        $t->true($insertedOption instanceof SQLiteOptionRow);
+        $t->true($insertedOption instanceof SQLiteKeyValueRow);
         $t->same(2, $insertedOption->rowId);
         $t->same($insertedName, $insertedOption->optionName);
         $t->same('composite-parent-grown-value', $insertedOption->optionValue);
         $t->same('yes', $insertedOption->autoload);
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowInsert(2, $insertedName, 'composite-parent-grown-value', 'yes', false),
+            static fn () => $database->planKeyValueRowInsert(2, $insertedName, 'composite-parent-grown-value', 'yes', false),
         );
     },
     'plans application indexed insert by splitting an overflowing non-root index parent' => static function (TestRunner $t) use ($makeFirstPage): void {
@@ -13022,7 +13022,7 @@ SQL;
         );
 
         $insertedName = str_repeat('z', $nameLength);
-        $plan = $database->planOptionRowInsert(2, $insertedName, 'nonroot-parent-grown-value', 'yes');
+        $plan = $database->planKeyValueRowInsert(2, $insertedName, 'nonroot-parent-grown-value', 'yes');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -13037,7 +13037,7 @@ SQL;
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
         );
-        $insertedOption = $postDatabase->optionRowByIndexedAutoloadAndName('yes', $insertedName);
+        $insertedOption = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('yes', $insertedName);
 
         $t->same([1, 2, 3, 4, 11, 13, 14], array_keys($plan->pageImages()));
         $t->same(14, $plan->databasePageCount);
@@ -13075,14 +13075,14 @@ SQL;
             ['yes', str_repeat('{', $nameLength), 900],
             ['yes', str_repeat('~', $nameLength), 901],
         ], $indexRecords);
-        $t->true($insertedOption instanceof SQLiteOptionRow);
+        $t->true($insertedOption instanceof SQLiteKeyValueRow);
         $t->same(2, $insertedOption->rowId);
         $t->same($insertedName, $insertedOption->optionName);
         $t->same('nonroot-parent-grown-value', $insertedOption->optionValue);
         $t->same('yes', $insertedOption->autoload);
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowInsert(2, $insertedName, 'nonroot-parent-grown-value', 'yes', false),
+            static fn () => $database->planKeyValueRowInsert(2, $insertedName, 'nonroot-parent-grown-value', 'yes', false),
         );
     },
     'plans application wp_options replacement while freeing obsolete overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
@@ -13114,7 +13114,7 @@ SQL;
             . $largeOverflowPages[4],
         );
 
-        $plan = $database->planOptionRowReplace('obsolete_large_cache', 'small-cache-value', 'no');
+        $plan = $database->planKeyValueRowReplace('obsolete_large_cache', 'small-cache-value', 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $database->page($pageNumber);
@@ -13123,9 +13123,9 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $options = $postDatabase->optionRows();
+        $options = $postDatabase->keyValueRows();
 
-        $t->same(SQLiteOptionRowReplacementPlan::class, get_class($plan));
+        $t->same(SQLiteKeyValueRowReplacementPlan::class, get_class($plan));
         $t->same([
             'table_root_page' => 2,
             'rowid' => 2,
@@ -13140,7 +13140,7 @@ SQL;
         $t->same([3, 4], $plan->obsoleteOverflowPageNumbers);
         $t->same([3, 4], $postDatabase->freelistPageNumbers());
         $t->same([4, 3], $postDatabase->freelistAllocationOrder());
-        $t->same(['siteurl', 'obsolete_large_cache'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
+        $t->same(['siteurl', 'obsolete_large_cache'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
         $t->same('small-cache-value', $options[1]->optionValue);
         $t->same('no', $options[1]->autoload);
         $t->same(2, $options[1]->rowId);
@@ -13173,7 +13173,7 @@ SQL;
             . $largeOverflowPages[4],
         );
 
-        $plan = $database->planOptionRowReplace('obsolete_large_cache', 'small-cache-value', 'no', true, true);
+        $plan = $database->planKeyValueRowReplace('obsolete_large_cache', 'small-cache-value', 'no', true, true);
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $database->page($pageNumber);
@@ -13182,12 +13182,12 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $options = $postDatabase->optionRows();
+        $options = $postDatabase->keyValueRows();
 
         $t->same([1, 2, 3, 4], array_keys($plan->pageImages()));
         $t->same([3, 4], $postDatabase->freelistPageNumbers());
         $t->same(str_repeat("\0", $pageSize), $postDatabase->page(4));
-        $t->same(['siteurl', 'obsolete_large_cache'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
+        $t->same(['siteurl', 'obsolete_large_cache'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
         $t->same('small-cache-value', $options[1]->optionValue);
         $t->same('no', $options[1]->autoload);
         $t->same(2, $options[1]->rowId);
@@ -13218,7 +13218,7 @@ SQL;
         ], $pageSize);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
 
-        $plan = $database->planOptionRowReplace('SiteURL', 'https://fixed.example', 'no');
+        $plan = $database->planKeyValueRowReplace('SiteURL', 'https://fixed.example', 'no');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -13228,7 +13228,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedName('siteurl');
+        $option = $postDatabase->keyValueRowByIndexedName('siteurl');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -13236,7 +13236,7 @@ SQL;
 
         $t->same([2], array_keys($plan->pageImages()));
         $t->same([['SiteURL', 1]], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same('SiteURL', $option->optionName);
         $t->same('https://fixed.example', $option->optionValue);
         $t->same('no', $option->autoload);
@@ -13278,7 +13278,7 @@ SQL;
         ], $pageSize);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
 
-        $plan = $database->planOptionRowReplace('siteurl', 'https://fixed.example', 'no');
+        $plan = $database->planKeyValueRowReplace('siteurl', 'https://fixed.example', 'no');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -13288,7 +13288,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedName('siteurl');
+        $option = $postDatabase->keyValueRowByIndexedName('siteurl');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -13296,7 +13296,7 @@ SQL;
 
         $t->same([2], array_keys($plan->pageImages()));
         $t->same([['siteurl', 1]], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same('https://fixed.example', $option->optionValue);
         $t->same('no', $option->autoload);
     },
@@ -13328,7 +13328,7 @@ SQL;
         ], $pageSize);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
 
-        $plan = $database->planOptionRowReplace('siteurl', 'https://fixed.example', 'no');
+        $plan = $database->planKeyValueRowReplace('siteurl', 'https://fixed.example', 'no');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -13338,7 +13338,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', 'SITEURL');
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', 'SITEURL');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -13349,7 +13349,7 @@ SQL;
             ['no', 'siteurl', 1],
             ['no', 'cron_lock', 2],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(1, $option->rowId);
         $t->same('https://fixed.example', $option->optionValue);
         $t->same('no', $option->autoload);
@@ -13393,7 +13393,7 @@ SQL;
         ], $pageSize);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
 
-        $plan = $database->planOptionRowReplace('siteurl', 'https://fixed.example', 'no');
+        $plan = $database->planKeyValueRowReplace('siteurl', 'https://fixed.example', 'no');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -13403,7 +13403,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', 'SITEURL');
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', 'SITEURL');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -13414,7 +13414,7 @@ SQL;
             ['no', 'siteurl', 1],
             ['no', 'cron_lock', 2],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(1, $option->rowId);
         $t->same('https://fixed.example', $option->optionValue);
         $t->same('no', $option->autoload);
@@ -13461,7 +13461,7 @@ SQL;
             . $rightIndexLeafPage,
         );
 
-        $plan = $database->planOptionRowReplace('siteurl', 'https://fixed.example', 'no');
+        $plan = $database->planKeyValueRowReplace('siteurl', 'https://fixed.example', 'no');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -13473,7 +13473,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', 'siteurl');
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', 'siteurl');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -13486,7 +13486,7 @@ SQL;
             ['yes', 'home', 2],
             ['yes', 'stylesheet', 4],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(3, $option->rowId);
         $t->same('https://fixed.example', $option->optionValue);
         $t->same('no', $option->autoload);
@@ -13541,7 +13541,7 @@ SQL;
             . SQLiteIndexLeafPage::assemble($rightIndexEntries, $pageSize),
         );
 
-        $plan = $database->planOptionRowReplace($optionName, 'fixed-cache', 'no');
+        $plan = $database->planKeyValueRowReplace($optionName, 'fixed-cache', 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $database->page($pageNumber);
@@ -13550,7 +13550,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', $optionName);
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', $optionName);
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -13577,7 +13577,7 @@ SQL;
             ['yes', str_repeat('m', $nameLength), 101],
             ['yes', 'siteurl', 2],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(3, $option->rowId);
         $t->same($optionName, $option->optionName);
         $t->same('fixed-cache', $option->optionValue);
@@ -13641,7 +13641,7 @@ SQL;
             . $rightIndexLeafPage,
         );
 
-        $plan = $database->planOptionRowReplace($optionName, 'fixed-cache', 'no');
+        $plan = $database->planKeyValueRowReplace($optionName, 'fixed-cache', 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $database->page($pageNumber);
@@ -13650,7 +13650,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', $optionName);
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', $optionName);
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -13720,7 +13720,7 @@ SQL;
             ['yes', str_repeat('m', $nameLength), 101],
             ['yes', 'siteurl', 2],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(3, $option->rowId);
         $t->same($optionName, $option->optionName);
         $t->same('fixed-cache', $option->optionValue);
@@ -13804,7 +13804,7 @@ SQL;
             ], $pageSize),
         );
 
-        $plan = $database->planOptionRowReplace($optionName, 'fixed-cache', 'no');
+        $plan = $database->planKeyValueRowReplace($optionName, 'fixed-cache', 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -13815,7 +13815,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', $optionName);
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', $optionName);
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -13846,7 +13846,7 @@ SQL;
             ['yes', $name('z'), 911],
             ['yes', $name('z'), 912],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(4, $option->rowId);
         $t->same($optionName, $option->optionName);
         $t->same('fixed-cache', $option->optionValue);
@@ -13922,7 +13922,7 @@ SQL;
             ], $pageSize),
         );
 
-        $plan = $database->planOptionRowReplace($optionName, 'fixed-cache', 'no');
+        $plan = $database->planKeyValueRowReplace($optionName, 'fixed-cache', 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -13933,7 +13933,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', $optionName);
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', $optionName);
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -14021,7 +14021,7 @@ SQL;
             ['yes', $name('z'), 911],
             ['yes', $name('z'), 912],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(4, $option->rowId);
         $t->same($optionName, $option->optionName);
         $t->same('fixed-cache', $option->optionValue);
@@ -14108,7 +14108,7 @@ SQL;
             ], $pageSize),
         );
 
-        $plan = $database->planOptionRowReplace($optionName, 'fixed-cache', 'no');
+        $plan = $database->planKeyValueRowReplace($optionName, 'fixed-cache', 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -14119,7 +14119,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', $optionName);
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', $optionName);
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -14236,7 +14236,7 @@ SQL;
             ['yes', $name('~'), 961],
             ['yes', $name('~'), 962],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(4, $option->rowId);
         $t->same($optionName, $option->optionName);
         $t->same('fixed-cache', $option->optionValue);
@@ -14293,7 +14293,7 @@ SQL;
             . $rightIndexLeafPage,
         );
 
-        $plan = $database->planOptionRowReplace('siteurl', 'https://fixed.example', 'no');
+        $plan = $database->planKeyValueRowReplace('siteurl', 'https://fixed.example', 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -14304,7 +14304,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', 'siteurl');
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', 'siteurl');
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -14321,7 +14321,7 @@ SQL;
             ['no', 'siteurl', 2],
             ['yes', 'home', 3],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(2, $option->rowId);
         $t->same('https://fixed.example', $option->optionValue);
         $t->same('no', $option->autoload);
@@ -14382,7 +14382,7 @@ SQL;
             . $rightIndexLeafPage,
         );
 
-        $plan = $database->planOptionRowReplace($optionName, 'fixed-cache', 'no');
+        $plan = $database->planKeyValueRowReplace($optionName, 'fixed-cache', 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -14393,7 +14393,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', $optionName);
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', $optionName);
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -14416,14 +14416,14 @@ SQL;
             ['yes', 'home', 2],
             ['yes', 'stylesheet', 4],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(3, $option->rowId);
         $t->same($optionName, $option->optionName);
         $t->same('fixed-cache', $option->optionValue);
         $t->same('no', $option->autoload);
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowReplace($optionName, 'fixed-cache', 'no', false),
+            static fn () => $database->planKeyValueRowReplace($optionName, 'fixed-cache', 'no', false),
         );
     },
     'plans application replacement by splitting a composite index leaf and growing a full root interior' => static function (TestRunner $t) use ($makeFirstPage): void {
@@ -14487,7 +14487,7 @@ SQL;
             . SQLiteIndexLeafPage::assemble($rightIndexEntries, $pageSize),
         );
 
-        $plan = $database->planOptionRowReplace($optionName, 'fixed-cache', 'no');
+        $plan = $database->planKeyValueRowReplace($optionName, 'fixed-cache', 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -14498,7 +14498,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $option = $postDatabase->optionRowByIndexedAutoloadAndName('no', $optionName);
+        $option = $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', $optionName);
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
@@ -14540,7 +14540,7 @@ SQL;
             ['yes', str_repeat('u', $nameLength), 203],
             ['yes', str_repeat('v', $nameLength), 204],
         ], $indexRecords);
-        $t->true($option instanceof SQLiteOptionRow);
+        $t->true($option instanceof SQLiteKeyValueRow);
         $t->same(2, $option->rowId);
         $t->same($optionName, $option->optionName);
         $t->same('fixed-cache', $option->optionValue);
@@ -14558,7 +14558,7 @@ SQL;
         ], $plan->toArray());
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowReplace($optionName, 'fixed-cache', 'no', false),
+            static fn () => $database->planKeyValueRowReplace($optionName, 'fixed-cache', 'no', false),
         );
     },
     'plans application replacement inside a multi-page table btree leaf' => static function (TestRunner $t) use ($makeFirstPage, $tableInteriorPage): void {
@@ -14588,7 +14588,7 @@ SQL;
             . $rightTableLeafPage,
         );
 
-        $plan = $database->planOptionRowReplace('blogname', 'Fixed Site', 'no');
+        $plan = $database->planKeyValueRowReplace('blogname', 'Fixed Site', 'no');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -14599,14 +14599,14 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $options = $postDatabase->optionRows();
+        $options = $postDatabase->keyValueRows();
 
         $t->same([4], array_keys($plan->pageImages()));
         $t->same(2, $plan->tableRootPage);
         $t->same(3, $plan->rowId);
         $t->same('table-interior', $postDatabase->pageHeader(2)->pageType);
         $t->same($database->page(2), $postDatabase->page(2));
-        $t->same(['siteurl', 'home', 'blogname', 'template'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
+        $t->same(['siteurl', 'home', 'blogname', 'template'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
         $t->same('Fixed Site', $options[2]->optionValue);
         $t->same('no', $options[2]->autoload);
         $t->same([
@@ -14632,7 +14632,7 @@ SQL;
         );
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $duplicateDatabase->planOptionRowReplace('home', 'fixed', 'no'),
+            static fn () => $duplicateDatabase->planKeyValueRowReplace('home', 'fixed', 'no'),
         );
     },
     'plans application replacement by splitting a table leaf below an interior root' => static function (TestRunner $t) use ($makeFirstPage, $tableInteriorPage): void {
@@ -14663,7 +14663,7 @@ SQL;
         );
 
         $replacementValue = str_repeat('expanded-cache-', 28);
-        $plan = $database->planOptionRowReplace('blogname', $replacementValue, 'no');
+        $plan = $database->planKeyValueRowReplace('blogname', $replacementValue, 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -14674,7 +14674,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $options = $postDatabase->optionRows();
+        $options = $postDatabase->keyValueRows();
         $parentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(2), $postDatabase->pageHeader(2));
         $oldLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(3), $postDatabase->pageHeader(3), $pageSize);
         $newLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(5), $postDatabase->pageHeader(5), $pageSize);
@@ -14691,7 +14691,7 @@ SQL;
         $t->same([1, 3], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $parentCells));
         $t->same([1], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $oldLeafCells));
         $t->same([2, 3], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $newLeafCells));
-        $t->same(['siteurl', 'blogname', '_transient_migration_lock', 'template'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
+        $t->same(['siteurl', 'blogname', '_transient_migration_lock', 'template'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
         $t->same($replacementValue, $options[1]->optionValue);
         $t->same('no', $options[1]->autoload);
         $t->same([
@@ -14708,7 +14708,7 @@ SQL;
 
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowReplace('blogname', $replacementValue, 'no', false),
+            static fn () => $database->planKeyValueRowReplace('blogname', $replacementValue, 'no', false),
         );
     },
     'plans application replacement by splitting a table leaf below a non-root interior parent' => static function (TestRunner $t) use ($makeFirstPage, $tableInteriorPage): void {
@@ -14745,7 +14745,7 @@ SQL;
         );
 
         $replacementValue = str_repeat('x', 450);
-        $plan = $database->planOptionRowReplace('blogname', $replacementValue, 'no');
+        $plan = $database->planKeyValueRowReplace('blogname', $replacementValue, 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -14756,7 +14756,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $options = $postDatabase->optionRows();
+        $options = $postDatabase->keyValueRows();
         $rootCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(2), $postDatabase->pageHeader(2));
         $lowerCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(3), $postDatabase->pageHeader(3));
         $oldLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(5), $postDatabase->pageHeader(5), $pageSize);
@@ -14775,7 +14775,7 @@ SQL;
         $t->same(7, $postDatabase->pageHeader(3)->rightMostPointer);
         $t->same([3], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $oldLeafCells));
         $t->same([4], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $newLeafCells));
-        $t->same(['siteurl', 'home', 'blogname', '_transient_migration_lock', 'template'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
+        $t->same(['siteurl', 'home', 'blogname', '_transient_migration_lock', 'template'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
         $t->same($replacementValue, $options[2]->optionValue);
         $t->same('no', $options[2]->autoload);
         $t->same([
@@ -14834,7 +14834,7 @@ SQL;
 
         $database = SQLiteDatabase::fromBytes($schemaPage . $tableRootPage . $lowerInteriorPage . implode('', $leafPages));
         $replacementValue = str_repeat('x', 450);
-        $plan = $database->planOptionRowReplace('blogname', $replacementValue, 'no');
+        $plan = $database->planKeyValueRowReplace('blogname', $replacementValue, 'no');
 
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
@@ -14851,7 +14851,7 @@ SQL;
         $rightParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(40), $postDatabase->pageHeader(40));
         $oldLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(37), $postDatabase->pageHeader(37), $pageSize);
         $newLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(39), $postDatabase->pageHeader(39), $pageSize);
-        $targetOptions = $postDatabase->optionRowsByRowIdRange($targetRowId, $targetRowId, 1, true);
+        $targetOptions = $postDatabase->keyValueRowsByRowIdRange($targetRowId, $targetRowId, 1, true);
 
         $t->same([1, 2, 3, 37, 39, 40], array_keys($plan->pageImages()));
         $t->same(40, $plan->databasePageCount);
@@ -14922,7 +14922,7 @@ SQL;
 
         $database = SQLiteDatabase::fromBytes($schemaPage . $tableRootPage . implode('', $leafPages));
         $replacementValue = str_repeat('root-parent-split-', 24);
-        $plan = $database->planOptionRowReplace('blogname', $replacementValue, 'no');
+        $plan = $database->planKeyValueRowReplace('blogname', $replacementValue, 'no');
 
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
@@ -14939,7 +14939,7 @@ SQL;
         $rightParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(39), $postDatabase->pageHeader(39));
         $oldLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(36), $postDatabase->pageHeader(36), $pageSize);
         $newLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(37), $postDatabase->pageHeader(37), $pageSize);
-        $targetOptions = $postDatabase->optionRowsByRowIdRange($targetRowId, $targetRowId, 1, true);
+        $targetOptions = $postDatabase->keyValueRowsByRowIdRange($targetRowId, $targetRowId, 1, true);
 
         $t->same([1, 2, 36, 37, 38, 39], array_keys($plan->pageImages()));
         $t->same(39, $plan->databasePageCount);
@@ -14993,7 +14993,7 @@ SQL;
         $database = SQLiteDatabase::fromBytes($schemaPage . $tableRootLeafPage);
 
         $replacementValue = str_repeat('expanded-cache-', 28);
-        $plan = $database->planOptionRowReplace('blogname', $replacementValue, 'no');
+        $plan = $database->planKeyValueRowReplace('blogname', $replacementValue, 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -15004,7 +15004,7 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $options = $postDatabase->optionRows();
+        $options = $postDatabase->keyValueRows();
         $rootCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(2), $postDatabase->pageHeader(2));
         $leftLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(3), $postDatabase->pageHeader(3), $pageSize);
         $rightLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(4), $postDatabase->pageHeader(4), $pageSize);
@@ -15021,7 +15021,7 @@ SQL;
         $t->same([1], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $rootCells));
         $t->same([1], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $leftLeafCells));
         $t->same([2, 3], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $rightLeafCells));
-        $t->same(['siteurl', 'blogname', '_transient_migration_lock'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
+        $t->same(['siteurl', 'blogname', '_transient_migration_lock'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
         $t->same($replacementValue, $options[1]->optionValue);
         $t->same('no', $options[1]->autoload);
         $t->same([
@@ -15038,7 +15038,7 @@ SQL;
 
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowReplace('blogname', $replacementValue, 'no', false),
+            static fn () => $database->planKeyValueRowReplace('blogname', $replacementValue, 'no', false),
         );
     },
     'plans auto-vacuum pointer-map entries for table-root split btree children' => static function (TestRunner $t) use ($makeFirstPage): void {
@@ -15068,7 +15068,7 @@ SQL;
         $database = SQLiteDatabase::fromBytes($schemaPage . $pointerMapPage . $tableRootLeafPage);
 
         $replacementValue = str_repeat('expanded-cache-', 28);
-        $plan = $database->planOptionRowReplace('blogname', $replacementValue, 'no');
+        $plan = $database->planKeyValueRowReplace('blogname', $replacementValue, 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -15120,7 +15120,7 @@ SQL;
             2 + SQLiteOverflowPage::requiredPageCount(strlen($overflowPayload), $pageSize),
         );
 
-        $plan = $database->planOptionRowReplace('theme_mods_twentyfive', $largeValue, 'yes');
+        $plan = $database->planKeyValueRowReplace('theme_mods_twentyfive', $largeValue, 'yes');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -15180,7 +15180,7 @@ SQL;
             4 + SQLiteOverflowPage::requiredPageCount(strlen($newOverflowPayload), $pageSize),
         );
 
-        $plan = $database->planOptionRowReplace('rewrite_large_cache', $newValue, 'no');
+        $plan = $database->planKeyValueRowReplace('rewrite_large_cache', $newValue, 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount() ? $database->page($pageNumber) : $emptyPage;
@@ -15203,7 +15203,7 @@ SQL;
 
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowReplace('rewrite_large_cache', $newValue, 'no', false),
+            static fn () => $database->planKeyValueRowReplace('rewrite_large_cache', $newValue, 'no', false),
         );
     },
     'plans auto-vacuum pointer-map entries for replacement-created application overflow chains' => static function (TestRunner $t) use ($makeFirstPage): void {
@@ -15262,7 +15262,7 @@ SQL;
             5 + SQLiteOverflowPage::requiredPageCount(strlen($newOverflowPayload), $pageSize),
         );
 
-        $plan = $database->planOptionRowReplace('theme_mods_twentyfive', $newValue, 'no');
+        $plan = $database->planKeyValueRowReplace('theme_mods_twentyfive', $newValue, 'no');
         $postPages = [];
         for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
             $postPages[$pageNumber] = $pageNumber <= $database->pageCount() ? $database->page($pageNumber) : $emptyPage;
@@ -15308,10 +15308,10 @@ SQL;
         ]);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage);
 
-        $t->throws(InvalidArgumentException::class, static fn () => $database->planOptionRowReplace('home', 'https://example.test/blog'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->planKeyValueRowReplace('home', 'https://example.test/blog'));
         $t->throws(
             InvalidArgumentException::class,
-            static fn () => $database->planOptionRowReplace('siteurl', str_repeat('too-large:', 80), null, false),
+            static fn () => $database->planKeyValueRowReplace('siteurl', str_repeat('too-large:', 80), null, false),
         );
 
         $duplicateTablePage = SQLiteTableLeafPage::assemble([
@@ -15319,7 +15319,7 @@ SQL;
             SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'siteurl', 'https://duplicate.example', 'no'])),
         ]);
         $duplicateDatabase = SQLiteDatabase::fromBytes($schemaPage . $duplicateTablePage);
-        $t->throws(InvalidArgumentException::class, static fn () => $duplicateDatabase->planOptionRowReplace('siteurl', 'https://fixed.example'));
+        $t->throws(InvalidArgumentException::class, static fn () => $duplicateDatabase->planKeyValueRowReplace('siteurl', 'https://fixed.example'));
 
         $indexedSchemaPage = SQLiteTableLeafPage::assemble([
             SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
@@ -15339,7 +15339,7 @@ SQL;
         ], 512, 100, $makeFirstPage(512, 3));
         $indexedDatabase = SQLiteDatabase::fromBytes($indexedSchemaPage . $tablePage . SQLiteIndexLeafPage::assemble([]));
 
-        $t->throws(InvalidArgumentException::class, static fn () => $indexedDatabase->planOptionRowReplace('siteurl', 'https://fixed.example'));
+        $t->throws(InvalidArgumentException::class, static fn () => $indexedDatabase->planKeyValueRowReplace('siteurl', 'https://fixed.example'));
 
         $unsafePartialSchemaPage = SQLiteTableLeafPage::assemble([
             SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
@@ -15361,7 +15361,7 @@ SQL;
             SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1])),
         ]));
 
-        $t->throws(InvalidArgumentException::class, static fn () => $unsafePartialDatabase->planOptionRowReplace('siteurl', 'https://fixed.example'));
+        $t->throws(InvalidArgumentException::class, static fn () => $unsafePartialDatabase->planKeyValueRowReplace('siteurl', 'https://fixed.example'));
     },
     'rejects bounded application insert plans that would leave indexes or duplicate rows stale' => static function (TestRunner $t) use ($makeFirstPage): void {
         $schemaPage = SQLiteTableLeafPage::assemble([
@@ -15378,8 +15378,8 @@ SQL;
         ]);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage);
 
-        $t->throws(InvalidArgumentException::class, static fn () => $database->planOptionRowInsert(1, 'home', 'https://example.test/blog'));
-        $t->throws(InvalidArgumentException::class, static fn () => $database->planOptionRowInsert(2, 'siteurl', 'https://duplicate.example'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->planKeyValueRowInsert(1, 'home', 'https://example.test/blog'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->planKeyValueRowInsert(2, 'siteurl', 'https://duplicate.example'));
 
         $indexedSchemaPage = SQLiteTableLeafPage::assemble([
             SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
@@ -15399,7 +15399,7 @@ SQL;
         ], 512, 100, $makeFirstPage(512, 3));
         $indexedDatabase = SQLiteDatabase::fromBytes($indexedSchemaPage . $tablePage . SQLiteIndexLeafPage::assemble([]));
 
-        $t->throws(InvalidArgumentException::class, static fn () => $indexedDatabase->planOptionRowInsert(2, 'home', 'https://example.test/blog'));
+        $t->throws(InvalidArgumentException::class, static fn () => $indexedDatabase->planKeyValueRowInsert(2, 'home', 'https://example.test/blog'));
 
         $unsafePartialSchemaPage = SQLiteTableLeafPage::assemble([
             SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
@@ -15419,7 +15419,7 @@ SQL;
         ], 512, 100, $makeFirstPage(512, 3));
         $unsafePartialDatabase = SQLiteDatabase::fromBytes($unsafePartialSchemaPage . $tablePage . SQLiteIndexLeafPage::assemble([]));
 
-        $t->throws(InvalidArgumentException::class, static fn () => $unsafePartialDatabase->planOptionRowInsert(2, 'home', 'https://example.test/blog'));
+        $t->throws(InvalidArgumentException::class, static fn () => $unsafePartialDatabase->planKeyValueRowInsert(2, 'home', 'https://example.test/blog'));
 
         $rootOneSchemaPage = SQLiteTableLeafPage::assemble([
             SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
@@ -15432,7 +15432,7 @@ SQL;
         ], 512, 100, $makeFirstPage(512, 1));
         $rootOneDatabase = SQLiteDatabase::fromBytes($rootOneSchemaPage);
 
-        $t->throws(InvalidArgumentException::class, static fn () => $rootOneDatabase->planOptionRowInsert(2, 'home', 'https://example.test/blog'));
+        $t->throws(InvalidArgumentException::class, static fn () => $rootOneDatabase->planKeyValueRowInsert(2, 'home', 'https://example.test/blog'));
     },
     'plans application insert or replace by deleting current unique conflicts before insert' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
@@ -15464,7 +15464,7 @@ SQL;
         ], $pageSize);
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
 
-        $plan = $database->planOptionRowInsertOrReplaceCurrent(7, 'home', 'https://example.test/replaced-home', 'no');
+        $plan = $database->planKeyValueRowInsertOrReplaceCurrent(7, 'home', 'https://example.test/replaced-home', 'no');
         $postPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -15474,14 +15474,14 @@ SQL;
             $postPages[$pageNumber] = $page;
         }
         $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-        $options = $postDatabase->optionRows();
+        $options = $postDatabase->keyValueRows();
         $indexRecords = array_map(
             static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
             $postDatabase->indexCells(3),
         );
-        $indexedHome = $postDatabase->optionRowByIndexedName('home');
+        $indexedHome = $postDatabase->keyValueRowByIndexedName('home');
 
-        $t->same(SQLiteOptionRowInsertOrReplacePlan::class, get_class($plan));
+        $t->same(SQLiteKeyValueRowInsertOrReplacePlan::class, get_class($plan));
         $t->same([2], $plan->deletedRowIds);
         $t->same(['home'], $plan->deletedOptionNames);
         $t->same([2, 3], array_keys($plan->pageImages()));
@@ -15498,21 +15498,21 @@ SQL;
             'deleted_option_names' => ['home'],
             'change_count' => 2,
         ], $plan->toArray());
-        $t->same([1, 3, 7], array_map(static fn (SQLiteOptionRow $option): int => $option->rowId, $options));
-        $t->same(['siteurl', 'blogname', 'home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options));
-        $t->same(['https://example.test', 'Old Site', 'https://example.test/replaced-home'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionValue, $options));
-        $t->same(['yes', 'no', 'no'], array_map(static fn (SQLiteOptionRow $option): ?string => $option->autoload, $options));
+        $t->same([1, 3, 7], array_map(static fn (SQLiteKeyValueRow $option): int => $option->rowId, $options));
+        $t->same(['siteurl', 'blogname', 'home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options));
+        $t->same(['https://example.test', 'Old Site', 'https://example.test/replaced-home'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionValue, $options));
+        $t->same(['yes', 'no', 'no'], array_map(static fn (SQLiteKeyValueRow $option): ?string => $option->autoload, $options));
         $t->same([
             ['blogname', 3],
             ['home', 7],
             ['siteurl', 1],
         ], $indexRecords);
-        $t->true($indexedHome instanceof SQLiteOptionRow);
+        $t->true($indexedHome instanceof SQLiteKeyValueRow);
         $t->same(7, $indexedHome?->rowId);
         $t->same('https://example.test/replaced-home', $indexedHome?->optionValue);
         $t->same('no', $indexedHome?->autoload);
 
-        $rowidAndNameConflictPlan = $database->planOptionRowInsertOrReplaceCurrent(1, 'home', 'https://merged.example', 'yes');
+        $rowidAndNameConflictPlan = $database->planKeyValueRowInsertOrReplaceCurrent(1, 'home', 'https://merged.example', 'yes');
         $rowidConflictPages = [
             1 => $database->page(1),
             2 => $database->page(2),
@@ -15525,14 +15525,14 @@ SQL;
         $t->same([1, 2], $rowidAndNameConflictPlan->deletedRowIds);
         $t->same(['siteurl', 'home'], $rowidAndNameConflictPlan->deletedOptionNames);
         $t->same(3, $rowidAndNameConflictPlan->toArray()['change_count']);
-        $t->same([1, 3], array_map(static fn (SQLiteOptionRow $option): int => $option->rowId, $rowidConflictDatabase->optionRows()));
-        $t->same(['home', 'blogname'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $rowidConflictDatabase->optionRows()));
+        $t->same([1, 3], array_map(static fn (SQLiteKeyValueRow $option): int => $option->rowId, $rowidConflictDatabase->keyValueRows()));
+        $t->same(['home', 'blogname'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $rowidConflictDatabase->keyValueRows()));
         $t->same([
             ['blogname', 3],
             ['home', 1],
         ], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $rowidConflictDatabase->indexCells(3)));
 
-        $freshPlan = $database->planOptionRowInsertOrReplaceCurrent(4, 'stylesheet', 'twentytwentyfive', 'yes');
+        $freshPlan = $database->planKeyValueRowInsertOrReplaceCurrent(4, 'stylesheet', 'twentytwentyfive', 'yes');
         $t->same([], $freshPlan->deletedRowIds);
         $t->same([], $freshPlan->deletedOptionNames);
         $t->same(1, $freshPlan->toArray()['change_count']);

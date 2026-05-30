@@ -46,7 +46,7 @@ while (!$cursor->eof()) {
         'excludedOptionIds' => $yield['excludedRowids'],
         'filteredOptionIds' => $yield['filteredRowids'],
         'filteredBytes' => $yield['sum'],
-        'nextOptionId' => $yield['nextRowid'],
+        'nextKeyValueId' => $yield['nextRowid'],
     ];
     $cursor->next();
 }

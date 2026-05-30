@@ -70,7 +70,7 @@ $database = SQLiteDatabase::fromBytes(
 );
 
 $replacementValue = $argv[1] ?? 'https://fixed.example';
-$plan = $database->planOptionRowReplace('siteurl', $replacementValue, 'no');
+$plan = $database->planKeyValueRowReplace('siteurl', $replacementValue, 'no');
 
 $pages = [
     1 => $database->page(1),
@@ -95,5 +95,5 @@ echo json_encode([
     'updatedPageNumbers' => array_keys($plan->pageImages()),
     'indexRootPageType' => $postDatabase->pageHeader(3)->pageType,
     'compositeIndexRecords' => $indexRecords,
-    'indexedSiteurlOption' => $postDatabase->optionRowByIndexedAutoloadAndName('no', 'siteurl')?->toArray(),
+    'indexedSiteurlOption' => $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', 'siteurl')?->toArray(),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

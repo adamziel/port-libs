@@ -20,7 +20,7 @@ final class SQLiteJsonImportWalSavepointPlan
         $changedRows = self::changedRowsForWalImport($jsonPlan['current_rows'], $jsonPlan['released_rows']);
         $walImport = $changedRows === []
             ? null
-            : SQLiteOptionRowsWalImportPlan::currentNext(
+            : SQLiteKeyValueRowsWalImportPlan::currentNext(
                 $wal,
                 $databaseBytes,
                 $databasePath,

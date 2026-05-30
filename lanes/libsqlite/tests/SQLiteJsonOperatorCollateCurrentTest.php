@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 $path = static function (string $expression, string $operator = 'text'): ?string {
     $sql = 'CREATE INDEX fixture ON wp_options(' . $expression . ') WHERE option_value IS NOT NULL';
@@ -172,7 +172,7 @@ return [
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . SQLiteIndexLeafPage::assemble([$indexCell(['hit', 1])], $pageSize));
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.cache', 'hit'));
-        $t->same(['plugin_cache_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$.cache', 'hit')));
+        $t->same(['plugin_cache_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $database->keyValueRowsByIndexedJsonValue('$.cache', 'hit')));
     },
     'uses application json text operator index with collated RHS dotted label' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $indexCell, $pageSize): void {
         $schemaPage = SQLiteTableLeafPage::assemble([
@@ -185,6 +185,6 @@ return [
         $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . SQLiteIndexLeafPage::assemble([$indexCell(['yes', 1])], $pageSize));
 
         $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."plugin.enabled"', 'yes'));
-        $t->same(['plugin_enabled_settings'], array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $database->optionRowsByIndexedJsonOptionValue('$."plugin.enabled"', 'yes')));
+        $t->same(['plugin_enabled_settings'], array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $database->keyValueRowsByIndexedJsonValue('$."plugin.enabled"', 'yes')));
     },
 ];

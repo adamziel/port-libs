@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteNetworkJsonWalSavepointPlan;
+use PortLibs\LibSqlite\SQLiteTenantJsonWalSavepointPlan;
 
 $sites = [
     [
@@ -42,7 +42,7 @@ $sites = [
     ],
 ];
 
-$plan = SQLiteNetworkJsonWalSavepointPlan::plan($sites, [
+$plan = SQLiteTenantJsonWalSavepointPlan::plan($sites, [
     'database_path' => '/tmp/wp-network-json-current-next47.sqlite',
     'page_size' => 1024,
     'global_json_imports' => [

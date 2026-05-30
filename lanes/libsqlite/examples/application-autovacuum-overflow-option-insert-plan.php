@@ -47,7 +47,7 @@ $wpOptionsPage = SQLiteTableLeafPage::assemble([
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $pointerMapPage . $wpOptionsPage);
 $largeThemeMods = str_repeat('serialized-theme-mod-fragment:', 64) . 'done';
-$plan = $database->planOptionRowInsert(2, 'theme_mods_twentyfive', $largeThemeMods, 'yes');
+$plan = $database->planKeyValueRowInsert(2, 'theme_mods_twentyfive', $largeThemeMods, 'yes');
 
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {

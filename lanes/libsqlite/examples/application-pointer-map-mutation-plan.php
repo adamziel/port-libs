@@ -98,6 +98,6 @@ echo json_encode([
     'pointerMapEntryForFreedPage' => $postDatabase->pointerMapEntryForPage(6)->toArray(),
     'wpOptions' => array_map(
         static fn ($option): array => $option->toArray(),
-        $postDatabase->optionRows(),
+        $postDatabase->keyValueRows(),
     ),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

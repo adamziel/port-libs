@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -49,7 +49,7 @@ if (!isset($collations[$collationName])) {
 }
 
 $database = SQLiteDatabase::fromFile($databasePath);
-$options = $database->optionRowsByIndexedNameRangeWithCollation(
+$options = $database->keyValueRowsByIndexedNameRangeWithCollation(
     $lowerInclusive,
     $upperBound,
     $collationName,
@@ -65,7 +65,7 @@ echo json_encode([
     'upperInclusive' => $upperInclusive,
     'collationName' => $collationName,
     'options' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
         $options,
     ),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

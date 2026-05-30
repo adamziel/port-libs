@@ -10,7 +10,7 @@ use PortLibs\LibSqlite\SQLiteJsonPath;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -85,7 +85,7 @@ $database = SQLiteDatabase::fromBytes(
     . SQLiteIndexLeafPage::assemble([$indexCell(['bad-extract', 1])], $pageSize),
 );
 
-$matches = $database->optionRowsByIndexedJsonOptionValue('$.""', 'empty-label');
+$matches = $database->keyValueRowsByIndexedJsonValue('$.""', 'empty-label');
 
 echo json_encode([
     'applicationUse' => 'Preflight copied wp_options JSON expression indexes and skip malformed SQLite JSON paths before trusting root pages.',
@@ -104,5 +104,5 @@ echo json_encode([
         'emptyQuotedLabel' => $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.""', 'empty-label'),
         'malformedPluginPathSkipped' => $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.plugin', 'bad'),
     ],
-    'matches' => array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $matches),
+    'matches' => array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $matches),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

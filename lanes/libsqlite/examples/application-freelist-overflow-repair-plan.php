@@ -89,7 +89,7 @@ foreach ($overflowPages as $pageNumber => $page) {
 }
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-$option = $postDatabase->optionRows()[0] ?? null;
+$option = $postDatabase->keyValueRows()[0] ?? null;
 
 echo json_encode([
     'applicationUse' => 'Inspect SQLite freelist trunk metadata, choose reusable pages for a large wp_options value, update the freelist metadata, and parse the repaired image without the SQLite extension.',

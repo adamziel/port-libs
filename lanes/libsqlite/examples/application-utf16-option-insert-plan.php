@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
 use PortLibs\LibSqlite\SQLiteVarint;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -41,7 +41,7 @@ $tablePage = SQLiteTableLeafPage::assemble([
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage);
 $optionValue = $argv[1] ?? 'Ported ' . "\u{1234}" . ' option';
-$plan = $database->planOptionRowInsert(2, 'blogdescription', $optionValue, 'yes');
+$plan = $database->planKeyValueRowInsert(2, 'blogdescription', $optionValue, 'yes');
 
 $pages = [
     1 => $database->page(1),
@@ -53,8 +53,8 @@ foreach ($plan->pageImages() as $pageNumber => $page) {
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $postDatabase->optionRows(),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $postDatabase->keyValueRows(),
 );
 $malformedUtf16Rejected = false;
 try {

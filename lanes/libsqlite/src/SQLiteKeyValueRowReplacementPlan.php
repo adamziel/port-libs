@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteOptionRowReplacementPlan
+final class SQLiteKeyValueRowReplacementPlan
 {
     /**
      * @param list<int> $overflowPageNumbers

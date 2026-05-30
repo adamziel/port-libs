@@ -34,7 +34,7 @@ $nextRows = [
     $scalar(104, 1, 'integer'),
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationAutoloadValuePlan($currentRows, $nextRows);
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::applicationLoadPolicyValuePlan($currentRows, $nextRows);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentMatchedRowids'] === [101, 102]);

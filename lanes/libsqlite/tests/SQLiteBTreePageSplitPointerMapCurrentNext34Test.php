@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteTableInteriorCell;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
 use PortLibs\LibSqlite\SQLiteTableRow;
-use PortLibs\LibSqlite\SQLiteOptionRowReplacementPlan;
+use PortLibs\LibSqlite\SQLiteKeyValueRowReplacementPlan;
 
 $makeFirstPage = static function (int $pageSize = 512, int $databaseSizePages = 3): string {
     $page = str_repeat("\0", $pageSize);
@@ -51,7 +51,7 @@ $buildRootSplitFixture = static function (string $replacementValue, string $auto
         SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, '_transient_migration_lock', 'old-lock', 'no'])),
     ], $pageSize);
     $database = SQLiteDatabase::fromBytes($schemaPage . $pointerMapPage . $rootLeafPage);
-    $plan = $database->planOptionRowReplace('blogname', $replacementValue, $autoload);
+    $plan = $database->planKeyValueRowReplace('blogname', $replacementValue, $autoload);
     $postPages = [];
     for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
         $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
@@ -69,7 +69,7 @@ $buildRootSplitFixture = static function (string $replacementValue, string $auto
 $assertRootSplitPointerMap = static function (
     TestRunner $t,
     SQLiteDatabase $database,
-    SQLiteOptionRowReplacementPlan $plan,
+    SQLiteKeyValueRowReplacementPlan $plan,
     SQLiteDatabase $postDatabase,
     string $replacementValue,
     string $autoload,
@@ -83,7 +83,7 @@ $assertRootSplitPointerMap = static function (
     $option = $postDatabase->tableRowByRowIdByName('wp_options', 2);
     $summary = $plan->toArray();
 
-    $t->same(SQLiteOptionRowReplacementPlan::class, get_class($plan));
+    $t->same(SQLiteKeyValueRowReplacementPlan::class, get_class($plan));
     $t->same([1, 2, 3, 4, 5], array_keys($plan->pageImages()));
     $t->same(5, $plan->databasePageCount);
     $t->same(3, $plan->tableRootPage);

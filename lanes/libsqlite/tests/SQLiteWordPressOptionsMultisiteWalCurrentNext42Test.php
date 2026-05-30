@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteMultisiteOptionsWalPlan;
+use PortLibs\LibSqlite\SQLiteTenantKeyValueWalPlan;
 
 $tests = [];
 
@@ -58,7 +58,7 @@ $importRows = static fn (): array => [
     ['scope' => 'blog', 'blog_id' => 3, 'option_name' => 'siteurl', 'option_value' => 'https://new.example/site-three', 'autoload' => 'yes'],
     ['scope' => 'network', 'option_name' => 'registration', 'option_value' => 'none', 'autoload' => 'no'],
 ];
-$plan = static fn (): array => SQLiteMultisiteOptionsWalPlan::currentNext(
+$plan = static fn (): array => SQLiteTenantKeyValueWalPlan::currentNext(
     $baseWal(),
     $databaseBytes,
     $databasePath,
@@ -160,7 +160,7 @@ $tests['application options multisite wal current next42 applies append through 
     }
     file_put_contents($localWal, $baseWalBytes());
 
-    $plan = SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), range(2, 12));
+    $plan = SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), range(2, 12));
     $plannedWal = SQLiteWal::parse($plan['append']['wal_bytes'], null, true);
     $applied = (new SQLiteVfsFileWriter($root))->applyWalAppendTransactions($baseWal(), $databasePath, [[
         'pages' => array_combine(
@@ -180,14 +180,14 @@ $tests['application options multisite wal current next42 applies append through 
 };
 
 $tests['application options multisite wal current next42 rejects bad inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'blog', 'blog_id' => 0, 'option_id' => 1, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'network', 'option_id' => 0, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'user', 'option_name' => 'bad', 'option_value' => 'x']], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'blog', 'blog_id' => 2, 'option_name' => '', 'option_value' => 'x']], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteMultisiteOptionsWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'blog', 'blog_id' => 0, 'option_id' => 1, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['scope' => 'network', 'option_id' => 0, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'user', 'option_name' => 'bad', 'option_value' => 'x']], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['scope' => 'blog', 'blog_id' => 2, 'option_name' => '', 'option_value' => 'x']], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteTenantKeyValueWalPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
 };
 
 return $tests;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteOptionRow
+final class SQLiteKeyValueRow
 {
     public function __construct(
         public readonly int $optionId,

@@ -10,7 +10,7 @@ use PortLibs\LibSqlite\SQLiteTableLeafPage;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFileWritePlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -247,8 +247,8 @@ echo json_encode([
         $database->schemaRecords(),
     ),
     'options' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
-        $database->optionRows(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+        $database->keyValueRows(),
     ),
     'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
     'applicationUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible Application option writes at pinned snapshot end frames, WAL-index read-mark checkpoint pins, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, durable preserve/restart/truncate sidecar bytes, corrupt WAL checksum recovery boundaries, ordered VFS file-write/sync/truncate plans, and current reader visibility before/after checkpoint application while preserving uncommitted WAL tail frames.',

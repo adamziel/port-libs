@@ -71,7 +71,7 @@ $database = SQLiteDatabase::fromBytes(
 );
 
 $newThemeMods = $argv[1] ?? str_repeat('new-theme-mod-fragment:', 86) . 'done';
-$plan = $database->planOptionRowReplace('theme_mods_twentyfive', $newThemeMods, 'no');
+$plan = $database->planKeyValueRowReplace('theme_mods_twentyfive', $newThemeMods, 'no');
 
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {

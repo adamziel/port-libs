@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteTableInteriorCell;
 use PortLibs\LibSqlite\SQLiteTableInteriorPage;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -65,7 +65,7 @@ $database = SQLiteDatabase::fromBytes(
     . $rightTableLeafPage,
 );
 
-$plan = $database->planOptionRowReplace($optionName, $replacementValue, 'no');
+$plan = $database->planKeyValueRowReplace($optionName, $replacementValue, 'no');
 
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
@@ -79,8 +79,8 @@ foreach ($plan->pageImages() as $pageNumber => $page) {
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $postDatabase->optionRows(),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $postDatabase->keyValueRows(),
 );
 $rootCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(2), $postDatabase->pageHeader(2));
 $lowerParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(3), $postDatabase->pageHeader(3));

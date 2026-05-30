@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteMultisiteImportSavepointPlan;
+use PortLibs\LibSqlite\SQLiteTenantImportSavepointPlan;
 
-$plan = SQLiteMultisiteImportSavepointPlan::plan([
+$plan = SQLiteTenantImportSavepointPlan::plan([
     [
         'blog_id' => 1,
         'current_rows' => [

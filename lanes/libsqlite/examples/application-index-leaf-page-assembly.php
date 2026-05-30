@@ -61,7 +61,7 @@ $indexPage = SQLiteIndexLeafPage::assemble([
 ]);
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
-$option = $database->optionRowByIndexedName($optionName);
+$option = $database->keyValueRowByIndexedName($optionName);
 
 echo json_encode([
     'applicationUse' => 'Assemble a minimal wp_options option_name index leaf page in PHP and verify indexed lookup without the SQLite extension.',

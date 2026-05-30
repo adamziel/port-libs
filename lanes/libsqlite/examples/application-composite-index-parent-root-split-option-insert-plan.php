@@ -83,7 +83,7 @@ $database = SQLiteDatabase::fromBytes(
     . SQLiteIndexLeafPage::assemble($rightLeafCells, $pageSize),
 );
 
-$plan = $database->planOptionRowInsert(2, $optionName, $optionValue, 'yes');
+$plan = $database->planKeyValueRowInsert(2, $optionName, $optionValue, 'yes');
 
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
@@ -121,5 +121,5 @@ echo json_encode([
         11 => $postDatabase->pageHeader(11)->cellCount,
     ],
     'indexRecordCount' => count($indexRecords),
-    'insertedOption' => $postDatabase->optionRowByIndexedAutoloadAndName('yes', $optionName)?->toArray(),
+    'insertedOption' => $postDatabase->keyValueRowByIndexedLoadPolicyAndName('yes', $optionName)?->toArray(),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

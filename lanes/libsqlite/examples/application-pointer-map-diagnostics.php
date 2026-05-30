@@ -86,6 +86,6 @@ echo json_encode([
     ),
     'wpOptions' => array_map(
         static fn ($option): array => $option->toArray(),
-        $database->optionRows(),
+        $database->keyValueRows(),
     ),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

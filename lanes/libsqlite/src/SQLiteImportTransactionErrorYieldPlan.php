@@ -45,7 +45,7 @@ final class SQLiteImportTransactionErrorYieldPlan
         $errors = [];
         $dirtyPages = [];
         $rolledBack = false;
-        $nextOptionId = $maxId + 1;
+        $nextKeyValueId = $maxId + 1;
 
         foreach ($stagedRows as $index => $row) {
             $ordinal = $index + 1;
@@ -79,7 +79,7 @@ final class SQLiteImportTransactionErrorYieldPlan
                 unset($nameToId[$before['option_name'] ?? '']);
                 $nameToId[$after['option_name']] = $targetId;
                 $maxId = max($maxId, $targetId);
-                $nextOptionId = $maxId + 1;
+                $nextKeyValueId = $maxId + 1;
                 $pageNumber = self::pageForOptionId($targetId);
                 $dirtyPages[$pageNumber] = true;
 
@@ -91,11 +91,11 @@ final class SQLiteImportTransactionErrorYieldPlan
                     'option_name' => $after['option_name'],
                     'dirty_page' => $pageNumber,
                 ];
-                $yielded[] = self::yieldRow($ordinal, $statement, 'applied', $event, $currentOptionId, $nextOptionId, $after, null);
+                $yielded[] = self::yieldRow($ordinal, $statement, 'applied', $event, $currentOptionId, $nextKeyValueId, $after, null);
             } catch (\Throwable $throwable) {
-                $error = self::wpError($throwable, $ordinal, $statement, $currentOptionId, $nextOptionId);
+                $error = self::wpError($throwable, $ordinal, $statement, $currentOptionId, $nextKeyValueId);
                 $errors[] = $error;
-                $yielded[] = self::yieldRow($ordinal, $statement, 'error', 'rollback_statement', $currentOptionId, $nextOptionId, null, $error);
+                $yielded[] = self::yieldRow($ordinal, $statement, 'error', 'rollback_statement', $currentOptionId, $nextKeyValueId, null, $error);
                 if ($failOnError) {
                     $rolledBack = true;
                     $finalRows = $originalRows;
@@ -237,7 +237,7 @@ final class SQLiteImportTransactionErrorYieldPlan
      * @param array<string,mixed>|null $error
      * @return array<string,mixed>
      */
-    private static function yieldRow(int $ordinal, string $statement, string $status, string $event, ?int $currentOptionId, int $nextOptionId, ?array $row, ?array $error): array
+    private static function yieldRow(int $ordinal, string $statement, string $status, string $event, ?int $currentOptionId, int $nextKeyValueId, ?array $row, ?array $error): array
     {
         return [
             'ordinal' => $ordinal,
@@ -245,7 +245,7 @@ final class SQLiteImportTransactionErrorYieldPlan
             'status' => $status,
             'event' => $event,
             'current_option_id' => $currentOptionId,
-            'next_option_id' => $nextOptionId,
+            'next_option_id' => $nextKeyValueId,
             'row' => $row,
             'wp_error' => $error,
         ];
@@ -254,7 +254,7 @@ final class SQLiteImportTransactionErrorYieldPlan
     /**
      * @return array{code:string,message:string,data:array{ordinal:int,statement:string,current_option_id:int|null,next_option_id:int,exception:string,sqlite_abort:string}}
      */
-    private static function wpError(\Throwable $throwable, int $ordinal, string $statement, ?int $currentOptionId, int $nextOptionId): array
+    private static function wpError(\Throwable $throwable, int $ordinal, string $statement, ?int $currentOptionId, int $nextKeyValueId): array
     {
         return [
             'code' => $throwable instanceof \InvalidArgumentException
@@ -265,7 +265,7 @@ final class SQLiteImportTransactionErrorYieldPlan
                 'ordinal' => $ordinal,
                 'statement' => $statement,
                 'current_option_id' => $currentOptionId,
-                'next_option_id' => $nextOptionId,
+                'next_option_id' => $nextKeyValueId,
                 'exception' => $throwable::class,
                 'sqlite_abort' => 'statement',
             ],

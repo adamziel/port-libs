@@ -976,13 +976,13 @@ final class SQLiteDatabase
         );
     }
 
-    public function planOptionRowInsert(
+    public function planKeyValueRowInsert(
         int $rowId,
         string $optionName,
         string $optionValue,
         ?string $autoload = 'yes',
         bool $allowAppend = true,
-    ): SQLiteOptionRowWritePlan {
+    ): SQLiteKeyValueRowWritePlan {
         if ($rowId < 1) {
             throw new \InvalidArgumentException('SQLite wp_options insert rowid must be positive');
         }
@@ -1005,14 +1005,14 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite wp_options insert planning currently requires a single table leaf root page');
         }
 
-        $insertIndexes = $this->supportedOptionRowIndexesForInsert($optionName, $autoload);
+        $insertIndexes = $this->supportedKeyValueRowIndexesForInsert($optionName, $autoload);
         $existingCells = [];
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
         foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $this->usablePageSize(), $overflowReader) as $cell) {
             if ($cell->rowId === $rowId) {
                 throw new \InvalidArgumentException("SQLite wp_options rowid {$rowId} already exists");
             }
-            $option = SQLiteOptionRow::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
+            $option = SQLiteKeyValueRow::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
             if ($option->optionName === $optionName) {
                 throw new \InvalidArgumentException("SQLite wp_options option_name {$optionName} already exists");
             }
@@ -1076,7 +1076,7 @@ final class SQLiteDatabase
         }
         ksort($pageImages);
 
-        $pageImages = $this->withOptionRowIndexInsertPages($pageImages, $insertIndexes, $rowId, $allowAppend);
+        $pageImages = $this->withKeyValueRowIndexInsertPages($pageImages, $insertIndexes, $rowId, $allowAppend);
         $databasePageCount = max(
             $this->pageCount(),
             $this->header->databaseSizePages,
@@ -1099,7 +1099,7 @@ final class SQLiteDatabase
             $pageImages === [] ? 0 : max(array_keys($pageImages)),
         );
 
-        return new SQLiteOptionRowWritePlan(
+        return new SQLiteKeyValueRowWritePlan(
             $tableRootPage,
             $rowId,
             $optionName,
@@ -1112,13 +1112,13 @@ final class SQLiteDatabase
         );
     }
 
-    public function planOptionRowInsertOrReplaceCurrent(
+    public function planKeyValueRowInsertOrReplaceCurrent(
         int $rowId,
         string $optionName,
         string $optionValue,
         ?string $autoload = 'yes',
         bool $allowAppend = true,
-    ): SQLiteOptionRowInsertOrReplacePlan {
+    ): SQLiteKeyValueRowInsertOrReplacePlan {
         if ($rowId < 1) {
             throw new \InvalidArgumentException('SQLite wp_options insert-or-replace rowid must be positive');
         }
@@ -1141,13 +1141,13 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite wp_options insert-or-replace planning currently requires a single table leaf root page');
         }
 
-        $insertIndexes = $this->supportedOptionRowIndexesForInsert($optionName, $autoload);
+        $insertIndexes = $this->supportedKeyValueRowIndexesForInsert($optionName, $autoload);
         $remainingCells = [];
         $deletedRowIds = [];
         $deletedOptionNames = [];
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
         foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $this->usablePageSize(), $overflowReader) as $cell) {
-            $option = SQLiteOptionRow::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
+            $option = SQLiteKeyValueRow::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
             if ($cell->rowId === $rowId || $option->optionName === $optionName) {
                 $deletedRowIds[$cell->rowId] = true;
                 $deletedOptionNames[$option->optionName] = true;
@@ -1161,8 +1161,8 @@ final class SQLiteDatabase
         }
 
         if ($deletedRowIds === []) {
-            return new SQLiteOptionRowInsertOrReplacePlan(
-                $this->planOptionRowInsert($rowId, $optionName, $optionValue, $autoload, $allowAppend),
+            return new SQLiteKeyValueRowInsertOrReplacePlan(
+                $this->planKeyValueRowInsert($rowId, $optionName, $optionValue, $autoload, $allowAppend),
                 [],
                 [],
             );
@@ -1200,22 +1200,22 @@ final class SQLiteDatabase
         ksort($pageImages);
         $insertPlan = $this
             ->withPageImages($pageImages)
-            ->planOptionRowInsert($rowId, $optionName, $optionValue, $autoload, $allowAppend);
+            ->planKeyValueRowInsert($rowId, $optionName, $optionValue, $autoload, $allowAppend);
 
-        return new SQLiteOptionRowInsertOrReplacePlan(
+        return new SQLiteKeyValueRowInsertOrReplacePlan(
             $insertPlan,
             array_map('intval', array_keys($deletedRowIds)),
             array_map('strval', array_keys($deletedOptionNames)),
         );
     }
 
-    public function planOptionRowReplace(
+    public function planKeyValueRowReplace(
         string $optionName,
         string $optionValue,
         ?string $autoload = null,
         bool $allowAppend = true,
         bool $secureDelete = false,
-    ): SQLiteOptionRowReplacementPlan {
+    ): SQLiteKeyValueRowReplacementPlan {
         $tableRootPage = $this->tableRootPage('wp_options');
         if ($tableRootPage === null) {
             throw new \InvalidArgumentException('SQLite wp_options table is not present');
@@ -1225,8 +1225,8 @@ final class SQLiteDatabase
         }
 
         $usableSize = $this->usablePageSize();
-        $targetLeaf = $this->writableOptionRowTableLeafForReplacement($tableRootPage, $optionName, $usableSize);
-        $replacementIndexes = $this->supportedOptionRowIndexesForReplacement();
+        $targetLeaf = $this->writableKeyValueRowTableLeafForReplacement($tableRootPage, $optionName, $usableSize);
+        $replacementIndexes = $this->supportedKeyValueRowIndexesForReplacement();
         $existingCells = $targetLeaf['entries'];
         $matchedRowId = $targetLeaf['rowid'];
         $matchedAutoload = $targetLeaf['autoload'];
@@ -1302,7 +1302,7 @@ final class SQLiteDatabase
             }
         }
         ksort($pageImages);
-        $pageImages = $this->withOptionRowIndexReplacementPages(
+        $pageImages = $this->withKeyValueRowIndexReplacementPages(
             $pageImages,
             $replacementIndexes,
             $matchedRowId,
@@ -1352,7 +1352,7 @@ final class SQLiteDatabase
             );
         }
 
-        return new SQLiteOptionRowReplacementPlan(
+        return new SQLiteKeyValueRowReplacementPlan(
             $tableRootPage,
             $matchedRowId,
             $optionName,
@@ -1526,14 +1526,14 @@ final class SQLiteDatabase
     /**
      * @return array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,autoload:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>,parent:?array}
      */
-    private function writableOptionRowTableLeafForReplacement(
+    private function writableKeyValueRowTableLeafForReplacement(
         int $rootPage,
         string $optionName,
         int $usableSize,
     ): array {
         $visited = [];
         $target = null;
-        $this->collectWritableOptionRowTableLeafForReplacement(
+        $this->collectWritableKeyValueRowTableLeafForReplacement(
             $rootPage,
             $optionName,
             $usableSize,
@@ -1554,7 +1554,7 @@ final class SQLiteDatabase
      * @param null|array{pageNumber:int,page:string,headerOffset:int,entries:list<array{rowid:int,cell:string}>,rowid:int,autoload:?string,values:list<mixed>,obsoleteOverflowPageNumbers:list<int>,parent:?array} $target
      * @param null|array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int,parent:?array} $parentContext
      */
-    private function collectWritableOptionRowTableLeafForReplacement(
+    private function collectWritableKeyValueRowTableLeafForReplacement(
         int $pageNumber,
         string $optionName,
         int $usableSize,
@@ -1586,7 +1586,7 @@ final class SQLiteDatabase
                 ];
 
                 $row = SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding);
-                $option = SQLiteOptionRow::fromTableRow($row);
+                $option = SQLiteKeyValueRow::fromTableRow($row);
                 if ($option->optionName !== $optionName) {
                     continue;
                 }
@@ -1636,7 +1636,7 @@ final class SQLiteDatabase
 
         $interiorCells = SQLiteTableInteriorCell::parsePageCells($page, $header);
         foreach ($interiorCells as $cellIndex => $interiorCell) {
-            $this->collectWritableOptionRowTableLeafForReplacement(
+            $this->collectWritableKeyValueRowTableLeafForReplacement(
                 $interiorCell->leftChildPage,
                 $optionName,
                 $usableSize,
@@ -1652,7 +1652,7 @@ final class SQLiteDatabase
                 ],
             );
         }
-        $this->collectWritableOptionRowTableLeafForReplacement(
+        $this->collectWritableKeyValueRowTableLeafForReplacement(
             $header->rightMostPointer,
             $optionName,
             $usableSize,
@@ -2222,7 +2222,7 @@ final class SQLiteDatabase
     /**
      * @return list<array{record:SQLiteSchemaRecord,columns:non-empty-list<SQLiteIndexColumn>,values:list<mixed>}>
      */
-    private function supportedOptionRowIndexesForInsert(string $optionName, ?string $autoload): array
+    private function supportedKeyValueRowIndexesForInsert(string $optionName, ?string $autoload): array
     {
         $indexes = [];
         $automaticIndexColumns = null;
@@ -2266,7 +2266,7 @@ final class SQLiteDatabase
     /**
      * @return list<array{record:SQLiteSchemaRecord,columns:non-empty-list<SQLiteIndexColumn>}>
      */
-    private function supportedOptionRowIndexesForReplacement(): array
+    private function supportedKeyValueRowIndexesForReplacement(): array
     {
         $indexes = [];
         $automaticIndexColumns = null;
@@ -2356,14 +2356,14 @@ final class SQLiteDatabase
             $column->partial
             && (
                 $column->partialPredicate === null
-                || !self::partialPredicateCoversAllOptionRowNameRows($column->partialPredicate)
+                || !self::partialPredicateCoversAllKeyValueNameRows($column->partialPredicate)
             )
         ) {
             throw new \InvalidArgumentException('SQLite wp_options write planning currently supports only option_name IS NOT NULL partial indexes');
         }
     }
 
-    private static function partialPredicateCoversAllOptionRowNameRows(SQLiteIndexPredicate $predicate): bool
+    private static function partialPredicateCoversAllKeyValueNameRows(SQLiteIndexPredicate $predicate): bool
     {
         if ($predicate->operator === SQLiteIndexPredicate::IS_NOT_NULL) {
             return strcasecmp($predicate->columnName, 'option_name') === 0;
@@ -2375,7 +2375,7 @@ final class SQLiteDatabase
             }
 
             foreach ($predicate->value as $subPredicate) {
-                if ($subPredicate instanceof SQLiteIndexPredicate && self::partialPredicateCoversAllOptionRowNameRows($subPredicate)) {
+                if ($subPredicate instanceof SQLiteIndexPredicate && self::partialPredicateCoversAllKeyValueNameRows($subPredicate)) {
                     return true;
                 }
             }
@@ -2389,7 +2389,7 @@ final class SQLiteDatabase
      * @param array<int, string> $pageImages
      * @return array<int, string>
      */
-    private function withOptionRowIndexInsertPages(
+    private function withKeyValueRowIndexInsertPages(
         array $pageImages,
         array $indexes,
         int $rowId,
@@ -2447,7 +2447,7 @@ final class SQLiteDatabase
      * @param array<int, string> $pageImages
      * @return array<int, string>
      */
-    private function withOptionRowIndexReplacementPages(
+    private function withKeyValueRowIndexReplacementPages(
         array $pageImages,
         array $indexes,
         int $rowId,
@@ -2465,8 +2465,8 @@ final class SQLiteDatabase
             }
 
             $columns = $index['columns'];
-            $oldValues = self::wordPressOptionIndexValuesForColumns($columns, $optionName, $oldAutoload);
-            $newValues = self::wordPressOptionIndexValuesForColumns($columns, $optionName, $newAutoload);
+            $oldValues = self::keyValueRowIndexValuesForColumns($columns, $optionName, $oldAutoload);
+            $newValues = self::keyValueRowIndexValuesForColumns($columns, $optionName, $newAutoload);
             $keyColumnCount = count($columns);
             $mutatesKey = $oldValues !== $newValues;
 
@@ -2478,7 +2478,7 @@ final class SQLiteDatabase
                 $indexRowId = $entry['values'][$keyColumnCount] ?? null;
                 if (
                     $indexRowId === $rowId
-                    && self::wordPressOptionIndexValuesMatchColumns(
+                    && self::keyValueRowIndexValuesMatchColumns(
                         array_slice($entry['values'], 0, $keyColumnCount),
                         $oldValues,
                         $columns,
@@ -3379,7 +3379,7 @@ final class SQLiteDatabase
             $indexRowId = $values[$keyColumnCount] ?? null;
             if (
                 $indexRowId === $rowId
-                && self::wordPressOptionIndexValuesMatchColumns(
+                && self::keyValueRowIndexValuesMatchColumns(
                     array_slice($values, 0, $keyColumnCount),
                     $oldValues,
                     $columns,
@@ -3438,7 +3438,7 @@ final class SQLiteDatabase
      * @param non-empty-list<SQLiteIndexColumn> $columns
      * @return list<mixed>
      */
-    private static function wordPressOptionIndexValuesForColumns(
+    private static function keyValueRowIndexValuesForColumns(
         array $columns,
         string $optionName,
         ?string $autoload,
@@ -3465,7 +3465,7 @@ final class SQLiteDatabase
      * @param list<mixed> $rightValues
      * @param non-empty-list<SQLiteIndexColumn> $columns
      */
-    private static function wordPressOptionIndexValuesMatchColumns(
+    private static function keyValueRowIndexValuesMatchColumns(
         array $leftValues,
         array $rightValues,
         array $columns,
@@ -6241,9 +6241,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRows(int $limit = 100): array
+    public function keyValueRows(int $limit = 100): array
     {
         if ($limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options limit cannot be negative');
@@ -6251,16 +6251,16 @@ final class SQLiteDatabase
 
         $options = [];
         foreach ($this->tableRowsByName('wp_options', $limit) as $row) {
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
         }
 
         return $options;
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsOrdered(
+    public function keyValueRowsOrdered(
         string $orderBy,
         bool $descending = false,
         ?int $limit = null,
@@ -6276,16 +6276,16 @@ final class SQLiteDatabase
             return [];
         }
 
-        $column = self::normalizeOptionRowOrderColumn($orderBy);
+        $column = self::normalizeKeyValueRowOrderColumn($orderBy);
         $options = [];
         foreach ($this->tableRowsByName('wp_options', null) as $row) {
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
         }
 
-        usort($options, static function (SQLiteOptionRow $left, SQLiteOptionRow $right) use ($column, $descending): int {
-            $comparison = self::compareOptionRowOrderValues(
-                self::wordPressOptionOrderValue($left, $column),
-                self::wordPressOptionOrderValue($right, $column),
+        usort($options, static function (SQLiteKeyValueRow $left, SQLiteKeyValueRow $right) use ($column, $descending): int {
+            $comparison = self::compareKeyValueRowOrderValues(
+                self::keyValueRowOrderValue($left, $column),
+                self::keyValueRowOrderValue($right, $column),
             );
             if ($comparison === 0) {
                 return $left->rowId <=> $right->rowId;
@@ -6302,9 +6302,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByRowIdRange(
+    public function keyValueRowsByRowIdRange(
         ?int $lowerInclusive,
         ?int $upperBound,
         ?int $limit = null,
@@ -6327,16 +6327,16 @@ final class SQLiteDatabase
                 $upperInclusive,
             ) as $row
         ) {
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
         }
 
         return $options;
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByNameLike(
+    public function keyValueRowsByNameLike(
         string $pattern,
         ?string $escape = null,
         ?int $limit = null,
@@ -6351,7 +6351,7 @@ final class SQLiteDatabase
 
         $options = [];
         foreach ($this->tableRowsByName('wp_options', null) as $row) {
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (!self::likeMatches($option->optionName, $pattern, $escape, $caseSensitive)) {
                 continue;
             }
@@ -6366,9 +6366,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameLikePrefixRange(
+    public function keyValueRowsByIndexedNameLikePrefixRange(
         string $pattern,
         ?string $escape = null,
         ?int $limit = null,
@@ -6386,7 +6386,7 @@ final class SQLiteDatabase
         }
 
         $options = [];
-        foreach ($this->optionRowsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
+        foreach ($this->keyValueRowsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
             if (!self::likeMatches($option->optionName, $pattern, $escape, true)) {
                 continue;
             }
@@ -6401,9 +6401,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameLikePrefixRangeNoCase(
+    public function keyValueRowsByIndexedNameLikePrefixRangeNoCase(
         string $pattern,
         ?string $escape = null,
         ?int $limit = null,
@@ -6423,7 +6423,7 @@ final class SQLiteDatabase
         $compareNoCase = static fn (string $left, string $right): int => strcmp(self::asciiLower($left), self::asciiLower($right));
 
         $options = [];
-        foreach ($this->optionRowsByIndexedNameRangeWithCollation(
+        foreach ($this->keyValueRowsByIndexedNameRangeWithCollation(
             $bounds['lowerInclusive'],
             $bounds['upperBound'],
             'NOCASE',
@@ -6443,9 +6443,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByNameGlob(string $pattern, ?int $limit = null): array
+    public function keyValueRowsByNameGlob(string $pattern, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options GLOB lookup limit cannot be negative');
@@ -6456,7 +6456,7 @@ final class SQLiteDatabase
 
         $options = [];
         foreach ($this->tableRowsByName('wp_options', null) as $row) {
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (!self::globMatches($option->optionName, $pattern)) {
                 continue;
             }
@@ -6471,9 +6471,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameGlobPrefixRange(string $pattern, ?int $limit = null): array
+    public function keyValueRowsByIndexedNameGlobPrefixRange(string $pattern, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options indexed GLOB prefix lookup limit cannot be negative');
@@ -6488,7 +6488,7 @@ final class SQLiteDatabase
         }
 
         $options = [];
-        foreach ($this->optionRowsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
+        foreach ($this->keyValueRowsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
             if (!self::globMatches($option->optionName, $pattern)) {
                 continue;
             }
@@ -6502,7 +6502,7 @@ final class SQLiteDatabase
         return $options;
     }
 
-    private static function normalizeOptionRowOrderColumn(string $orderBy): string
+    private static function normalizeKeyValueRowOrderColumn(string $orderBy): string
     {
         $column = strtolower($orderBy);
         return match ($column) {
@@ -6511,7 +6511,7 @@ final class SQLiteDatabase
         };
     }
 
-    private static function wordPressOptionOrderValue(SQLiteOptionRow $option, string $column): int|string|null
+    private static function keyValueRowOrderValue(SQLiteKeyValueRow $option, string $column): int|string|null
     {
         return match ($column) {
             'option_id' => $option->optionId,
@@ -6522,7 +6522,7 @@ final class SQLiteDatabase
         };
     }
 
-    private static function compareOptionRowOrderValues(int|string|null $left, int|string|null $right): int
+    private static function compareKeyValueRowOrderValues(int|string|null $left, int|string|null $right): int
     {
         if ($left === null || $right === null) {
             return $left === $right ? 0 : ($left === null ? -1 : 1);
@@ -6536,9 +6536,9 @@ final class SQLiteDatabase
 
     /**
      * @param callable(string, string): bool $regexp
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByNameRegexp(string $pattern, callable $regexp, ?int $limit = null): array
+    public function keyValueRowsByNameRegexp(string $pattern, callable $regexp, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options REGEXP lookup limit cannot be negative');
@@ -6549,7 +6549,7 @@ final class SQLiteDatabase
 
         $options = [];
         foreach ($this->tableRowsByName('wp_options', null) as $row) {
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (!self::regexpMatches($option->optionName, $pattern, $regexp)) {
                 continue;
             }
@@ -6563,7 +6563,7 @@ final class SQLiteDatabase
         return $options;
     }
 
-    public function optionRowByIndexedName(string $optionName): ?SQLiteOptionRow
+    public function keyValueRowByIndexedName(string $optionName): ?SQLiteKeyValueRow
     {
         $tableRootPage = $this->tableRootPage('wp_options');
         if ($tableRootPage === null) {
@@ -6593,14 +6593,14 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
         }
 
-        return SQLiteOptionRow::fromTableRow($row);
+        return SQLiteKeyValueRow::fromTableRow($row);
     }
 
     /**
      * @param callable(string, string): int $compare
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameWithCollation(
+    public function keyValueRowsByIndexedNameWithCollation(
         string $optionName,
         string $collationName,
         callable $compare,
@@ -6644,7 +6644,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
             if ($limit !== null && count($options) >= $limit) {
                 break;
             }
@@ -6655,9 +6655,9 @@ final class SQLiteDatabase
 
     /**
      * @param callable(string, string): int $compare
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameRangeWithCollation(
+    public function keyValueRowsByIndexedNameRangeWithCollation(
         ?string $lowerInclusive,
         ?string $upperBound,
         string $collationName,
@@ -6711,7 +6711,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
             if ($limit !== null && count($options) >= $limit) {
                 break;
             }
@@ -6722,9 +6722,9 @@ final class SQLiteDatabase
 
     /**
      * @param list<?string> $optionNames
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNames(array $optionNames, ?int $limit = null): array
+    public function keyValueRowsByIndexedNames(array $optionNames, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options indexed IN lookup limit cannot be negative');
@@ -6767,7 +6767,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
             if ($limit !== null && count($options) >= $limit) {
                 break;
             }
@@ -6778,9 +6778,9 @@ final class SQLiteDatabase
 
     /**
      * @param list<?string> $optionNames
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedLowercaseNames(array $optionNames, ?int $limit = null): array
+    public function keyValueRowsByIndexedLowercaseNames(array $optionNames, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options lower expression indexed IN lookup limit cannot be negative');
@@ -6823,7 +6823,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::inListContainsSQLiteScalar($lookupValues, self::asciiLower($option->optionName), $indexLookup['collation'])) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
@@ -6837,9 +6837,9 @@ final class SQLiteDatabase
 
     /**
      * @param list<?string> $optionNames
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedUppercaseNames(array $optionNames, ?int $limit = null): array
+    public function keyValueRowsByIndexedUppercaseNames(array $optionNames, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options upper expression indexed IN lookup limit cannot be negative');
@@ -6882,7 +6882,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::inListContainsSQLiteScalar($lookupValues, self::asciiUpper($option->optionName), $indexLookup['collation'])) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
@@ -6894,7 +6894,7 @@ final class SQLiteDatabase
         return $options;
     }
 
-    public function optionRowByIndexedNameForAutoload(string $optionName, string $autoload): ?SQLiteOptionRow
+    public function keyValueRowByIndexedNameForLoadPolicy(string $optionName, string $autoload): ?SQLiteKeyValueRow
     {
         $tableRootPage = $this->tableRootPage('wp_options');
         if ($tableRootPage === null) {
@@ -6922,7 +6922,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 $option->autoload === $autoload
                 && self::compareSQLiteScalar($option->optionName, $optionName, $indexLookup['collation']) === 0
@@ -6934,7 +6934,7 @@ final class SQLiteDatabase
         return null;
     }
 
-    public function optionRowByIndexedLowercaseName(string $optionName): ?SQLiteOptionRow
+    public function keyValueRowByIndexedLowercaseName(string $optionName): ?SQLiteKeyValueRow
     {
         $tableRootPage = $this->tableRootPage('wp_options');
         if ($tableRootPage === null) {
@@ -6961,7 +6961,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::compareSQLiteScalar(self::asciiLower($option->optionName), $lookupValue, $indexLookup['collation']) === 0) {
                 return $option;
             }
@@ -6972,9 +6972,9 @@ final class SQLiteDatabase
 
     /**
      * @param callable(string, string): int $compare
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedLowercaseNameWithCollation(
+    public function keyValueRowsByIndexedLowercaseNameWithCollation(
         string $optionName,
         string $collationName,
         callable $compare,
@@ -7019,7 +7019,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::compareSQLiteScalarWithCustomTextCollation(self::asciiLower($option->optionName), $lookupValue, $compare) !== 0) {
                 continue;
             }
@@ -7036,9 +7036,9 @@ final class SQLiteDatabase
     /**
      * @param list<?string> $optionNames
      * @param callable(string, string): int $compare
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedLowercaseNamesWithCollation(
+    public function keyValueRowsByIndexedLowercaseNamesWithCollation(
         array $optionNames,
         string $collationName,
         callable $compare,
@@ -7093,7 +7093,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (!self::inListContainsSQLiteScalarWithCustomTextCollation($lookupValues, self::asciiLower($option->optionName), $compare)) {
                 continue;
             }
@@ -7109,9 +7109,9 @@ final class SQLiteDatabase
 
     /**
      * @param callable(string, string): int $compare
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedLowercaseNameRangeWithCollation(
+    public function keyValueRowsByIndexedLowercaseNameRangeWithCollation(
         ?string $lowerInclusive,
         ?string $upperBound,
         string $collationName,
@@ -7168,7 +7168,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (!self::customFirstValueIsInRange(self::asciiLower($option->optionName), $lowerKey, $upperKey, $upperInclusive, $compare)) {
                 continue;
             }
@@ -7182,7 +7182,7 @@ final class SQLiteDatabase
         return $options;
     }
 
-    public function optionRowByIndexedUppercaseName(string $optionName): ?SQLiteOptionRow
+    public function keyValueRowByIndexedUppercaseName(string $optionName): ?SQLiteKeyValueRow
     {
         $tableRootPage = $this->tableRootPage('wp_options');
         if ($tableRootPage === null) {
@@ -7209,7 +7209,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::compareSQLiteScalar(self::asciiUpper($option->optionName), $lookupValue, $indexLookup['collation']) === 0) {
                 return $option;
             }
@@ -7218,11 +7218,11 @@ final class SQLiteDatabase
         return null;
     }
 
-    public function optionRowByIndexedTrimmedName(
+    public function keyValueRowByIndexedTrimmedName(
         string $optionName,
         string $functionName = 'trim',
         ?string $characters = null,
-    ): ?SQLiteOptionRow {
+    ): ?SQLiteKeyValueRow {
         $tableRootPage = $this->tableRootPage('wp_options');
         if ($tableRootPage === null) {
             return null;
@@ -7248,7 +7248,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::compareSQLiteScalar(
                 self::sqliteTrim($option->optionName, $functionName, $characters),
                 $lookupValue,
@@ -7262,9 +7262,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNamePrefix(string $prefix, ?int $limit = null): array
+    public function keyValueRowsByIndexedNamePrefix(string $prefix, ?int $limit = null): array
     {
         if ($prefix === '') {
             throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix lookup requires a non-empty prefix');
@@ -7307,7 +7307,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
                     self::sqliteSubstring($option->optionName, 1, $length),
@@ -7327,9 +7327,9 @@ final class SQLiteDatabase
 
     /**
      * @param list<?string> $prefixes
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNamePrefixes(array $prefixes, ?int $limit = null): array
+    public function keyValueRowsByIndexedNamePrefixes(array $prefixes, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options substr(option_name) prefix IN-list lookup limit cannot be negative');
@@ -7391,7 +7391,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::inListContainsSQLiteScalar(
                 $prefixes,
                 self::sqliteSubstring($option->optionName, 1, $prefixLength),
@@ -7408,9 +7408,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameSuffix(string $suffix, ?int $limit = null): array
+    public function keyValueRowsByIndexedNameSuffix(string $suffix, ?int $limit = null): array
     {
         if ($suffix === '') {
             throw new \InvalidArgumentException('SQLite wp_options substr(option_name) suffix lookup requires a non-empty suffix');
@@ -7453,7 +7453,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
                     self::sqliteSubstring($option->optionName, $start, null),
@@ -7472,9 +7472,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameLength(int $length, ?int $limit = null): array
+    public function keyValueRowsByIndexedNameLength(int $length, ?int $limit = null): array
     {
         if ($length < 0) {
             throw new \InvalidArgumentException('SQLite wp_options length(option_name) lookup length cannot be negative');
@@ -7511,7 +7511,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::sqliteLength($option->optionName) === $length) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
@@ -7525,9 +7525,9 @@ final class SQLiteDatabase
 
     /**
      * @param list<?int> $lengths
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameLengths(array $lengths, ?int $limit = null): array
+    public function keyValueRowsByIndexedNameLengths(array $lengths, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options length(option_name) IN-list lookup limit cannot be negative');
@@ -7574,7 +7574,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::inListContainsSQLiteScalar($lengths, self::sqliteLength($option->optionName), $indexLookup['collation'])) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
@@ -7587,9 +7587,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameLengthRange(
+    public function keyValueRowsByIndexedNameLengthRange(
         ?int $lowerInclusive,
         ?int $upperBound,
         ?int $limit = null,
@@ -7641,7 +7641,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
                 self::sqliteLength($option->optionName),
                 $lowerInclusive,
@@ -7660,9 +7660,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedIntegerOptionValue(int $value, ?int $limit = null): array
+    public function keyValueRowsByIndexedIntegerValue(int $value, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) lookup limit cannot be negative');
@@ -7696,7 +7696,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::sqliteCastAsInteger($option->optionValue) === $value) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
@@ -7710,9 +7710,9 @@ final class SQLiteDatabase
 
     /**
      * @param list<?int> $values
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedIntegerOptionValues(array $values, ?int $limit = null): array
+    public function keyValueRowsByIndexedIntegerValues(array $values, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options CAST(option_value AS INTEGER) IN-list lookup limit cannot be negative');
@@ -7753,7 +7753,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::inListContainsSQLiteScalar($values, self::sqliteCastAsInteger($option->optionValue), $indexLookup['collation'])) {
                 $options[] = $option;
                 if ($limit !== null && count($options) >= $limit) {
@@ -7766,9 +7766,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedIntegerOptionValueRange(
+    public function keyValueRowsByIndexedIntegerValueRange(
         ?int $lowerInclusive,
         ?int $upperBound,
         ?int $limit = null,
@@ -7820,7 +7820,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
                 self::sqliteCastAsInteger($option->optionValue),
                 $lowerInclusive,
@@ -7839,9 +7839,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedJsonOptionValue(string $jsonPath, mixed $value, ?int $limit = null): array
+    public function keyValueRowsByIndexedJsonValue(string $jsonPath, mixed $value, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) lookup limit cannot be negative');
@@ -7880,7 +7880,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
                     self::sqliteJsonExtract($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
@@ -7899,9 +7899,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedJsonOptionFragment(string $jsonPath, mixed $value, ?int $limit = null): array
+    public function keyValueRowsByIndexedJsonFragment(string $jsonPath, mixed $value, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options JSON -> lookup limit cannot be negative');
@@ -7940,7 +7940,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
                     self::sqliteJsonValueOperator($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
@@ -7960,9 +7960,9 @@ final class SQLiteDatabase
 
     /**
      * @param list<mixed> $values
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedJsonOptionFragments(string $jsonPath, array $values, ?int $limit = null): array
+    public function keyValueRowsByIndexedJsonFragments(string $jsonPath, array $values, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options JSON -> IN-list lookup limit cannot be negative');
@@ -8001,7 +8001,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             $fragment = self::sqliteJsonValueOperator($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null);
             if (
                 $fragment !== null
@@ -8018,9 +8018,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedJsonOptionFragmentRange(
+    public function keyValueRowsByIndexedJsonFragmentRange(
         string $jsonPath,
         mixed $lowerInclusive,
         mixed $upperBound,
@@ -8080,7 +8080,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             $fragment = self::sqliteJsonValueOperator($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null);
             if (
                 $fragment !== null
@@ -8104,9 +8104,9 @@ final class SQLiteDatabase
 
     /**
      * @param list<mixed> $values
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedJsonOptionValues(string $jsonPath, array $values, ?int $limit = null): array
+    public function keyValueRowsByIndexedJsonValues(string $jsonPath, array $values, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options json_extract(option_value) IN-list lookup limit cannot be negative');
@@ -8149,7 +8149,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (
                 self::inListContainsSQLiteScalar(
                     $lookupValues,
@@ -8168,9 +8168,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedJsonOptionValueRange(
+    public function keyValueRowsByIndexedJsonValueRange(
         string $jsonPath,
         mixed $lowerInclusive,
         mixed $upperBound,
@@ -8230,7 +8230,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
                 self::sqliteJsonExtract($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                 $lowerKey,
@@ -8249,9 +8249,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedLowercaseNameRange(
+    public function keyValueRowsByIndexedLowercaseNameRange(
         ?string $lowerInclusive,
         ?string $upperBound,
         ?int $limit = null,
@@ -8306,7 +8306,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
                 self::asciiLower($option->optionName),
                 $lowerKey,
@@ -8325,9 +8325,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedUppercaseNameRange(
+    public function keyValueRowsByIndexedUppercaseNameRange(
         ?string $lowerInclusive,
         ?string $upperBound,
         ?int $limit = null,
@@ -8382,7 +8382,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
             }
 
-            $option = SQLiteOptionRow::fromTableRow($row);
+            $option = SQLiteKeyValueRow::fromTableRow($row);
             if (self::firstValueIsInRange(
                 self::asciiUpper($option->optionName),
                 $lowerKey,
@@ -8401,16 +8401,16 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedAutoload(string $autoload, ?int $limit = null): array
+    public function keyValueRowsByIndexedLoadPolicy(string $autoload, ?int $limit = null): array
     {
-        return $this->optionRowsByIndexedFirstColumn('autoload', $autoload, $limit);
+        return $this->keyValueRowsByIndexedFirstColumn('autoload', $autoload, $limit);
     }
 
-    public function optionRowByIndexedAutoloadAndName(string $autoload, string $optionName): ?SQLiteOptionRow
+    public function keyValueRowByIndexedLoadPolicyAndName(string $autoload, string $optionName): ?SQLiteKeyValueRow
     {
-        $options = $this->optionRowsByIndexedColumnPrefix([
+        $options = $this->keyValueRowsByIndexedColumnPrefix([
             'autoload' => $autoload,
             'option_name' => $optionName,
         ], 1);
@@ -8419,16 +8419,16 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedAutoloadAndNameRange(
+    public function keyValueRowsByIndexedLoadPolicyAndNameRange(
         string $autoload,
         ?string $lowerInclusive,
         ?string $upperBound,
         ?int $limit = null,
         bool $upperInclusive = false,
     ): array {
-        return $this->optionRowsByIndexedColumnPrefixRange(
+        return $this->keyValueRowsByIndexedColumnPrefixRange(
             ['autoload' => $autoload],
             'option_name',
             $lowerInclusive,
@@ -8440,9 +8440,9 @@ final class SQLiteDatabase
 
     /**
      * @param non-empty-array<string, mixed> $equalityPrefix
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameRangeWithPrefix(
+    public function keyValueRowsByIndexedNameRangeWithPrefix(
         array $equalityPrefix,
         ?string $lowerInclusive,
         ?string $upperBound,
@@ -8453,7 +8453,7 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite wp_options indexed name range lookup requires at least one equality column');
         }
 
-        return $this->optionRowsByIndexedColumnPrefixRange(
+        return $this->keyValueRowsByIndexedColumnPrefixRange(
             $equalityPrefix,
             'option_name',
             $lowerInclusive,
@@ -8466,9 +8466,9 @@ final class SQLiteDatabase
     /**
      * @param non-empty-array<string, mixed> $equalityPrefix
      * @param callable(string, string): int $compare
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameRangeWithPrefixAndCollation(
+    public function keyValueRowsByIndexedNameRangeWithPrefixAndCollation(
         array $equalityPrefix,
         ?string $lowerInclusive,
         ?string $upperBound,
@@ -8481,7 +8481,7 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed name range lookup requires at least one equality column');
         }
 
-        return $this->optionRowsByIndexedColumnPrefixRangeWithCollation(
+        return $this->keyValueRowsByIndexedColumnPrefixRangeWithCollation(
             $equalityPrefix,
             'option_name',
             $lowerInclusive,
@@ -8496,9 +8496,9 @@ final class SQLiteDatabase
     /**
      * @param non-empty-array<string, mixed> $equalityPrefix
      * @param array<string, callable(string, string): int> $customCollations
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameRangeWithPrefixCollations(
+    public function keyValueRowsByIndexedNameRangeWithPrefixCollations(
         array $equalityPrefix,
         ?string $lowerInclusive,
         ?string $upperBound,
@@ -8510,7 +8510,7 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite wp_options custom-collation indexed name range lookup requires at least one equality column');
         }
 
-        return $this->optionRowsByIndexedColumnPrefixRangeWithCollations(
+        return $this->keyValueRowsByIndexedColumnPrefixRangeWithCollations(
             $equalityPrefix,
             'option_name',
             $lowerInclusive,
@@ -8522,16 +8522,16 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    public function optionRowsByIndexedNameRange(
+    public function keyValueRowsByIndexedNameRange(
         ?string $lowerInclusive,
         ?string $upperBound,
         ?int $limit = null,
         bool $upperInclusive = false,
     ): array
     {
-        return $this->optionRowsByIndexedFirstColumnRange(
+        return $this->keyValueRowsByIndexedFirstColumnRange(
             'option_name',
             $lowerInclusive,
             $upperBound,
@@ -8937,9 +8937,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    private function optionRowsByIndexedFirstColumn(string $columnName, mixed $value, ?int $limit): array
+    private function keyValueRowsByIndexedFirstColumn(string $columnName, mixed $value, ?int $limit): array
     {
         if ($limit !== null && $limit < 0) {
             throw new \InvalidArgumentException('SQLite wp_options indexed lookup limit cannot be negative');
@@ -8973,7 +8973,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
             if ($limit !== null && count($options) >= $limit) {
                 break;
             }
@@ -8983,9 +8983,9 @@ final class SQLiteDatabase
     }
 
     /**
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    private function optionRowsByIndexedFirstColumnRange(
+    private function keyValueRowsByIndexedFirstColumnRange(
         string $columnName,
         mixed $lowerInclusive,
         mixed $upperBound,
@@ -9032,7 +9032,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
             if ($limit !== null && count($options) >= $limit) {
                 break;
             }
@@ -9043,9 +9043,9 @@ final class SQLiteDatabase
 
     /**
      * @param non-empty-array<string, mixed> $columnValues
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    private function optionRowsByIndexedColumnPrefix(array $columnValues, ?int $limit): array
+    private function keyValueRowsByIndexedColumnPrefix(array $columnValues, ?int $limit): array
     {
         if ($columnValues === []) {
             throw new \InvalidArgumentException('SQLite wp_options indexed lookup requires at least one column');
@@ -9077,7 +9077,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
             if ($limit !== null && count($options) >= $limit) {
                 break;
             }
@@ -9088,9 +9088,9 @@ final class SQLiteDatabase
 
     /**
      * @param non-empty-array<string, mixed> $equalityColumnValues
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    private function optionRowsByIndexedColumnPrefixRange(
+    private function keyValueRowsByIndexedColumnPrefixRange(
         array $equalityColumnValues,
         string $rangeColumnName,
         mixed $lowerInclusive,
@@ -9155,7 +9155,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
             if ($limit !== null && count($options) >= $limit) {
                 break;
             }
@@ -9167,9 +9167,9 @@ final class SQLiteDatabase
     /**
      * @param non-empty-array<string, mixed> $equalityColumnValues
      * @param callable(string, string): int $compare
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    private function optionRowsByIndexedColumnPrefixRangeWithCollation(
+    private function keyValueRowsByIndexedColumnPrefixRangeWithCollation(
         array $equalityColumnValues,
         string $rangeColumnName,
         mixed $lowerInclusive,
@@ -9255,7 +9255,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
             if ($limit !== null && count($options) >= $limit) {
                 break;
             }
@@ -9267,9 +9267,9 @@ final class SQLiteDatabase
     /**
      * @param non-empty-array<string, mixed> $equalityColumnValues
      * @param array<string, callable(string, string): int> $customCollations
-     * @return list<SQLiteOptionRow>
+     * @return list<SQLiteKeyValueRow>
      */
-    private function optionRowsByIndexedColumnPrefixRangeWithCollations(
+    private function keyValueRowsByIndexedColumnPrefixRangeWithCollations(
         array $equalityColumnValues,
         string $rangeColumnName,
         mixed $lowerInclusive,
@@ -9347,7 +9347,7 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException("SQLite wp_options index points to missing rowid {$rowId}");
             }
 
-            $options[] = SQLiteOptionRow::fromTableRow($row);
+            $options[] = SQLiteKeyValueRow::fromTableRow($row);
             if ($limit !== null && count($options) >= $limit) {
                 break;
             }

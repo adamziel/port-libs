@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSelectResult;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -47,8 +47,8 @@ $optionPage = SQLiteTableLeafPage::assemble([
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $optionPage);
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $database->optionRowsOrdered('option_name', false, 2, 1),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $database->keyValueRowsOrdered('option_name', false, 2, 1),
 );
 $resultRows = [
     ['autoload' => 'yes', 'option_name' => 'siteurl', 'bytes' => 20],

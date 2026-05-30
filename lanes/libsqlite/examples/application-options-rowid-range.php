@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -32,8 +32,8 @@ $upperInclusive = isset($argv[5]) && in_array(strtolower($argv[5]), ['1', 'true'
 $database = SQLiteDatabase::fromFile($databasePath);
 $optionsRootPage = $database->tableRootPage('wp_options');
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $database->optionRowsByRowIdRange($lowerInclusive, $upperBound, $limit, $upperInclusive),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $database->keyValueRowsByRowIdRange($lowerInclusive, $upperBound, $limit, $upperInclusive),
 );
 
 echo json_encode([

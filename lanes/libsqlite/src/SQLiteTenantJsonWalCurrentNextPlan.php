@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteNetworkJsonWalCurrentNextPlan
+final class SQLiteTenantJsonWalCurrentNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows
@@ -52,8 +52,8 @@ final class SQLiteNetworkJsonWalCurrentNextPlan
             $beforeRows = $rows;
             $beforeFrame = $currentFrame;
             $identity = $scope === 'network'
-                ? self::networkIdentity($import['site_id'] ?? 1)
-                : self::blogIdentity($import['blog_id'] ?? 1);
+                ? self::sharedTenantIdentity($import['site_id'] ?? 1)
+                : self::partitionIdentity($import['blog_id'] ?? 1);
             $json = self::jsonRows($import['json'] ?? null, (string) ($import['path'] ?? '$.rows'), $scope);
 
             if (!$json['valid']) {
@@ -165,8 +165,8 @@ final class SQLiteNetworkJsonWalCurrentNextPlan
         foreach ($rows as $row) {
             $scope = strtolower((string) ($row['scope'] ?? (isset($row['site_id']) ? 'network' : 'blog')));
             $identity = $scope === 'network'
-                ? self::networkIdentity($row['site_id'] ?? 1)
-                : self::blogIdentity($row['blog_id'] ?? 1);
+                ? self::sharedTenantIdentity($row['site_id'] ?? 1)
+                : self::partitionIdentity($row['blog_id'] ?? 1);
             $normalized[self::rowKey($scope, $identity, $row)] = self::mergeRow($scope, $identity, $row, null);
         }
         ksort($normalized);
@@ -175,7 +175,7 @@ final class SQLiteNetworkJsonWalCurrentNextPlan
     }
 
     /** @return array{scope:string,table:string,blog_id:int|null,site_id:int|null,savepoint:string} */
-    private static function blogIdentity(mixed $blogId): array
+    private static function partitionIdentity(mixed $blogId): array
     {
         $blogId = (int) $blogId;
         if ($blogId < 1) {
@@ -192,7 +192,7 @@ final class SQLiteNetworkJsonWalCurrentNextPlan
     }
 
     /** @return array{scope:string,table:string,blog_id:int|null,site_id:int|null,savepoint:string} */
-    private static function networkIdentity(mixed $siteId): array
+    private static function sharedTenantIdentity(mixed $siteId): array
     {
         $siteId = (int) $siteId;
         if ($siteId < 1) {

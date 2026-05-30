@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteMultisiteSavepointWalPlan;
+use PortLibs\LibSqlite\SQLiteTenantSavepointWalPlan;
 
 $tests = [];
 
@@ -84,7 +84,7 @@ $siteThreeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (): array => SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([
+$plan = static fn (): array => SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([
     $makeSite(1, 'main', [
         [1, 0, 'main-network-schema-commit'],
         [2, 3, 'main-options-before-plugin'],
@@ -165,7 +165,7 @@ $cases = [
     'next matrix site two sources' => static fn (): mixed => $plan()['next_reader_matrix'][2],
     'empty site list is rejected' => static function () use ($pageSize): mixed {
         try {
-            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -173,7 +173,7 @@ $cases = [
     },
     'zero page size is rejected' => static function () use ($makeSite, $siteThreeStack): mixed {
         try {
-            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1])], 0);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1])], 0);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -183,7 +183,7 @@ $cases = [
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
         unset($site['blog_id']);
         try {
-            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -193,7 +193,7 @@ $cases = [
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
         $site['database_path'] = '';
         try {
-            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -203,7 +203,7 @@ $cases = [
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
         $site['database_bytes'] .= 'x';
         try {
-            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -212,7 +212,7 @@ $cases = [
     'empty page list is rejected' => static function () use ($makeSite, $siteThreeStack, $pageSize): mixed {
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, []);
         try {
-            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -222,7 +222,7 @@ $cases = [
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
         $site['savepoint'] = 'missing';
         try {
-            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -232,7 +232,7 @@ $cases = [
         $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
         $site['wal_bytes'] = substr($site['wal_bytes'], 0, -1) . 'x';
         try {
-            SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }

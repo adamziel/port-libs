@@ -74,7 +74,7 @@ final class SQLiteJsonSchemaWalPlan
             throw new \InvalidArgumentException('Application JSON schema WAL planning requires at least one accepted import row');
         }
 
-        $walPlan = SQLiteOptionRowsWalImportPlan::currentNext(
+        $walPlan = SQLiteKeyValueRowsWalImportPlan::currentNext(
             $wal,
             $databaseBytes,
             $databasePath,

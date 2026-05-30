@@ -74,7 +74,7 @@ foreach ($overflowPages as $pageNumber => $page) {
 }
 
 $database = SQLiteDatabase::fromBytes(implode('', $databasePages));
-$option = $database->optionRows()[0] ?? null;
+$option = $database->keyValueRows()[0] ?? null;
 $overflowNextPointers = [];
 foreach ($overflowPages as $pageNumber => $page) {
     $overflowNextPointers[$pageNumber] = unpack('N', substr($page, 0, 4))[1];

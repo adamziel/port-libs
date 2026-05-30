@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 use PortLibs\LibSqlite\SQLiteWalOpenView;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -87,8 +87,8 @@ echo json_encode([
         $effectiveDatabase->schemaRecords(),
     ),
     'options' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
-        $effectiveDatabase->optionRows(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+        $effectiveDatabase->keyValueRows(),
     ),
     'applicationUse' => 'Open a copied wp_options database with its sidecar -wal bytes in pure PHP, read committed option rows through the WAL overlay, preserve uncommitted draft frames, and preview checkpoint output before import or repair tooling accepts the database image.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

@@ -28,10 +28,10 @@ $partialOptionNameIndexRootPage = $database->indexRootPageForPointLookupWithCons
 
 if ($compositeIndexRootPage !== null) {
     $lookupMode = 'composite-autoload-option_name';
-    $option = $database->optionRowByIndexedAutoloadAndName($autoload, $optionName);
+    $option = $database->keyValueRowByIndexedLoadPolicyAndName($autoload, $optionName);
 } elseif ($partialOptionNameIndexRootPage !== null) {
     $lookupMode = 'partial-option_name-autoload-equality';
-    $option = $database->optionRowByIndexedNameForAutoload($optionName, $autoload);
+    $option = $database->keyValueRowByIndexedNameForLoadPolicy($optionName, $autoload);
 } else {
     throw new InvalidArgumentException('SQLite wp_options autoload+option_name index is not present');
 }

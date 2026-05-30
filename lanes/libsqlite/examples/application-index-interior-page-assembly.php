@@ -60,7 +60,7 @@ $rightIndexLeafPage = SQLiteIndexLeafPage::assemble([
 ]);
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $indexRootPage . $leftIndexLeafPage . $tablePage . $rightIndexLeafPage);
-$option = $database->optionRowByIndexedName($optionName);
+$option = $database->keyValueRowByIndexedName($optionName);
 $indexNames = array_map(
     static fn (SQLiteIndexCell $cell): string => $cell->record()->values[0],
     $database->indexCells(2),

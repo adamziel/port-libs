@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -42,8 +42,8 @@ $page1 = SQLiteTableLeafPage::assemble([$schemaCell], 512, 100, $firstPage);
 $page2 = SQLiteTableLeafPage::assemble([$optionCell]);
 $database = SQLiteDatabase::fromBytes($page1 . $page2);
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $database->optionRows(),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $database->keyValueRows(),
 );
 
 echo json_encode([

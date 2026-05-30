@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteVarint;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -22,8 +22,8 @@ $database = $databasePath === '--self-test'
     ? SQLiteDatabase::fromBytes(exampleApplicationRtrimCollationFixture())
     : SQLiteDatabase::fromFile($databasePath);
 
-$option = $database->optionRowByIndexedName($lookupName);
-$rangeOptions = $database->optionRowsByIndexedNameRange($lookupName, $lookupName, null, $upperInclusive);
+$option = $database->keyValueRowByIndexedName($lookupName);
+$rangeOptions = $database->keyValueRowsByIndexedNameRange($lookupName, $lookupName, null, $upperInclusive);
 
 echo json_encode([
     'path' => $databasePath,
@@ -31,7 +31,7 @@ echo json_encode([
     'upperInclusive' => $upperInclusive,
     'option' => $option?->toArray(),
     'rangeOptions' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
         $rangeOptions,
     ),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

@@ -52,7 +52,7 @@ $wpOptionsPage = SQLiteTableLeafPage::assemble([
 ], $pageSize);
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $pointerMapPage . $wpOptionsPage);
-$plan = $database->planOptionRowReplace($optionName, $replacementValue, 'no');
+$plan = $database->planKeyValueRowReplace($optionName, $replacementValue, 'no');
 
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {

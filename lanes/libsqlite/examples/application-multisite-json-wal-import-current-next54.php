@@ -11,9 +11,9 @@ require_once __DIR__ . '/../src/SQLiteJsonInspection.php';
 require_once __DIR__ . '/../src/SQLiteJsonValidity.php';
 require_once __DIR__ . '/../src/SQLiteJsonExtract.php';
 require_once __DIR__ . '/../src/SQLiteJsonSubtypeValue.php';
-require_once __DIR__ . '/../src/SQLiteMultisiteJsonWalImportPlan.php';
+require_once __DIR__ . '/../src/SQLiteTenantJsonWalImportPlan.php';
 
-use PortLibs\LibSqlite\SQLiteMultisiteJsonWalImportPlan;
+use PortLibs\LibSqlite\SQLiteTenantJsonWalImportPlan;
 
 $currentRows = [
     ['site_id' => 1, 'blog_id' => 1, 'option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -23,7 +23,7 @@ $currentRows = [
 
 $rows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
 
-$plan = SQLiteMultisiteJsonWalImportPlan::plan($currentRows, [
+$plan = SQLiteTenantJsonWalImportPlan::plan($currentRows, [
     [
         'name' => 'current_blog_import',
         'blog_id' => 1,

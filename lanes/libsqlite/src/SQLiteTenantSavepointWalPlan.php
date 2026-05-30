@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteMultisiteSavepointWalPlan
+final class SQLiteTenantSavepointWalPlan
 {
     /**
      * @param list<array{blog_id:int,database_path:string,database_bytes:string,wal:SQLiteWal,wal_bytes:string,savepoints:SQLiteSavepointStack,savepoint:string,page_numbers:list<int>}> $sites

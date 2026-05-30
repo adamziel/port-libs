@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -51,8 +51,8 @@ $indexRootPage = $database->indexRootPageForJsonValueOperatorRangeLookup(
     $upperInclusive,
 );
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $database->optionRowsByIndexedJsonOptionFragmentRange($jsonPath, $lowerBound, $upperBound, $limit, $upperInclusive),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $database->keyValueRowsByIndexedJsonFragmentRange($jsonPath, $lowerBound, $upperBound, $limit, $upperInclusive),
 );
 
 echo json_encode([

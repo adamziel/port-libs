@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -40,7 +40,7 @@ $tablePage = SQLiteTableLeafPage::assemble([
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage);
 $optionValue = $argv[1] ?? str_repeat('generated-cache-fragment:', 56) . 'done';
-$plan = $database->planOptionRowInsert(2, 'generated_cache_fixture', $optionValue, 'no');
+$plan = $database->planKeyValueRowInsert(2, 'generated_cache_fixture', $optionValue, 'no');
 
 $pages = [
     1 => $database->page(1),
@@ -55,8 +55,8 @@ foreach ($plan->pageImages() as $pageNumber => $page) {
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $postDatabase->optionRows(),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $postDatabase->keyValueRows(),
 );
 
 echo json_encode([

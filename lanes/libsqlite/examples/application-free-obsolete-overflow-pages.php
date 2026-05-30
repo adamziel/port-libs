@@ -77,7 +77,7 @@ foreach ($freePlan->updatedFreelistPages as $pageNumber => $page) {
 }
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
-$option = $postDatabase->optionRows()[0] ?? null;
+$option = $postDatabase->keyValueRows()[0] ?? null;
 
 echo json_encode([
     'applicationUse' => 'After rewriting a large wp_options row to a small inline value, return its obsolete overflow pages to SQLite freelist metadata without the SQLite extension.',

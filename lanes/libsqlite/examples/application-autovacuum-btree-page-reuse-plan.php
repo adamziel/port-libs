@@ -97,6 +97,6 @@ echo json_encode([
     'freelistPagesAfterReuse' => $postDatabase->freelistPageNumbers(),
     'reachableOptions' => array_map(
         static fn ($option): string => $option->optionName,
-        $postDatabase->optionRows(),
+        $postDatabase->keyValueRows(),
     ),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

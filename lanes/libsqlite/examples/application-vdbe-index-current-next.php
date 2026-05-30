@@ -21,7 +21,7 @@ $autoload = $cursor->yieldEqual(['autoload']);
 echo json_encode([
     'scenario' => 'application-vdbe-index-current-next',
     'autoloadRowids' => array_column($autoload, 'rowid'),
-    'autoloadNames' => array_map(static fn (array $entry): string => $entry['payload']['option_name'], $autoload),
+    'loadPolicyNames' => array_map(static fn (array $entry): string => $entry['payload']['option_name'], $autoload),
     'nextRowids' => array_column($cursor->remaining(), 'rowid'),
     'applicationUse' => 'Preview copied wp_options option_name index scans through VDBE-like current-key reads and Next advancement, applying SQLite affinity/collation before yielding rowids without ext/sqlite.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

@@ -44,7 +44,7 @@ $schemaPage = SQLiteTableLeafPage::assemble([
 $tablePage = SQLiteTableLeafPage::assemble([$optionAllocation['cell']]);
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . implode('', $optionAllocation['overflowPages']));
-$options = $database->optionRows();
+$options = $database->keyValueRows();
 $option = $options[0] ?? null;
 
 echo json_encode([

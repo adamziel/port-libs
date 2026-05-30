@@ -15,7 +15,7 @@ if ($databasePath === null || $optionName === null) {
 
 $database = SQLiteDatabase::fromFile($databasePath);
 $indexRootPage = $database->indexRootPageForLowercasePointLookup('wp_options', 'option_name', $optionName);
-$option = $database->optionRowByIndexedLowercaseName($optionName);
+$option = $database->keyValueRowByIndexedLowercaseName($optionName);
 
 echo json_encode([
     'path' => $databasePath,

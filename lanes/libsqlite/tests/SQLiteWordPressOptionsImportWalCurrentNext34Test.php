@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteOptionRowsWalImportPlan;
+use PortLibs\LibSqlite\SQLiteKeyValueRowsWalImportPlan;
 
 $tests = [];
 
@@ -53,7 +53,7 @@ $importRows = static fn (): array => [
     ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true,"mode":"safe"}', 'autoload' => 'no'],
     ['option_name' => 'siteurl', 'option_value' => 'https://new.example', 'autoload' => 'yes'],
 ];
-$plan = static fn (): array => SQLiteOptionRowsWalImportPlan::currentNext(
+$plan = static fn (): array => SQLiteKeyValueRowsWalImportPlan::currentNext(
     $baseWal(),
     $databaseBytes,
     $databasePath,
@@ -141,7 +141,7 @@ $tests['application options import wal current next34 applies append through vfs
     }
     file_put_contents($localWal, $baseWalBytes());
 
-    $plan = SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), [2, 5, 6]);
+    $plan = SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), [2, 5, 6]);
     $applied = (new SQLiteVfsFileWriter($root))->applyWalAppendTransactions($baseWal(), $databasePath, [[
         'pages' => array_combine(
             array_column($plan['append']['frames'], 'page_number'),
@@ -160,12 +160,12 @@ $tests['application options import wal current next34 applies append through vfs
 };
 
 $tests['application options import wal current next34 rejects bad inputs'] = static function (TestRunner $t) use ($baseWal, $databaseBytes, $databasePath, $currentRows, $importRows): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['option_id' => 0, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['option_name' => '', 'option_value' => 'x']], [2]));
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteOptionRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, '', $currentRows(), $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, [['option_id' => 0, 'option_name' => 'bad', 'option_value' => 'x']], $importRows(), [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), [['option_name' => '', 'option_value' => 'x']], [2]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteKeyValueRowsWalImportPlan::currentNext($baseWal(), $databaseBytes, $databasePath, $currentRows(), $importRows(), ['2']));
 };
 
 return $tests;

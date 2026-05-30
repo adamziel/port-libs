@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -54,7 +54,7 @@ $indexPage = SQLiteIndexLeafPage::assemble([
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
 $optionValue = $argv[1] ?? 'https://example.test/blog';
-$plan = $database->planOptionRowInsert(3, 'home', $optionValue, 'yes');
+$plan = $database->planKeyValueRowInsert(3, 'home', $optionValue, 'yes');
 
 $pages = [
     1 => $database->page(1),
@@ -67,8 +67,8 @@ foreach ($plan->pageImages() as $pageNumber => $page) {
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $postDatabase->optionRows(),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $postDatabase->keyValueRows(),
 );
 $indexRecords = array_map(
     static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
@@ -80,6 +80,6 @@ echo json_encode([
     'plan' => $plan->toArray(),
     'updatedPageNumbers' => array_keys($plan->pageImages()),
     'compositeIndexRecords' => $indexRecords,
-    'indexedHomeOption' => $postDatabase->optionRowByIndexedAutoloadAndName('yes', 'HOME')?->toArray(),
+    'indexedHomeOption' => $postDatabase->keyValueRowByIndexedLoadPolicyAndName('yes', 'HOME')?->toArray(),
     'options' => $options,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

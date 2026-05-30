@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteMultisiteImportSavepointPlan
+final class SQLiteTenantImportSavepointPlan
 {
     /**
      * @param list<array{blog_id:int,current_rows:list<array<string,mixed>>,batches:list<array{name?:string,rows:list<array<string,mixed>>,on_conflict?:string,release?:bool>>}> $sites
@@ -37,7 +37,7 @@ final class SQLiteMultisiteImportSavepointPlan
         $releasedRowsByTable = [];
 
         foreach (array_values($sites) as $siteIndex => $site) {
-            $blogId = self::blogId($site);
+            $blogId = self::tenantId($site);
             if (isset($sitePlans[$blogId])) {
                 throw new \InvalidArgumentException("Duplicate Application multisite blog_id {$blogId}");
             }
@@ -96,7 +96,7 @@ final class SQLiteMultisiteImportSavepointPlan
             }
 
             foreach (($sitePlan['dirty_pages'] ?? []) as $pageNumber) {
-                $dirtyPages[self::sitePageNumber($blogId, (int) $pageNumber)] = true;
+                $dirtyPages[self::tenantPageNumber($blogId, (int) $pageNumber)] = true;
             }
 
             $finalRowsByTable[$tableName] = $sitePlan['final_rows'];
@@ -125,7 +125,7 @@ final class SQLiteMultisiteImportSavepointPlan
                 'replace_conflicts' => $replaceConflicts,
             ]);
             foreach ($globalPlan['dirty_pages'] as $pageNumber) {
-                $dirtyPages[self::sitePageNumber(0, (int) $pageNumber)] = true;
+                $dirtyPages[self::tenantPageNumber(0, (int) $pageNumber)] = true;
             }
             $finalRowsByTable['wp_sitemeta'] = $globalPlan['final_rows'];
             $releasedRowsByTable['wp_sitemeta'] = $globalPlan['released_rows'];
@@ -162,7 +162,7 @@ final class SQLiteMultisiteImportSavepointPlan
     /**
      * @param array<string,mixed> $site
      */
-    private static function blogId(array $site): int
+    private static function tenantId(array $site): int
     {
         $blogId = $site['blog_id'] ?? null;
         if (!is_int($blogId) && !(is_string($blogId) && ctype_digit($blogId))) {
@@ -197,7 +197,7 @@ final class SQLiteMultisiteImportSavepointPlan
         return $copy;
     }
 
-    private static function sitePageNumber(int $blogId, int $pageNumber): int
+    private static function tenantPageNumber(int $blogId, int $pageNumber): int
     {
         return ($blogId * 100000) + $pageNumber;
     }

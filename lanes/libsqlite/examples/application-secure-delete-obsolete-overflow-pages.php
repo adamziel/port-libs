@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -56,7 +56,7 @@ $database = SQLiteDatabase::fromBytes(
     . $oldOverflowPages[4],
 );
 
-$plan = $database->planOptionRowReplace('obsolete_large_cache', 'small-cache-value', 'no', true, true);
+$plan = $database->planKeyValueRowReplace('obsolete_large_cache', 'small-cache-value', 'no', true, true);
 $pageImages = $plan->pageImages();
 
 $pages = [];
@@ -69,8 +69,8 @@ foreach ($pageImages as $pageNumber => $page) {
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $postDatabase->optionRows(),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $postDatabase->keyValueRows(),
 );
 $zeroedPages = [];
 foreach ($plan->obsoleteOverflowPageNumbers as $pageNumber) {

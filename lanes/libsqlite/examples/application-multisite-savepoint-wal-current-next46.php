@@ -7,7 +7,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteMultisiteSavepointWalPlan;
+use PortLibs\LibSqlite\SQLiteTenantSavepointWalPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -43,7 +43,7 @@ $mainWalBytes = $walBytes([
     [3, 3, 'main-plugin-transient-commit'],
 ]);
 
-$plan = SQLiteMultisiteSavepointWalPlan::rollbackToAcrossSites([[
+$plan = SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([[
     'blog_id' => 1,
     'database_path' => 'wp-content/database/main.sqlite',
     'database_bytes' => $page('main-page-1-base') . $page('main-page-2-base') . $page('main-page-3-base'),

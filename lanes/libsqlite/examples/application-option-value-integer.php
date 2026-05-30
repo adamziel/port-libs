@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -19,8 +19,8 @@ $integerValue = (int) $value;
 $database = SQLiteDatabase::fromFile($databasePath);
 $indexRootPage = $database->indexRootPageForIntegerCastPointLookup('wp_options', 'option_value', $integerValue);
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $database->optionRowsByIndexedIntegerOptionValue($integerValue, $limit),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $database->keyValueRowsByIndexedIntegerValue($integerValue, $limit),
 );
 
 echo json_encode([

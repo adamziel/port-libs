@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteNetworkJsonWalSavepointPlan;
+use PortLibs\LibSqlite\SQLiteTenantJsonWalSavepointPlan;
 
 $siteRows = static fn (): array => [
     [
@@ -36,7 +36,7 @@ $globalImports = static fn (): array => [
     ['name' => 'network_flags', 'json' => '{"rows":[{"option_name":"site_admins","option_value":"a:1:{i:0;s:5:\"admin\";}","autoload":"no"},{"option_name":"registration","option_value":"none","autoload":"no"}]}', 'path' => '$.rows'],
 ];
 
-$plan = static fn (array $sites = null, array $options = []): array => SQLiteNetworkJsonWalSavepointPlan::plan(
+$plan = static fn (array $sites = null, array $options = []): array => SQLiteTenantJsonWalSavepointPlan::plan(
     $sites ?? $siteRows(),
     $options + [
         'database_path' => '/tmp/wp-network-json-current-next47.sqlite',
@@ -123,7 +123,7 @@ $cases = [
         array_replace($siteRows()[0], ['json_imports' => [['name' => 'bad-name', 'json' => '{"rows":[]}']]]),
         $siteRows()[1],
     ], ['continue_on_site_error' => false]), InvalidArgumentException::class],
-    'empty site list rejected' => [static fn (): mixed => SQLiteNetworkJsonWalSavepointPlan::plan([]), InvalidArgumentException::class],
+    'empty site list rejected' => [static fn (): mixed => SQLiteTenantJsonWalSavepointPlan::plan([]), InvalidArgumentException::class],
     'duplicate blog id rejected' => [static fn (): mixed => $plan([$siteRows()[0], $siteRows()[0]]), InvalidArgumentException::class],
     'zero blog id rejected' => [static fn (): mixed => $plan([['blog_id' => 0, 'current_rows' => [], 'json_imports' => []]]), InvalidArgumentException::class],
     'missing current rows rejected' => [static fn (): mixed => $plan([['blog_id' => 3, 'json_imports' => []]]), InvalidArgumentException::class],

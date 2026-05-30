@@ -60,7 +60,7 @@ $leafPages[$targetLeafPage] = SQLiteTableLeafPage::assemble([
 ksort($leafPages);
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $tableRootPage . implode('', $leafPages));
-$plan = $database->planOptionRowReplace($optionName, $replacementValue, 'no');
+$plan = $database->planKeyValueRowReplace($optionName, $replacementValue, 'no');
 
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
@@ -76,7 +76,7 @@ $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
 $rootCellsAfter = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(2), $postDatabase->pageHeader(2));
 $leftParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(38), $postDatabase->pageHeader(38));
 $rightParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(39), $postDatabase->pageHeader(39));
-$targetOptions = $postDatabase->optionRowsByRowIdRange($targetRowId, $targetRowId, 1, true);
+$targetOptions = $postDatabase->keyValueRowsByRowIdRange($targetRowId, $targetRowId, 1, true);
 
 echo json_encode([
     'applicationUse' => 'Plan a wp_options replacement that splits a full table-interior root parent after a table leaf grows, without the SQLite extension.',

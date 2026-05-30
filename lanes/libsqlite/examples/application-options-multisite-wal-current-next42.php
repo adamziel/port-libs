@@ -6,7 +6,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteMultisiteOptionsWalPlan;
+use PortLibs\LibSqlite\SQLiteTenantKeyValueWalPlan;
 
 $pageSize = 512;
 $salt1 = 0x42004200;
@@ -28,7 +28,7 @@ foreach ([[2, 0, 'draft network siteurl before import'], [3, 5, 'committed blog 
     $walBytes .= $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
 }
 
-$plan = SQLiteMultisiteOptionsWalPlan::currentNext(
+$plan = SQLiteTenantKeyValueWalPlan::currentNext(
     SQLiteWal::parse($walBytes, $pageSize, true),
     $databaseBytes,
     'wp-content/database/multisite.sqlite',

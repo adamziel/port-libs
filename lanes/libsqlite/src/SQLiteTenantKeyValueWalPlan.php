@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteMultisiteOptionsWalPlan
+final class SQLiteTenantKeyValueWalPlan
 {
     /**
      * @param list<array{blog_id?:int,scope:string,option_id?:int,option_name:string,option_value:string,autoload?:string}> $currentRows
@@ -49,7 +49,7 @@ final class SQLiteMultisiteOptionsWalPlan
                 $row['option_id'] = $next[$key]['option_id'];
             } else {
                 $inserted[] = $key;
-                $row['option_id'] = self::nextOptionIdForTable($next, $row['table']);
+                $row['option_id'] = self::nextKeyValueIdForTable($next, $row['table']);
             }
             $next[$key] = $row;
         }
@@ -57,7 +57,7 @@ final class SQLiteMultisiteOptionsWalPlan
         ksort($next, SORT_STRING);
         $pageMap = self::pageMap($next, $firstOptionPageNumber);
         $tablePages = self::tablePageMap($pageMap);
-        $indexPages = self::autoloadIndexPageMap($tablePages);
+        $indexPages = self::loadPolicyIndexPageMap($tablePages);
         $databasePageCount = max([...array_values($pageMap), ...array_values($indexPages)]);
 
         $pages = [];
@@ -65,7 +65,7 @@ final class SQLiteMultisiteOptionsWalPlan
             $pages[$pageMap[$key]] = self::rowPage($row, $pageMap[$key], $pageSize);
         }
         foreach ($indexPages as $table => $pageNumber) {
-            $pages[$pageNumber] = self::autoloadIndexPage($next, $table, $pageNumber, $pageSize);
+            $pages[$pageNumber] = self::loadPolicyIndexPage($next, $table, $pageNumber, $pageSize);
         }
         ksort($pages, SORT_NUMERIC);
 
@@ -101,7 +101,7 @@ final class SQLiteMultisiteOptionsWalPlan
             'table_page_numbers' => $tablePages,
             'autoload_index_page_numbers' => $indexPages,
             'option_page_numbers' => $pageMap,
-            'autoload_yes_by_table' => self::autoloadNamesByTable($next),
+            'autoload_yes_by_table' => self::loadPolicyNamesByTable($next),
             'database_page_count' => $databasePageCount,
             'current_reader' => $currentReader,
             'next_reader' => $nextReader,
@@ -153,7 +153,7 @@ final class SQLiteMultisiteOptionsWalPlan
                 'option_id' => is_int($optionId) && $optionId > 0 ? $optionId : 0,
                 'option_name' => $name,
                 'option_value' => (string) ($row['option_value'] ?? ''),
-                'autoload' => self::normalizeAutoload((string) ($row['autoload'] ?? 'yes')),
+                'autoload' => self::normalizeLoadPolicy((string) ($row['autoload'] ?? 'yes')),
             ];
         }
         ksort($normalized, SORT_STRING);
@@ -175,7 +175,7 @@ final class SQLiteMultisiteOptionsWalPlan
         return $scope === 'network' ? 'wp_sitemeta' : 'wp_' . $blogId . '_options';
     }
 
-    private static function normalizeAutoload(string $autoload): string
+    private static function normalizeLoadPolicy(string $autoload): string
     {
         $autoload = strtolower(trim($autoload));
 
@@ -185,7 +185,7 @@ final class SQLiteMultisiteOptionsWalPlan
     /**
      * @param array<string,array{table:string,option_id:int}> $rows
      */
-    private static function nextOptionIdForTable(array $rows, string $table): int
+    private static function nextKeyValueIdForTable(array $rows, string $table): int
     {
         $max = 0;
         foreach ($rows as $row) {
@@ -232,7 +232,7 @@ final class SQLiteMultisiteOptionsWalPlan
      * @param array<string,list<int>> $tablePages
      * @return array<string,int>
      */
-    private static function autoloadIndexPageMap(array $tablePages): array
+    private static function loadPolicyIndexPageMap(array $tablePages): array
     {
         $nextPage = max(array_merge(...array_values($tablePages))) + 1;
         $indexPages = [];
@@ -271,14 +271,14 @@ final class SQLiteMultisiteOptionsWalPlan
     /**
      * @param array<string,array{table:string,option_name:string,autoload:string}> $rows
      */
-    private static function autoloadIndexPage(array $rows, string $table, int $pageNumber, int $pageSize): string
+    private static function loadPolicyIndexPage(array $rows, string $table, int $pageNumber, int $pageSize): string
     {
         $json = json_encode([
             'page' => $pageNumber,
             'index' => $table . '_autoload',
             'table' => $table,
             'autoload' => 'yes',
-            'option_names' => self::autoloadNamesForTable($rows, $table),
+            'option_names' => self::loadPolicyNamesForTable($rows, $table),
         ], JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
             throw new \RuntimeException('Unable to encode Application multisite autoload WAL page');
@@ -294,11 +294,11 @@ final class SQLiteMultisiteOptionsWalPlan
      * @param array<string,array{table:string,option_name:string,autoload:string}> $rows
      * @return array<string,list<string>>
      */
-    private static function autoloadNamesByTable(array $rows): array
+    private static function loadPolicyNamesByTable(array $rows): array
     {
         $tables = [];
         foreach ($rows as $row) {
-            $tables[$row['table']] = self::autoloadNamesForTable($rows, $row['table']);
+            $tables[$row['table']] = self::loadPolicyNamesForTable($rows, $row['table']);
         }
         ksort($tables, SORT_STRING);
 
@@ -309,7 +309,7 @@ final class SQLiteMultisiteOptionsWalPlan
      * @param array<string,array{table:string,option_name:string,autoload:string}> $rows
      * @return list<string>
      */
-    private static function autoloadNamesForTable(array $rows, string $table): array
+    private static function loadPolicyNamesForTable(array $rows, string $table): array
     {
         $names = [];
         foreach ($rows as $row) {

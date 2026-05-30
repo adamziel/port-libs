@@ -59,7 +59,7 @@ $database = SQLiteDatabase::fromBytes(
     . SQLiteIndexLeafPage::assemble($indexEntries, $pageSize),
 );
 
-$plan = $database->planOptionRowInsert(2, $optionName, $optionValue, 'yes');
+$plan = $database->planKeyValueRowInsert(2, $optionName, $optionValue, 'yes');
 
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
@@ -87,5 +87,5 @@ echo json_encode([
         5 => $postDatabase->pageHeader(5)->cellCount,
     ],
     'indexRecords' => $indexRecords,
-    'insertedOption' => $postDatabase->optionRowByIndexedName($optionName)?->toArray(),
+    'insertedOption' => $postDatabase->keyValueRowByIndexedName($optionName)?->toArray(),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

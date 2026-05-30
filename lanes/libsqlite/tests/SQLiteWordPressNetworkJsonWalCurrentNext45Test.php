@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteNetworkJsonWalCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteTenantJsonWalCurrentNextPlan;
 
 $currentRows = static fn (): array => [
     ['scope' => 'blog', 'blog_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -14,7 +14,7 @@ $currentRows = static fn (): array => [
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
-$plan = static fn (array $imports, array $options = []) => SQLiteNetworkJsonWalCurrentNextPlan::plan(
+$plan = static fn (array $imports, array $options = []) => SQLiteTenantJsonWalCurrentNextPlan::plan(
     $currentRows(),
     $imports,
     $options + ['database_path' => '/tmp/wp-network-json-current-next45.sqlite', 'page_size' => 1024],
@@ -102,7 +102,7 @@ $tests = [
         $t->same('Renamed Network', $result['final_rows'][2]['meta_value']);
     },
     'accepts JSON subtype network payloads' => static function (TestRunner $t) use ($currentRows): void {
-        $result = SQLiteNetworkJsonWalCurrentNextPlan::plan($currentRows(), [
+        $result = SQLiteTenantJsonWalCurrentNextPlan::plan($currentRows(), [
             ['scope' => 'network', 'json' => new SQLiteJsonSubtypeValue('{"rows":[{"meta_key":"json_subtype","meta_value":"ok"}]}'), 'path' => '$.rows'],
         ], ['database_path' => '/tmp/wp-network-json-subtype-current-next45.sqlite']);
 
@@ -113,7 +113,7 @@ $tests = [
         $blob = new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
             ['option_name' => 'jsonb_blog_setting', 'option_value' => 'ok'],
         ]]));
-        $result = SQLiteNetworkJsonWalCurrentNextPlan::plan($currentRows(), [
+        $result = SQLiteTenantJsonWalCurrentNextPlan::plan($currentRows(), [
             ['scope' => 'blog', 'blog_id' => 3, 'json' => $blob, 'path' => '$.rows'],
         ], ['database_path' => '/tmp/wp-network-jsonb-current-next45.sqlite']);
 
@@ -124,7 +124,7 @@ $tests = [
 
 foreach (range(1, 18) as $blogId) {
     $tests["maps blog {$blogId} JSON option writes to isolated WAL pages"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $blogId): void {
-        $result = SQLiteNetworkJsonWalCurrentNextPlan::plan($currentRows(), [
+        $result = SQLiteTenantJsonWalCurrentNextPlan::plan($currentRows(), [
             ['scope' => 'blog', 'blog_id' => $blogId, 'json' => $jsonRows([
                 ['option_name' => 'plugin_' . $blogId . '_settings', 'option_value' => '{"blog":' . $blogId . '}', 'autoload' => $blogId % 2 === 0 ? 'yes' : 'no'],
             ]), 'path' => '$.rows'],
@@ -138,7 +138,7 @@ foreach (range(1, 18) as $blogId) {
 
 foreach (range(1, 12) as $siteId) {
     $tests["maps network {$siteId} JSON meta writes to sitemeta WAL pages"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $siteId): void {
-        $result = SQLiteNetworkJsonWalCurrentNextPlan::plan($currentRows(), [
+        $result = SQLiteTenantJsonWalCurrentNextPlan::plan($currentRows(), [
             ['scope' => 'network', 'site_id' => $siteId, 'json' => $jsonRows([
                 ['meta_key' => 'network_' . $siteId . '_setting', 'meta_value' => '{"site":' . $siteId . '}'],
             ]), 'path' => '$.rows'],
@@ -199,17 +199,17 @@ $tests['combines released blog and network batches into one current-next WAL str
 };
 
 $tests['rejects empty imports'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNetworkJsonWalCurrentNextPlan::plan($currentRows(), []));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteTenantJsonWalCurrentNextPlan::plan($currentRows(), []));
 };
 
 $tests['rejects unsafe database paths'] = static function (TestRunner $t) use ($currentRows, $jsonRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNetworkJsonWalCurrentNextPlan::plan($currentRows(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteTenantJsonWalCurrentNextPlan::plan($currentRows(), [
         ['scope' => 'blog', 'json' => $jsonRows([])],
     ], ['database_path' => '../wp.sqlite']));
 };
 
 $tests['rejects invalid page sizes'] = static function (TestRunner $t) use ($currentRows, $jsonRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNetworkJsonWalCurrentNextPlan::plan($currentRows(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteTenantJsonWalCurrentNextPlan::plan($currentRows(), [
         ['scope' => 'blog', 'json' => $jsonRows([])],
     ], ['page_size' => 1000]));
 };

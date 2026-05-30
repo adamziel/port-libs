@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteNetworkJsonWalSavepointPlan
+final class SQLiteTenantJsonWalSavepointPlan
 {
     /**
      * @param list<array{blog_id:int|string,current_rows:list<array<string,mixed>>,json_imports:list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}>}> $sites
@@ -41,7 +41,7 @@ final class SQLiteNetworkJsonWalSavepointPlan
         $walBytes = 0;
 
         foreach (array_values($sites) as $siteIndex => $site) {
-            $blogId = self::blogId($site);
+            $blogId = self::tenantId($site);
             if (isset($sitePlans[$blogId])) {
                 throw new \InvalidArgumentException("Duplicate Application network blog_id {$blogId}");
             }
@@ -77,18 +77,18 @@ final class SQLiteNetworkJsonWalSavepointPlan
                     throw $exception;
                 }
 
-                $sitePlan = self::rolledBackSitePlan($site['current_rows'], $prefixedImports, $exception->getMessage());
+                $sitePlan = self::rolledBackTenantPlan($site['current_rows'], $prefixedImports, $exception->getMessage());
                 $status = 'rolled_back';
                 $rolledBackSites[] = $blogId;
             }
 
             foreach (($sitePlan['dirty_pages'] ?? []) as $pageNumber) {
-                $dirtyPages[self::sitePageNumber($blogId, (int) $pageNumber)] = true;
+                $dirtyPages[self::tenantPageNumber($blogId, (int) $pageNumber)] = true;
             }
 
             foreach (($sitePlan['wal']['frames'] ?? []) as $frame) {
                 $walFrameCount++;
-                $walFrames[] = self::networkWalFrame($blogId, $tableName, $walFrameCount, $frame);
+                $walFrames[] = self::tenantWalFrame($blogId, $tableName, $walFrameCount, $frame);
             }
             $walBytes += (int) ($sitePlan['wal']['bytes'] ?? 0);
 
@@ -119,11 +119,11 @@ final class SQLiteNetworkJsonWalSavepointPlan
                 'replace_conflicts' => $replaceConflicts,
             ]);
             foreach ($globalPlan['dirty_pages'] as $pageNumber) {
-                $dirtyPages[self::sitePageNumber(0, (int) $pageNumber)] = true;
+                $dirtyPages[self::tenantPageNumber(0, (int) $pageNumber)] = true;
             }
             foreach ($globalPlan['wal']['frames'] as $frame) {
                 $walFrameCount++;
-                $walFrames[] = self::networkWalFrame(0, 'wp_sitemeta', $walFrameCount, $frame);
+                $walFrames[] = self::tenantWalFrame(0, 'wp_sitemeta', $walFrameCount, $frame);
             }
             $walBytes += (int) $globalPlan['wal']['bytes'];
             $finalRowsByTable['wp_sitemeta'] = $globalPlan['final_rows'];
@@ -167,7 +167,7 @@ final class SQLiteNetworkJsonWalSavepointPlan
     /**
      * @param array<string,mixed> $site
      */
-    private static function blogId(array $site): int
+    private static function tenantId(array $site): int
     {
         $blogId = $site['blog_id'] ?? null;
         if (!is_int($blogId) && !(is_string($blogId) && ctype_digit($blogId))) {
@@ -207,7 +207,7 @@ final class SQLiteNetworkJsonWalSavepointPlan
      * @param list<array<string,mixed>> $imports
      * @return array<string,mixed>
      */
-    private static function rolledBackSitePlan(array $currentRows, array $imports, string $error): array
+    private static function rolledBackTenantPlan(array $currentRows, array $imports, string $error): array
     {
         return [
             'status' => 'rolled_back',
@@ -240,7 +240,7 @@ final class SQLiteNetworkJsonWalSavepointPlan
      * @param array<string,mixed> $frame
      * @return array<string,mixed>
      */
-    private static function networkWalFrame(int $blogId, string $tableName, int $networkFrameIndex, array $frame): array
+    private static function tenantWalFrame(int $blogId, string $tableName, int $networkFrameIndex, array $frame): array
     {
         $pageNumber = (int) ($frame['page_number'] ?? 0);
 
@@ -248,11 +248,11 @@ final class SQLiteNetworkJsonWalSavepointPlan
             'network_frame_index' => $networkFrameIndex,
             'blog_id' => $blogId,
             'table' => $tableName,
-            'network_page_number' => self::sitePageNumber($blogId, $pageNumber),
+            'network_page_number' => self::tenantPageNumber($blogId, $pageNumber),
         ];
     }
 
-    private static function sitePageNumber(int $blogId, int $pageNumber): int
+    private static function tenantPageNumber(int $blogId, int $pageNumber): int
     {
         return ($blogId * 100000) + $pageNumber;
     }

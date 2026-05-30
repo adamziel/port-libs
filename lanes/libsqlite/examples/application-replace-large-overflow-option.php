@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -54,7 +54,7 @@ $database = SQLiteDatabase::fromBytes(
 );
 
 $newValue = $argv[1] ?? str_repeat('new-cache-fragment:', 78) . 'done';
-$plan = $database->planOptionRowReplace('rewrite_large_cache', $newValue, 'no');
+$plan = $database->planKeyValueRowReplace('rewrite_large_cache', $newValue, 'no');
 
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
@@ -66,8 +66,8 @@ foreach ($plan->pageImages() as $pageNumber => $page) {
 
 $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $postDatabase->optionRows(),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $postDatabase->keyValueRows(),
 );
 
 echo json_encode([

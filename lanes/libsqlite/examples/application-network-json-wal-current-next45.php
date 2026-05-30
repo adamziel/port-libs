@@ -11,9 +11,9 @@ require __DIR__ . '/../src/SQLiteJsonPath.php';
 require __DIR__ . '/../src/SQLiteJsonExtract.php';
 require __DIR__ . '/../src/SQLiteJsonSubtypeValue.php';
 require __DIR__ . '/../src/SQLiteJsonValidity.php';
-require __DIR__ . '/../src/SQLiteNetworkJsonWalCurrentNextPlan.php';
+require __DIR__ . '/../src/SQLiteTenantJsonWalCurrentNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteNetworkJsonWalCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteTenantJsonWalCurrentNextPlan;
 
 $currentRows = [
     ['scope' => 'blog', 'blog_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -28,7 +28,7 @@ $networkJson = json_encode(['rows' => [
     ['meta_key' => 'network_plugins', 'meta_value' => '["akismet/akismet.php"]'],
 ]], JSON_THROW_ON_ERROR);
 
-$plan = SQLiteNetworkJsonWalCurrentNextPlan::plan($currentRows, [
+$plan = SQLiteTenantJsonWalCurrentNextPlan::plan($currentRows, [
     [
         'scope' => 'blog',
         'blog_id' => 2,

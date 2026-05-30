@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteOptionRowsWalImportPlan
+final class SQLiteKeyValueRowsWalImportPlan
 {
     /**
      * @param list<array{option_id?:int,option_name:string,option_value:string,autoload?:string}> $currentRows
@@ -20,7 +20,7 @@ final class SQLiteOptionRowsWalImportPlan
         array $importRows,
         array $pageNumbers,
         int $firstOptionPageNumber = 2,
-        ?int $autoloadIndexPageNumber = null,
+        ?int $loadPolicyIndexPageNumber = null,
     ): array {
         if ($databasePath === '') {
             throw new \InvalidArgumentException('SQLite Application options WAL import requires a database path');
@@ -52,21 +52,21 @@ final class SQLiteOptionRowsWalImportPlan
                 $row['option_id'] = $nextRows[$name]['option_id'];
             } else {
                 $inserted[$name] = true;
-                $row['option_id'] = self::nextOptionId($nextRows);
+                $row['option_id'] = self::nextKeyValueId($nextRows);
             }
             $nextRows[$name] = $row;
         }
 
         ksort($nextRows, SORT_STRING);
-        $optionPageNumbers = self::optionPageNumbers($nextRows, $firstOptionPageNumber);
-        $autoloadIndexPageNumber ??= $firstOptionPageNumber + count($optionPageNumbers);
-        $databasePageCount = max([$autoloadIndexPageNumber, ...array_values($optionPageNumbers)]);
+        $keyValuePageNumbers = self::keyValuePageNumbers($nextRows, $firstOptionPageNumber);
+        $loadPolicyIndexPageNumber ??= $firstOptionPageNumber + count($keyValuePageNumbers);
+        $databasePageCount = max([$loadPolicyIndexPageNumber, ...array_values($keyValuePageNumbers)]);
 
         $pages = [];
         foreach ($nextRows as $name => $row) {
-            $pages[$optionPageNumbers[$name]] = self::rowPage($row, $optionPageNumbers[$name], $pageSize);
+            $pages[$keyValuePageNumbers[$name]] = self::rowPage($row, $keyValuePageNumbers[$name], $pageSize);
         }
-        $pages[$autoloadIndexPageNumber] = self::autoloadIndexPage($nextRows, $autoloadIndexPageNumber, $pageSize);
+        $pages[$loadPolicyIndexPageNumber] = self::loadPolicyIndexPage($nextRows, $loadPolicyIndexPageNumber, $pageSize);
         ksort($pages, SORT_NUMERIC);
 
         $append = SQLiteWalAppendPlan::appendTransactions($wal, $databasePath, [[
@@ -98,8 +98,8 @@ final class SQLiteOptionRowsWalImportPlan
             'inserted_names' => array_keys($inserted),
             'updated_names' => array_keys($updated),
             'deleted_names' => [],
-            'autoload_yes_names' => self::autoloadNames($nextRows),
-            'option_page_numbers' => $optionPageNumbers,
+            'autoload_yes_names' => self::loadPolicyNames($nextRows),
+            'option_page_numbers' => $keyValuePageNumbers,
             'database_page_count' => $databasePageCount,
             'current_reader' => $current,
             'next_reader' => $next,
@@ -137,7 +137,7 @@ final class SQLiteOptionRowsWalImportPlan
                 'option_id' => is_int($optionId) && $optionId > 0 ? $optionId : 0,
                 'option_name' => $name,
                 'option_value' => (string) ($row['option_value'] ?? ''),
-                'autoload' => self::normalizeAutoload((string) ($row['autoload'] ?? 'yes')),
+                'autoload' => self::normalizeLoadPolicy((string) ($row['autoload'] ?? 'yes')),
             ];
         }
         ksort($normalized, SORT_STRING);
@@ -148,7 +148,7 @@ final class SQLiteOptionRowsWalImportPlan
     /**
      * @param array<string,array{option_id:int}> $rows
      */
-    private static function nextOptionId(array $rows): int
+    private static function nextKeyValueId(array $rows): int
     {
         $max = 0;
         foreach ($rows as $row) {
@@ -158,7 +158,7 @@ final class SQLiteOptionRowsWalImportPlan
         return $max + 1;
     }
 
-    private static function normalizeAutoload(string $autoload): string
+    private static function normalizeLoadPolicy(string $autoload): string
     {
         $autoload = strtolower(trim($autoload));
 
@@ -169,7 +169,7 @@ final class SQLiteOptionRowsWalImportPlan
      * @param array<string,array{option_id:int,option_name:string,option_value:string,autoload:string}> $rows
      * @return array<string,int>
      */
-    private static function optionPageNumbers(array $rows, int $firstOptionPageNumber): array
+    private static function keyValuePageNumbers(array $rows, int $firstOptionPageNumber): array
     {
         $pages = [];
         $page = $firstOptionPageNumber;
@@ -206,9 +206,9 @@ final class SQLiteOptionRowsWalImportPlan
     /**
      * @param array<string,array{option_name:string,autoload:string}> $rows
      */
-    private static function autoloadIndexPage(array $rows, int $pageNumber, int $pageSize): string
+    private static function loadPolicyIndexPage(array $rows, int $pageNumber, int $pageSize): string
     {
-        $names = self::autoloadNames($rows);
+        $names = self::loadPolicyNames($rows);
         $json = json_encode([
             'page' => $pageNumber,
             'index' => 'wp_options_autoload',
@@ -229,7 +229,7 @@ final class SQLiteOptionRowsWalImportPlan
      * @param array<string,array{option_name:string,autoload:string}> $rows
      * @return list<string>
      */
-    private static function autoloadNames(array $rows): array
+    private static function loadPolicyNames(array $rows): array
     {
         $names = [];
         foreach ($rows as $row) {

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -27,7 +27,7 @@ $lookupValue = match (strtolower($value)) {
 $database = SQLiteDatabase::fromFile($databasePath);
 $indexRootPage = $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', $jsonPath, $lookupValue);
 $options = array_map(
-    static function (SQLiteOptionRow $option): array {
+    static function (SQLiteKeyValueRow $option): array {
         $row = $option->toArray();
         $value = $row['option_value'];
         if (preg_match('//u', $value) !== 1) {
@@ -38,7 +38,7 @@ $options = array_map(
 
         return $row;
     },
-    $database->optionRowsByIndexedJsonOptionValue($jsonPath, $lookupValue, $limit),
+    $database->keyValueRowsByIndexedJsonValue($jsonPath, $lookupValue, $limit),
 );
 
 echo json_encode([

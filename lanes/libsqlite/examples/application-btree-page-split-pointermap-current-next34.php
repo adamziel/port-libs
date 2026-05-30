@@ -48,7 +48,7 @@ $rootLeafPage = SQLiteTableLeafPage::assemble([
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $pointerMapPage . $rootLeafPage);
 $replacementValue = str_repeat('expanded-cache-', 28);
-$plan = $database->planOptionRowReplace('blogname', $replacementValue, 'no');
+$plan = $database->planKeyValueRowReplace('blogname', $replacementValue, 'no');
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
     $pages[$pageNumber] = $pageNumber <= $database->pageCount()

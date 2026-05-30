@@ -13,12 +13,12 @@ $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
 $journalBytes = str_pad('rollback journal with copied wp_options preimages', $pageSize, "\0");
 $schemaPage = str_pad('SQLite format 3' . "\0" . 'schema after option insert', $pageSize, "\0");
 $optionsPage = str_pad('wp_options committed plugin setting row', $pageSize, "\0");
-$autoloadIndexPage = str_pad('autoload index committed plugin setting key', $pageSize, "\0");
+$loadPolicyIndexPage = str_pad('autoload index committed plugin setting key', $pageSize, "\0");
 
 $plan = SQLiteRollbackJournalCommitPlan::commit(
     $databasePath,
     $journalBytes,
-    [1 => $schemaPage, 2 => $optionsPage, 5 => $autoloadIndexPage],
+    [1 => $schemaPage, 2 => $optionsPage, 5 => $loadPolicyIndexPage],
     $pageSize,
     'full',
     'delete'
@@ -28,7 +28,7 @@ $writer = new SQLiteVfsFileWriter($root);
 $applied = $writer->applyRollbackJournalCommit(
     $databasePath,
     $journalBytes,
-    [1 => $schemaPage, 2 => $optionsPage, 5 => $autoloadIndexPage],
+    [1 => $schemaPage, 2 => $optionsPage, 5 => $loadPolicyIndexPage],
     $pageSize,
     'full',
     'delete'

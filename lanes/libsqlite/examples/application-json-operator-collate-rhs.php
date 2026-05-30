@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -75,8 +75,8 @@ $database = SQLiteDatabase::fromBytes(
 );
 
 $matches = [
-    'cache' => $database->optionRowsByIndexedJsonOptionValue('$.cache', 'hit'),
-    'pluginEnabled' => $database->optionRowsByIndexedJsonOptionValue('$."plugin.enabled"', 'yes'),
+    'cache' => $database->keyValueRowsByIndexedJsonValue('$.cache', 'hit'),
+    'pluginEnabled' => $database->keyValueRowsByIndexedJsonValue('$."plugin.enabled"', 'yes'),
 ];
 
 echo json_encode([
@@ -93,7 +93,7 @@ echo json_encode([
         'pluginEnabled' => $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."plugin.enabled"', 'yes'),
     ],
     'matches' => array_map(
-        static fn (array $options): array => array_map(static fn (SQLiteOptionRow $option): string => $option->optionName, $options),
+        static fn (array $options): array => array_map(static fn (SQLiteKeyValueRow $option): string => $option->optionName, $options),
         $matches,
     ),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
-use PortLibs\LibSqlite\SQLiteMultisiteJsonWalImportPlan;
+use PortLibs\LibSqlite\SQLiteTenantJsonWalImportPlan;
 
 $currentRows = static fn (): array => [
     ['site_id' => 1, 'blog_id' => 1, 'option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
@@ -16,7 +16,7 @@ $currentRows = static fn (): array => [
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
-$plan = static fn (array $imports, array $options = []): array => SQLiteMultisiteJsonWalImportPlan::plan(
+$plan = static fn (array $imports, array $options = []): array => SQLiteTenantJsonWalImportPlan::plan(
     $currentRows(),
     $imports,
     ['database_path' => '/tmp/wp-multisite-json-wal-current-next54.sqlite'] + $options
@@ -98,7 +98,7 @@ $cases = [
         ])],
     ])['batches'][0]['status'],
     'JSONB source rows are accepted' => static function () use ($currentRows): mixed {
-        $result = SQLiteMultisiteJsonWalImportPlan::plan($currentRows(), [
+        $result = SQLiteTenantJsonWalImportPlan::plan($currentRows(), [
             ['name' => 'jsonb_blog', 'blog_id' => 2, 'json' => new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
                 ['option_name' => 'jsonb_settings', 'option_value' => '{"ok":true}', 'autoload' => 'no'],
             ]]))],
@@ -107,7 +107,7 @@ $cases = [
         return $result['batches'][0]['json']['option_names'];
     },
     'JSON subtype source rows are accepted' => static function () use ($currentRows): mixed {
-        $result = SQLiteMultisiteJsonWalImportPlan::plan($currentRows(), [
+        $result = SQLiteTenantJsonWalImportPlan::plan($currentRows(), [
             ['name' => 'subtype_blog', 'blog_id' => 1, 'json' => new SQLiteJsonSubtypeValue('{"rows":[{"option_name":"subtype_settings","option_value":"{\"ok\":true}","autoload":"no"}]}')],
         ]);
 
@@ -252,7 +252,7 @@ foreach ($cases as $name => $callback) {
 
 foreach (range(1, 30) as $blogId) {
     $tests["sqlite application multisite json wal import current next54 generated blog {$blogId} maps option page"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $blogId): void {
-        $result = SQLiteMultisiteJsonWalImportPlan::plan($currentRows(), [
+        $result = SQLiteTenantJsonWalImportPlan::plan($currentRows(), [
             ['name' => 'blog_' . $blogId, 'blog_id' => $blogId, 'json' => $jsonRows([
                 ['option_id' => 65, 'option_name' => 'blog_' . $blogId . '_settings', 'option_value' => '{"blog":' . $blogId . '}'],
             ])],
@@ -268,7 +268,7 @@ foreach ([
     'bad savepoint' => ['name' => 'bad-name', 'json' => '{"rows":[]}'],
 ] as $label => $import) {
     $tests["sqlite application multisite json wal import current next54 rejects {$label}"] = static function (TestRunner $t) use ($currentRows, $import): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteMultisiteJsonWalImportPlan::plan($currentRows(), [$import]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTenantJsonWalImportPlan::plan($currentRows(), [$import]));
     };
 }
 

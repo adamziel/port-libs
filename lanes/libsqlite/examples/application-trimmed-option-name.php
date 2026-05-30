@@ -23,7 +23,7 @@ $indexRootPage = $database->indexRootPageForTrimmedPointLookup(
     $functionName,
     $characters,
 );
-$option = $database->optionRowByIndexedTrimmedName($optionName, $functionName, $characters);
+$option = $database->keyValueRowByIndexedTrimmedName($optionName, $functionName, $characters);
 
 echo json_encode([
     'path' => $databasePath,

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteVarint;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -20,44 +20,44 @@ if ($databasePath === null) {
 }
 
 $database = $databasePath === '--self-test'
-    ? SQLiteDatabase::fromBytes(exampleOptionRowPatternFixture())
+    ? SQLiteDatabase::fromBytes(exampleKeyValueRowPatternFixture())
     : SQLiteDatabase::fromFile($databasePath);
 
-$likeOptions = $database->optionRowsByNameLike($likePattern, '\\');
+$likeOptions = $database->keyValueRowsByNameLike($likePattern, '\\');
 $likePlan = SQLiteDatabase::likePatternPlan($likePattern, '\\');
 $unicodeLikePattern = 'plugin\_å%';
-$unicodeLikeOptions = $database->optionRowsByNameLike($unicodeLikePattern, '\\');
+$unicodeLikeOptions = $database->keyValueRowsByNameLike($unicodeLikePattern, '\\');
 $unicodeLikePlan = SQLiteDatabase::likePatternPlan($unicodeLikePattern, '\\');
-$indexedLikeOptions = $database->optionRowsByIndexedNameLikePrefixRange($likePattern, '\\');
+$indexedLikeOptions = $database->keyValueRowsByIndexedNameLikePrefixRange($likePattern, '\\');
 $upperCaseLikePattern = strtoupper($likePattern);
 $indexedNoCaseLike = null;
 $indexedNoCaseUpperCaseLike = null;
 try {
     $indexedNoCaseLike = array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
-        $database->optionRowsByIndexedNameLikePrefixRangeNoCase($likePattern, '\\'),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+        $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase($likePattern, '\\'),
     );
     $indexedNoCaseUpperCaseLike = array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
-        $database->optionRowsByIndexedNameLikePrefixRangeNoCase($upperCaseLikePattern, '\\'),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+        $database->keyValueRowsByIndexedNameLikePrefixRangeNoCase($upperCaseLikePattern, '\\'),
     );
 } catch (InvalidArgumentException $exception) {
     $indexedNoCaseLike = ['error' => $exception->getMessage()];
     $indexedNoCaseUpperCaseLike = ['error' => $exception->getMessage()];
 }
-$globOptions = $database->optionRowsByNameGlob($globPattern);
-$unicodeGlobOptions = $database->optionRowsByNameGlob('plugin_[À-ÿ]');
-$unicodeGlobNegatedOptions = $database->optionRowsByNameGlob('plugin_[^À-ÿ]');
+$globOptions = $database->keyValueRowsByNameGlob($globPattern);
+$unicodeGlobOptions = $database->keyValueRowsByNameGlob('plugin_[À-ÿ]');
+$unicodeGlobNegatedOptions = $database->keyValueRowsByNameGlob('plugin_[^À-ÿ]');
 $indexedGlobOptions = null;
 try {
     $indexedGlobOptions = array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
-        $database->optionRowsByIndexedNameGlobPrefixRange($globPattern),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+        $database->keyValueRowsByIndexedNameGlobPrefixRange($globPattern),
     );
 } catch (InvalidArgumentException $exception) {
     $indexedGlobOptions = ['error' => $exception->getMessage()];
 }
-$globReversedRangeOptions = $database->optionRowsByNameGlob('plugin_[z-a]');
+$globReversedRangeOptions = $database->keyValueRowsByNameGlob('plugin_[z-a]');
 $regexp = static function (string $pattern, string $value): bool {
     $result = preg_match('/' . str_replace('/', '\\/', $pattern) . '/u', $value);
     if ($result === false) {
@@ -66,7 +66,7 @@ $regexp = static function (string $pattern, string $value): bool {
 
     return $result === 1;
 };
-$regexpOptions = $database->optionRowsByNameRegexp($regexpPattern, $regexp);
+$regexpOptions = $database->keyValueRowsByNameRegexp($regexpPattern, $regexp);
 
 echo json_encode([
     'path' => $databasePath,
@@ -77,50 +77,50 @@ echo json_encode([
     'unicodeLikePattern' => $unicodeLikePattern,
     'unicodeLikePlan' => $unicodeLikePlan,
     'unicodeLikeOptions' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
         $unicodeLikeOptions,
     ),
     'upperCaseLikePattern' => $upperCaseLikePattern,
     'globPattern' => $globPattern,
     'regexpPattern' => $regexpPattern,
     'likeOptions' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
         $likeOptions,
     ),
     'indexedLikeOptions' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
         $indexedLikeOptions,
     ),
     'indexedNoCaseLikeOptions' => $indexedNoCaseLike,
     'indexedNoCaseUpperCaseLikeOptions' => $indexedNoCaseUpperCaseLike,
     'globOptions' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
         $globOptions,
     ),
     'unicodeGlobPattern' => 'plugin_[À-ÿ]',
     'unicodeGlobOptions' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
         $unicodeGlobOptions,
     ),
     'unicodeGlobNegatedPattern' => 'plugin_[^À-ÿ]',
     'unicodeGlobNegatedOptions' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
         $unicodeGlobNegatedOptions,
     ),
     'globPrefixRange' => SQLiteDatabase::globPrefixRangeBounds($globPattern),
     'indexedGlobOptions' => $indexedGlobOptions,
     'globReversedRangePattern' => 'plugin_[z-a]',
     'globReversedRangeOptions' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
         $globReversedRangeOptions,
     ),
     'regexpOptions' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
         $regexpOptions,
     ),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 
-function exampleOptionRowPatternFixture(): string
+function exampleKeyValueRowPatternFixture(): string
 {
     $pageSize = 4096;
     $varint = static fn (int $value): string => SQLiteVarint::encode($value);

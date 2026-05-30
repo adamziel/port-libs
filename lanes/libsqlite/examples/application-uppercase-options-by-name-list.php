@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -24,8 +24,8 @@ $optionNames = array_values(array_filter(
 $database = SQLiteDatabase::fromFile($databasePath);
 $indexRootPage = $database->indexRootPageForUppercaseInLookup('wp_options', 'option_name', $optionNames);
 $options = array_map(
-    static fn (SQLiteOptionRow $option): array => $option->toArray(),
-    $database->optionRowsByIndexedUppercaseNames($optionNames, $limit),
+    static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+    $database->keyValueRowsByIndexedUppercaseNames($optionNames, $limit),
 );
 
 echo json_encode([

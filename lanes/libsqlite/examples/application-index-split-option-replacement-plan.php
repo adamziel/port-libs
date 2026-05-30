@@ -75,7 +75,7 @@ $database = SQLiteDatabase::fromBytes(
     . $rightIndexLeafPage,
 );
 
-$plan = $database->planOptionRowReplace($optionName, $replacementValue, 'no');
+$plan = $database->planKeyValueRowReplace($optionName, $replacementValue, 'no');
 
 $pages = [];
 for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
@@ -104,5 +104,5 @@ echo json_encode([
         6 => $postDatabase->pageHeader(6)->cellCount,
     ],
     'indexRecords' => $indexRecords,
-    'replacedOption' => $postDatabase->optionRowByIndexedAutoloadAndName('no', $optionName)?->toArray(),
+    'replacedOption' => $postDatabase->keyValueRowByIndexedLoadPolicyAndName('no', $optionName)?->toArray(),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

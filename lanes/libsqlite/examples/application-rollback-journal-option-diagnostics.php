@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -99,8 +99,8 @@ echo json_encode([
         $database->schemaRecords(),
     ),
     'options' => array_map(
-        static fn (SQLiteOptionRow $option): array => $option->toArray(),
-        $database->optionRows(),
+        static fn (SQLiteKeyValueRow $option): array => $option->toArray(),
+        $database->keyValueRows(),
     ),
     'rolledBackImageBytes' => strlen($journal->rollbackDatabaseImage($dirtyDatabaseBytes)),
     'sectorPaddingBytes' => 128,

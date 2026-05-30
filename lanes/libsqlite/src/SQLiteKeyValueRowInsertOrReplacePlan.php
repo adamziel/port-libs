@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteOptionRowInsertOrReplacePlan
+final class SQLiteKeyValueRowInsertOrReplacePlan
 {
     /**
      * @param list<int> $deletedRowIds
      * @param list<string> $deletedOptionNames
      */
     public function __construct(
-        public readonly SQLiteOptionRowWritePlan $insertPlan,
+        public readonly SQLiteKeyValueRowWritePlan $insertPlan,
         public readonly array $deletedRowIds,
         public readonly array $deletedOptionNames,
     ) {

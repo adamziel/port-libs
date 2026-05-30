@@ -4788,7 +4788,7 @@ final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
      * @param list<array<string,mixed>> $nextRows
      * @return array<string,mixed>
      */
-    public static function applicationAutoloadValuePlan(
+    public static function applicationLoadPolicyValuePlan(
         array $currentRows,
         array $nextRows,
         string $pattern = 'yes%',

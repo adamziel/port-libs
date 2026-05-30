@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
-use PortLibs\LibSqlite\SQLiteOptionRow;
+use PortLibs\LibSqlite\SQLiteKeyValueRow;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -53,7 +53,7 @@ $indexPage = SQLiteIndexLeafPage::assemble([
 ], $pageSize);
 
 $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
-$plan = $database->planOptionRowInsertOrReplaceCurrent(7, 'home', 'https://example.test/replaced-home', 'no');
+$plan = $database->planKeyValueRowInsertOrReplaceCurrent(7, 'home', 'https://example.test/replaced-home', 'no');
 $pages = [
     1 => $database->page(1),
     2 => $database->page(2),
@@ -67,7 +67,7 @@ $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
 echo json_encode([
     'applicationUse' => 'Plan INSERT OR REPLACE for wp_options where a UNIQUE option_name conflict deletes the old row before inserting the incoming rowid.',
     'plan' => $plan->toArray(),
-    'options' => array_map(static fn (SQLiteOptionRow $option): array => $option->toArray(), $postDatabase->optionRows()),
+    'options' => array_map(static fn (SQLiteKeyValueRow $option): array => $option->toArray(), $postDatabase->keyValueRows()),
     'indexRecords' => array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $postDatabase->indexCells(3)),
-    'indexedHomeOption' => $postDatabase->optionRowByIndexedName('home')?->toArray(),
+    'indexedHomeOption' => $postDatabase->keyValueRowByIndexedName('home')?->toArray(),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

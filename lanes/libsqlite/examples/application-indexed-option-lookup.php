@@ -16,7 +16,7 @@ if ($databasePath === null || $optionName === null) {
 $database = SQLiteDatabase::fromFile($databasePath);
 $indexRootPage = $database->indexRootPageForColumn('wp_options', 'option_name');
 $pointLookupIndexRootPage = $database->indexRootPageForPointLookup('wp_options', 'option_name', $optionName);
-$option = $database->optionRowByIndexedName($optionName);
+$option = $database->keyValueRowByIndexedName($optionName);
 
 echo json_encode([
     'path' => $databasePath,

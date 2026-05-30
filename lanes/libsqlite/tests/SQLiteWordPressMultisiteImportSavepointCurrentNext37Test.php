@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteMultisiteImportSavepointPlan;
+use PortLibs\LibSqlite\SQLiteTenantImportSavepointPlan;
 
 $sites = static fn (): array => [
     [
@@ -45,7 +45,7 @@ $globalBatches = static fn (): array => [
     ]],
 ];
 
-$plan = static fn (array $siteRows = null, array $options = []): array => SQLiteMultisiteImportSavepointPlan::plan(
+$plan = static fn (array $siteRows = null, array $options = []): array => SQLiteTenantImportSavepointPlan::plan(
     $siteRows ?? $sites(),
     $options + [
         'database_path' => '/tmp/wp-multisite-import.sqlite',
@@ -112,7 +112,7 @@ $cases = [
         array_replace($sites()[0], ['batches' => [['name' => 'bad-name', 'rows' => []]]]),
         $sites()[1],
     ], ['continue_on_site_error' => false]), InvalidArgumentException::class],
-    'empty site list rejected' => [static fn (): mixed => SQLiteMultisiteImportSavepointPlan::plan([]), InvalidArgumentException::class],
+    'empty site list rejected' => [static fn (): mixed => SQLiteTenantImportSavepointPlan::plan([]), InvalidArgumentException::class],
     'duplicate blog id rejected' => [static fn (): mixed => $plan([$sites()[0], $sites()[0]]), InvalidArgumentException::class],
     'zero blog id rejected' => [static fn (): mixed => $plan([['blog_id' => 0, 'current_rows' => [], 'batches' => []]]), InvalidArgumentException::class],
     'string blog id is accepted' => [static fn (): mixed => $plan([['blog_id' => '3', 'current_rows' => [['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'x', 'autoload' => 'yes']], 'batches' => [['rows' => [['option_name' => 'blogname', 'option_value' => 'Third', 'autoload' => 'yes']]]]]], ['global_batches' => []])['sites'][0]['table'], 'wp_3_options'],

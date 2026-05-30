@@ -7,11 +7,11 @@ require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
 require_once __DIR__ . '/../src/SQLiteWalAppendPlan.php';
-require_once __DIR__ . '/../src/SQLiteOptionRowsWalImportPlan.php';
+require_once __DIR__ . '/../src/SQLiteKeyValueRowsWalImportPlan.php';
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteOptionRowsWalImportPlan;
+use PortLibs\LibSqlite\SQLiteKeyValueRowsWalImportPlan;
 
 $pageSize = 512;
 $salt1 = 0x34343434;
@@ -36,7 +36,7 @@ $walBytes = $appendFrame($walBytes, $seed, 2, 0, $page('wal draft siteurl before
 $walBytes = $appendFrame($walBytes, $seed, 3, 4, $page('wal committed active_plugins before import'));
 
 $wal = SQLiteWal::parse($walBytes, null, true);
-$plan = SQLiteOptionRowsWalImportPlan::currentNext(
+$plan = SQLiteKeyValueRowsWalImportPlan::currentNext(
     $wal,
     $databaseBytes,
     $databasePath,
