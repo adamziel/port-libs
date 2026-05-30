@@ -19,11 +19,12 @@ final class SQLiteUpsertReturningSql
             throw new \InvalidArgumentException("SQLite UPSERT RETURNING target table {$target} is missing");
         }
 
+        $omittedConflictTarget = $parsed['conflict_target'] === [];
         $conflictTarget = self::effectiveConflictTarget($parsed['conflict_target'], $uniqueConstraints);
         self::validateConflictTarget($conflictTarget, $uniqueConstraints);
 
         if ($parsed['action'] === 'nothing') {
-            $result = self::executeDoNothing($tables[$target], $parsed['incoming_rows'], $conflictTarget, $uniqueConstraints);
+            $result = self::executeDoNothing($tables[$target], $parsed['incoming_rows'], $conflictTarget, $uniqueConstraints, $omittedConflictTarget);
         } else {
             $result = SQLiteUpsertDoUpdateWherePlan::execute(
                 $tables[$target],
@@ -209,14 +210,17 @@ final class SQLiteUpsertReturningSql
      * @param list<list<string>>|null $uniqueConstraints
      * @return array{before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,changes:int}
      */
-    private static function executeDoNothing(array $rows, array $incomingRows, array $conflictTarget, ?array $uniqueConstraints): array
+    private static function executeDoNothing(array $rows, array $incomingRows, array $conflictTarget, ?array $uniqueConstraints, bool $catchAnyUniqueConflict): array
     {
         $uniqueConstraints = self::normalizeUniqueConstraints($conflictTarget, $uniqueConstraints);
         $after = array_values($rows);
         $inserted = [];
         $skipped = [];
         foreach ($incomingRows as $incoming) {
-            if (self::findConflictIndex($after, $incoming, $conflictTarget) !== null) {
+            if ($catchAnyUniqueConflict
+                ? self::findAnyUniqueConflictIndex($after, $incoming, $uniqueConstraints) !== null
+                : self::findConflictIndex($after, $incoming, $conflictTarget) !== null
+            ) {
                 $skipped[] = $incoming;
                 continue;
             }
@@ -255,6 +259,23 @@ final class SQLiteUpsertReturningSql
             }
 
             return $index;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $incoming
+     * @param list<list<string>> $uniqueConstraints
+     */
+    private static function findAnyUniqueConflictIndex(array $rows, array $incoming, array $uniqueConstraints): ?int
+    {
+        foreach ($uniqueConstraints as $constraint) {
+            $index = self::findConflictIndex($rows, $incoming, $constraint);
+            if ($index !== null) {
+                return $index;
+            }
         }
 
         return null;

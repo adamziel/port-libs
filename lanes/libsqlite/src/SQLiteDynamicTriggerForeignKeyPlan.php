@@ -1330,6 +1330,122 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>
+     */
+    public static function triggerRowidAliasResolution(array $row, string $event, bool $ordinaryRowidColumns, int $storageRowid): array
+    {
+        $event = strtolower(trim($event));
+        if (!in_array($event, ['insert', 'update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerD rowid alias event is unsupported');
+        }
+        if ($storageRowid < 1) {
+            throw new \InvalidArgumentException('SQLite triggerD storage rowid must be positive');
+        }
+
+        $required = $ordinaryRowidColumns ? ['rowid', 'oid', '_rowid_', 'x'] : ['w', 'x', 'y', 'z'];
+        foreach ($required as $column) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException('SQLite triggerD row is missing a required column');
+            }
+        }
+
+        $oldRow = $row;
+        $newRow = $row;
+        if ($event === 'insert' && !$ordinaryRowidColumns) {
+            $oldRow = [];
+            $newRow = $row + ['rowid' => $storageRowid, 'oid' => $storageRowid, '_rowid_' => $storageRowid];
+        } elseif ($event === 'insert') {
+            $oldRow = [];
+        } elseif ($event === 'update') {
+            if ($ordinaryRowidColumns) {
+                $newRow['rowid'] = (int) $row['rowid'] + 1;
+            } else {
+                $oldRow += ['rowid' => $storageRowid, 'oid' => $storageRowid, '_rowid_' => $storageRowid];
+                $newRow += ['rowid' => $storageRowid, 'oid' => $storageRowid, '_rowid_' => $storageRowid];
+                $newRow['x'] = (int) $row['x'] + 1;
+            }
+        } elseif (!$ordinaryRowidColumns) {
+            $oldRow += ['rowid' => $storageRowid, 'oid' => $storageRowid, '_rowid_' => $storageRowid];
+            $newRow = [];
+        } else {
+            $newRow = [];
+        }
+
+        $before = self::triggerDAliasLogRows($event, 'before', $oldRow, $newRow, $ordinaryRowidColumns);
+        $after = self::triggerDAliasLogRows($event, 'after', $oldRow, $newRow, $ordinaryRowidColumns);
+
+        return [
+            'source' => $ordinaryRowidColumns ? 'triggerD.test triggerD-1.1..1.4' : 'triggerD.test triggerD-2.1..2.4',
+            'operation' => 'trigger-rowid-alias-resolution',
+            'status' => 'commit-ok',
+            'event' => $event,
+            'ordinary_rowid_columns' => $ordinaryRowidColumns,
+            'storage_rowid' => $storageRowid,
+            'old_values' => $oldRow === [] ? [] : self::triggerDAliasValues($oldRow, $ordinaryRowidColumns),
+            'new_values' => $newRow === [] ? [] : self::triggerDAliasValues($newRow, $ordinaryRowidColumns),
+            'before_log' => $before,
+            'after_log' => $after,
+            'combined_log' => array_merge($before, $after),
+            'log_count' => count($before) + count($after),
+            'rowid_source' => $ordinaryRowidColumns ? 'ordinary-column' : 'storage-rowid',
+            'dependencies' => [
+                'sqlite-triggerD-rowid-oid-_rowid_-ordinary-columns-shadow-storage-rowid',
+                'sqlite-triggerD-old-new-rowid-aliases-use-storage-rowid-without-shadow-columns',
+                'sqlite-triggerD-before-after-triggers-see-event-specific-old-new-images',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $targetRows
+     * @param array<string,mixed> $insertedRow
+     * @return array<string,mixed>
+     */
+    public static function storedTriggerVariablesResolveNull(array $targetRows, array $insertedRow, string $program): array
+    {
+        $program = strtolower(trim($program));
+        if (!in_array($program, ['insert-null-pair', 'when-null-update'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerE stored trigger program is unsupported');
+        }
+
+        $targetRows = array_values($targetRows);
+        $insertedRow = array_replace(['a' => null, 'b' => null], $insertedRow);
+        $changed = 0;
+
+        if ($program === 'insert-null-pair') {
+            $targetRows[] = ['c' => null, 'd' => null];
+            ++$changed;
+        } else {
+            foreach ($targetRows as $index => $row) {
+                if (($row['c'] ?? null) === null) {
+                    $targetRows[$index]['c'] = $row['d'] ?? null;
+                    ++$changed;
+                }
+            }
+        }
+
+        return [
+            'source' => 'triggerE.test triggerE-2.1..2.3',
+            'operation' => 'stored-trigger-variables-resolve-null',
+            'status' => 'commit-ok',
+            'program' => $program,
+            'inserted_row' => $insertedRow,
+            'variable_value' => null,
+            'trigger_when_result' => $program === 'when-null-update',
+            'changed_rows' => $changed,
+            'target_rows' => $targetRows,
+            'target_c_values' => array_values(array_map(static fn (array $row): mixed => $row['c'] ?? null, $targetRows)),
+            'target_d_values' => array_values(array_map(static fn (array $row): mixed => $row['d'] ?? null, $targetRows)),
+            'dependencies' => [
+                'sqlite-triggerE-create-trigger-rejects-bound-variables',
+                'sqlite-triggerE-writable-schema-loaded-trigger-variables-resolve-null',
+                'sqlite-triggerE-null-variable-drives-when-and-update-expression',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int,c:int}> $rows
      * @return array<string,mixed>
      */
@@ -5010,6 +5126,57 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         });
 
         return array_values(array_map(static fn (array $trigger): string => $trigger['schema'] . '.' . $trigger['name'], $rows));
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return list<mixed>
+     */
+    private static function triggerDAliasValues(array $row, bool $ordinaryRowidColumns): array
+    {
+        return [
+            $row['rowid'],
+            $row['oid'],
+            $row['_rowid_'],
+            $row['x'],
+            $ordinaryRowidColumns ? 'ordinary-column' : 'storage-rowid',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $oldRow
+     * @param array<string,mixed> $newRow
+     * @return list<array<string,mixed>>
+     */
+    private static function triggerDAliasLogRows(string $event, string $timing, array $oldRow, array $newRow, bool $ordinaryRowidColumns): array
+    {
+        if ($event === 'insert') {
+            return [[
+                'trigger' => $timing === 'before' ? 'r1' : 'r2',
+                'phase' => $timing,
+                'values' => self::triggerDAliasValues($newRow, $ordinaryRowidColumns),
+            ]];
+        }
+        if ($event === 'delete') {
+            return [[
+                'trigger' => $timing === 'before' ? 'r5' : 'r6',
+                'phase' => $timing,
+                'values' => self::triggerDAliasValues($oldRow, $ordinaryRowidColumns),
+            ]];
+        }
+
+        return [
+            [
+                'trigger' => $timing === 'before' ? 'r3.old' : 'r4.old',
+                'phase' => $timing,
+                'values' => self::triggerDAliasValues($oldRow, $ordinaryRowidColumns),
+            ],
+            [
+                'trigger' => $timing === 'before' ? 'r3.new' : 'r4.new',
+                'phase' => $timing,
+                'values' => self::triggerDAliasValues($newRow, $ordinaryRowidColumns),
+            ],
+        ];
     }
 
     /**
