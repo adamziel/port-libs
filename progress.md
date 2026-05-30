@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 05:40 UTC):
+  Latest libsqlite consolidation source is integrated as `ff648eab4`
+  (`libsqlite: consolidate wal stat4 suffix helpers`). The batch accepts three
+  current-base handoffs from `d6248029d`, consolidating WAL hot-journal
+  checkpoint after-current stages 500-611 onto canonical stage tests/examples
+  and removing STAT4 prepared-handoff helper suffix wrappers for next638-653
+  and next782-797. Rehearsal in
+  `.tmux-team/worktrees/rehearse-libsqlite-consolidation-safe-20260530T053048Z`
+  passed focused/family gates before applying the same narrowed patches to the
+  clean integration worktree. Exact integration gates passed PHP lint for 4
+  changed PHP files, `git diff --check -- lanes/libsqlite`, focused changed
+  tests `9 files / 536 assertions / 0 failures`, and the WAL/STAT4 family
+  gate with `19308 assertions / 0 failures`. A broad no-argument libsqlite run
+  remains red on sampled pre-existing failures that reproduce at clean base, so
+  it is recorded as a blocker and not used as this batch's acceptance gate.
+  Public counters remain `154019 pass / 0 fail` and `830 / 1589` mapped
+  because this is consolidation-only. Next intake: publish and live-verify the
+  dashboard snapshot for `ff648eab4`, consume accepted handoff artifacts, keep
+  10-11 workers active, and handle overlapping suite-evidence suffix
+  consolidations in a separate batch.
+
 - 2026-05-30 supervisor continuation (shell samples 05:06 UTC):
   Latest libsqlite consolidation source is integrated as `796fb2053`
   (`libsqlite: consolidate suite evidence suffix helpers`). The batch accepts
