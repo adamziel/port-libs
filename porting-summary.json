@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 02:35:06 UTC",
-    "sourceCommit": "c1293bf2aa5873e704d4285dfe183415e7e8b66e",
-    "sourceCommitShort": "c1293bf2aa58",
+    "generated": "2026-05-30 02:46:22 UTC",
+    "sourceCommit": "1287771ad7ebca9ff004b2ae9a9746efd9cf2100",
+    "sourceCommitShort": "1287771ad7eb",
     "sourceBranch": "unknown",
-    "dashboardCommit": "c1293bf2aa5873e704d4285dfe183415e7e8b66e",
-    "dashboardCommitShort": "c1293bf2aa58",
+    "dashboardCommit": "1287771ad7ebca9ff004b2ae9a9746efd9cf2100",
+    "dashboardCommitShort": "1287771ad7eb",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -22,7 +22,7 @@
             "currentWork": "C# syntax highlighting now maps upstream-style keyword/operator/type captures to keyword/...",
             "nextTarget": "Expand the next upstream-query-backed syntax highlight boundary outside the already mappe...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "dolt",
@@ -39,7 +39,7 @@
             "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* rows, schema/tag/index/foreign-k...",
             "nextTarget": "Implementation worker: map the next bounded SQL merge visibility edge after allow-commit,...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "esbuild",
@@ -56,7 +56,7 @@
             "currentWork": "Added a bounded output-format preview slice for named ESM re-export clauses. The graph no...",
             "nextTarget": "After integrator/root acceptance, the next best lane task is a tiny bounded output-format...",
             "blocker": "Release-extra upstream `make test-all` coverage remains static-only.",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "gitoxide",
@@ -73,7 +73,7 @@
             "currentWork": "SmartHttpReceivePackTransport rejects unsafe receive-pack POST redirects before resolving...",
             "nextTarget": "Run a controlled protocol/transport crate probe, deepen SSH channel/auth integration with...",
             "blocker": "cargo runner not executed",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "libsqlite",
@@ -86,11 +86,11 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "numbered production helper consolidation",
-            "audit": "Source commit c1293bf2a accepted 5 curren...",
-            "currentWork": "Verified libsqlite STAT4, UTF-16 RTRIM/NOCASE, VFS current-source, and JSON final-range s...",
+            "audit": "Source commit 1287771ad accepted 7 curren...",
+            "currentWork": "Verified libsqlite pager reader-cache, STAT4, PRAGMA index/xinfo foreign-key, WAL hot-jou...",
             "nextTarget": "Keep the worker pool in the 10-11 active band, integrate the next current-base libsqlite...",
             "blocker": "Broad directory-mode libsqlite test execution still has pre-existing fail...",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "LightningCSS",
@@ -107,7 +107,7 @@
             "currentWork": "Native custom-media transformation now treats CSS comments as inert while collecting, del...",
             "nextTarget": "Continue custom-media transformer parity around remaining preserve-mode and diagnostic ed...",
             "blocker": "No current LightningCSS implementation blocker for this slice.",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "markerPDF",
@@ -124,7 +124,7 @@
             "currentWork": "Reduced simple-font WinAnsiEncoding handoff. PdfTextExtractor now maps high-bit WinAnsiEn...",
             "nextTarget": "Choose the next bounded markerPDF text extraction gap, likely a small remaining PDF conte...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "pandoc",
@@ -141,7 +141,7 @@
             "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, table, definition-list, under...",
             "nextTarget": "Map another bounded Markdown writer branch after block-start list-marker escaping, such a...",
             "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 239 test...",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "quadrable",
@@ -158,7 +158,7 @@
             "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStor...",
             "nextTarget": "If accepted, continue reducing any remaining command-surface parity gaps only where upstr...",
             "blocker": "No current quadrable-specific upstream runner or focused PHP blocker.",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "rclone",
@@ -175,7 +175,7 @@
             "currentWork": "Native PHP maps OneDrive CleanUp/no-versions command and RC wiring locally on top of acce...",
             "nextTarget": "Map another bounded credential-free OneDrive/provider lifecycle cluster, such as a featur...",
             "blocker": "No rclone-local PHP blocker after this slice.",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "Readability/content rewrite engine",
@@ -192,7 +192,7 @@
             "currentWork": "The copied Mozilla base URL fixture family now has focused WordPress block evidence provi...",
             "nextTarget": "Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted...",
             "blocker": "No focused readability blocker.",
-            "commit": "c1293bf"
+            "commit": "1287771"
         },
         {
             "library": "syncthing",
@@ -209,7 +209,7 @@
             "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` now exposes `GET /syncthing/db/scan/status...",
             "nextTarget": "Map the next Syncthing closure edge: audit remaining route/status surfaces for acceptance...",
             "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused route-r...",
-            "commit": "c1293bf"
+            "commit": "1287771"
         }
     ],
     "dependencyBacklog": {
