@@ -1,28 +1,37 @@
-# Planner STAT4 dynamic numbered method consolidation
+# Consolidate final numbered planner STAT4 dynamic handoff names
 
-Consolidated the dynamic STAT4 expression-partial production entrypoints and
-private helpers for next238, next239, next240, next241, next242, next243,
-next244, next246, and next248 into descriptive methods on
-`SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan`.
+Renamed the remaining STAT4 prepared-handoff continuation production entry
+points that were still tied to generated ordinal continuation names:
 
-Observable planner metadata is intentionally preserved: statuses, `nextNN`
-selected-plan keys, STAT4 fence keys, dependency strings, action labels,
-proof names, and non-overlap text remain the accepted numbered values. Direct
-tests and WordPress smokes now call the descriptive entrypoints.
+- `materializePreparedHandoffProjectedContinuation()` now owns the next766-781
+  projected continuation behavior.
+- `materializePreparedHandoffRangeContinuation()` now owns the next782-797
+  range continuation behavior.
+- `materializePreparedHandoffValidationRange()` now owns the next798-813
+  validation range behavior.
+- `materializePreparedHandoffWindowContinuation()` now owns the next814-829
+  window continuation behavior.
+
+The observable planner receipts remain unchanged: existing `stat4Next...`
+result keys, dependency strings, cursor opcodes, cursor modes, status strings,
+non-overlap text, and handoff signatures are preserved for downstream tests and
+examples.
 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
-- `php -l` for the 9 changed direct test files and 9 changed example files
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext238Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext239Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext240Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext241Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext242Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext243Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext244Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext246Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext248Test.php` -> `9 test files, 610 assertions, 0 failures`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*Test.php` -> `133 test files, 7537 assertions, 0 failures`
-- Changed WordPress examples with `--self-test` passed.
-- `git diff --check -- lanes/libsqlite`
+- `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffSecondContinuationTest.php && php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffThirdContinuationTest.php && php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffFourthContinuationTest.php && php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffFifthContinuationTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-second-continuation.php && php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-third-continuation.php && php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-fourth-continuation.php && php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-fifth-continuation.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffSecondContinuationTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffThirdContinuationTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffFourthContinuationTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffFifthContinuationTest.php`: `4 test files, 156 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-second-continuation.php --self-test`
+- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-third-continuation.php --self-test`
+- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-fourth-continuation.php --self-test`
+- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-fifth-continuation.php --self-test`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*Test.php`: `133 test files, 7537 assertions, 0 failures`.
 
-Dependency closure: no new support component is needed; this is a production
-identifier consolidation only.
+Dependency closure: no new support component needed; this is a production-name
+consolidation over the existing STAT4 prepared-handoff planner receipts.
 
-Non-overlap: limited to STAT4 expression-partial numbered production methods
-and direct callers. It does not change planner behavior, WAL/VFS, JSON table,
-B-tree, PRAGMA, trigger, compound SELECT, suite evidence, dashboard files, or
-root coordination files.
+Non-overlap: this changes only the STAT4 prepared-handoff continuation entry
+names and direct call sites. It avoids JSON, WAL, VFS, B-tree, trigger, PRAGMA,
+compound SELECT, UTF, upstream-suite evidence, and dashboard/status metadata.

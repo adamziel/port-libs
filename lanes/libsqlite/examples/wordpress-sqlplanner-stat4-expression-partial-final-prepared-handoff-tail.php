@@ -100,6 +100,8 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeFin
 
 if (in_array('--self-test', $argv, true)) {
     assert($plan['status'] === 'stat4-expression-partial-final-prepared-handoff-prepared');
+    assert(($plan['selectedPlan']['terminalPreparedHandoffAliasPrepared'] ?? null) === true);
+    assert($plan['stat4TerminalPreparedHandoffFence'] === $plan['stat4TerminalPreparedHandoffPreparationFence']);
     assert($plan['stat4FinalPreparedHandoffPreparationFence']['preparedSlices'] === range(990, 1005));
     assert($plan['stat4FinalPreparedHandoffPreparationFence']['handoffWindows'][0]['continuesSlice'] === 958);
     echo "wordpress-sqlplanner-stat4-expression-partial-current-source-final-prepared-handoff self-test passed\n";

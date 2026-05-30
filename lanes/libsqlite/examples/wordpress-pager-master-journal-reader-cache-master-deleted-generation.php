@@ -7,18 +7,18 @@ use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
-$databasePath = '/srv/wp-content/database/wp-next167.sqlite';
-$masterPath = '/srv/wp-content/database/wp-next167.sqlite-mj';
-$sourceId = 'wp-next167-current-after-master-delete';
+$databasePath = '/srv/wp-content/database/wp-master-deleted-generation.sqlite';
+$masterPath = '/srv/wp-content/database/wp-master-deleted-generation.sqlite-mj';
+$sourceId = 'wp-master-deleted-generation-current-after-master-delete';
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
 $pages = [
-    1 => $page('wp next167 schema current after master delete'),
-    2 => $page('wp next167 options current after master delete'),
-    3 => $page('wp next167 active_plugins current after master delete'),
+    1 => $page('wp master deleted generation schema current after master delete'),
+    2 => $page('wp master deleted generation options current after master delete'),
+    3 => $page('wp master deleted generation active_plugins current after master delete'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext167(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::masterDeletedGenerationReaderCachePlan(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n/srv/wp-content/database/wp-next167-site.sqlite-journal\n",
@@ -26,7 +26,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext167
     $pages,
     [
         1 => ['image' => $pages[1], 'source_id' => $sourceId, 'epoch' => 5, 'reader_id' => 'schema-reader', 'master_generation' => 9, 'master_deleted' => true, 'shared' => true],
-        2 => ['image' => $page('wp next167 options stale before master delete'), 'source_id' => $sourceId, 'epoch' => 5, 'reader_id' => 'options-reader', 'master_generation' => 9, 'master_deleted' => true],
+        2 => ['image' => $page('wp master deleted generation options stale before master delete'), 'source_id' => $sourceId, 'epoch' => 5, 'reader_id' => 'options-reader', 'master_generation' => 9, 'master_deleted' => true],
         3 => ['image' => $pages[3], 'source_id' => $sourceId, 'epoch' => 5, 'reader_id' => 'active-plugins-reader', 'master_generation' => 8, 'master_deleted' => true],
     ],
     [
@@ -41,7 +41,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext167
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next167',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-master-deleted-generation',
     'status' => $plan['status'],
     'masterJournalDeleted' => $plan['current_source']['master_journal_deleted'],
     'retainedPages' => $plan['retained_page_numbers'],
@@ -62,13 +62,13 @@ if (
     || $summary['refreshedPages'] !== [2]
     || $summary['invalidatedPages'] !== [3]
     || $summary['schemaCacheHit'] !== true
-    || $summary['optionsPrefix'] !== 'wp next167 options current after master delete'
+    || $summary['optionsPrefix'] !== 'wp master deleted generation options current after master delete'
     || $summary['activePluginsReason'] !== 'reader_cache_master_generation_mismatch'
     || $summary['reopenReaders'] !== ['active-plugins-reader']
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next167 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-master-deleted-generation self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-pager-master-journal-reader-cache-current-source-next167 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-master-deleted-generation self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

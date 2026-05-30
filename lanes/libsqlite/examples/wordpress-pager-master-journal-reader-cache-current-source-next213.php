@@ -129,7 +129,7 @@ $readTicket = static fn (int $pageNumber, string $digest) => [
     'database_header_digest' => $digest,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext213(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::databaseHeaderDigestFence(
     $database,
     $master,
     $masterBytes,

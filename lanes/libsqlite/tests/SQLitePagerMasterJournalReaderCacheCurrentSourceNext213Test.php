@@ -147,7 +147,7 @@ $reads = static fn (string $databaseHeaderDigest = null, string $databaseToken =
     ],
     range(1, 8),
 );
-$plan = static fn (?array $readerCache = null, ?array $readList = null, ?array $recoveredPages = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext213(
+$plan = static fn (?array $readerCache = null, ?array $readList = null, ?array $recoveredPages = null): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::databaseHeaderDigestFence(
     $database,
     $master,
     $masterBytes,

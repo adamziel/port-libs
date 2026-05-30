@@ -50,7 +50,7 @@ $plan = static fn (
     int $epoch = 18,
     int $generation = 44,
     bool $deleted = true,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext167(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::masterDeletedGenerationReaderCachePlan(
     $path ?? $databasePath,
     $mjPath ?? $masterPath,
     $master ?? $masterBytes,
@@ -134,7 +134,7 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['pager master journal reader cache current source next167 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['pager master journal reader cache master deleted generation ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
@@ -168,7 +168,7 @@ $throws = [
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['pager master journal reader cache current source next167 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['pager master journal reader cache master deleted generation ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(Throwable::class, $callback);
     };
 }

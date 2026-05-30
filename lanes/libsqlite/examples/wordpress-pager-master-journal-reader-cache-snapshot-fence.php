@@ -128,7 +128,7 @@ $read = static fn (int $pageNumber, string $sourceToken = null, string $snapshot
     'master_journal_reader_snapshot_token' => $snapshotToken ?? $currentMasterJournalReaderSnapshotToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext250(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::masterJournalReaderSnapshotFence(
     $database,
     $master,
     $masterBytes,
@@ -157,7 +157,7 @@ $plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext250
 );
 
 $summary = [
-    'scenario' => 'wordpress-pager-master-journal-reader-cache-current-source-next250',
+    'scenario' => 'wordpress-pager-master-journal-reader-cache-snapshot-fence',
     'wordpressUse' => 'A copied WordPress database keeps schema reader-cache pages only when they were opened against the same recovered master-journal current-source and the same master-journal reader snapshot; stale options and active_plugins reads reopen before plugin import resumes.',
     'status' => $plan['status'],
     'sourceProvenanceInvalidatedPages' => $plan['current_source_provenance_invalidated_cache_page_numbers'],
@@ -172,9 +172,9 @@ if ($summary['status'] !== 'pager-master-journal-reader-cache-current-source-nex
     || $summary['masterJournalReaderSnapshotInvalidatedPages'] !== [2]
     || $summary['cacheHits'] !== ['read-1' => true, 'read-2' => false, 'read-3' => false]
 ) {
-    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-current-source-next250 self-test failed\n");
+    fwrite(STDERR, "wordpress-pager-master-journal-reader-cache-snapshot-fence self-test failed\n");
     exit(1);
 }
 
 echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-echo "wordpress-pager-master-journal-reader-cache-current-source-next250 self-test passed\n";
+echo "wordpress-pager-master-journal-reader-cache-snapshot-fence self-test passed\n";
