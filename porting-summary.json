@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 04:40:33 UTC",
-    "sourceCommit": "ddaafe6551dcb249ef055778946c32f1ab46f5d5",
-    "sourceCommitShort": "ddaafe6551dc",
+    "generated": "2026-05-30 04:59:18 UTC",
+    "sourceCommit": "8fa841694007aa7e5a00d6b2f710f9fbfb687d84",
+    "sourceCommitShort": "8fa841694007",
     "sourceBranch": "unknown",
-    "dashboardCommit": "ddaafe6551dcb249ef055778946c32f1ab46f5d5",
-    "dashboardCommitShort": "ddaafe6551dc",
+    "dashboardCommit": "8fa841694007aa7e5a00d6b2f710f9fbfb687d84",
+    "dashboardCommitShort": "8fa841694007",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "numbered production helper consolidation",
-            "audit": "Accepted batch b5e9b79b8e after rehearsal...",
-            "currentWork": "Verified and committed libsqlite mixed suffix cleanup batch b5e9b79b8e plus root-suite fi...",
+            "audit": "Accepted source commit 8fa8416940 after r...",
+            "currentWork": "Verified and committed libsqlite consolidation source 8fa8416940; worker pool remains act...",
             "nextTarget": "Keep the worker pool in the 10-11 active band, integrate the next current-base libsqlite...",
             "blocker": "Broad no-argument/root-style libsqlite execution still has pre-existing f...",
-            "commit": "3ab73a6"
+            "commit": "8fa8416"
         },
         {
             "library": "LightningCSS",

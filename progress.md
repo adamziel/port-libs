@@ -48,6 +48,32 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 04:58 UTC):
+  Latest libsqlite consolidation source is integrated as `8fa8416940`
+  (`libsqlite: consolidate planner wal suite suffix helpers`). The batch
+  accepts six current-base handoffs covering STAT4 expression-partial
+  production wrappers next182-next212, WAL hot-journal checkpoint stage
+  wrappers next612-next723, JSON generated-path rowid alias order helper
+  suffixes, VFS hot-recovery writer method suffixes, UTF-16 LIKE/RTRIM private
+  v213 helper suffixes, and upstream veryquick shard next380 admission helper
+  consolidation. Rehearsal in
+  `.tmux-team/worktrees/rehearse-libsqlite-consolidation-20260530T045236Z`
+  passed before applying the same patches to the clean integration worktree.
+  Exact integration gates passed PHP lint for 81 changed PHP files, `git diff
+  --check -- lanes/libsqlite` with untracked intent-to-add coverage, 36
+  changed WordPress/example self-tests, STAT4 expression partial family `133
+  files / 7547 assertions / 0 failures`, WAL hot-journal checkpoint family `2
+  files / 10659 assertions / 0 failures`, JSON table family `304 files /
+  20264 assertions / 0 failures`, pager direct recovery tests `5 files / 308
+  assertions / 0 failures`, pager reader-cache family `149 files / 9991
+  assertions / 0 failures`, UTF-16 LIKE/RTRIM family `65 files / 4967
+  assertions / 0 failures`, and upstream veryquick current-source family `292
+  files / 368550 assertions / 0 failures`. Public counters remain `154019 pass
+  / 0 fail` and `830 / 1589` because this is consolidation-only. Next intake:
+  refresh/push the dashboard snapshot for `8fa8416940`, consume accepted
+  handoff artifacts, keep 10-11 workers active, and redirect new capacity
+  toward the pre-existing root blockers once the suffix backlog is drained.
+
 - 2026-05-30 supervisor continuation (shell samples 04:31 UTC):
   Latest libsqlite consolidation source is integrated as `3ab73a6aa4`
   (`libsqlite: fix root suite consolidation collisions`) on top of
