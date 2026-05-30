@@ -7,32 +7,32 @@ namespace PortLibs\LibSqlite;
 final class SQLiteTenantSavepointWalPlan
 {
     /**
-     * @param list<array{blog_id:int,database_path:string,database_bytes:string,wal:SQLiteWal,wal_bytes:string,savepoints:SQLiteSavepointStack,savepoint:string,page_numbers:list<int>}> $sites
-     * @return array{status:string,site_count:int,rolled_back_site_count:int,stable_site_count:int,total_restored_pages:int,total_discarded_wal_frames:int,sites:list<array<string,mixed>>,current_reader_matrix:array<int,list<string>>,next_reader_matrix:array<int,list<string>>,dependencies:list<string>}
+     * @param list<array{tenant_id:int,database_path:string,database_bytes:string,wal:SQLiteWal,wal_bytes:string,savepoints:SQLiteSavepointStack,savepoint:string,page_numbers:list<int>}> $tenants
+     * @return array{status:string,tenant_count:int,rolled_back_tenant_count:int,stable_tenant_count:int,total_restored_pages:int,total_discarded_wal_frames:int,tenants:list<array<string,mixed>>,current_reader_matrix:array<int,list<string>>,next_reader_matrix:array<int,list<string>>,dependencies:list<string>}
      */
-    public static function rollbackToAcrossSites(array $sites, int $pageSize): array
+    public static function rollbackToAcrossTenants(array $tenants, int $pageSize): array
     {
         if ($pageSize < 1) {
-            throw new \InvalidArgumentException('SQLite multisite savepoint WAL plan requires a positive page size');
+            throw new \InvalidArgumentException('SQLite tenant savepoint WAL plan requires a positive page size');
         }
-        if ($sites === []) {
-            throw new \InvalidArgumentException('SQLite multisite savepoint WAL plan requires at least one site');
+        if ($tenants === []) {
+            throw new \InvalidArgumentException('SQLite tenant savepoint WAL plan requires at least one tenant');
         }
 
         $summaries = [];
         $currentReaderMatrix = [];
         $nextReaderMatrix = [];
-        $dependencies = ['sqlite-application-multisite-savepoint-wal-current-next'];
+        $dependencies = ['sqlite-application-tenant-savepoint-wal-current-next'];
         $rolledBack = 0;
         $stable = 0;
         $totalRestoredPages = 0;
         $totalDiscardedWalFrames = 0;
 
-        foreach ($sites as $site) {
-            $summary = self::siteSummary($site, $pageSize);
+        foreach ($tenants as $tenant) {
+            $summary = self::tenantSummary($tenant, $pageSize);
             $summaries[] = $summary;
-            $currentReaderMatrix[$summary['blog_id']] = $summary['current_reader_sources'];
-            $nextReaderMatrix[$summary['blog_id']] = $summary['next_reader_sources'];
+            $currentReaderMatrix[$summary['tenant_id']] = $summary['current_reader_sources'];
+            $nextReaderMatrix[$summary['tenant_id']] = $summary['next_reader_sources'];
             $dependencies = array_merge($dependencies, $summary['dependencies']);
 
             if ($summary['rolled_back']) {
@@ -46,12 +46,12 @@ final class SQLiteTenantSavepointWalPlan
 
         return [
             'status' => $rolledBack > 0 ? 'rolled_back' : 'stable',
-            'site_count' => count($summaries),
-            'rolled_back_site_count' => $rolledBack,
-            'stable_site_count' => $stable,
+            'tenant_count' => count($summaries),
+            'rolled_back_tenant_count' => $rolledBack,
+            'stable_tenant_count' => $stable,
             'total_restored_pages' => $totalRestoredPages,
             'total_discarded_wal_frames' => $totalDiscardedWalFrames,
-            'sites' => $summaries,
+            'tenants' => $summaries,
             'current_reader_matrix' => $currentReaderMatrix,
             'next_reader_matrix' => $nextReaderMatrix,
             'dependencies' => array_values(array_unique($dependencies)),
@@ -59,55 +59,55 @@ final class SQLiteTenantSavepointWalPlan
     }
 
     /**
-     * @param array{blog_id:int,database_path:string,database_bytes:string,wal:SQLiteWal,wal_bytes:string,savepoints:SQLiteSavepointStack,savepoint:string,page_numbers:list<int>} $site
+     * @param array{tenant_id:int,database_path:string,database_bytes:string,wal:SQLiteWal,wal_bytes:string,savepoints:SQLiteSavepointStack,savepoint:string,page_numbers:list<int>} $tenant
      * @return array<string,mixed>
      */
-    private static function siteSummary(array $site, int $pageSize): array
+    private static function tenantSummary(array $tenant, int $pageSize): array
     {
-        foreach (['blog_id', 'database_path', 'database_bytes', 'wal', 'wal_bytes', 'savepoints', 'savepoint', 'page_numbers'] as $key) {
-            if (!array_key_exists($key, $site)) {
-                throw new \InvalidArgumentException("SQLite multisite savepoint WAL site is missing {$key}");
+        foreach (['tenant_id', 'database_path', 'database_bytes', 'wal', 'wal_bytes', 'savepoints', 'savepoint', 'page_numbers'] as $key) {
+            if (!array_key_exists($key, $tenant)) {
+                throw new \InvalidArgumentException("SQLite tenant savepoint WAL entry is missing {$key}");
             }
         }
-        if (!is_int($site['blog_id']) || $site['blog_id'] < 1) {
-            throw new \InvalidArgumentException('SQLite multisite savepoint WAL blog ids must be positive integers');
+        if (!is_int($tenant['tenant_id']) || $tenant['tenant_id'] < 1) {
+            throw new \InvalidArgumentException('SQLite tenant savepoint WAL tenant ids must be positive integers');
         }
-        if (!is_string($site['database_path']) || $site['database_path'] === '') {
-            throw new \InvalidArgumentException('SQLite multisite savepoint WAL database path must not be empty');
+        if (!is_string($tenant['database_path']) || $tenant['database_path'] === '') {
+            throw new \InvalidArgumentException('SQLite tenant savepoint WAL database path must not be empty');
         }
-        if (!is_string($site['database_bytes']) || strlen($site['database_bytes']) % $pageSize !== 0) {
-            throw new \InvalidArgumentException('SQLite multisite savepoint WAL database bytes must be page aligned');
+        if (!is_string($tenant['database_bytes']) || strlen($tenant['database_bytes']) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite tenant savepoint WAL database bytes must be page aligned');
         }
-        if (!$site['wal'] instanceof SQLiteWal || !$site['savepoints'] instanceof SQLiteSavepointStack) {
-            throw new \InvalidArgumentException('SQLite multisite savepoint WAL site requires WAL and savepoint objects');
+        if (!$tenant['wal'] instanceof SQLiteWal || !$tenant['savepoints'] instanceof SQLiteSavepointStack) {
+            throw new \InvalidArgumentException('SQLite tenant savepoint WAL entry requires WAL and savepoint objects');
         }
-        if (!is_string($site['wal_bytes']) || $site['wal_bytes'] === '') {
-            throw new \InvalidArgumentException('SQLite multisite savepoint WAL bytes must not be empty');
+        if (!is_string($tenant['wal_bytes']) || $tenant['wal_bytes'] === '') {
+            throw new \InvalidArgumentException('SQLite tenant savepoint WAL bytes must not be empty');
         }
-        if (!is_string($site['savepoint']) || $site['savepoint'] === '') {
-            throw new \InvalidArgumentException('SQLite multisite savepoint WAL savepoint name must not be empty');
+        if (!is_string($tenant['savepoint']) || $tenant['savepoint'] === '') {
+            throw new \InvalidArgumentException('SQLite tenant savepoint WAL savepoint name must not be empty');
         }
-        if (!is_array($site['page_numbers']) || $site['page_numbers'] === []) {
-            throw new \InvalidArgumentException('SQLite multisite savepoint WAL page list must not be empty');
+        if (!is_array($tenant['page_numbers']) || $tenant['page_numbers'] === []) {
+            throw new \InvalidArgumentException('SQLite tenant savepoint WAL page list must not be empty');
         }
 
-        $imagePlan = $site['savepoints']->rollbackToImagePlan($site['savepoint'], $pageSize);
-        $rolledBackDatabaseBytes = $site['savepoints']->rollbackToDatabaseImage($site['savepoint'], $site['database_bytes'], $pageSize);
+        $imagePlan = $tenant['savepoints']->rollbackToImagePlan($tenant['savepoint'], $pageSize);
+        $rolledBackDatabaseBytes = $tenant['savepoints']->rollbackToDatabaseImage($tenant['savepoint'], $tenant['database_bytes'], $pageSize);
         $recovery = SQLiteWalSavepointRecoveryPlan::currentNextAfterRollbackTo(
-            $site['savepoints'],
-            $site['savepoint'],
-            $site['wal'],
-            $site['wal_bytes'],
+            $tenant['savepoints'],
+            $tenant['savepoint'],
+            $tenant['wal'],
+            $tenant['wal_bytes'],
             $rolledBackDatabaseBytes,
-            $site['page_numbers']
+            $tenant['page_numbers']
         );
 
         $rolledBack = $imagePlan['restored_page_numbers'] !== [] || $recovery['discarded_frame_count'] > 0;
 
         return [
-            'blog_id' => $site['blog_id'],
-            'database_path' => $site['database_path'],
-            'savepoint' => $site['savepoint'],
+            'tenant_id' => $tenant['tenant_id'],
+            'database_path' => $tenant['database_path'],
+            'savepoint' => $tenant['savepoint'],
             'rolled_back' => $rolledBack,
             'restored_page_numbers' => $imagePlan['restored_page_numbers'],
             'restored_page_count' => count($imagePlan['restored_page_numbers']),
@@ -126,7 +126,7 @@ final class SQLiteTenantSavepointWalPlan
             'can_checkpoint' => $recovery['can_checkpoint'],
             'checkpoint_database_page_count' => $recovery['checkpoint_database_page_count'],
             'dependencies' => array_values(array_unique(array_merge(
-                ['sqlite-application-multisite-site-savepoint-wal'],
+                ['sqlite-application-tenant-entry-savepoint-wal'],
                 $recovery['dependencies']
             ))),
         ];

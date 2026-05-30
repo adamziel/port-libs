@@ -11,7 +11,7 @@ $tests = [];
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
-$database = static fn (string $site): string => $page("{$site}-page-1-base") . $page("{$site}-page-2-base") . $page("{$site}-page-3-base");
+$database = static fn (string $tenant): string => $page("{$tenant}-page-1-base") . $page("{$tenant}-page-2-base") . $page("{$tenant}-page-3-base");
 
 $makeWal = static function (array $frames, int $checkpoint = 46) use ($pageSize, $page): string {
     $salt1 = 0x46464646;
@@ -31,27 +31,27 @@ $makeWal = static function (array $frames, int $checkpoint = 46) use ($pageSize,
     return $bytes;
 };
 
-$makeSite = static function (int $blogId, string $name, array $walFrames, callable $stackFactory, array $pages) use ($database, $makeWal, $pageSize): array {
-    $walBytes = $makeWal($walFrames, 40 + $blogId);
+$makeTenant = static function (int $tenantId, string $name, array $walFrames, callable $stackFactory, array $pages) use ($database, $makeWal, $pageSize): array {
+    $walBytes = $makeWal($walFrames, 40 + $tenantId);
 
     return [
-        'blog_id' => $blogId,
-        'database_path' => $blogId === 1 ? 'wp-content/database/main.sqlite' : "wp-content/database/site-{$blogId}.sqlite",
+        'tenant_id' => $tenantId,
+        'database_path' => $tenantId === 1 ? '/tmp/app-main.sqlite' : "/tmp/app-tenant-{$tenantId}.sqlite",
         'database_bytes' => $database($name),
         'wal' => SQLiteWal::parse($walBytes, $pageSize, true),
         'wal_bytes' => $walBytes,
         'savepoints' => $stackFactory($name),
-        'savepoint' => 'plugin_import',
+        'savepoint' => 'settings_import',
         'page_numbers' => $pages,
     ];
 };
 
-$siteOneStack = static function (string $name) use ($page): SQLiteSavepointStack {
+$tenantOneStack = static function (string $name) use ($page): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('network_import');
+    $stack->beginTransaction('tenant_import');
     $stack->recordWalFrameWrite(1, 1);
     $stack->recordWalFrameWrite(2, 2, true);
-    $stack->savepoint('plugin_import');
+    $stack->savepoint('settings_import');
     $stack->recordPageImageWrite(2, $page("{$name}-page-2-base"));
     $stack->recordWalFrameWrite(3, 2);
     $stack->recordWalFrameWrite(4, 3, true);
@@ -62,11 +62,11 @@ $siteOneStack = static function (string $name) use ($page): SQLiteSavepointStack
     return $stack;
 };
 
-$siteTwoStack = static function (string $name) use ($page): SQLiteSavepointStack {
+$tenantTwoStack = static function (string $name) use ($page): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('network_import');
+    $stack->beginTransaction('tenant_import');
     $stack->recordWalFrameWrite(1, 1, true);
-    $stack->savepoint('plugin_import');
+    $stack->savepoint('settings_import');
     $stack->recordPageImageWrite(1, $page("{$name}-page-1-base"));
     $stack->recordPageImageWrite(3, $page("{$name}-page-3-base"));
     $stack->recordWalFrameWrite(2, 1);
@@ -75,164 +75,164 @@ $siteTwoStack = static function (string $name) use ($page): SQLiteSavepointStack
     return $stack;
 };
 
-$siteThreeStack = static function (): SQLiteSavepointStack {
+$tenantThreeStack = static function (): SQLiteSavepointStack {
     $stack = new SQLiteSavepointStack();
-    $stack->beginTransaction('network_import');
+    $stack->beginTransaction('tenant_import');
     $stack->recordWalFrameWrite(1, 2, true);
-    $stack->savepoint('plugin_import');
+    $stack->savepoint('settings_import');
 
     return $stack;
 };
 
-$plan = static fn (): array => SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([
-    $makeSite(1, 'main', [
+$plan = static fn (): array => SQLiteTenantSavepointWalPlan::rollbackToAcrossTenants([
+    $makeTenant(1, 'main', [
         [1, 0, 'main-network-schema-commit'],
-        [2, 3, 'main-options-before-plugin'],
-        [2, 0, 'main-plugin-options-draft'],
-        [3, 3, 'main-plugin-transient-commit'],
+        [2, 3, 'main-settings-before-plugin'],
+        [2, 0, 'main-plugin-settings-draft'],
+        [3, 3, 'main-plugin-cache-commit'],
         [3, 0, 'main-nested-cleanup-draft'],
-    ], $siteOneStack, [1, 2, 3]),
-    $makeSite(2, 'site2', [
-        [1, 3, 'site2-options-before-plugin'],
-        [1, 0, 'site2-plugin-options-draft'],
-        [3, 3, 'site2-plugin-cache-commit'],
-    ], $siteTwoStack, [1, 2, 3]),
-    $makeSite(3, 'site3', [
-        [2, 3, 'site3-options-stable-commit'],
-    ], $siteThreeStack, [1, 2, 3]),
+    ], $tenantOneStack, [1, 2, 3]),
+    $makeTenant(2, 'tenant2', [
+        [1, 3, 'tenant2-settings-before-plugin'],
+        [1, 0, 'tenant2-plugin-settings-draft'],
+        [3, 3, 'tenant2-plugin-cache-commit'],
+    ], $tenantTwoStack, [1, 2, 3]),
+    $makeTenant(3, 'tenant3', [
+        [2, 3, 'tenant3-settings-stable-commit'],
+    ], $tenantThreeStack, [1, 2, 3]),
 ], $pageSize);
 
-$site = static function (int $blogId) use ($plan): array {
-    foreach ($plan()['sites'] as $site) {
-        if ($site['blog_id'] === $blogId) {
-            return $site;
+$tenant = static function (int $tenantId) use ($plan): array {
+    foreach ($plan()['tenants'] as $tenant) {
+        if ($tenant['tenant_id'] === $tenantId) {
+            return $tenant;
         }
     }
-    throw new RuntimeException("Missing site {$blogId}");
+    throw new RuntimeException("Missing tenant {$tenantId}");
 };
 
 $cases = [
     'overall status records rollback' => static fn (): mixed => $plan()['status'],
-    'site count includes main and two blogs' => static fn (): mixed => $plan()['site_count'],
-    'rolled back site count excludes stable site' => static fn (): mixed => $plan()['rolled_back_site_count'],
-    'stable site count records untouched savepoint' => static fn (): mixed => $plan()['stable_site_count'],
-    'total restored pages spans affected blogs' => static fn (): mixed => $plan()['total_restored_pages'],
-    'total discarded wal frames spans affected blogs' => static fn (): mixed => $plan()['total_discarded_wal_frames'],
-    'dependencies include multisite marker' => static fn (): mixed => in_array('sqlite-application-multisite-savepoint-wal-current-next', $plan()['dependencies'], true),
-    'dependencies include site marker' => static fn (): mixed => in_array('sqlite-application-multisite-site-savepoint-wal', $plan()['dependencies'], true),
+    'tenant count includes main and two tenants' => static fn (): mixed => $plan()['tenant_count'],
+    'rolled back tenant count excludes stable tenant' => static fn (): mixed => $plan()['rolled_back_tenant_count'],
+    'stable tenant count records untouched savepoint' => static fn (): mixed => $plan()['stable_tenant_count'],
+    'total restored pages spans affected tenants' => static fn (): mixed => $plan()['total_restored_pages'],
+    'total discarded wal frames spans affected tenants' => static fn (): mixed => $plan()['total_discarded_wal_frames'],
+    'dependencies include tenant marker' => static fn (): mixed => in_array('sqlite-application-tenant-savepoint-wal-current-next', $plan()['dependencies'], true),
+    'dependencies include tenant entry marker' => static fn (): mixed => in_array('sqlite-application-tenant-entry-savepoint-wal', $plan()['dependencies'], true),
     'dependencies include savepoint recovery marker' => static fn (): mixed => in_array('sqlite-wal-savepoint-recovery-current-next', $plan()['dependencies'], true),
-    'current reader matrix keys preserve blog ids' => static fn (): mixed => array_keys($plan()['current_reader_matrix']),
-    'next reader matrix keys preserve blog ids' => static fn (): mixed => array_keys($plan()['next_reader_matrix']),
-    'main database path preserved' => static fn (): mixed => $site(1)['database_path'],
-    'main site marked rolled back' => static fn (): mixed => $site(1)['rolled_back'],
-    'main restores plugin and nested page images' => static fn (): mixed => $site(1)['restored_page_numbers'],
-    'main missing image includes nested wal only page' => static fn (): mixed => $site(1)['missing_page_numbers'],
-    'main rollback frame keeps prior commit' => static fn (): mixed => $site(1)['rollback_to_frame'],
-    'main retained wal frame count' => static fn (): mixed => $site(1)['retained_wal_frame_count'],
-    'main discarded wal frame count' => static fn (): mixed => $site(1)['discarded_wal_frame_count'],
-    'main current wal bytes are retained prefix' => static fn (): mixed => $site(1)['current_wal_bytes_length'],
-    'main current sources show retained wal and restored database' => static fn (): mixed => $site(1)['current_reader_sources'],
-    'main next sources match current after rollback' => static fn (): mixed => $site(1)['next_reader_sources'],
-    'main current frame indexes stop before plugin frames' => static fn (): mixed => $site(1)['current_reader_frame_indexes'],
-    'main next frame indexes stop before plugin frames' => static fn (): mixed => $site(1)['next_reader_frame_indexes'],
-    'main current reader has no errors' => static fn (): mixed => $site(1)['current_reader_errors'],
-    'main next reader has no errors' => static fn (): mixed => $site(1)['next_reader_errors'],
-    'main current next images match' => static fn (): mixed => $site(1)['images_match'],
-    'main can checkpoint retained prefix' => static fn (): mixed => $site(1)['can_checkpoint'],
-    'main checkpoint page count preserved' => static fn (): mixed => $site(1)['checkpoint_database_page_count'],
-    'site two path preserved' => static fn (): mixed => $site(2)['database_path'],
-    'site two marked rolled back' => static fn (): mixed => $site(2)['rolled_back'],
-    'site two restores two pages' => static fn (): mixed => $site(2)['restored_page_numbers'],
-    'site two has no missing page images' => static fn (): mixed => $site(2)['missing_page_numbers'],
-    'site two rollback frame keeps first commit' => static fn (): mixed => $site(2)['rollback_to_frame'],
-    'site two discarded wal frame count' => static fn (): mixed => $site(2)['discarded_wal_frame_count'],
-    'site two current wal bytes are one frame prefix' => static fn (): mixed => $site(2)['current_wal_bytes_length'],
-    'site two current sources use wal then database' => static fn (): mixed => $site(2)['current_reader_sources'],
-    'site two frame indexes drop plugin frames' => static fn (): mixed => $site(2)['current_reader_frame_indexes'],
-    'site two images match after recovery' => static fn (): mixed => $site(2)['images_match'],
-    'site two can checkpoint retained prefix' => static fn (): mixed => $site(2)['can_checkpoint'],
-    'site two checkpoint page count preserved' => static fn (): mixed => $site(2)['checkpoint_database_page_count'],
-    'site three path preserved' => static fn (): mixed => $site(3)['database_path'],
-    'site three remains stable' => static fn (): mixed => $site(3)['rolled_back'],
-    'site three restores no pages' => static fn (): mixed => $site(3)['restored_page_numbers'],
-    'site three discards no wal frames' => static fn (): mixed => $site(3)['discarded_wal_frame_count'],
-    'site three rollback frame is after stable commit' => static fn (): mixed => $site(3)['rollback_to_frame'],
-    'site three current sources preserve stable wal' => static fn (): mixed => $site(3)['current_reader_sources'],
-    'site three frame indexes preserve stable commit' => static fn (): mixed => $site(3)['current_reader_frame_indexes'],
-    'site three images match' => static fn (): mixed => $site(3)['images_match'],
-    'site three can checkpoint stable prefix' => static fn (): mixed => $site(3)['can_checkpoint'],
+    'current reader matrix keys preserve tenant ids' => static fn (): mixed => array_keys($plan()['current_reader_matrix']),
+    'next reader matrix keys preserve tenant ids' => static fn (): mixed => array_keys($plan()['next_reader_matrix']),
+    'main database path preserved' => static fn (): mixed => $tenant(1)['database_path'],
+    'main tenant marked rolled back' => static fn (): mixed => $tenant(1)['rolled_back'],
+    'main restores plugin and nested page images' => static fn (): mixed => $tenant(1)['restored_page_numbers'],
+    'main missing image includes nested WAL-only page' => static fn (): mixed => $tenant(1)['missing_page_numbers'],
+    'main rollback frame keeps prior commit' => static fn (): mixed => $tenant(1)['rollback_to_frame'],
+    'main retained wal frame count' => static fn (): mixed => $tenant(1)['retained_wal_frame_count'],
+    'main discarded wal frame count' => static fn (): mixed => $tenant(1)['discarded_wal_frame_count'],
+    'main current wal bytes are retained prefix' => static fn (): mixed => $tenant(1)['current_wal_bytes_length'],
+    'main current sources show retained wal and restored database' => static fn (): mixed => $tenant(1)['current_reader_sources'],
+    'main next sources match current after rollback' => static fn (): mixed => $tenant(1)['next_reader_sources'],
+    'main current frame indexes stop before plugin frames' => static fn (): mixed => $tenant(1)['current_reader_frame_indexes'],
+    'main next frame indexes stop before plugin frames' => static fn (): mixed => $tenant(1)['next_reader_frame_indexes'],
+    'main current reader has no errors' => static fn (): mixed => $tenant(1)['current_reader_errors'],
+    'main next reader has no errors' => static fn (): mixed => $tenant(1)['next_reader_errors'],
+    'main current next images match' => static fn (): mixed => $tenant(1)['images_match'],
+    'main can checkpoint retained prefix' => static fn (): mixed => $tenant(1)['can_checkpoint'],
+    'main checkpoint page count preserved' => static fn (): mixed => $tenant(1)['checkpoint_database_page_count'],
+    'tenant two path preserved' => static fn (): mixed => $tenant(2)['database_path'],
+    'tenant two marked rolled back' => static fn (): mixed => $tenant(2)['rolled_back'],
+    'tenant two restores two pages' => static fn (): mixed => $tenant(2)['restored_page_numbers'],
+    'tenant two has no missing page images' => static fn (): mixed => $tenant(2)['missing_page_numbers'],
+    'tenant two rollback frame keeps first commit' => static fn (): mixed => $tenant(2)['rollback_to_frame'],
+    'tenant two discarded wal frame count' => static fn (): mixed => $tenant(2)['discarded_wal_frame_count'],
+    'tenant two current wal bytes are one frame prefix' => static fn (): mixed => $tenant(2)['current_wal_bytes_length'],
+    'tenant two current sources use wal then database' => static fn (): mixed => $tenant(2)['current_reader_sources'],
+    'tenant two frame indexes drop plugin frames' => static fn (): mixed => $tenant(2)['current_reader_frame_indexes'],
+    'tenant two images match after recovery' => static fn (): mixed => $tenant(2)['images_match'],
+    'tenant two can checkpoint retained prefix' => static fn (): mixed => $tenant(2)['can_checkpoint'],
+    'tenant two checkpoint page count preserved' => static fn (): mixed => $tenant(2)['checkpoint_database_page_count'],
+    'tenant three path preserved' => static fn (): mixed => $tenant(3)['database_path'],
+    'tenant three remains stable' => static fn (): mixed => $tenant(3)['rolled_back'],
+    'tenant three restores no pages' => static fn (): mixed => $tenant(3)['restored_page_numbers'],
+    'tenant three discards no wal frames' => static fn (): mixed => $tenant(3)['discarded_wal_frame_count'],
+    'tenant three rollback frame is after stable commit' => static fn (): mixed => $tenant(3)['rollback_to_frame'],
+    'tenant three current sources preserve stable wal' => static fn (): mixed => $tenant(3)['current_reader_sources'],
+    'tenant three frame indexes preserve stable commit' => static fn (): mixed => $tenant(3)['current_reader_frame_indexes'],
+    'tenant three images match' => static fn (): mixed => $tenant(3)['images_match'],
+    'tenant three can checkpoint stable prefix' => static fn (): mixed => $tenant(3)['can_checkpoint'],
     'current matrix main sources' => static fn (): mixed => $plan()['current_reader_matrix'][1],
-    'next matrix site two sources' => static fn (): mixed => $plan()['next_reader_matrix'][2],
-    'empty site list is rejected' => static function () use ($pageSize): mixed {
+    'next matrix tenant two sources' => static fn (): mixed => $plan()['next_reader_matrix'][2],
+    'empty tenant list is rejected' => static function () use ($pageSize): mixed {
         try {
-            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossTenants([], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
         return 'missed';
     },
-    'zero page size is rejected' => static function () use ($makeSite, $siteThreeStack): mixed {
+    'zero page size is rejected' => static function () use ($makeTenant, $tenantThreeStack): mixed {
         try {
-            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1])], 0);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossTenants([$makeTenant(3, 'tenant3', [[2, 3, 'tenant3-settings-stable-commit']], $tenantThreeStack, [1])], 0);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
         return 'missed';
     },
-    'missing blog id is rejected' => static function () use ($makeSite, $siteThreeStack, $pageSize): mixed {
-        $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
-        unset($site['blog_id']);
+    'missing tenant id is rejected' => static function () use ($makeTenant, $tenantThreeStack, $pageSize): mixed {
+        $tenant = $makeTenant(3, 'tenant3', [[2, 3, 'tenant3-settings-stable-commit']], $tenantThreeStack, [1]);
+        unset($tenant['tenant_id']);
         try {
-            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossTenants([$tenant], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
         return 'missed';
     },
-    'empty database path is rejected' => static function () use ($makeSite, $siteThreeStack, $pageSize): mixed {
-        $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
-        $site['database_path'] = '';
+    'empty database path is rejected' => static function () use ($makeTenant, $tenantThreeStack, $pageSize): mixed {
+        $tenant = $makeTenant(3, 'tenant3', [[2, 3, 'tenant3-settings-stable-commit']], $tenantThreeStack, [1]);
+        $tenant['database_path'] = '';
         try {
-            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossTenants([$tenant], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
         return 'missed';
     },
-    'misaligned database bytes are rejected' => static function () use ($makeSite, $siteThreeStack, $pageSize): mixed {
-        $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
-        $site['database_bytes'] .= 'x';
+    'misaligned database bytes are rejected' => static function () use ($makeTenant, $tenantThreeStack, $pageSize): mixed {
+        $tenant = $makeTenant(3, 'tenant3', [[2, 3, 'tenant3-settings-stable-commit']], $tenantThreeStack, [1]);
+        $tenant['database_bytes'] .= 'x';
         try {
-            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossTenants([$tenant], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
         return 'missed';
     },
-    'empty page list is rejected' => static function () use ($makeSite, $siteThreeStack, $pageSize): mixed {
-        $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, []);
+    'empty page list is rejected' => static function () use ($makeTenant, $tenantThreeStack, $pageSize): mixed {
+        $tenant = $makeTenant(3, 'tenant3', [[2, 3, 'tenant3-settings-stable-commit']], $tenantThreeStack, []);
         try {
-            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossTenants([$tenant], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
         return 'missed';
     },
-    'missing savepoint is rejected' => static function () use ($makeSite, $siteThreeStack, $pageSize): mixed {
-        $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
-        $site['savepoint'] = 'missing';
+    'missing savepoint is rejected' => static function () use ($makeTenant, $tenantThreeStack, $pageSize): mixed {
+        $tenant = $makeTenant(3, 'tenant3', [[2, 3, 'tenant3-settings-stable-commit']], $tenantThreeStack, [1]);
+        $tenant['savepoint'] = 'missing';
         try {
-            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossTenants([$tenant], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
         return 'missed';
     },
-    'mismatched wal bytes are rejected' => static function () use ($makeSite, $siteThreeStack, $pageSize): mixed {
-        $site = $makeSite(3, 'site3', [[2, 3, 'site3-options-stable-commit']], $siteThreeStack, [1]);
-        $site['wal_bytes'] = substr($site['wal_bytes'], 0, -1) . 'x';
+    'mismatched wal bytes are rejected' => static function () use ($makeTenant, $tenantThreeStack, $pageSize): mixed {
+        $tenant = $makeTenant(3, 'tenant3', [[2, 3, 'tenant3-settings-stable-commit']], $tenantThreeStack, [1]);
+        $tenant['wal_bytes'] = substr($tenant['wal_bytes'], 0, -1) . 'x';
         try {
-            SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([$site], $pageSize);
+            SQLiteTenantSavepointWalPlan::rollbackToAcrossTenants([$tenant], $pageSize);
         } catch (InvalidArgumentException) {
             return 'rejected';
         }
@@ -242,20 +242,20 @@ $cases = [
 
 $expected = [
     'overall status records rollback' => 'rolled_back',
-    'site count includes main and two blogs' => 3,
-    'rolled back site count excludes stable site' => 2,
-    'stable site count records untouched savepoint' => 1,
-    'total restored pages spans affected blogs' => 4,
-    'total discarded wal frames spans affected blogs' => 5,
-    'dependencies include multisite marker' => true,
-    'dependencies include site marker' => true,
+    'tenant count includes main and two tenants' => 3,
+    'rolled back tenant count excludes stable tenant' => 2,
+    'stable tenant count records untouched savepoint' => 1,
+    'total restored pages spans affected tenants' => 4,
+    'total discarded wal frames spans affected tenants' => 5,
+    'dependencies include tenant marker' => true,
+    'dependencies include tenant entry marker' => true,
     'dependencies include savepoint recovery marker' => true,
-    'current reader matrix keys preserve blog ids' => [1, 2, 3],
-    'next reader matrix keys preserve blog ids' => [1, 2, 3],
-    'main database path preserved' => 'wp-content/database/main.sqlite',
-    'main site marked rolled back' => true,
+    'current reader matrix keys preserve tenant ids' => [1, 2, 3],
+    'next reader matrix keys preserve tenant ids' => [1, 2, 3],
+    'main database path preserved' => '/tmp/app-main.sqlite',
+    'main tenant marked rolled back' => true,
     'main restores plugin and nested page images' => [2, 3],
-    'main missing image includes nested wal only page' => [],
+    'main missing image includes nested WAL-only page' => [],
     'main rollback frame keeps prior commit' => 2,
     'main retained wal frame count' => 2,
     'main discarded wal frame count' => 3,
@@ -269,32 +269,32 @@ $expected = [
     'main current next images match' => true,
     'main can checkpoint retained prefix' => true,
     'main checkpoint page count preserved' => 3,
-    'site two path preserved' => 'wp-content/database/site-2.sqlite',
-    'site two marked rolled back' => true,
-    'site two restores two pages' => [1, 3],
-    'site two has no missing page images' => [],
-    'site two rollback frame keeps first commit' => 1,
-    'site two discarded wal frame count' => 2,
-    'site two current wal bytes are one frame prefix' => 568,
-    'site two current sources use wal then database' => ['wal', 'database', 'database'],
-    'site two frame indexes drop plugin frames' => [1, null, null],
-    'site two images match after recovery' => true,
-    'site two can checkpoint retained prefix' => true,
-    'site two checkpoint page count preserved' => 3,
-    'site three path preserved' => 'wp-content/database/site-3.sqlite',
-    'site three remains stable' => false,
-    'site three restores no pages' => [],
-    'site three discards no wal frames' => 0,
-    'site three rollback frame is after stable commit' => 1,
-    'site three current sources preserve stable wal' => ['database', 'wal', 'database'],
-    'site three frame indexes preserve stable commit' => [null, 1, null],
-    'site three images match' => true,
-    'site three can checkpoint stable prefix' => true,
+    'tenant two path preserved' => '/tmp/app-tenant-2.sqlite',
+    'tenant two marked rolled back' => true,
+    'tenant two restores two pages' => [1, 3],
+    'tenant two has no missing page images' => [],
+    'tenant two rollback frame keeps first commit' => 1,
+    'tenant two discarded wal frame count' => 2,
+    'tenant two current wal bytes are one frame prefix' => 568,
+    'tenant two current sources use wal then database' => ['wal', 'database', 'database'],
+    'tenant two frame indexes drop plugin frames' => [1, null, null],
+    'tenant two images match after recovery' => true,
+    'tenant two can checkpoint retained prefix' => true,
+    'tenant two checkpoint page count preserved' => 3,
+    'tenant three path preserved' => '/tmp/app-tenant-3.sqlite',
+    'tenant three remains stable' => false,
+    'tenant three restores no pages' => [],
+    'tenant three discards no wal frames' => 0,
+    'tenant three rollback frame is after stable commit' => 1,
+    'tenant three current sources preserve stable wal' => ['database', 'wal', 'database'],
+    'tenant three frame indexes preserve stable commit' => [null, 1, null],
+    'tenant three images match' => true,
+    'tenant three can checkpoint stable prefix' => true,
     'current matrix main sources' => ['wal', 'wal', 'database'],
-    'next matrix site two sources' => ['wal', 'database', 'database'],
-    'empty site list is rejected' => 'rejected',
+    'next matrix tenant two sources' => ['wal', 'database', 'database'],
+    'empty tenant list is rejected' => 'rejected',
     'zero page size is rejected' => 'rejected',
-    'missing blog id is rejected' => 'rejected',
+    'missing tenant id is rejected' => 'rejected',
     'empty database path is rejected' => 'rejected',
     'misaligned database bytes are rejected' => 'rejected',
     'empty page list is rejected' => 'rejected',
@@ -303,7 +303,7 @@ $expected = [
 ];
 
 foreach ($cases as $name => $callback) {
-    $tests['application multisite savepoint wal current next46 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['application tenant savepoint wal current next46 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }

@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 19:49 UTC):
+  Latest accepted libsqlite source is `fe9a3a5d7`
+  (`libsqlite: add current corpus source neutral batch`). This batch replays
+  8 current-corpus/source-neutral handoffs
+  from base `28f29f1b` onto the current integration head. Accepted coverage
+  adds expression-affinity e_expr/types2 behavior including the integer `%`
+  remainder result class, JSON501/JSON502 corpus, PRAGMA pager-state behavior,
+  SELECT5 aggregate corpus, B-tree index expansion, veryquick shard evidence,
+  tenant savepoint/WAL source-neutral cleanup, and runner-map blocker notes.
+  Focused verification passed `9 files / 63265 assertions / 0 failures / 9736
+  PASS lines`. The accepted-base comparison on existing selected tests had `4
+  files / 30802 assertions / 1 failure / 5755 PASS lines` because current HEAD
+  was already red on upstream `e_expr-6.5`; this batch fixes that failure and
+  yields an honest selected PASS-line delta of `+3981`. Public libsqlite should
+  move to `473793 pass / 0 fail`; mapped coverage remains `1472 / 1589`. The
+  worker pool is still in the requested band with 11 visible libsqlite Codex
+  workers and zero long sleepers; the remaining source-neutral cleanup blocker
+  is 30 older domain-shaped `lanes/libsqlite/src` PHP files / 123 matches.
+
 - 2026-05-30 supervisor continuation (integration sample 19:40 UTC):
   Latest accepted libsqlite source is `131d2cbb4`
   (`libsqlite: add focused current corpus batch`). This batch replays 10

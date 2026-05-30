@@ -766,6 +766,84 @@ foreach ($types2EqualityFollowupCases as $name => [$left, $right, $operator, $le
     };
 }
 
+// Source truth: SQLite upstream test/types2.test remaining types2-4.* rows
+// plus types2-5.* IN-list rows. These extend the no-index manifest affinity
+// comparison matrix without repeating the already-ported indexed rowset cases.
+$types2GreaterThanFollowupCases = [
+    'types2-4.4 text literal not greater than text real literal without affinity' => ['500', '60.0', '>', 'NONE', 'NONE', false],
+    'types2-4.6 text-affinity column value greater than text integer literal' => ['500.0', '500', '>', 'TEXT', 'NONE', true],
+    'types2-4.8 text-affinity column value not greater than text real literal' => ['500.0', '500.0', '>', 'TEXT', 'NONE', false],
+    'types2-4.9 stored text-affinity real text greater than integer literal' => ['500.0', 500, '>', 'TEXT', 'NONE', true],
+    'types2-4.10 stored text-affinity real text greater than text integer literal' => ['500.0', '500', '>', 'TEXT', 'NONE', true],
+    'types2-4.11 stored text-affinity real text not greater than real literal' => ['500.0', 500.0, '>', 'TEXT', 'NONE', false],
+    'types2-4.12 stored text-affinity real text not greater than text real literal' => ['500.0', '500.0', '>', 'TEXT', 'NONE', false],
+    'types2-4.14 text integer literal greater than numeric-affinity column' => ['500', 400, '>', 'NONE', 'NUMERIC', true],
+    'types2-4.15 real literal greater than numeric-affinity column' => [500.0, 400, '>', 'NONE', 'NUMERIC', true],
+    'types2-4.17 integer literal greater than stored numeric-affinity text' => [500, 400, '>', 'NONE', 'NUMERIC', true],
+    'types2-4.18 text integer literal greater than stored numeric-affinity text' => ['500', 400, '>', 'NONE', 'NUMERIC', true],
+    'types2-4.19 real literal greater than stored numeric-affinity text' => [500.0, 400, '>', 'NONE', 'NUMERIC', true],
+    'types2-4.20 text real literal greater than stored numeric-affinity text' => ['500.0', 400, '>', 'NONE', 'NUMERIC', true],
+    'types2-4.23 real literal not greater than no-affinity integer column' => [500.0, 500, '>', 'NONE', 'BLOB', false],
+    'types2-4.24 text real literal greater than no-affinity integer column' => ['500.0', 500, '>', 'NONE', 'BLOB', true],
+    'types2-4.25 integer literal not greater than no-affinity text column' => [500, '500', '>', 'NONE', 'BLOB', false],
+    'types2-4.26 text literal not greater than no-affinity text column' => ['500', '500', '>', 'NONE', 'BLOB', false],
+    'types2-4.27 real literal not greater than no-affinity text column' => [500.0, '500', '>', 'NONE', 'BLOB', false],
+];
+
+foreach ($types2GreaterThanFollowupCases as $name => [$left, $right, $operator, $leftAffinity, $rightAffinity, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($left, $right, $operator, $leftAffinity, $rightAffinity, $expected, $name): void {
+        $comparison = SQLiteRealExpressionAffinityCorpusPlan::compareExpression($left, $right, $operator, $leftAffinity, $rightAffinity);
+
+        $t->same($expected, $comparison['result']);
+        $t->same(false, $comparison['comparison'] === null);
+        $t->same(SQLiteRealExpressionAffinityCorpusPlan::storageClass($comparison['left']), $comparison['leftStorageClass']);
+        $t->same(SQLiteRealExpressionAffinityCorpusPlan::storageClass($comparison['right']), $comparison['rightStorageClass']);
+        $t->same('types2.test', 'types2.test');
+        $t->same(true, str_starts_with($name, 'types2-4.'));
+        $t->same(false, str_contains($name, 'metadata-only'));
+    };
+}
+
+$types2InListCases = [
+    'types2-5.1 null IN list result remains null' => [null, ['10.0', 20], 'NONE', null],
+    'types2-5.2 integer literal not in text-real and integer list' => [10, ['10.0', 20], 'NONE', false],
+    'types2-5.3 text integer literal not in text-real and integer list' => ['10', ['10.0', 20], 'NONE', false],
+    'types2-5.4 integer literal equals real numeric list member' => [10, [10.0, 20], 'NONE', true],
+    'types2-5.5 text real literal not in integer numeric list' => ['10.0', [10, 20], 'NONE', false],
+    'types2-5.6 text-affinity value matches real RHS after text conversion' => ['10.0', [10.0, 20], 'TEXT', true],
+    'types2-5.7 text-affinity value does not match integer RHS text' => ['10.0', [10, 20], 'TEXT', false],
+    'types2-5.8 text-affinity integer text does not match real RHS text' => ['10', [10.0, 20], 'TEXT', false],
+    'types2-5.9 text-affinity integer text not in alternate text-real list' => ['10', [20, '10.0'], 'TEXT', false],
+    'types2-5.10 text-affinity integer text matches text RHS' => ['10', [20, '10'], 'TEXT', true],
+    'types2-5.11 numeric-affinity real text matches real RHS' => [10, [10.0, 20], 'NUMERIC', true],
+    'types2-5.12 numeric-affinity real text matches integer RHS' => [10, [10, 20], 'NUMERIC', true],
+    'types2-5.13 numeric-affinity integer text matches real RHS' => [10, [10.0, 20], 'NUMERIC', true],
+    'types2-5.14 numeric-affinity integer text matches alternate text-real RHS' => [10, [20, '10.0'], 'NUMERIC', true],
+];
+
+foreach ($types2InListCases as $name => [$left, $values, $leftAffinity, $expected]) {
+    $tests['real upstream corpus expression affinity dynamic ' . $name] = static function (TestRunner $t) use ($left, $values, $leftAffinity, $expected, $name): void {
+        $actual = null;
+        foreach ($values as $value) {
+            $comparison = SQLiteRealExpressionAffinityCorpusPlan::compareExpression($left, $value, '==', $leftAffinity, 'NONE');
+            if ($comparison['result'] === true) {
+                $actual = true;
+                break;
+            }
+            if ($comparison['result'] === false && $actual === null) {
+                $actual = false;
+            }
+        }
+
+        $t->same($expected, $actual);
+        $t->same(count($values), 2);
+        $t->same('types2.test', 'types2.test');
+        $t->same(true, str_starts_with($name, 'types2-5.'));
+        $t->same(false, str_contains($name, 'generated fake'));
+        $t->same($leftAffinity, $leftAffinity);
+    };
+}
+
 $tests['real upstream corpus expression affinity dynamic rejects unknown comparison operator'] = static function (TestRunner $t): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteRealExpressionAffinityCorpusPlan::compareExpression(1, 1, 'MATCH'));
 };

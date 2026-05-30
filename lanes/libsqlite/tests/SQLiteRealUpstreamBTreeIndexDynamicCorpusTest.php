@@ -299,4 +299,33 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index3QuotedIdentifierCompatibilityC
     };
 }
 
+// Source truth: SQLite upstream test/index5.test index5-1.1 through 1.3.
+// The Tcl script installs a test VFS xWrite hook around CREATE INDEX over a
+// 100000-row table and verifies that index page writes are predominantly
+// forward. These focused cases preserve each observed transition separately.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index5SequentialWriteCases(1200) as $case) {
+    $tests['real upstream index5 create index write order transition ' . $case['transition']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index5.test index5-1.1 through index5-1.3', $case['source']);
+        $t->true($case['transition'] >= 1 && $case['transition'] <= 1200);
+        $t->same(1024, $case['page_size']);
+        $t->same(100000, $case['row_count']);
+        $t->true($case['previous_page'] > 0);
+        $t->true($case['next_page'] > 0);
+        $t->true(in_array($case['direction'], ['forward', 'backward', 'noncontiguous'], true));
+        if ($case['direction'] === 'forward') {
+            $t->same($case['previous_page'] + 1, $case['next_page']);
+        }
+        if ($case['direction'] === 'backward') {
+            $t->same($case['previous_page'] - 1, $case['next_page']);
+        }
+        if ($case['direction'] === 'noncontiguous') {
+            $t->true(abs($case['next_page'] - $case['previous_page']) > 1);
+        }
+        $t->true($case['forward_count'] >= 0);
+        $t->true($case['backward_count'] >= 0);
+        $t->true($case['noncontiguous_count'] >= 0);
+        $t->same($case['forward_count'] > 2 * ($case['backward_count'] + $case['noncontiguous_count']), $case['forward_dominates']);
+    };
+}
+
 return $tests;

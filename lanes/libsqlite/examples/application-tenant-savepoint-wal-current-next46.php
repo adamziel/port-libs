@@ -28,37 +28,37 @@ $walBytes = static function (array $frames) use ($pageSize, $page): string {
 };
 
 $stack = new SQLiteSavepointStack();
-$stack->beginTransaction('network_import');
+$stack->beginTransaction('tenant_import');
 $stack->recordWalFrameWrite(1, 1);
 $stack->recordWalFrameWrite(2, 2, true);
-$stack->savepoint('plugin_import');
+$stack->savepoint('settings_import');
 $stack->recordPageImageWrite(2, $page('main-page-2-base'));
 $stack->recordWalFrameWrite(3, 2);
 $stack->recordWalFrameWrite(4, 3, true);
 
 $mainWalBytes = $walBytes([
     [1, 0, 'main-network-schema-commit'],
-    [2, 3, 'main-options-before-plugin'],
-    [2, 0, 'main-plugin-options-draft'],
-    [3, 3, 'main-plugin-transient-commit'],
+    [2, 3, 'main-settings-before-plugin'],
+    [2, 0, 'main-plugin-settings-draft'],
+    [3, 3, 'main-plugin-cache-commit'],
 ]);
 
-$plan = SQLiteTenantSavepointWalPlan::rollbackToAcrossSites([[
-    'blog_id' => 1,
-    'database_path' => 'wp-content/database/main.sqlite',
+$plan = SQLiteTenantSavepointWalPlan::rollbackToAcrossTenants([[
+    'tenant_id' => 1,
+    'database_path' => '/tmp/app-main.sqlite',
     'database_bytes' => $page('main-page-1-base') . $page('main-page-2-base') . $page('main-page-3-base'),
     'wal' => SQLiteWal::parse($mainWalBytes, $pageSize, true),
     'wal_bytes' => $mainWalBytes,
     'savepoints' => $stack,
-    'savepoint' => 'plugin_import',
+    'savepoint' => 'settings_import',
     'page_numbers' => [1, 2, 3],
 ]], $pageSize);
 
 echo json_encode([
-    'scenario' => 'application multisite savepoint wal current next46',
+    'scenario' => 'application tenant savepoint wal current next46',
     'status' => $plan['status'],
-    'site_count' => $plan['site_count'],
-    'rolled_back_site_count' => $plan['rolled_back_site_count'],
+    'tenant_count' => $plan['tenant_count'],
+    'rolled_back_tenant_count' => $plan['rolled_back_tenant_count'],
     'total_restored_pages' => $plan['total_restored_pages'],
     'total_discarded_wal_frames' => $plan['total_discarded_wal_frames'],
     'current_reader_matrix' => $plan['current_reader_matrix'],
