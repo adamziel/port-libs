@@ -54,14 +54,14 @@ function libsqlite_release_burnup52_rows(int $case): array
 
 $currentHead52 = '28488284c6b42b08db024e7e34c788f71b24a201';
 $nextHead52 = 'current-next52-denominator-burnup';
-$focusedPath52 = 'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorBurnupCurrentNext52Test.php';
+$focusedPath52 = 'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorBurnupTest.php';
 $nonOverlap52 = 'current-next52 denominator burnup avoids accepted release-runner gap map, suite progress, artifact directory evidence, batch23 runner preflight, batch49 upstream gap mapping, and JSON/VFS/WAL/B-tree/SQL behavior clusters';
 
 $tests = [];
 
 for ($i = 1; $i <= 52; $i++) {
     $tests['current next52 denominator burnup maps focused case ' . $i] = static function (TestRunner $t) use ($i, $currentHead52, $nextHead52, $focusedPath52, $nonOverlap52): void {
-        $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+        $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
             libsqlite_release_burnup52_rows($i),
             $currentHead52,
             $nextHead52,
@@ -90,7 +90,7 @@ for ($i = 1; $i <= 52; $i++) {
 }
 
 $tests['current next52 denominator burnup preserves category totals'] = static function (TestRunner $t) use ($currentHead52, $nextHead52, $focusedPath52, $nonOverlap52): void {
-    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
         libsqlite_release_burnup52_rows(1),
         $currentHead52,
         $nextHead52,
@@ -112,7 +112,7 @@ $tests['current next52 denominator burnup blocks missing row evidence'] = static
     $rows = libsqlite_release_burnup52_rows(1);
     $rows[0]['evidence'] = '';
 
-    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
         $rows,
         $currentHead52,
         $nextHead52,
@@ -134,7 +134,7 @@ $tests['current next52 denominator burnup blocks duplicate units'] = static func
     $rows = libsqlite_release_burnup52_rows(1);
     $rows[] = $rows[0];
 
-    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
         $rows,
         $currentHead52,
         $nextHead52,
@@ -154,7 +154,7 @@ $tests['current next52 denominator burnup blocks mapped regressions'] = static f
     $rows[1]['next_status'] = 'unmapped';
     $rows[1]['next_mapped'] = false;
 
-    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
         $rows,
         $currentHead52,
         $nextHead52,
@@ -171,7 +171,7 @@ $tests['current next52 denominator burnup blocks mapped regressions'] = static f
 };
 
 $tests['current next52 denominator burnup blocks unfocused php output'] = static function (TestRunner $t) use ($currentHead52, $nextHead52, $focusedPath52, $nonOverlap52): void {
-    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
         libsqlite_release_burnup52_rows(1),
         $currentHead52,
         $nextHead52,
@@ -190,7 +190,7 @@ $tests['current next52 denominator burnup blocks unfocused php output'] = static
 $tests['current next52 denominator burnup rejects missing heads'] = static function (TestRunner $t) use ($focusedPath52, $nonOverlap52): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+        static fn () => libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
             libsqlite_release_burnup52_rows(1),
             '',
             'next',
@@ -206,7 +206,7 @@ $tests['current next52 denominator burnup rejects missing heads'] = static funct
 $tests['current next52 denominator burnup rejects negative current mapped'] = static function (TestRunner $t) use ($currentHead52, $nextHead52, $focusedPath52, $nonOverlap52): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+        static fn () => libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
             libsqlite_release_burnup52_rows(1),
             $currentHead52,
             $nextHead52,
@@ -222,7 +222,7 @@ $tests['current next52 denominator burnup rejects negative current mapped'] = st
 $tests['current next52 denominator burnup rejects empty rows'] = static function (TestRunner $t) use ($currentHead52, $nextHead52, $focusedPath52, $nonOverlap52): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+        static fn () => libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
             [],
             $currentHead52,
             $nextHead52,
@@ -236,7 +236,7 @@ $tests['current next52 denominator burnup rejects empty rows'] = static function
 };
 
 $tests['current next52 denominator burnup blocks invalid rows'] = static function (TestRunner $t) use ($currentHead52, $nextHead52, $focusedPath52, $nonOverlap52): void {
-    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
         [
             'valid' => libsqlite_release_burnup52_rows(1)[0],
             'invalid' => 'not-a-row',
@@ -255,7 +255,7 @@ $tests['current next52 denominator burnup blocks invalid rows'] = static functio
 };
 
 $tests['current next52 denominator burnup preserves evidence type counts'] = static function (TestRunner $t) use ($currentHead52, $nextHead52, $focusedPath52, $nonOverlap52): void {
-    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
         libsqlite_release_burnup52_rows(7),
         $currentHead52,
         $nextHead52,
@@ -273,7 +273,7 @@ $tests['current next52 denominator burnup preserves evidence type counts'] = sta
 };
 
 $tests['current next52 denominator burnup keeps non overlap note'] = static function (TestRunner $t) use ($currentHead52, $nextHead52, $focusedPath52, $nonOverlap52): void {
-    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnupCurrentNext52(
+    $record = libsqlite_release_burnup52_evidence()->releaseRunnerDenominatorBurnup(
         libsqlite_release_burnup52_rows(1),
         $currentHead52,
         $nextHead52,

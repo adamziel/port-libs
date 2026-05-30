@@ -1,29 +1,13 @@
-# Pager Reader-Cache Numbered Suffix Cleanup
+# Consolidate Final Numbered Production Suffix Cleanup Dynamic
 
-Consolidated the pager master-journal reader-cache `variantNext172()` through
-`variantNext176()` production entry points into stable descriptive methods on
-`SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan`:
-
-- `variantAttachedDatabaseScope()`
-- `variantFreshMasterMembershipDigest()`
-- `variantRollbackJournalSourceRebase()`
-- `variantRollbackJournalChecksumFence()`
-- `variantMasterJournalSourceRolloverFence()`
-
-The five direct pager tests and WordPress examples were renamed to match those
-stable helper names and migrated to call the descriptive methods. Existing
-result status keys, dependency strings, operation labels, and non-overlap text
-remain unchanged so accepted evidence consumers keep the same observable
-metadata.
+Consolidated the `SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSourceNext378()` production wrapper into the existing stable `upstreamVeryquickShardCurrentSource()` entry point. The direct next378 test now passes the shard label as data, while the emitted `current-source-next378` status, count key, gate text, and dependency-closure record remain observable.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php`
-- `php -l` for the five renamed pager tests and five renamed examples
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheAttachedDatabaseScopeTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheFreshMasterMembershipDigestTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheRollbackJournalSourceRebaseTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheRollbackJournalChecksumFenceTest.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCacheMasterJournalSourceRolloverFenceTest.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerMasterJournalReaderCache*Test.php`
-- five renamed WordPress examples with `--self-test`
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext378Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext378Test.php` -> `1 test files, 1420 assertions, 0 failures`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` -> `1 test files, 3757 assertions, 0 failures`
 - `git diff --check -- lanes/libsqlite`
 
-Dependency closure: no new support component is needed; this is a naming
-consolidation over the existing pager reader-cache implementation.
+Dependency closure: no new support component is needed; this is a production-suffix consolidation over existing suite-evidence admission behavior.
