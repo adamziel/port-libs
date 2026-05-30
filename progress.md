@@ -48,6 +48,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (parity sample 22:10 UTC):
+  Accepted `94fb545f` (`libsqlite: fix full-run parity blockers`) after the
+  fourteenth rapid corpus sweep. Two parity handoffs were integrated: generic
+  application WAL/JSON rollback cleanup and row-value UPDATE/DELETE LIMIT
+  row-id resolution for the `SQLiteRowValueNestedSavepointReturningTest` fatal.
+  Verification passed PHP lint for 5 changed PHP files, `git diff --check --
+  lanes/libsqlite`, added-lines source-neutral guards, focused parity tests
+  with `8 test files / 502 assertions / 0 failures / 502 PASS lines`, and the
+  application WAL example smoke. Accepted-base evidence was concrete: the app
+  WAL test moved from `5 PASS / 45 failures` to green, and the row-value
+  returning test moved from a fatal `setting_id` row-id error to 76 passing
+  assertions. Honest selected movement is `+121`, bringing libsqlite to
+  `912041 pass / 0 fail` with mapped coverage still `1589 / 1589`. Other
+  pre-existing full-directory application/WAL failures remain open for parity
+  workers.
+
 - 2026-05-30 supervisor continuation (integration sample 22:00 UTC):
   Latest libsqlite source is being advanced from dashboard head `e2fccb0f`
   through a fourteenth rapid current-base corpus sweep. The scratch batch
