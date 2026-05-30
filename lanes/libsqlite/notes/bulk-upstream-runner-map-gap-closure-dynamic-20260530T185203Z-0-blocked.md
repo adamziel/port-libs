@@ -1,0 +1,22 @@
+# bulk upstream runner-map gap closure dynamic blocked
+
+- Slice: `bulk-upstream-runner-map-gap-closure-dynamic-20260530T185203Z-0`
+- Base accepted HEAD: `0eff666a68d9fc5c2de0693a82870643615fd7c5`
+- Current lane manifest count: `1472 / 1589` mapped upstream denominator rows.
+- Attempted upstream section: runner-map denominator gap closure after the accepted bulk suite denominator burnup. The hydrated upstream checkout at `/home/claude/port-libs/.upstream-cache/libsqlite` was inspected as source truth.
+- Count evidence from the hydrated upstream cache:
+  - `test/*.test`: `1189` files.
+  - `test/` non-`.test` files: `91` files.
+  - `mptest/` top-level files: `6` files.
+  - `tool/` test-ish files matching `*test*` or `*fixture*`: `5` files.
+  - `src/test*.c` / `src/test*.h` helpers: `47` files.
+  - `ext/**/*.test`: `278` files in the live filesystem inventory; the current manifest records the accepted extension/nested `.test` burnup as already mapped.
+- Blocker: this slice cannot honestly satisfy the `bulk-upstream-*` ready handoff floor from the remaining runner-map gap. The current manifest states that top-level `test/*.test` coverage is closed and that the remaining `117` denominator rows are non-`.test` harness, C helper, mptest, tool, or tool-ish inventory units. Mapping those rows now would require new guarded evidence for non-Tcl-test inventory units, not another generated veryquick shard or static metadata row.
+- Before/after counts for this blocked handoff:
+  - PHP PASS lines: `345493 -> 345493` (`+0`).
+  - Focused PHP assertions: `0 -> 0` (`+0`; no PHP behavior patch was made).
+  - Mapped denominator rows: `1472 / 1589 -> 1472 / 1589` (`+0`).
+  - Upstream runner pass/fail rows: `0 -> 0` (`+0`; no guarded runner was launched).
+- Non-overlap: avoids stale next965-980 shard overlap and avoids fabricating `.test` script ids for harness/tool/C/mptest rows.
+- Next larger batch to try: build a guarded non-`.test` admission classifier for the remaining `117` rows. It should classify `tester.tcl`, `testrunner.tcl`, `testrunner_data.tcl`, `testrunner_estwork.tcl`, `*_common.tcl`, `window*.tcl`, fuzz C programs, `mptest` files, and tool test programs into countable categories with lane-local zero-error artifacts or explicit non-portability exclusions. Only after that classifier exists should the integrator move mapped coverage toward `1589 / 1589`.
+- Dependency closure: no new support component was implemented. The missing dependency is an upstream-runner evidence capability for non-`.test` SQLite harness/tool/helper inventory units with duplicate-runner gating and explicit pass/fail or exclusion records.

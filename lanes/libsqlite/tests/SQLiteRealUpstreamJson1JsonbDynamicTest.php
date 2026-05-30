@@ -617,6 +617,92 @@ $tests['real upstream JSON1/JSONB dynamic source coverage cites json101 json102 
     ['json101.test', 'json102.test', 'json104.test', 'json105.test', 'json107.test', 'json109.test', 'jsonb01.test'],
     ['json101.test', 'json102.test', 'json104.test', 'json105.test', 'json107.test', 'json109.test', 'jsonb01.test'],
 );
+
+$literalExpression = static fn (mixed $value): array => ['type' => 'literal', 'value' => $value];
+$functionExpression = static fn (string $name, array $arguments): array => [
+    'type' => 'function',
+    'name' => $name,
+    'arguments' => array_map($literalExpression, $arguments),
+];
+
+foreach ($json105RemoveCases as $name => [$paths, $result]) {
+    $tests['real upstream JSON1/JSONB dynamic select expression json105 remove ' . $name] = static function (TestRunner $t) use ($json105Document, $paths, $result, $functionExpression): void {
+        $actual = SQLiteSelectExpression::evaluate([], $functionExpression('json_remove', array_merge([$json105Document], $paths)));
+
+        $t->same($result, $actual);
+        $t->same(json_decode($result, true, 512, JSON_THROW_ON_ERROR), json_decode((string) $actual, true, 512, JSON_THROW_ON_ERROR));
+        $t->true(str_contains(implode(' ', $paths), '#'));
+        $t->same($paths, array_values($paths));
+    };
+    $tests['real upstream JSON1/JSONB dynamic select expression json105 jsonb remove ' . $name] = static function (TestRunner $t) use ($json105Document, $jsonb, $jsonText, $paths, $result, $functionExpression): void {
+        $actual = SQLiteSelectExpression::evaluate([], $functionExpression('jsonb_remove', array_merge([$jsonb($json105Document)], $paths)));
+
+        $t->true($actual instanceof SQLiteBlobValue);
+        $t->same($result, $jsonText($actual));
+        $t->same(json_decode($result, true, 512, JSON_THROW_ON_ERROR), json_decode($jsonText($actual), true, 512, JSON_THROW_ON_ERROR));
+        $t->true(str_contains(implode(' ', $paths), '#'));
+    };
+}
+
+foreach ($json105InsertCases as $name => [$function, $arguments, $result]) {
+    $tests['real upstream JSON1/JSONB dynamic select expression json105 mutation ' . $name] = static function (TestRunner $t) use ($json105Document, $function, $arguments, $result, $functionExpression): void {
+        $actual = SQLiteSelectExpression::evaluate([], $functionExpression($function, array_merge([$json105Document], $arguments)));
+
+        $t->same($result, $actual);
+        $t->same(json_decode($result, true, 512, JSON_THROW_ON_ERROR), json_decode((string) $actual, true, 512, JSON_THROW_ON_ERROR));
+        $t->same(0, count($arguments) % 2);
+        $t->true(str_contains(implode(' ', array_map('strval', $arguments)), '#'));
+    };
+    $tests['real upstream JSON1/JSONB dynamic select expression json105 jsonb mutation ' . $name] = static function (TestRunner $t) use ($json105Document, $jsonb, $jsonText, $function, $arguments, $result, $functionExpression): void {
+        $actual = SQLiteSelectExpression::evaluate([], $functionExpression(str_replace('json_', 'jsonb_', $function), array_merge([$jsonb($json105Document)], $arguments)));
+
+        $t->true($actual instanceof SQLiteBlobValue);
+        $t->same($result, $jsonText($actual));
+        $t->same(json_decode($result, true, 512, JSON_THROW_ON_ERROR), json_decode($jsonText($actual), true, 512, JSON_THROW_ON_ERROR));
+        $t->same(0, count($arguments) % 2);
+    };
+}
+
+$jsonb01Document = $jsonb('{a:5,b:{x:10,y:11},c:[1,2,3,4]}');
+$jsonb01RemoveCases = [
+    'jsonb01-1.2.1 remove object member a' => ['$.a', '{"b":{"x":10,"y":11},"c":[1,2,3,4]}'],
+    'jsonb01-1.2.2 remove object member b' => ['$.b', '{"a":5,"c":[1,2,3,4]}'],
+    'jsonb01-1.2.3 remove object member c' => ['$.c', '{"a":5,"b":{"x":10,"y":11}}'],
+    'jsonb01-1.2.4 missing object member leaves input' => ['$.d', '{"a":5,"b":{"x":10,"y":11},"c":[1,2,3,4]}'],
+    'jsonb01-1.2.5 remove nested member b.x' => ['$.b.x', '{"a":5,"b":{"y":11},"c":[1,2,3,4]}'],
+    'jsonb01-1.2.6 remove nested member b.y' => ['$.b.y', '{"a":5,"b":{"x":10},"c":[1,2,3,4]}'],
+    'jsonb01-1.2.7 remove array index 0' => ['$.c[0]', '{"a":5,"b":{"x":10,"y":11},"c":[2,3,4]}'],
+    'jsonb01-1.2.8 remove array index 1' => ['$.c[1]', '{"a":5,"b":{"x":10,"y":11},"c":[1,3,4]}'],
+    'jsonb01-1.2.9 remove array index 2' => ['$.c[2]', '{"a":5,"b":{"x":10,"y":11},"c":[1,2,4]}'],
+    'jsonb01-1.2.10 remove array index 3' => ['$.c[3]', '{"a":5,"b":{"x":10,"y":11},"c":[1,2,3]}'],
+    'jsonb01-1.2.11 array index beyond end leaves input' => ['$.c[4]', '{"a":5,"b":{"x":10,"y":11},"c":[1,2,3,4]}'],
+    'jsonb01-1.2.12 append pseudo-index leaves input' => ['$.c[#]', '{"a":5,"b":{"x":10,"y":11},"c":[1,2,3,4]}'],
+    'jsonb01-1.2.13 remove reverse index 1' => ['$.c[#-1]', '{"a":5,"b":{"x":10,"y":11},"c":[1,2,3]}'],
+    'jsonb01-1.2.14 remove reverse index 2' => ['$.c[#-2]', '{"a":5,"b":{"x":10,"y":11},"c":[1,2,4]}'],
+    'jsonb01-1.2.15 remove reverse index 3' => ['$.c[#-3]', '{"a":5,"b":{"x":10,"y":11},"c":[1,3,4]}'],
+    'jsonb01-1.2.16 remove reverse index 4' => ['$.c[#-4]', '{"a":5,"b":{"x":10,"y":11},"c":[2,3,4]}'],
+    'jsonb01-1.2.17 reverse index beyond end leaves input' => ['$.c[#-5]', '{"a":5,"b":{"x":10,"y":11},"c":[1,2,3,4]}'],
+    'jsonb01-1.2.18 reverse index far beyond end leaves input' => ['$.c[#-6]', '{"a":5,"b":{"x":10,"y":11},"c":[1,2,3,4]}'],
+];
+
+foreach ($jsonb01RemoveCases as $name => [$path, $result]) {
+    $tests['real upstream JSON1/JSONB dynamic select expression ' . $name . ' jsonb_remove'] = static function (TestRunner $t) use ($jsonb01Document, $path, $result, $jsonText, $functionExpression): void {
+        $actual = SQLiteSelectExpression::evaluate([], $functionExpression('jsonb_remove', [$jsonb01Document, $path]));
+
+        $t->true($actual instanceof SQLiteBlobValue);
+        $t->same($result, $jsonText($actual));
+        $t->same(json_decode($result, true, 512, JSON_THROW_ON_ERROR), json_decode($jsonText($actual), true, 512, JSON_THROW_ON_ERROR));
+        $t->same($path, (string) $path);
+    };
+    $tests['real upstream JSON1/JSONB dynamic select expression ' . $name . ' json_remove on JSONB'] = static function (TestRunner $t) use ($jsonb01Document, $path, $result, $functionExpression): void {
+        $actual = SQLiteSelectExpression::evaluate([], $functionExpression('json_remove', [$jsonb01Document, $path]));
+
+        $t->same($result, $actual);
+        $t->same(json_decode($result, true, 512, JSON_THROW_ON_ERROR), json_decode((string) $actual, true, 512, JSON_THROW_ON_ERROR));
+        $t->same($path, (string) $path);
+    };
+}
+
 $tests['real upstream JSON1/JSONB dynamic dependency scenario uses existing JSON helpers'] = static fn (TestRunner $t) => $t->same(
     'no-new-support-component',
     'no-new-support-component',

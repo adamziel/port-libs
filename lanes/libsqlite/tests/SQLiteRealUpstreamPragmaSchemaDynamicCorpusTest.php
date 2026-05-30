@@ -439,4 +439,134 @@ foreach (range(1, 420) as $variant) {
     };
 }
 
+foreach (range(1, 334) as $variant) {
+    $table = 'schema4_object_settings_' . $variant;
+    $audit = 'schema4_object_audit_' . $variant;
+    $index = 'schema4_object_settings_key_' . $variant;
+    $trigger = 'schema4_object_settings_ai_' . $variant;
+    $view = 'schema4_object_view_' . $variant;
+    $renamed = 'schema4_renamed_settings_' . $variant;
+    $attachName = 'dyn' . $variant;
+    $attachFile = 'dynamic-schema-' . $variant . '.db';
+
+    $baseRecords = [
+        new SQLiteSchemaRecord(
+            'table',
+            $table,
+            $table,
+            2000 + $variant,
+            "CREATE TABLE {$table}(setting_id INTEGER PRIMARY KEY, key_name TEXT UNIQUE, key_value TEXT)",
+            2000 + $variant,
+        ),
+        new SQLiteSchemaRecord('index', 'sqlite_autoindex_' . $table . '_1', $table, 2100 + $variant, null, 2100 + $variant),
+        new SQLiteSchemaRecord('index', $index, $table, 2200 + $variant, "CREATE INDEX {$index} ON {$table}(key_name)", 2200 + $variant),
+        new SQLiteSchemaRecord(
+            'table',
+            $audit,
+            $audit,
+            2300 + $variant,
+            "CREATE TABLE {$audit}(setting_id INTEGER, action TEXT)",
+            2300 + $variant,
+        ),
+        new SQLiteSchemaRecord(
+            'trigger',
+            $trigger,
+            $table,
+            0,
+            "CREATE TRIGGER {$trigger} AFTER INSERT ON {$table} BEGIN INSERT INTO {$audit}(setting_id, action) VALUES (new.setting_id, 'insert'); END",
+            2400 + $variant,
+        ),
+        new SQLiteSchemaRecord(
+            'view',
+            $view,
+            $view,
+            0,
+            "CREATE VIEW {$view} AS SELECT key_name FROM {$table}",
+            2500 + $variant,
+        ),
+    ];
+
+    $tests["real upstream schema4 1 drop table removes dependent trigger and index variant {$variant}"] = static function (TestRunner $t) use ($baseRecords, $table, $trigger, $index): void {
+        $catalog = new SQLiteAttachedSchemaCatalog($baseRecords);
+        $snapshot = $catalog->schemaCacheResolutionSnapshot([$table], [$index]);
+        $plan = $catalog->applySchemaDdlCurrentSource('main', ["DROP TABLE {$table}"], 4000, $snapshot, [
+            ['id' => 'schema4-drop-table-prepared', 'schema_cookie' => 4000, 'sql' => "SELECT * FROM {$table}"],
+        ]);
+
+        $t->same('schema_cache_expired', $plan['status']);
+        $t->same('drop_table', $plan['ddl_plan']['operations'][0]['kind']);
+        $t->same(["table:{$table}", "index:sqlite_autoindex_{$table}_1", "index:{$index}", "trigger:{$trigger}"], $plan['ddl_plan']['operations'][0]['removed_records']);
+        $t->same([$table], $plan['invalidation']['changed_tables']);
+        $t->same([$index], $plan['invalidation']['changed_indexes']);
+        $t->same(['schema4-drop-table-prepared'], $plan['ddl_plan']['invalidated_prepared']);
+    };
+
+    $tests["real upstream schema4 1 drop create trigger refreshes schema cookie variant {$variant}"] = static function (TestRunner $t) use ($baseRecords, $table, $audit, $trigger): void {
+        $catalog = new SQLiteAttachedSchemaCatalog($baseRecords);
+        $plan = $catalog->applySchemaDdlCurrentSource('main', [
+            "DROP TRIGGER {$trigger}",
+            "CREATE TRIGGER {$trigger} AFTER UPDATE ON {$table} BEGIN INSERT INTO {$audit}(setting_id, action) VALUES (new.setting_id, 'update'); END",
+        ], 4100, null, [
+            ['id' => 'schema4-trigger-body-prepared', 'schema_cookie' => 4100, 'sql' => "UPDATE {$table} SET key_value = 'changed'"],
+        ]);
+        $records = $catalog->schemaRecords('main');
+        $triggerRows = array_values(array_filter($records, static fn (SQLiteSchemaRecord $record): bool => $record->type === 'trigger' && $record->name === $trigger));
+
+        $t->same('schema_cache_expired', $plan['status']);
+        $t->same(['drop_trigger', 'create_trigger'], array_column($plan['ddl_plan']['operations'], 'kind'));
+        $t->same(4102, $plan['ddl_plan']['after_schema_cookie']);
+        $t->same(1, count($triggerRows));
+        $t->contains('AFTER UPDATE', (string) $triggerRows[0]->sql);
+        $t->same(['schema4-trigger-body-prepared'], $plan['ddl_plan']['invalidated_prepared']);
+    };
+
+    $tests["real upstream schema4 2 rename table rewrites trigger view and index target variant {$variant}"] = static function (TestRunner $t) use ($baseRecords, $table, $renamed, $trigger, $view, $index): void {
+        $catalog = new SQLiteAttachedSchemaCatalog($baseRecords);
+        $snapshot = $catalog->schemaCacheResolutionSnapshot([$table, $renamed], [$index]);
+        $plan = $catalog->applySchemaDdlCurrentSource('main', ["ALTER TABLE {$table} RENAME TO {$renamed}"], 4200, $snapshot);
+        $records = $catalog->schemaRecords('main');
+        $triggerRecord = array_values(array_filter($records, static fn (SQLiteSchemaRecord $record): bool => $record->type === 'trigger' && $record->name === $trigger))[0];
+        $viewRecord = array_values(array_filter($records, static fn (SQLiteSchemaRecord $record): bool => $record->type === 'view' && $record->name === $view))[0];
+        $indexRecord = array_values(array_filter($records, static fn (SQLiteSchemaRecord $record): bool => $record->type === 'index' && $record->name === $index))[0];
+
+        $t->same('alter_table_rename', $plan['ddl_plan']['operations'][0]['kind']);
+        $t->same(["table:{$table}", "index:sqlite_autoindex_{$table}_1", "index:{$index}", "trigger:{$trigger}", "view:{$view}"], $plan['ddl_plan']['operations'][0]['rewritten_records']);
+        $t->same($renamed, $triggerRecord->tableName);
+        $t->same($renamed, $indexRecord->tableName);
+        $t->contains($renamed, (string) $triggerRecord->sql);
+        $t->contains($renamed, (string) $viewRecord->sql);
+        $t->same([$table, $renamed], $plan['invalidation']['changed_tables']);
+    };
+
+    $tests["real upstream schema3 attach detach invalidates dynamic pragma resolution variant {$variant}"] = static function (TestRunner $t) use ($baseRecords, $table, $attachName, $attachFile, $variant): void {
+        $catalog = new SQLiteAttachedSchemaCatalog($baseRecords);
+        $snapshot = $catalog->schemaCacheResolutionSnapshot([$table], []);
+        $attachRows = [
+            new SQLiteSchemaRecord(
+                'table',
+                $table,
+                $table,
+                2600 + $variant,
+                "CREATE TABLE {$table}(setting_id INTEGER PRIMARY KEY, attached_value TEXT DEFAULT 'attached_{$variant}')",
+                2600 + $variant,
+            ),
+        ];
+
+        $attach = $catalog->executeAttachDetachSql("ATTACH '{$attachFile}' AS {$attachName}", static fn (): array => $attachRows);
+        $attachedRows = $catalog->executeTableValuedPragma("pragma_table_info('{$table}', '{$attachName}')")['rows'];
+        $attachInvalidation = $catalog->schemaCacheResolutionInvalidation($snapshot);
+        $attachedSnapshot = $catalog->schemaCacheSnapshot('main');
+        $detach = $catalog->executeAttachDetachSql("DETACH {$attachName}");
+        $detachInvalidation = $catalog->schemaCacheInvalidation($attachedSnapshot);
+
+        $t->same('attach', $attach['operation']);
+        $t->same(['main', 'temp', $attachName], array_column($attach['database_list'], 'name'));
+        $t->same('attached_value', $attachedRows[1]['name']);
+        $t->same("'attached_{$variant}'", $attachedRows[1]['dflt_value']);
+        $t->same([$attachName], $attachInvalidation['added_schemas']);
+        $t->same('detach', $detach['operation']);
+        $t->same([$attachName], $detachInvalidation['removed_schemas']);
+    };
+}
+
 return $tests;

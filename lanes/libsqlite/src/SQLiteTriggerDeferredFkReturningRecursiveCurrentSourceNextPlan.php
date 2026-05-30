@@ -111,6 +111,103 @@ final class SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param list<mixed> $deleteKeys
+     * @param array{parent_key:string,child_key:string,deferred?:bool,on_delete?:string,default?:mixed} $foreignKey
+     * @param list<array<string,mixed>> $triggers
+     * @param array{recursive_triggers?:bool,max_depth?:int,current_source?:string,next_source?:string} $options
+     * @return array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,deleted_parent_keys:list<mixed>,trigger_effects:list<array<string,mixed>>,foreign_key_actions:list<array<string,mixed>>,deferred_violations:list<array<string,mixed>>,commit_status:string,recursive_triggers:bool,current_source:string,next_source:string,dependencies:list<string>}
+     */
+    public static function deleteParents(
+        array $parents,
+        array $children,
+        array $deleteKeys,
+        array $foreignKey,
+        array $triggers = [],
+        array $options = [],
+    ): array {
+        $spec = self::foreignKeyDeleteSpec($foreignKey);
+        $recursiveTriggers = (bool) ($options['recursive_triggers'] ?? true);
+        $maxDepth = self::positiveInt($options['max_depth'] ?? 32, 'max depth');
+        $currentSource = (string) ($options['current_source'] ?? 'current');
+        $nextSource = (string) ($options['next_source'] ?? 'next');
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $queue = [];
+        foreach ($deleteKeys as $deleteKey) {
+            $queue[] = ['key' => $deleteKey, 'depth' => 0, 'trigger' => null];
+        }
+
+        $deleted = [];
+        $effects = [];
+        $fkActions = [];
+        $statement = 0;
+        while ($queue !== []) {
+            $item = array_shift($queue);
+            $depth = (int) $item['depth'];
+            if ($depth > $maxDepth) {
+                throw new \InvalidArgumentException('SQLite recursive trigger deferred FK RETURNING delete depth limit exceeded');
+            }
+
+            $index = self::parentIndex($parents, $item['key'], $spec['parent_key']);
+            if ($index === null) {
+                continue;
+            }
+
+            $old = $parents[$index];
+            array_splice($parents, $index, 1);
+            $oldKey = self::rowValue($old, $spec['parent_key'], 'OLD parent row');
+            $deleted[] = $oldKey;
+
+            $fk = self::applyDeleteAction($children, $oldKey, $spec, $statement, $depth);
+            $children = $fk['child'];
+            $fkActions = array_merge($fkActions, $fk['actions']);
+
+            $after = self::afterDeleteTriggers($triggers, $old, $parents, $statement, $depth, $recursiveTriggers);
+            foreach ($after['children'] as $child) {
+                $children[] = $child;
+            }
+            $effects = array_merge($effects, $after['effects']);
+            foreach ($after['deletes'] as $delete) {
+                if ($recursiveTriggers) {
+                    $queue[] = $delete;
+                }
+            }
+
+            ++$statement;
+        }
+
+        $violations = self::foreignKeyViolations($parents, $children, [
+            'parent_key' => $spec['parent_key'],
+            'child_key' => $spec['child_key'],
+            'on_update' => 'no action',
+            'deferred' => $spec['deferred'],
+        ]);
+        if (!$spec['deferred'] && $violations !== []) {
+            throw new \InvalidArgumentException('SQLite recursive trigger deferred FK RETURNING immediate delete constraint failed');
+        }
+
+        return [
+            'parent' => array_values($parents),
+            'child' => array_values($children),
+            'deleted_parent_keys' => $deleted,
+            'trigger_effects' => $effects,
+            'foreign_key_actions' => $fkActions,
+            'deferred_violations' => $violations,
+            'commit_status' => $violations === [] ? 'ok' : 'deferred-constraint-failed',
+            'recursive_triggers' => $recursiveTriggers,
+            'current_source' => $currentSource,
+            'next_source' => $nextSource,
+            'dependencies' => [
+                'sqlite-trigger-deferred-fk-returning-recursive-current-source-next114',
+                'sqlite-fkey-delete-action-corpus',
+                'sqlite-foreign-key-actions-ignore-recursive-trigger-pragma',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $updates
      * @return list<array{match:mixed,set:array<string,mixed>,depth:int,trigger:?string}>
      */
@@ -238,6 +335,90 @@ final class SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan
         }
 
         return ['children' => $children, 'updates' => $updates, 'effects' => $effects];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $children
+     * @param array{parent_key:string,child_key:string,on_delete:string,deferred:bool,default:mixed} $spec
+     * @return array{child:list<array<string,mixed>>,actions:list<array<string,mixed>>}
+     */
+    private static function applyDeleteAction(array $children, mixed $oldKey, array $spec, int $statement, int $depth): array
+    {
+        $actions = [];
+        foreach ($children as $index => &$child) {
+            $childKey = self::rowValue($child, $spec['child_key'], 'child row');
+            if ($childKey != $oldKey) {
+                continue;
+            }
+
+            $actions[] = ['statement' => $statement, 'depth' => $depth, 'child_index' => $index, 'action' => $spec['on_delete'], 'from' => $oldKey];
+            if ($spec['on_delete'] === 'cascade') {
+                unset($children[$index]);
+            } elseif ($spec['on_delete'] === 'set null') {
+                $child[$spec['child_key']] = null;
+            } elseif ($spec['on_delete'] === 'set default') {
+                $child[$spec['child_key']] = $spec['default'];
+            }
+        }
+        unset($child);
+
+        return ['child' => array_values($children), 'actions' => $actions];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $triggers
+     * @return array{children:list<array<string,mixed>>,deletes:list<array{key:mixed,depth:int,trigger:string}>,effects:list<array<string,mixed>>}
+     */
+    private static function afterDeleteTriggers(array $triggers, array $old, array $parents, int $statement, int $depth, bool $recursiveTriggers): array
+    {
+        $children = [];
+        $deletes = [];
+        $effects = [];
+        foreach ($triggers as $trigger) {
+            if (strtolower((string) ($trigger['timing'] ?? 'after')) !== 'after' || strtolower((string) ($trigger['event'] ?? 'delete')) !== 'delete') {
+                continue;
+            }
+            if (!self::whenMatches($trigger['when'] ?? true, $old, [])) {
+                continue;
+            }
+
+            $action = strtolower((string) ($trigger['action'] ?? 'audit'));
+            if ($action === 'insert-child') {
+                $children[] = self::project((array) ($trigger['row'] ?? []), $old, []);
+            } elseif ($action === 'enqueue-delete') {
+                $deletes[] = [
+                    'key' => self::value($trigger['match'] ?? 'old.parent_id', $old, []),
+                    'depth' => $depth + 1,
+                    'trigger' => (string) ($trigger['name'] ?? ''),
+                ];
+            } elseif ($action === 'enqueue-delete-children') {
+                $childParentKey = self::identifier((string) ($trigger['child_parent_key'] ?? 'parent_id'), 'trigger child parent key');
+                $childKey = self::identifier((string) ($trigger['child_key'] ?? 'record_id'), 'trigger child key');
+                $oldKey = self::rowValue($old, $childKey, 'OLD row');
+                foreach ($parents as $parent) {
+                    if (self::rowValue($parent, $childParentKey, 'trigger child row') == $oldKey) {
+                        $deletes[] = [
+                            'key' => self::rowValue($parent, $childKey, 'trigger child row'),
+                            'depth' => $depth + 1,
+                            'trigger' => (string) ($trigger['name'] ?? ''),
+                        ];
+                    }
+                }
+            } elseif ($action !== 'audit') {
+                throw new \InvalidArgumentException('SQLite recursive trigger deferred FK RETURNING delete trigger action is unsupported');
+            }
+
+            $effects[] = [
+                'trigger' => (string) ($trigger['name'] ?? ''),
+                'action' => $action,
+                'statement' => $statement,
+                'depth' => $depth,
+                'recursive_triggers' => $recursiveTriggers,
+                'row' => self::project((array) ($trigger['values'] ?? []), $old, []),
+            ];
+        }
+
+        return ['children' => $children, 'deletes' => $deletes, 'effects' => $effects];
     }
 
     /**
@@ -380,6 +561,21 @@ final class SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan
         ];
     }
 
+    /**
+     * @param array{parent_key:string,child_key:string,deferred?:bool,on_delete?:string,default?:mixed} $foreignKey
+     * @return array{parent_key:string,child_key:string,on_delete:string,deferred:bool,default:mixed}
+     */
+    private static function foreignKeyDeleteSpec(array $foreignKey): array
+    {
+        return [
+            'parent_key' => self::identifier((string) ($foreignKey['parent_key'] ?? ''), 'parent key'),
+            'child_key' => self::identifier((string) ($foreignKey['child_key'] ?? ''), 'child key'),
+            'on_delete' => self::onDelete((string) ($foreignKey['on_delete'] ?? 'cascade')),
+            'deferred' => (bool) ($foreignKey['deferred'] ?? true),
+            'default' => $foreignKey['default'] ?? null,
+        ];
+    }
+
     private static function onUpdate(string $action): string
     {
         return match (strtolower(trim($action))) {
@@ -387,6 +583,18 @@ final class SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan
             'no action', 'no-action' => 'no action',
             'restrict' => 'restrict',
             default => throw new \InvalidArgumentException('SQLite recursive trigger deferred FK RETURNING FK action is unsupported'),
+        };
+    }
+
+    private static function onDelete(string $action): string
+    {
+        return match (strtolower(trim($action))) {
+            'cascade' => 'cascade',
+            'set null', 'set-null' => 'set null',
+            'set default', 'set-default' => 'set default',
+            'no action', 'no-action' => 'no action',
+            'restrict' => 'restrict',
+            default => throw new \InvalidArgumentException('SQLite recursive trigger deferred FK RETURNING delete FK action is unsupported'),
         };
     }
 

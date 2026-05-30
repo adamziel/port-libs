@@ -186,6 +186,144 @@ $throwsCases = [
     ],
 ];
 
+$deleteParents = [
+    ['record_id' => 1, 'parent_id' => null, 'label' => 'root'],
+    ['record_id' => 2, 'parent_id' => 1, 'label' => 'left'],
+    ['record_id' => 3, 'parent_id' => 1, 'label' => 'right'],
+    ['record_id' => 4, 'parent_id' => 2, 'label' => 'leaf-a'],
+    ['record_id' => 5, 'parent_id' => 2, 'label' => 'leaf-b'],
+    ['record_id' => 6, 'parent_id' => 3, 'label' => 'leaf-c'],
+    ['record_id' => 7, 'parent_id' => 3, 'label' => 'leaf-d'],
+    ['record_id' => 10, 'parent_id' => null, 'label' => 'fallback'],
+];
+$deleteChildren = [
+    ['child_id' => 'a', 'record_id' => 1, 'parent_id' => null, 'payload' => 'root child'],
+    ['child_id' => 'b', 'record_id' => 2, 'parent_id' => 1, 'payload' => 'left child'],
+    ['child_id' => 'c', 'record_id' => 3, 'parent_id' => 1, 'payload' => 'right child'],
+    ['child_id' => 'd', 'record_id' => 4, 'parent_id' => 2, 'payload' => 'leaf child'],
+    ['child_id' => 'e', 'record_id' => null, 'parent_id' => null, 'payload' => 'loose child'],
+];
+$deleteCascadeTriggers = [[
+    'name' => 'after_delete_parent_tree',
+    'timing' => 'after',
+    'event' => 'delete',
+    'action' => 'enqueue-delete-children',
+    'child_key' => 'record_id',
+    'child_parent_key' => 'parent_id',
+    'values' => ['deleted_key' => 'old.record_id', 'deleted_label' => 'old.label'],
+]];
+$deleteCases = [
+    'fkey2-4 recursive fk delete cascade ignores recursive trigger off' => [
+        'upstream' => 'fkey2.test fkey2-4.2 FK actions recurse with recursive_triggers off',
+        'delete_keys' => [1],
+        'foreign_key' => ['parent_key' => 'record_id', 'child_key' => 'parent_id', 'on_delete' => 'CASCADE', 'deferred' => true],
+        'triggers' => [],
+        'options' => ['recursive_triggers' => false, 'max_depth' => 8],
+        'expect' => [
+            'parent_keys' => [2, 3, 4, 5, 6, 7, 10],
+            'child_keys' => ['root child', 'leaf child', 'loose child'],
+            'actions' => ['cascade', 'cascade'],
+            'deleted' => [1],
+            'status' => 'ok',
+            'violations' => [],
+        ],
+    ],
+    'fkey2-4 ordinary recursive trigger off only deletes first trigger child' => [
+        'upstream' => 'fkey2.test fkey2-4.3 recursive_triggers off limits ordinary delete triggers',
+        'delete_keys' => [1],
+        'foreign_key' => ['parent_key' => 'record_id', 'child_key' => 'parent_id', 'on_delete' => 'NO ACTION', 'deferred' => true],
+        'triggers' => $deleteCascadeTriggers,
+        'options' => ['recursive_triggers' => false, 'max_depth' => 8],
+        'expect' => [
+            'parent_keys' => [2, 3, 4, 5, 6, 7, 10],
+            'child_keys' => ['root child', 'left child', 'right child', 'leaf child', 'loose child'],
+            'actions' => ['no action', 'no action'],
+            'deleted' => [1],
+            'effect_actions' => ['enqueue-delete-children'],
+            'effect_recursive_flags' => [false],
+            'status' => 'deferred-constraint-failed',
+            'violations' => [1, 1],
+        ],
+    ],
+    'fkey2-4 ordinary recursive trigger on drains delete tree' => [
+        'upstream' => 'fkey2.test fkey2-4.4 recursive_triggers on drains ordinary trigger tree',
+        'delete_keys' => [1],
+        'foreign_key' => ['parent_key' => 'record_id', 'child_key' => 'parent_id', 'on_delete' => 'NO ACTION', 'deferred' => true],
+        'triggers' => $deleteCascadeTriggers,
+        'options' => ['recursive_triggers' => true, 'max_depth' => 8],
+        'expect' => [
+            'parent_keys' => [10],
+            'child_keys' => ['root child', 'left child', 'right child', 'leaf child', 'loose child'],
+            'actions' => ['no action', 'no action', 'no action'],
+            'deleted' => [1, 2, 3, 4, 5, 6, 7],
+            'effect_actions' => ['enqueue-delete-children', 'enqueue-delete-children', 'enqueue-delete-children', 'enqueue-delete-children', 'enqueue-delete-children', 'enqueue-delete-children', 'enqueue-delete-children'],
+            'effect_recursive_flags' => [true, true, true, true, true, true, true],
+            'status' => 'deferred-constraint-failed',
+            'violations' => [1, 1, 2],
+        ],
+    ],
+    'fkey2-9 set default action uses configured parent default' => [
+        'upstream' => 'fkey2.test fkey2-9 ON DELETE SET DEFAULT',
+        'delete_keys' => [1],
+        'foreign_key' => ['parent_key' => 'record_id', 'child_key' => 'record_id', 'on_delete' => 'SET DEFAULT', 'default' => 10, 'deferred' => true],
+        'triggers' => [],
+        'options' => ['recursive_triggers' => true, 'max_depth' => 8],
+        'expect' => [
+            'parent_keys' => [2, 3, 4, 5, 6, 7, 10],
+            'child_keys' => [10, 2, 3, 4, null],
+            'actions' => ['set default'],
+            'deleted' => [1],
+            'status' => 'ok',
+            'violations' => [],
+        ],
+    ],
+    'fkey2-11 delete cascade removes direct child rows' => [
+        'upstream' => 'fkey2.test fkey2-11 ON DELETE CASCADE',
+        'delete_keys' => [1],
+        'foreign_key' => ['parent_key' => 'record_id', 'child_key' => 'record_id', 'on_delete' => 'CASCADE', 'deferred' => true],
+        'triggers' => [],
+        'options' => ['recursive_triggers' => false, 'max_depth' => 8],
+        'expect' => [
+            'parent_keys' => [2, 3, 4, 5, 6, 7, 10],
+            'child_keys' => [2, 3, 4, null],
+            'actions' => ['cascade'],
+            'deleted' => [1],
+            'status' => 'ok',
+            'violations' => [],
+        ],
+    ],
+    'fkey2-12 restrict delete defers violation report in corpus model' => [
+        'upstream' => 'fkey2.test fkey2-12 ON DELETE RESTRICT',
+        'delete_keys' => [2],
+        'foreign_key' => ['parent_key' => 'record_id', 'child_key' => 'record_id', 'on_delete' => 'RESTRICT', 'deferred' => true],
+        'triggers' => [],
+        'options' => ['recursive_triggers' => true, 'max_depth' => 8],
+        'expect' => [
+            'parent_keys' => [1, 3, 4, 5, 6, 7, 10],
+            'child_keys' => [1, 2, 3, 4, null],
+            'actions' => ['restrict'],
+            'deleted' => [2],
+            'status' => 'deferred-constraint-failed',
+            'violations' => [2],
+        ],
+    ],
+    'fkey2-1.7 delete set null honors nullable child key' => [
+        'upstream' => 'fkey2.test fkey2-1.7 parent-key action keeps nullable child admissible',
+        'delete_keys' => [3],
+        'foreign_key' => ['parent_key' => 'record_id', 'child_key' => 'record_id', 'on_delete' => 'SET NULL', 'deferred' => true],
+        'triggers' => [],
+        'options' => ['recursive_triggers' => true, 'max_depth' => 8],
+        'expect' => [
+            'parent_keys' => [1, 2, 4, 5, 6, 7, 10],
+            'child_keys' => [1, 2, null, 4, null],
+            'actions' => ['set null'],
+            'deleted' => [3],
+            'status' => 'ok',
+            'violations' => [],
+        ],
+    ],
+];
+
 $runCase = static function (array $case) use ($parents, $children, $fk, $returning): array {
     return SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::updateParents(
         $parents,
@@ -194,6 +332,16 @@ $runCase = static function (array $case) use ($parents, $children, $fk, $returni
         $case['foreign_key'] ?? $fk,
         $case['triggers'],
         $returning,
+        $case['options'],
+    );
+};
+$runDeleteCase = static function (array $case) use ($deleteParents, $deleteChildren): array {
+    return SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNextPlan::deleteParents(
+        $deleteParents,
+        $deleteChildren,
+        $case['delete_keys'],
+        $case['foreign_key'],
+        $case['triggers'],
         $case['options'],
     );
 };
@@ -230,6 +378,25 @@ foreach ($cases as $name => $case) {
 
 foreach ($throwsCases as $name => $case) {
     $tests[$name . ' throws expected upstream error'] = static fn (TestRunner $t) => $t->throws($case['throws'], static fn () => $runCase($case));
+}
+
+foreach ($deleteCases as $name => $case) {
+    $tests[$name . ' cites upstream source'] = static fn (TestRunner $t) => $t->same(true, str_contains($case['upstream'], '.test'));
+    $tests[$name . ' parent keys'] = static fn (TestRunner $t) => $t->same($case['expect']['parent_keys'], array_column($runDeleteCase($case)['parent'], 'record_id'));
+    $tests[$name . ' child keys'] = static fn (TestRunner $t) => $t->same($case['expect']['child_keys'], $case['foreign_key']['child_key'] === 'parent_id' ? array_column($runDeleteCase($case)['child'], 'payload') : array_column($runDeleteCase($case)['child'], 'record_id'));
+    $tests[$name . ' action sequence'] = static fn (TestRunner $t) => $t->same($case['expect']['actions'], array_column($runDeleteCase($case)['foreign_key_actions'], 'action'));
+    $tests[$name . ' deleted parent sequence'] = static fn (TestRunner $t) => $t->same($case['expect']['deleted'], $runDeleteCase($case)['deleted_parent_keys']);
+    $tests[$name . ' commit status'] = static fn (TestRunner $t) => $t->same($case['expect']['status'], $runDeleteCase($case)['commit_status']);
+    $tests[$name . ' violation keys'] = static fn (TestRunner $t) => $t->same($case['expect']['violations'], array_column($runDeleteCase($case)['deferred_violations'], 'child_key'));
+    $tests[$name . ' recursive trigger flag'] = static fn (TestRunner $t) => $t->same((bool) $case['options']['recursive_triggers'], $runDeleteCase($case)['recursive_triggers']);
+    $tests[$name . ' dependency delete marker'] = static fn (TestRunner $t) => $t->same(true, in_array('sqlite-fkey-delete-action-corpus', $runDeleteCase($case)['dependencies'], true));
+    $tests[$name . ' dependency recursive pragma marker'] = static fn (TestRunner $t) => $t->same(true, in_array('sqlite-foreign-key-actions-ignore-recursive-trigger-pragma', $runDeleteCase($case)['dependencies'], true));
+    if (isset($case['expect']['effect_actions'])) {
+        $tests[$name . ' trigger effect actions'] = static fn (TestRunner $t) => $t->same($case['expect']['effect_actions'], array_column($runDeleteCase($case)['trigger_effects'], 'action'));
+    }
+    if (isset($case['expect']['effect_recursive_flags'])) {
+        $tests[$name . ' trigger effect recursive flags'] = static fn (TestRunner $t) => $t->same($case['expect']['effect_recursive_flags'], array_column($runDeleteCase($case)['trigger_effects'], 'recursive_triggers'));
+    }
 }
 
 for ($i = 0; $i < 40; ++$i) {

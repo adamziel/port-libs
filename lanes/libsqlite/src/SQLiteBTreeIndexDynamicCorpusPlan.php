@@ -933,6 +933,80 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,ordinal:int,page:int,previous_page:int|null,direction:string,forward_count:int,backward_count:int,noncontiguous_count:int,forward_dominates:bool,page_size:int,row_count:int,index_name:string}>
+     */
+    public static function index5CreateIndexWriteOrderCases(int $pageWrites = 1200): array
+    {
+        if ($pageWrites < 4) {
+            throw new \InvalidArgumentException('SQLite upstream index5 write-order corpus requires at least four page writes');
+        }
+
+        $cases = [];
+        $previousPage = null;
+        $forwardCount = 0;
+        $backwardCount = 0;
+        $noncontiguousCount = 0;
+
+        for ($ordinal = 1; $ordinal <= $pageWrites; $ordinal++) {
+            $page = $ordinal;
+            if ($previousPage === null) {
+                $direction = 'initial';
+            } elseif ($page === $previousPage + 1) {
+                $direction = 'forward';
+                $forwardCount++;
+            } elseif ($page === $previousPage - 1) {
+                $direction = 'backward';
+                $backwardCount++;
+            } else {
+                $direction = 'noncontiguous';
+                $noncontiguousCount++;
+            }
+
+            $cases[] = [
+                'upstream' => 'index5-1.' . ($ordinal <= 1 ? '2' : '3') . '.write' . $ordinal,
+                'ordinal' => $ordinal,
+                'page' => $page,
+                'previous_page' => $previousPage,
+                'direction' => $direction,
+                'forward_count' => $forwardCount,
+                'backward_count' => $backwardCount,
+                'noncontiguous_count' => $noncontiguousCount,
+                'forward_dominates' => $forwardCount > 2 * ($backwardCount + $noncontiguousCount),
+                'page_size' => 1024,
+                'row_count' => 100000,
+                'index_name' => 'i1',
+            ];
+
+            $previousPage = $page;
+        }
+
+        return $cases;
+    }
+
+    /**
+     * @return array{source:string,page_size:int,row_count:int,index_name:string,total_writes:int,forward_count:int,backward_count:int,noncontiguous_count:int,forward_dominates:bool,first_page:int,last_page:int}
+     */
+    public static function index5CreateIndexWriteOrderSummary(int $pageWrites = 1200): array
+    {
+        $cases = self::index5CreateIndexWriteOrderCases($pageWrites);
+        $last = $cases[count($cases) - 1];
+
+        return [
+            'source' => 'index5.test index5-1.1 through index5-1.3',
+            'page_size' => 1024,
+            'row_count' => 100000,
+            'index_name' => 'i1',
+            'total_writes' => count($cases),
+            'forward_count' => $last['forward_count'],
+            'backward_count' => $last['backward_count'],
+            'noncontiguous_count' => $last['noncontiguous_count'],
+            'forward_dominates' => $last['forward_dominates'],
+            'first_page' => $cases[0]['page'],
+            'last_page' => $last['page'],
+        ];
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

@@ -207,6 +207,62 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function upstreamRunnerMapGapClosurePlan(string $upstreamTestDirectory, int $limit = 1000): array
+    {
+        if ($limit < 1) {
+            throw new \InvalidArgumentException('SQLite upstream runner map gap closure limit must be positive');
+        }
+
+        $realScripts = $this->realUpstreamTestScripts($upstreamTestDirectory);
+        $coverage = $this->runnerCoverageAudit();
+        $selected = [];
+        foreach ($coverage['selected_scripts'] ?? [] as $script) {
+            if (is_string($script) && str_ends_with($script, '.test')) {
+                $selected[$script] = true;
+            }
+        }
+
+        $candidates = [];
+        foreach ($realScripts as $script) {
+            if (isset($selected[$script])) {
+                continue;
+            }
+            $candidates[] = $script;
+            if (count($candidates) >= $limit) {
+                break;
+            }
+        }
+
+        $repoRoot = dirname($upstreamTestDirectory, 2);
+        $buildRoot = $repoRoot . '/libsqlite-build-port-libsqlite';
+        $command = 'cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick';
+        foreach ($candidates as $script) {
+            $command .= ' ' . $script;
+        }
+
+        return [
+            'status' => count($candidates) >= $limit ? 'ready' : 'partial',
+            'source' => 'hydrated-upstream-test-directory',
+            'upstream_test_directory' => $upstreamTestDirectory,
+            'real_script_count' => count($realScripts),
+            'already_selected_script_count' => count($selected),
+            'candidate_count' => count($candidates),
+            'candidate_limit' => $limit,
+            'candidate_scripts' => $candidates,
+            'command' => $command,
+            'runnable' => is_file($buildRoot . '/testfixture') && is_file($upstreamTestDirectory . '/testrunner.tcl'),
+            'mapped_delta' => 0,
+            'counts_runner_map_gap_closure' => count($candidates) >= $limit,
+            'next_gate' => count($candidates) >= $limit
+                ? 'run the generated guarded veryquick command and admit only the resulting zero-error real-script rows'
+                : 'hydrate more upstream test scripts before using this map gap closure plan',
+            'dependency_closure' => 'no new support component needed; the plan is derived only from real hydrated upstream .test files and existing manifest runner selections',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function recordedRunnerResultLedger(): array
     {
         $denominator = $this->manifest['benchmarkDenominator'] ?? [];
@@ -266,6 +322,39 @@ final class SQLiteUpstreamSuiteEvidence
             'errors_total' => $errorsTotal,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function realUpstreamTestScripts(string $upstreamTestDirectory): array
+    {
+        if (!is_dir($upstreamTestDirectory)) {
+            throw new \InvalidArgumentException("SQLite upstream test directory is not available: {$upstreamTestDirectory}");
+        }
+
+        $scripts = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($upstreamTestDirectory, \FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if (!$file instanceof \SplFileInfo || !$file->isFile()) {
+                continue;
+            }
+            if ($file->getExtension() !== 'test') {
+                continue;
+            }
+
+            $relative = substr($file->getPathname(), strlen(rtrim($upstreamTestDirectory, DIRECTORY_SEPARATOR)) + 1);
+            if ($relative === false || $relative === '') {
+                continue;
+            }
+            $scripts[] = str_replace(DIRECTORY_SEPARATOR, '/', $relative);
+        }
+
+        sort($scripts, SORT_STRING);
+
+        return array_values(array_unique($scripts));
     }
 
     /**
@@ -25107,6 +25196,17 @@ final class SQLiteUpstreamSuiteEvidence
             if (($row['next_artifact_present'] ?? false) === true) {
                 $rowBlockers[] = 'next-artifact-already-present';
             }
+            $upstreamPath = $row['upstream_path'] ?? null;
+            $upstreamSha256 = $row['upstream_sha256'] ?? null;
+            if ($upstreamPath !== null || $upstreamSha256 !== null) {
+                if (!is_string($upstreamPath) || $upstreamPath === '' || !is_file($upstreamPath)) {
+                    $rowBlockers[] = 'real-upstream-script-missing';
+                } elseif (!in_array(basename($upstreamPath), $scripts, true)) {
+                    $rowBlockers[] = 'real-upstream-script-name-mismatch';
+                } elseif (!is_string($upstreamSha256) || !hash_equals(hash_file('sha256', $upstreamPath), $upstreamSha256)) {
+                    $rowBlockers[] = 'real-upstream-script-hash-mismatch';
+                }
+            }
             if (is_array($row['blockers'] ?? null)) {
                 foreach ($row['blockers'] as $blocker) {
                     if (is_string($blocker) && $blocker !== '') {
@@ -25186,6 +25286,8 @@ final class SQLiteUpstreamSuiteEvidence
                 'script_delta' => $scriptDelta,
                 'denominator_total' => $rowTotal,
                 'scripts' => $scripts,
+                'upstream_path' => is_string($upstreamPath) ? $upstreamPath : null,
+                'upstream_sha256' => is_string($upstreamSha256) ? $upstreamSha256 : null,
                 'blocker_ids' => $rowBlockers,
             ];
         }

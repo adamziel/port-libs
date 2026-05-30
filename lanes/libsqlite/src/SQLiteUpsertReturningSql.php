@@ -19,8 +19,10 @@ final class SQLiteUpsertReturningSql
             throw new \InvalidArgumentException("SQLite UPSERT RETURNING target table {$target} is missing");
         }
 
+        self::validateConflictTarget($parsed['conflict_target'], $uniqueConstraints);
+
         if ($parsed['action'] === 'nothing') {
-            $result = self::executeDoNothing($tables[$target], $parsed['incoming_rows'], $parsed['conflict_target']);
+            $result = self::executeDoNothing($tables[$target], $parsed['incoming_rows'], $parsed['conflict_target'], $uniqueConstraints);
         } else {
             $result = SQLiteUpsertDoUpdateWherePlan::execute(
                 $tables[$target],
@@ -149,10 +151,12 @@ final class SQLiteUpsertReturningSql
      * @param list<array<string,mixed>> $rows
      * @param list<array<string,mixed>> $incomingRows
      * @param list<string> $conflictTarget
+     * @param list<list<string>>|null $uniqueConstraints
      * @return array{before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,changes:int}
      */
-    private static function executeDoNothing(array $rows, array $incomingRows, array $conflictTarget): array
+    private static function executeDoNothing(array $rows, array $incomingRows, array $conflictTarget, ?array $uniqueConstraints): array
     {
+        $uniqueConstraints = self::normalizeUniqueConstraints($conflictTarget, $uniqueConstraints);
         $after = array_values($rows);
         $inserted = [];
         $skipped = [];
@@ -161,6 +165,7 @@ final class SQLiteUpsertReturningSql
                 $skipped[] = $incoming;
                 continue;
             }
+            self::ensureNoSecondaryUniqueConflict($after, $incoming, $uniqueConstraints, $conflictTarget);
 
             $after[] = $incoming;
             $inserted[] = $incoming;
@@ -198,6 +203,106 @@ final class SQLiteUpsertReturningSql
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $conflictTarget
+     * @param list<list<string>>|null $uniqueConstraints
+     */
+    private static function validateConflictTarget(array $conflictTarget, ?array $uniqueConstraints): void
+    {
+        if ($uniqueConstraints === null) {
+            return;
+        }
+        $uniqueConstraints = self::normalizeUniqueConstraints($conflictTarget, $uniqueConstraints);
+        if (!self::targetMatchesUniqueConstraint($conflictTarget, $uniqueConstraints)) {
+            throw new \InvalidArgumentException('SQLite UPSERT ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint');
+        }
+    }
+
+    /**
+     * @param list<string> $conflictTarget
+     * @param list<list<string>>|null $uniqueConstraints
+     * @return list<list<string>>
+     */
+    private static function normalizeUniqueConstraints(array $conflictTarget, ?array $uniqueConstraints): array
+    {
+        if ($uniqueConstraints === null) {
+            return [$conflictTarget];
+        }
+        if ($uniqueConstraints === [] || !array_is_list($uniqueConstraints)) {
+            throw new \InvalidArgumentException('SQLite UPSERT unique constraints must be a non-empty list');
+        }
+
+        $normalized = [];
+        foreach ($uniqueConstraints as $constraint) {
+            if (!is_array($constraint) || $constraint === [] || !array_is_list($constraint)) {
+                throw new \InvalidArgumentException('SQLite UPSERT unique constraint must be a non-empty column list');
+            }
+            foreach ($constraint as $column) {
+                if (!is_string($column) || preg_match('/^[A-Za-z_][A-Za-z0-9_ ]*$/', $column) !== 1) {
+                    throw new \InvalidArgumentException('SQLite UPSERT unique constraint column is malformed');
+                }
+            }
+            $normalized[] = array_values($constraint);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<string> $target
+     * @param list<list<string>> $uniqueConstraints
+     */
+    private static function targetMatchesUniqueConstraint(array $target, array $uniqueConstraints): bool
+    {
+        $sortedTarget = $target;
+        sort($sortedTarget);
+        foreach ($uniqueConstraints as $constraint) {
+            if (count($constraint) !== count($target)) {
+                continue;
+            }
+            $sortedConstraint = $constraint;
+            sort($sortedConstraint);
+            if ($sortedConstraint === $sortedTarget) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $incoming
+     * @param list<list<string>> $uniqueConstraints
+     * @param list<string> $conflictTarget
+     */
+    private static function ensureNoSecondaryUniqueConflict(array $rows, array $incoming, array $uniqueConstraints, array $conflictTarget): void
+    {
+        foreach ($uniqueConstraints as $constraint) {
+            if (self::sameColumnSet($constraint, $conflictTarget)) {
+                continue;
+            }
+            if (self::findConflictIndex($rows, $incoming, $constraint) !== null) {
+                throw new \InvalidArgumentException('SQLite UPSERT insert produced a unique constraint conflict');
+            }
+        }
+    }
+
+    /**
+     * @param list<string> $left
+     * @param list<string> $right
+     */
+    private static function sameColumnSet(array $left, array $right): bool
+    {
+        if (count($left) !== count($right)) {
+            return false;
+        }
+        sort($left);
+        sort($right);
+
+        return $left === $right;
     }
 
     /**
@@ -413,7 +518,7 @@ final class SQLiteUpsertReturningSql
                 $projection[] = '*';
                 continue;
             }
-            if (preg_match('/^(?:(?:excluded|[A-Za-z_][A-Za-z0-9_]*)\.)?([A-Za-z_][A-Za-z0-9_]*)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?$/i', $term, $match) !== 1) {
+            if (preg_match('/^(?:(excluded|[A-Za-z_][A-Za-z0-9_]*)\.)?([A-Za-z_][A-Za-z0-9_]*)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?$/i', $term, $match) !== 1) {
                 if (preg_match('/^(.+?)\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)$/is', $term, $expressionMatch) !== 1) {
                     throw new \InvalidArgumentException('SQLite UPSERT RETURNING only supports columns, aliases, expressions with aliases, and *');
                 }
@@ -425,14 +530,18 @@ final class SQLiteUpsertReturningSql
                 $projection[$alias] = static fn (array $row): mixed => self::evaluateExpression($expression, $target, $row, $row);
                 continue;
             }
-            if (isset($match[0]) && preg_match('/^excluded\./i', $match[0]) === 1) {
+            $qualifier = $match[1] ?? '';
+            if (strcasecmp($qualifier, 'excluded') === 0) {
                 throw new \InvalidArgumentException('SQLite UPSERT RETURNING cannot reference excluded columns');
             }
-            if (isset($match[2]) && $match[2] !== '') {
-                $projection[$match[2]] = $match[1];
+            if ($qualifier !== '' && strcasecmp($qualifier, $target) !== 0) {
+                throw new \InvalidArgumentException("SQLite UPSERT RETURNING column {$qualifier}.{$match[2]} is missing");
+            }
+            if (isset($match[3]) && $match[3] !== '') {
+                $projection[$match[3]] = $match[2];
                 continue;
             }
-            $projection[] = $match[1];
+            $projection[] = $match[2];
         }
 
         return $projection;

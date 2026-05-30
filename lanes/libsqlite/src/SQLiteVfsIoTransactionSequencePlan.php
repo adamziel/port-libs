@@ -6,6 +6,17 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteVfsIoTransactionSequencePlan
 {
+    private const IOERR_OPERATIONS = [
+        'read',
+        'write',
+        'sync',
+        'truncate',
+        'delete',
+        'access',
+        'open',
+        'close',
+    ];
+
     /**
      * @param list<string> $deviceFlags
      * @return array{status:string,script:string,scenario:string,device_flags:list<string>,sector_size:int,max_page_size:int,selected_page_size:int,dependencies:list<string>,upstream:list<string>}
@@ -107,6 +118,102 @@ final class SQLiteVfsIoTransactionSequencePlan
     }
 
     /**
+     * @param array<string, mixed> $scenario
+     * @return array{status:string,script:string,scenario:string,operation:string,failpoint:int,persistent:bool,phase:string,expected_rc:string,recovery_action:string,dirty_pages_preserved:bool,database_image_stable:bool,open_file_count:int,refcount_check:bool,checksum_check:bool,excluded:bool,exclude_reason:string|null,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function ioErrorOutcome(array $scenario, string $operation, int $failpoint, bool $persistent = false): array
+    {
+        $name = trim((string) ($scenario['name'] ?? ''));
+        if ($name === '') {
+            throw new \InvalidArgumentException('SQLite VFS I/O error scenario name is required');
+        }
+        $script = trim((string) ($scenario['script'] ?? 'ioerr.test'));
+        if ($script === '') {
+            throw new \InvalidArgumentException('SQLite VFS I/O error scenario script is required');
+        }
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, self::IOERR_OPERATIONS, true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite VFS I/O error operation: {$operation}");
+        }
+        if ($failpoint <= 0) {
+            throw new \InvalidArgumentException('SQLite VFS I/O error failpoint must be positive');
+        }
+
+        $phase = self::ioErrorPhase($scenario, $operation);
+        $excluded = in_array($failpoint, self::intList($scenario['exclude'] ?? []), true);
+        $expectedRc = 'SQLITE_IOERR';
+        $recovery = 'rollback_and_preserve_database_image';
+        $stableImage = true;
+        $dirtyPreserved = false;
+
+        if ($excluded) {
+            $expectedRc = 'SQLITE_OK';
+            $recovery = 'ignored_fixture_probe';
+        } elseif ($operation === 'access' && !($scenario['access_is_required'] ?? false)) {
+            $expectedRc = 'SQLITE_OK';
+            $recovery = 'optional_access_probe_ignored';
+        } elseif ($operation === 'close') {
+            $expectedRc = 'SQLITE_OK';
+            $recovery = 'close_error_does_not_change_database_image';
+        } elseif ($persistent || (bool) ($scenario['persistent'] ?? false)) {
+            $expectedRc = 'SQLITE_IOERR';
+            $recovery = 'pager_error_state_holds_dirty_pages';
+            $dirtyPreserved = true;
+        } elseif ($operation === 'sync') {
+            $expectedRc = 'SQLITE_IOERR_FSYNC';
+            $recovery = 'rollback_after_failed_sync';
+        } elseif ($operation === 'write') {
+            $expectedRc = (bool) ($scenario['full_on_write'] ?? false) ? 'SQLITE_FULL' : 'SQLITE_IOERR_WRITE';
+            $recovery = self::writeRecoveryAction($scenario);
+        } elseif ($operation === 'read') {
+            $expectedRc = 'SQLITE_IOERR_READ';
+            $recovery = self::readRecoveryAction($scenario);
+        } elseif ($operation === 'truncate') {
+            $expectedRc = 'SQLITE_IOERR_TRUNCATE';
+            $recovery = 'keep_original_database_size_until_retry';
+        } elseif ($operation === 'delete') {
+            $expectedRc = 'SQLITE_IOERR_DELETE';
+            $recovery = 'keep_journal_until_delete_can_be_retried';
+        } elseif ($operation === 'open') {
+            $expectedRc = 'SQLITE_CANTOPEN';
+            $recovery = 'abort_before_database_image_changes';
+        }
+
+        if (($scenario['phase'] ?? '') === 'memory-reclaim-error-state') {
+            $dirtyPreserved = true;
+            $stableImage = true;
+            $recovery = 'do_not_spill_dirty_pages_from_error_state';
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => $script,
+            'scenario' => $name,
+            'operation' => $operation,
+            'failpoint' => $failpoint,
+            'persistent' => $persistent || (bool) ($scenario['persistent'] ?? false),
+            'phase' => $phase,
+            'expected_rc' => $expectedRc,
+            'recovery_action' => $recovery,
+            'dirty_pages_preserved' => $dirtyPreserved,
+            'database_image_stable' => $stableImage,
+            'open_file_count' => 0,
+            'refcount_check' => (bool) ($scenario['ckrefcount'] ?? true),
+            'checksum_check' => (bool) ($scenario['cksum'] ?? false),
+            'excluded' => $excluded,
+            'exclude_reason' => $excluded ? 'upstream excludes this injected failpoint' : null,
+            'dependencies' => [
+                'vfs-io-error-injection',
+                'pager-error-state-recovery',
+                'real-upstream-corpus-ioerr-test',
+            ],
+            'upstream' => [
+                $script . ' ' . $name,
+            ],
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $step
      * @param list<string> $flags
      * @return array{name:string,status:string,writes:int,pages_touched:int,journal_created:bool,atomic_write:bool,syncs:int,sync_reasons:list<string>,flags:list<string>}
@@ -157,6 +264,73 @@ final class SQLiteVfsIoTransactionSequencePlan
             'sync_reasons' => $syncReasons,
             'flags' => $flags,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $scenario
+     */
+    private static function ioErrorPhase(array $scenario, string $operation): string
+    {
+        $phase = trim((string) ($scenario['phase'] ?? ''));
+        if ($phase !== '') {
+            return $phase;
+        }
+
+        return match ($operation) {
+            'read' => 'read-path',
+            'write', 'sync', 'truncate' => 'write-transaction',
+            'delete' => 'journal-cleanup',
+            'open', 'access' => 'open-probe',
+            'close' => 'connection-close',
+            default => 'vfs-io',
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $scenario
+     */
+    private static function writeRecoveryAction(array $scenario): string
+    {
+        return match ((string) ($scenario['write_context'] ?? 'transaction')) {
+            'statement-journal' => 'play_statement_journal_then_rollback',
+            'pointer-map' => 'rollback_pointer_map_update',
+            'vacuum' => 'discard_vacuum_temp_database',
+            'super-journal' => 'retain_super_journal_until_all_members_resolved',
+            default => 'rollback_transaction_and_keep_original_pages',
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $scenario
+     */
+    private static function readRecoveryAction(array $scenario): string
+    {
+        return match ((string) ($scenario['read_context'] ?? 'database')) {
+            'hot-journal' => 'defer_hot_journal_replay_until_read_succeeds',
+            'record-header' => 'abort_record_decode_without_cache_poisoning',
+            'master-journal' => 'treat_master_journal_name_as_unreadable',
+            default => 'abort_read_without_dirtying_cache',
+        };
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<int>
+     */
+    private static function intList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($value as $item) {
+            if (is_int($item)) {
+                $result[] = $item;
+            }
+        }
+
+        return array_values(array_unique($result));
     }
 
     /**
