@@ -101,7 +101,7 @@ $terms213 = static fn (bool $caseSensitive = false, string $collation = 'NOCASE'
     $eq213('blog_id', 1),
     $like213('option_name', 'plugin_%', $caseSensitive, $collation),
 ];
-$plan213 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext213(
+$plan213 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeLikeCaseFence(
     $prepared ?? $prepared213(),
     $current ?? $current213(),
     $terms ?? $terms213(),

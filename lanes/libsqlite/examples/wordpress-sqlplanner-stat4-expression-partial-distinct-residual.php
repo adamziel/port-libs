@@ -52,7 +52,7 @@ $current['rows'] = [
     ['rowid' => 66, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_nullish', 'option_value' => null],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext194(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeDistinctResidual(
     $prepared,
     $current,
     [

@@ -87,7 +87,7 @@ $terms210 = static fn (): array => [
     $notNull210('option_name'),
     $eq210('blog_id', 1),
 ];
-$plan210 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext210(
+$plan210 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePeerRowidWindow(
     $prepared ?? $prepared210(),
     $current ?? $current210(),
     $terms ?? $terms210(),

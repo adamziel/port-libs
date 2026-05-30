@@ -82,7 +82,7 @@ $terms194 = static fn (): array => [
     $exprRange194('lower(option_name)', '<', 'plugin`'),
 ];
 $needed194 = ['option_name', 'option_value'];
-$plan194 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext194(
+$plan194 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeDistinctResidual(
     $prepared ?? $prepared194(),
     $current ?? $current194(),
     $terms ?? $terms194(),

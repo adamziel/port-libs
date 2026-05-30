@@ -98,7 +98,7 @@ $terms217 = static fn (): array => [
     $eq217('blog_id', 1),
     $like217('option_name', 'plugin_%'),
 ];
-$plan217 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext217(
+$plan217 = static fn (int $limit = 5, int $offset = 1, ?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentNextYieldFence(
     $prepared ?? $prepared217(),
     $current ?? $current217(),
     $terms ?? $terms217(),

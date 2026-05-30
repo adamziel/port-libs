@@ -52,7 +52,7 @@ $current['rows'] = [
     ['rowid' => 18, 'option_name' => 'Plugin_Trash', 'autoload' => 'no', 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext172(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceRangeRefresh(
     $prepared,
     $current,
     $and($eq('autoload', 'yes'), $range('lower(option_name)', '>=', 'plugin_'), $range('lower(option_name)', '<', 'plugin_t')),
@@ -68,12 +68,12 @@ if (($plan['selectedSource'] ?? null) !== 'current' || ($plan['selectedPlan']['m
 }
 
 if (($_SERVER['argv'][1] ?? '') === '--self-test') {
-    echo "wordpress-planner-stat4-expression-partial-current-source-next172 self-test passed\n";
+    echo "wordpress-planner-stat4-expression-partial-current-source-range-refresh self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-planner-stat4-expression-partial-current-source-next172',
+    'scenario' => 'wordpress-planner-stat4-expression-partial-current-source-range-refresh',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],
     'indexName' => $plan['selectedPlan']['indexName'],

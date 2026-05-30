@@ -59,7 +59,7 @@ $current['rows'] = [
     ['rowid' => 10, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_alpha', 'option_value' => 'alpha'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext210(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePeerRowidWindow(
     $prepared,
     $current,
     [
