@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-30 23:37:24 UTC",
-    "sourceCommit": "0b4d6f26a1d0d858fc8c00b413f9deec319908f1",
-    "sourceCommitShort": "0b4d6f26a1d0",
+    "generated": "2026-05-30 23:40:48 UTC",
+    "sourceCommit": "51f82d60c83ef70f0fd26be0af15b92959ce4b29",
+    "sourceCommitShort": "51f82d60c83e",
     "sourceBranch": "unknown",
-    "dashboardCommit": "0b4d6f26a1d0d858fc8c00b413f9deec319908f1",
-    "dashboardCommitShort": "0b4d6f26a1d0",
+    "dashboardCommit": "51f82d60c83ef70f0fd26be0af15b92959ce4b29",
+    "dashboardCommitShort": "51f82d60c83e",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "1158670 pass / 0 fail",
+            "php": "1170170 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted twenty-fourth focused current-ba...",
-            "currentWork": "Published source 33ca1e7bc52635c6d793bba2d3aa15656214c3379 with a focused twenty-fourth c...",
+            "audit": "Accepted twenty-fifth current-corpus batc...",
+            "currentWork": "Published source 252baed0864c161a80fc6a53454236c24c9b4fb3 with a twenty-fifth current-bas...",
             "nextTarget": "Continue integrating fresh current-base high-yield handoffs from the live 10-11 worker po...",
-            "blocker": "Selected twenty-fourth schemafault pragma gates pass.",
-            "commit": "33ca1e7"
+            "blocker": "Selected twenty-fifth corpus gates pass.",
+            "commit": "252baed"
         },
         {
             "library": "LightningCSS",
