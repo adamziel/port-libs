@@ -1212,58 +1212,58 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             throw new \InvalidArgumentException('SQLite VFS current-source next162-165 requires operations');
         }
 
-        $state = self::hydrate162165($options['current'] ?? []);
-        $current = self::summary162165($state);
+        $state = self::hydrateEnvironmentState($options['current'] ?? []);
+        $current = self::environmentSummary($state);
         $events = [];
 
         foreach ($operations as $operation) {
-            $op = self::operation162165($operation);
-            $before = self::summary162165($state);
+            $op = self::normalizeEnvironmentOperation($operation);
+            $before = self::environmentSummary($state);
 
             if ($op['kind'] === 'open') {
-                $source = self::sourceName162165((string) $op['source']);
-                $path = self::pathName162165((string) $op['path']);
-                $owner = self::owner162165($path);
+                $source = self::environmentSourceName((string) $op['source']);
+                $path = self::environmentPathName((string) $op['path']);
+                $owner = self::environmentOwner($path);
                 $state['sequence']++;
                 $state['owner_generations'][$owner] = (int) ($state['owner_generations'][$owner] ?? 0) + 1;
-                $state['sources'][$source] = self::sourceState162165(
+                $state['sources'][$source] = self::environmentSourceState(
                     'vfs162165-' . $state['sequence'],
                     $path,
                     $owner,
                     (bool) ($op['temporary'] ?? false),
-                    self::positiveInt162165($op['sector_size'] ?? 4096, 'sector size'),
-                    self::deviceFlags162165($op['device'] ?? [])
+                    self::positiveEnvironmentInt($op['sector_size'] ?? 4096, 'sector size'),
+                    self::environmentDeviceFlags($op['device'] ?? [])
                 );
                 $state['current_source'] = $source;
-                $events[] = self::event162165('open', 'open', $source, $before, self::summary162165($state), $state['sources'][$source]);
+                $events[] = self::environmentEvent('open', 'open', $source, $before, self::environmentSummary($state), $state['sources'][$source]);
                 continue;
             }
 
             if ($op['kind'] === 'source') {
-                $source = self::sourceName162165((string) $op['source']);
+                $source = self::environmentSourceName((string) $op['source']);
                 if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                    $events[] = self::event162165('source', 'missing-source', $source, $before, self::summary162165($state), []);
+                    $events[] = self::environmentEvent('source', 'missing-source', $source, $before, self::environmentSummary($state), []);
                     continue;
                 }
                 $state['current_source'] = $source;
-                $events[] = self::event162165('source', 'ok', $source, $before, self::summary162165($state), [
+                $events[] = self::environmentEvent('source', 'ok', $source, $before, self::environmentSummary($state), [
                     'path' => $state['sources'][$source]['path'],
                     'owner' => $state['sources'][$source]['owner'],
                 ]);
                 continue;
             }
 
-            $source = self::sourceFor162165($state, $op['source'] ?? null);
+            $source = self::selectedEnvironmentSource($state, $op['source'] ?? null);
             if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                $events[] = self::event162165($op['kind'], 'missing-source', $source, $before, self::summary162165($state), []);
+                $events[] = self::environmentEvent($op['kind'], 'missing-source', $source, $before, self::environmentSummary($state), []);
                 continue;
             }
 
             if ($op['kind'] === 'access') {
-                $path = self::pathName162165((string) ($op['path'] ?? $state['sources'][$source]['path']));
-                $mode = self::accessMode162165((string) ($op['mode'] ?? 'exists'));
-                $allowed = self::sameOwner162165($state['sources'][$source]['owner'], $path);
-                $events[] = self::event162165('access', $allowed ? 'ok' : 'blocked', $source, $before, self::summary162165($state), [
+                $path = self::environmentPathName((string) ($op['path'] ?? $state['sources'][$source]['path']));
+                $mode = self::environmentAccessMode((string) ($op['mode'] ?? 'exists'));
+                $allowed = self::sameEnvironmentOwner($state['sources'][$source]['owner'], $path);
+                $events[] = self::environmentEvent('access', $allowed ? 'ok' : 'blocked', $source, $before, self::environmentSummary($state), [
                     'path' => $path,
                     'mode' => $mode,
                     'reason' => $allowed ? 'current-source owner accepted' : 'access path belongs to a different current-source owner',
@@ -1272,9 +1272,9 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'fullpathname') {
-                $path = self::pathName162165((string) ($op['path'] ?? $state['sources'][$source]['path']));
-                $full = self::fullPathName162165($state['sources'][$source]['owner'], $path);
-                $events[] = self::event162165('full_pathname', 'ok', $source, $before, self::summary162165($state), [
+                $path = self::environmentPathName((string) ($op['path'] ?? $state['sources'][$source]['path']));
+                $full = self::environmentFullPathName($state['sources'][$source]['owner'], $path);
+                $events[] = self::environmentEvent('full_pathname', 'ok', $source, $before, self::environmentSummary($state), [
                     'path' => $path,
                     'full_pathname' => $full,
                     'stable' => $full === $state['sources'][$source]['path'],
@@ -1283,9 +1283,9 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'sector') {
-                $sector = self::positiveInt162165($op['bytes'] ?? $op['sector_size'] ?? null, 'sector size');
+                $sector = self::positiveEnvironmentInt($op['bytes'] ?? $op['sector_size'] ?? null, 'sector size');
                 $state['sources'][$source]['sector_size'] = $sector;
-                $events[] = self::event162165('sector_size', 'ok', $source, $before, self::summary162165($state), [
+                $events[] = self::environmentEvent('sector_size', 'ok', $source, $before, self::environmentSummary($state), [
                     'sector_size' => $sector,
                     'direct_overflow_risk' => $sector > 4096,
                 ]);
@@ -1293,9 +1293,9 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'device') {
-                $flags = self::deviceFlags162165($op['flags'] ?? $op['device'] ?? []);
+                $flags = self::environmentDeviceFlags($op['flags'] ?? $op['device'] ?? []);
                 $state['sources'][$source]['device'] = $flags;
-                $events[] = self::event162165('device_characteristics', 'ok', $source, $before, self::summary162165($state), [
+                $events[] = self::environmentEvent('device_characteristics', 'ok', $source, $before, self::environmentSummary($state), [
                     'device' => $flags,
                     'safe_append' => in_array('safe_append', $flags, true),
                     'powersafe_overwrite' => in_array('powersafe_overwrite', $flags, true),
@@ -1304,10 +1304,10 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'randomness') {
-                $bytes = self::positiveInt162165($op['bytes'] ?? 16, 'randomness bytes');
-                $seed = self::token162165((string) ($op['seed'] ?? $source), 'randomness seed');
+                $bytes = self::positiveEnvironmentInt($op['bytes'] ?? 16, 'randomness bytes');
+                $seed = self::environmentToken((string) ($op['seed'] ?? $source), 'randomness seed');
                 $state['sources'][$source]['randomness'][] = hash('sha256', $source . '|' . $seed . '|' . $bytes);
-                $events[] = self::event162165('randomness', 'ok', $source, $before, self::summary162165($state), [
+                $events[] = self::environmentEvent('randomness', 'ok', $source, $before, self::environmentSummary($state), [
                     'bytes' => $bytes,
                     'digest' => $state['sources'][$source]['randomness'][array_key_last($state['sources'][$source]['randomness'])],
                     'request_count' => count($state['sources'][$source]['randomness']),
@@ -1316,9 +1316,9 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'sleep') {
-                $micros = self::nonNegativeInt162165($op['micros'] ?? $op['microseconds'] ?? null, 'sleep microseconds');
+                $micros = self::nonNegativeEnvironmentInt($op['micros'] ?? $op['microseconds'] ?? null, 'sleep microseconds');
                 $state['sources'][$source]['sleep_microseconds'] += $micros;
-                $events[] = self::event162165('sleep', 'ok', $source, $before, self::summary162165($state), [
+                $events[] = self::environmentEvent('sleep', 'ok', $source, $before, self::environmentSummary($state), [
                     'microseconds' => $micros,
                     'total_sleep_microseconds' => $state['sources'][$source]['sleep_microseconds'],
                 ]);
@@ -1326,24 +1326,24 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             }
 
             if ($op['kind'] === 'delete') {
-                $path = self::pathName162165((string) ($op['path'] ?? $state['sources'][$source]['path']));
+                $path = self::environmentPathName((string) ($op['path'] ?? $state['sources'][$source]['path']));
                 $syncDir = (bool) ($op['sync_dir'] ?? false);
-                if (!self::sameOwner162165($state['sources'][$source]['owner'], $path)) {
-                    $events[] = self::event162165('delete', 'blocked', $source, $before, self::summary162165($state), [
+                if (!self::sameEnvironmentOwner($state['sources'][$source]['owner'], $path)) {
+                    $events[] = self::environmentEvent('delete', 'blocked', $source, $before, self::environmentSummary($state), [
                         'path' => $path,
                         'reason' => 'delete path belongs to a different current-source owner',
                     ]);
                     continue;
                 }
                 if ($state['sources'][$source]['temporary'] !== true && $syncDir !== true) {
-                    $events[] = self::event162165('delete', 'blocked', $source, $before, self::summary162165($state), [
+                    $events[] = self::environmentEvent('delete', 'blocked', $source, $before, self::environmentSummary($state), [
                         'path' => $path,
                         'reason' => 'persistent current-source delete requires directory sync',
                     ]);
                     continue;
                 }
                 $state['sources'][$source]['deleted_paths'][] = $path;
-                $events[] = self::event162165('delete', 'ok', $source, $before, self::summary162165($state), [
+                $events[] = self::environmentEvent('delete', 'ok', $source, $before, self::environmentSummary($state), [
                     'path' => $path,
                     'sync_dir' => $syncDir,
                     'delete_count' => count($state['sources'][$source]['deleted_paths']),
@@ -1354,9 +1354,9 @@ private static function runMmapSharedMemory(array $operations, array $options = 
             if ($op['kind'] === 'close') {
                 $state['sources'][$source]['closed'] = true;
                 if ($state['current_source'] === $source) {
-                    $state['current_source'] = self::firstOpenSource162165($state);
+                    $state['current_source'] = self::firstOpenEnvironmentSource($state);
                 }
-                $events[] = self::event162165('close', 'closed', $source, $before, self::summary162165($state), [
+                $events[] = self::environmentEvent('close', 'closed', $source, $before, self::environmentSummary($state), [
                     'deleted_paths' => $state['sources'][$source]['deleted_paths'],
                     'randomness_requests' => count($state['sources'][$source]['randomness']),
                 ]);
@@ -1369,7 +1369,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => $current,
-            'next' => self::summary162165($state),
+            'next' => self::environmentSummary($state),
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-close-reopen',
@@ -1380,42 +1380,42 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         ];
     }
 
-    private static function hydrate162165(mixed $current): array
+    private static function hydrateEnvironmentState(mixed $current): array
     {
         $state = ['sequence' => 0, 'current_source' => null, 'owner_generations' => [], 'sources' => []];
         if (!is_array($current)) {
             return $state;
         }
         foreach (is_array($current['owner_generations'] ?? null) ? $current['owner_generations'] : [] as $owner => $generation) {
-            $state['owner_generations'][self::pathName162165((string) $owner)] = self::positiveInt162165($generation, 'owner generation');
+            $state['owner_generations'][self::environmentPathName((string) $owner)] = self::positiveEnvironmentInt($generation, 'owner generation');
         }
         foreach (is_array($current['sources'] ?? null) ? $current['sources'] : [] as $name => $source) {
             if (!is_array($source)) {
                 continue;
             }
-            $path = self::pathName162165((string) ($source['path'] ?? ''));
-            $sourceName = self::sourceName162165((string) $name);
-            $state['sources'][$sourceName] = self::sourceState162165(
-                self::token162165((string) ($source['handle'] ?? $sourceName), 'handle'),
+            $path = self::environmentPathName((string) ($source['path'] ?? ''));
+            $sourceName = self::environmentSourceName((string) $name);
+            $state['sources'][$sourceName] = self::environmentSourceState(
+                self::environmentToken((string) ($source['handle'] ?? $sourceName), 'handle'),
                 $path,
-                self::pathName162165((string) ($source['owner'] ?? self::owner162165($path))),
+                self::environmentPathName((string) ($source['owner'] ?? self::environmentOwner($path))),
                 (bool) ($source['temporary'] ?? false),
-                self::positiveInt162165($source['sector_size'] ?? 4096, 'sector size'),
-                self::deviceFlags162165($source['device'] ?? []),
+                self::positiveEnvironmentInt($source['sector_size'] ?? 4096, 'sector size'),
+                self::environmentDeviceFlags($source['device'] ?? []),
                 is_array($source['deleted_paths'] ?? null) ? array_values($source['deleted_paths']) : [],
                 is_array($source['randomness'] ?? null) ? array_values($source['randomness']) : [],
-                self::nonNegativeInt162165($source['sleep_microseconds'] ?? 0, 'sleep microseconds'),
+                self::nonNegativeEnvironmentInt($source['sleep_microseconds'] ?? 0, 'sleep microseconds'),
                 (bool) ($source['closed'] ?? false)
             );
         }
         if (isset($current['current_source'])) {
-            $state['current_source'] = self::sourceName162165((string) $current['current_source']);
+            $state['current_source'] = self::environmentSourceName((string) $current['current_source']);
         }
         $state['sequence'] = count($state['sources']);
         return $state;
     }
 
-    private static function operation162165(string|array $operation): array
+    private static function normalizeEnvironmentOperation(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -1449,7 +1449,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         throw new \InvalidArgumentException('SQLite VFS current-source next162-165 operation is unsupported');
     }
 
-    private static function sourceState162165(
+    private static function environmentSourceState(
         string $handle,
         string $path,
         string $owner,
@@ -1475,10 +1475,10 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         ];
     }
 
-    private static function sourceFor162165(array $state, mixed $source): string
+    private static function selectedEnvironmentSource(array $state, mixed $source): string
     {
         if ($source !== null && $source !== '') {
-            return self::sourceName162165((string) $source);
+            return self::environmentSourceName((string) $source);
         }
         if (!is_string($state['current_source'])) {
             throw new \InvalidArgumentException('SQLite VFS current-source next162-165 has no selected source');
@@ -1486,7 +1486,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $state['current_source'];
     }
 
-    private static function firstOpenSource162165(array $state): ?string
+    private static function firstOpenEnvironmentSource(array $state): ?string
     {
         foreach ($state['sources'] as $name => $source) {
             if ($source['closed'] !== true) {
@@ -1496,7 +1496,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return null;
     }
 
-    private static function sourceName162165(string $source): string
+    private static function environmentSourceName(string $source): string
     {
         $source = strtolower(trim($source));
         if ($source === '' || preg_match('/^[a-z0-9_.:-]+$/', $source) !== 1) {
@@ -1505,7 +1505,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $source;
     }
 
-    private static function pathName162165(string $path): string
+    private static function environmentPathName(string $path): string
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
@@ -1514,17 +1514,17 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $path;
     }
 
-    private static function owner162165(string $path): string
+    private static function environmentOwner(string $path): string
     {
         return preg_replace('/-(?:wal|shm|journal)$/', '', $path) ?? $path;
     }
 
-    private static function sameOwner162165(string $owner, string $path): bool
+    private static function sameEnvironmentOwner(string $owner, string $path): bool
     {
-        return self::owner162165($path) === $owner;
+        return self::environmentOwner($path) === $owner;
     }
 
-    private static function fullPathName162165(string $owner, string $path): string
+    private static function environmentFullPathName(string $owner, string $path): string
     {
         if (str_starts_with($path, '/')) {
             return $path;
@@ -1533,7 +1533,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return ($directory === '.' ? '' : $directory . '/') . $path;
     }
 
-    private static function accessMode162165(string $mode): string
+    private static function environmentAccessMode(string $mode): string
     {
         $mode = strtolower(trim($mode));
         if (!in_array($mode, ['exists', 'readwrite', 'readonly'], true)) {
@@ -1542,7 +1542,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $mode;
     }
 
-    private static function deviceFlags162165(mixed $flags): array
+    private static function environmentDeviceFlags(mixed $flags): array
     {
         $items = is_array($flags) ? $flags : preg_split('/[,\s]+/', (string) $flags, -1, PREG_SPLIT_NO_EMPTY);
         $out = [];
@@ -1559,7 +1559,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return array_keys($out);
     }
 
-    private static function token162165(string $value, string $label): string
+    private static function environmentToken(string $value, string $label): string
     {
         $value = trim($value);
         if ($value === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $value) !== 1) {
@@ -1568,7 +1568,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $value;
     }
 
-    private static function positiveInt162165(mixed $value, string $label): int
+    private static function positiveEnvironmentInt(mixed $value, string $label): int
     {
         if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
             throw new \InvalidArgumentException("SQLite VFS current-source next162-165 {$label} must be positive");
@@ -1580,7 +1580,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $int;
     }
 
-    private static function nonNegativeInt162165(mixed $value, string $label): int
+    private static function nonNegativeEnvironmentInt(mixed $value, string $label): int
     {
         if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
             throw new \InvalidArgumentException("SQLite VFS current-source next162-165 {$label} must be non-negative");
@@ -1592,7 +1592,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         return $int;
     }
 
-    private static function summary162165(array $state): array
+    private static function environmentSummary(array $state): array
     {
         $open = 0;
         foreach ($state['sources'] as $source) {
@@ -1607,7 +1607,7 @@ private static function runMmapSharedMemory(array $operations, array $options = 
         ];
     }
 
-    private static function event162165(string $operation, string $status, string $source, array $before, array $next, array $extra): array
+    private static function environmentEvent(string $operation, string $status, string $source, array $before, array $next, array $extra): array
     {
         return array_merge([
             'operation' => $operation,

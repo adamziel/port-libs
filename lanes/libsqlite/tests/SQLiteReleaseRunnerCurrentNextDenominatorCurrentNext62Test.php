@@ -37,7 +37,7 @@ $tests = [];
 
 for ($i = 1; $i <= 62; $i++) {
     $tests['current next62 admits non duplicate denominator case ' . $i] = static function (TestRunner $t) use ($i, $currentHead62, $focusedPath62, $nonOverlap62): void {
-        $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+        $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
             [libsqlite_release_denominator62_candidate($i)],
             [
                 'attach-temp-wal-schema-cache',
@@ -79,7 +79,7 @@ $tests['current next62 blocks queued duplicate surfaces'] = static function (Tes
     $row = libsqlite_release_denominator62_candidate(63);
     $row['surface'] = 'jsonb-delete-cascade-check';
 
-    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
         [$row],
         ['jsonb-delete-cascade-check'],
         $currentHead62,
@@ -101,7 +101,7 @@ $tests['current next62 blocks stale accepted base candidates'] = static function
     $row = libsqlite_release_denominator62_candidate(64);
     $row['base_head'] = 'aa5c67a8d70941079503fe746744a6952caec0a5';
 
-    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
         [$row],
         [],
         $currentHead62,
@@ -120,7 +120,7 @@ $tests['current next62 blocks missing focused evidence'] = static function (Test
     $row = libsqlite_release_denominator62_candidate(65);
     $row['evidence'] = '';
 
-    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
         [$row],
         [],
         $currentHead62,
@@ -139,7 +139,7 @@ $tests['current next62 blocks release all parity claims'] = static function (Tes
     $row = libsqlite_release_denominator62_candidate(66);
     $row['release_parity'] = true;
 
-    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
         [$row],
         [],
         $currentHead62,
@@ -158,7 +158,7 @@ $tests['current next62 blocks release all parity claims'] = static function (Tes
 $tests['current next62 blocks duplicate candidate ids'] = static function (TestRunner $t) use ($currentHead62, $focusedPath62, $nonOverlap62): void {
     $row = libsqlite_release_denominator62_candidate(67);
 
-    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
         [$row, $row],
         [],
         $currentHead62,
@@ -174,7 +174,7 @@ $tests['current next62 blocks duplicate candidate ids'] = static function (TestR
 };
 
 $tests['current next62 blocks unfocused php output'] = static function (TestRunner $t) use ($currentHead62, $focusedPath62, $nonOverlap62): void {
-    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
         [libsqlite_release_denominator62_candidate(68)],
         [],
         $currentHead62,
@@ -195,7 +195,7 @@ $tests['current next62 reports family rollup for mixed candidates'] = static fun
     $second = libsqlite_release_denominator62_candidate(70);
     $second['current_status'] = 'mapped';
 
-    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+    $record = libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
         [$first, $second],
         [],
         $currentHead62,
@@ -218,7 +218,7 @@ $tests['current next62 reports family rollup for mixed candidates'] = static fun
 $tests['current next62 rejects missing accepted base head'] = static function (TestRunner $t) use ($focusedPath62, $nonOverlap62): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+        static fn () => libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
             [libsqlite_release_denominator62_candidate(71)],
             [],
             '',
@@ -234,7 +234,7 @@ $tests['current next62 rejects missing accepted base head'] = static function (T
 $tests['current next62 rejects empty candidate rows'] = static function (TestRunner $t) use ($currentHead62, $focusedPath62, $nonOverlap62): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+        static fn () => libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
             [],
             [],
             $currentHead62,
@@ -250,7 +250,7 @@ $tests['current next62 rejects empty candidate rows'] = static function (TestRun
 $tests['current next62 rejects negative mapped baseline'] = static function (TestRunner $t) use ($currentHead62, $focusedPath62, $nonOverlap62): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_release_denominator62_evidence()->releaseRunnerCurrentNextDenominatorDecisionCurrentNext62(
+        static fn () => libsqlite_release_denominator62_evidence()->releaseRunnerCurrentDenominatorDecision(
             [libsqlite_release_denominator62_candidate(72)],
             [],
             $currentHead62,

@@ -100,6 +100,7 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeFin
 
 if (in_array('--self-test', $argv, true)) {
     assert($plan['status'] === 'stat4-expression-partial-final-prepared-handoff-prepared');
+    assert($plan['stat4FinalPreparedHandoffFence'] === $plan['stat4FinalPreparedHandoffPreparationFence']);
     assert($plan['stat4FinalPreparedHandoffPreparationFence']['preparedSlices'] === range(990, 1005));
     assert($plan['stat4FinalPreparedHandoffPreparationFence']['handoffWindows'][0]['continuesSlice'] === 958);
     echo "wordpress-sqlplanner-stat4-expression-partial-final-prepared-handoff self-test passed\n";
@@ -111,6 +112,7 @@ echo json_encode([
     'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the terminal current-source STAT4 handoff into final prepared handoff only when projected current rows still match.',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
+    'canonicalFenceKey' => $plan['selectedPlan']['finalPreparedHandoffCanonicalFenceKey'] ?? null,
     'preparedSlices' => $plan['stat4FinalPreparedHandoffPreparationFence']['preparedSlices'],
     'handoffSignature' => $plan['stat4FinalPreparedHandoffPreparationFence']['handoffSignature'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

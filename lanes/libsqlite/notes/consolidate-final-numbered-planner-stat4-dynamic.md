@@ -1,23 +1,27 @@
 # Consolidate Final Numbered Planner STAT4 Dynamic
 
-Consolidated the direct final prepared handoff test helpers for
-`SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` by replacing the
-remaining numeric `974989` helper suffix with descriptive final-prepared-handoff
-helper names. Observable planner metadata remains unchanged, including the
-legacy `stat4Next958973PreparationFence` alias and `next958973Prepared` receipt
-key that downstream tests still assert.
+Consolidated the final planner STAT4 dynamic handoff surface by adding the
+stable `stat4FinalPreparedHandoffFence` canonical fence alias while preserving
+the existing numbered `stat4FinalPreparedHandoffPreparationFence` and
+`stat4Next958973PreparationFence` observable keys for dependent tests and
+handoff consumers.
 
 Verification:
 
-- `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialFinalPreparedHandoffTailTest.php`
-  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialFinalPreparedHandoffTailTest.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialFinalPreparedHandoffTailTest.php`
-  - `1 test files, 41 assertions, 0 failures`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*Test.php`
-  - `133 test files, 7539 assertions, 0 failures`
-- `git diff --check -- lanes/libsqlite`
-  - passed
+- `php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialFinalPreparedHandoffTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-final-prepared-handoff.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialFinalPreparedHandoffTest.php`
+  - `1 test files, 44 assertions, 0 failures`
+- `php tools/run-tests.php $(printf '%s\n' lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartial*Test.php | sort)`
+  - `133 test files, 7554 assertions, 0 failures`
+- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-final-prepared-handoff.php --self-test`
 
-Dependency closure: no new support component needed; this is a focused
-consolidation of test helper naming around the existing canonical planner STAT4
-implementation.
+Dependency closure: no new support component needed; this reuses the existing
+planner STAT4 expression partial handoff implementation and only adds stable
+canonical aliases for the final dynamic proof.
+
+Non-overlap: this is consolidation-only for the final planner STAT4 prepared
+handoff alias surface. It does not change STAT4 range costing, expression
+ORDER BY, JSON table, WAL/VFS, B-tree, trigger, PRAGMA, compound SELECT, or UTF
+behavior.

@@ -58,7 +58,7 @@ function libsqlite_suite_denominator69_rows(int $case = 1, string $head = '08898
 
 function libsqlite_suite_denominator69_record(array $rows, string $accepted = '088988b10e55d1e3ad800154b4f8e01eb3640cbb', string $evidence = '088988b10e55d1e3ad800154b4f8e01eb3640cbb', string $output = null, ?int $expected = 69, string $snapshot = ''): array
 {
-    return libsqlite_suite_denominator69_evidence()->suiteDenominatorCurrentNext69(
+    return libsqlite_suite_denominator69_evidence()->suiteDenominatorShardAudit(
         $rows,
         463,
         25580,
@@ -219,7 +219,7 @@ $tests['current next69 rejects empty rows'] = static function (TestRunner $t): v
 $tests['current next69 rejects negative mapped count through base gate'] = static function (TestRunner $t): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_suite_denominator69_evidence()->suiteDenominatorCurrentNext69(
+        static fn () => libsqlite_suite_denominator69_evidence()->suiteDenominatorShardAudit(
             libsqlite_suite_denominator69_rows(),
             -1,
             25580,

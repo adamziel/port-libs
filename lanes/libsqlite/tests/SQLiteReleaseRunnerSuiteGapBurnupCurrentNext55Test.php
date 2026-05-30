@@ -107,7 +107,7 @@ for ($i = 1; $i <= 55; $i++) {
     $tests['current next55 artifact gap burnup classifies directory pair ' . $i] = static function (TestRunner $t) use ($i, $currentHead55, $nextHead55, $focusedPath55, $nonOverlap55): void {
         [$root, $current, $next] = libsqlite_release_gap55_dirs($currentHead55, $nextHead55, $i);
         try {
-            $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnupCurrentNext55(
+            $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnup(
                 $current,
                 $next,
                 $currentHead55,
@@ -136,7 +136,7 @@ for ($i = 1; $i <= 55; $i++) {
 $tests['current next55 artifact gap burnup advances newly countable release artifact'] = static function (TestRunner $t) use ($currentHead55, $nextHead55, $focusedPath55, $nonOverlap55): void {
     [$root, $current, $next] = libsqlite_release_gap55_dirs($currentHead55, $nextHead55, 5);
     try {
-        $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnupCurrentNext55($current, $next, $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55);
+        $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnup($current, $next, $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55);
         $t->same('next55-suite-gap-burnup-advanced', $record['status']);
         $t->same(true, $record['counts_next_suite_gap_burnup']);
         $t->true(in_array('release', $record['advanced_ids'], true), 'Expected release artifact to advance');
@@ -149,7 +149,7 @@ $tests['current next55 artifact gap burnup advances newly countable release arti
 $tests['current next55 artifact gap burnup preserves open failed and stale rows uncounted'] = static function (TestRunner $t) use ($currentHead55, $nextHead55, $focusedPath55, $nonOverlap55): void {
     [$root, $current, $next] = libsqlite_release_gap55_dirs($currentHead55, $nextHead55, 17);
     try {
-        $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnupCurrentNext55($current, $next, $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55);
+        $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnup($current, $next, $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55);
         $t->same('current-suite-gap-burnup-preserved-with-open-gaps', $record['status']);
         $t->same(1, $record['next_directory_record']['blocked_count']);
         $t->true(in_array('release', $record['open_ids'], true), 'Expected stale release row to stay open');
@@ -162,7 +162,7 @@ $tests['current next55 artifact gap burnup preserves open failed and stale rows 
 $tests['current next55 artifact gap burnup blocks next countability regression'] = static function (TestRunner $t) use ($currentHead55, $nextHead55, $focusedPath55, $nonOverlap55): void {
     [$root, $current, $next] = libsqlite_release_gap55_dirs($currentHead55, $nextHead55, 11);
     try {
-        $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnupCurrentNext55($current, $next, $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55);
+        $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnup($current, $next, $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55);
         $t->same('blocked', $record['status']);
         $t->true(in_array('mptest', $record['regressed_ids'], true), 'Expected mptest regression');
         $mptest = null;
@@ -181,7 +181,7 @@ $tests['current next55 artifact gap burnup blocks next countability regression']
 $tests['current next55 artifact gap burnup blocks under threshold php evidence'] = static function (TestRunner $t) use ($currentHead55, $nextHead55, $focusedPath55, $nonOverlap55): void {
     [$root, $current, $next] = libsqlite_release_gap55_dirs($currentHead55, $nextHead55, 5);
     try {
-        $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnupCurrentNext55($current, $next, $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(39), $nonOverlap55, 40);
+        $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnup($current, $next, $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(39), $nonOverlap55, 40);
         $t->same('blocked', $record['status']);
         $t->same(39, $record['php_pass_delta']);
         $t->true(in_array('focused-php-pass-delta-below-minimum', array_column($record['blockers'], 'id'), true), 'Expected under-threshold focused evidence blocker');
@@ -193,7 +193,7 @@ $tests['current next55 artifact gap burnup blocks under threshold php evidence']
 $tests['current next55 artifact gap burnup blocks unfocused php output'] = static function (TestRunner $t) use ($currentHead55, $nextHead55, $focusedPath55, $nonOverlap55): void {
     [$root, $current, $next] = libsqlite_release_gap55_dirs($currentHead55, $nextHead55, 5);
     try {
-        $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnupCurrentNext55($current, $next, $currentHead55, $nextHead55, 20008, $focusedPath55, "1 test files, 55 assertions, 0 failures\n", $nonOverlap55);
+        $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnup($current, $next, $currentHead55, $nextHead55, 20008, $focusedPath55, "1 test files, 55 assertions, 0 failures\n", $nonOverlap55);
         $t->same('blocked', $record['status']);
         $t->same('blocked', $record['php_pass_admission']['status']);
     } finally {
@@ -202,19 +202,19 @@ $tests['current next55 artifact gap burnup blocks unfocused php output'] = stati
 };
 
 $tests['current next55 artifact gap burnup rejects missing heads'] = static function (TestRunner $t) use ($focusedPath55, $nonOverlap55): void {
-    $t->throws(InvalidArgumentException::class, static fn () => libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnupCurrentNext55('/tmp/a', '/tmp/b', '', 'next', 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55));
+    $t->throws(InvalidArgumentException::class, static fn () => libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnup('/tmp/a', '/tmp/b', '', 'next', 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55));
 };
 
 $tests['current next55 artifact gap burnup rejects missing directories'] = static function (TestRunner $t) use ($currentHead55, $nextHead55, $focusedPath55, $nonOverlap55): void {
-    $t->throws(InvalidArgumentException::class, static fn () => libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnupCurrentNext55('', '/tmp/b', $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55));
+    $t->throws(InvalidArgumentException::class, static fn () => libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnup('', '/tmp/b', $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55));
 };
 
 $tests['current next55 artifact gap burnup rejects zero minimum'] = static function (TestRunner $t) use ($currentHead55, $nextHead55, $focusedPath55, $nonOverlap55): void {
-    $t->throws(InvalidArgumentException::class, static fn () => libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnupCurrentNext55('/tmp/a', '/tmp/b', $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55, 0));
+    $t->throws(InvalidArgumentException::class, static fn () => libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnup('/tmp/a', '/tmp/b', $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55, 0));
 };
 
 $tests['current next55 artifact gap burnup reports missing artifact directories explicitly'] = static function (TestRunner $t) use ($currentHead55, $nextHead55, $focusedPath55, $nonOverlap55): void {
-    $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnupCurrentNext55('/tmp/missing-current-gap55', '/tmp/missing-next-gap55', $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55);
+    $record = libsqlite_release_gap55_evidence()->releaseRunnerUpstreamSuiteGapBurnup('/tmp/missing-current-gap55', '/tmp/missing-next-gap55', $currentHead55, $nextHead55, 20008, $focusedPath55, libsqlite_release_gap55_output(55), $nonOverlap55);
     $t->same('blocked', $record['status']);
     $t->same('blocked-missing-artifact-directory', $record['current_directory_record']['status']);
     $t->same('blocked-missing-artifact-directory', $record['next_directory_record']['status']);

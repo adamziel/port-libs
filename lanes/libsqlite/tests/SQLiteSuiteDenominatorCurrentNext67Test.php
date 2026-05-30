@@ -69,7 +69,7 @@ function libsqlite_current_next67_rows(int $mappedDelta = 1, int $scriptDelta = 
 function libsqlite_current_next67_record(array $rows, string $output, ?int $expected = null, string $accepted = '70ce5c6331ef3fe98a080164104ff79d76df9f44', string $evidence = '70ce5c6331ef3fe98a080164104ff79d76df9f44', string $processSnapshot = ''): array
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json')
-        ->suiteDenominatorCurrentNext67(
+        ->suiteDenominatorCurrentRows(
             $rows,
             463,
             25055,
@@ -208,7 +208,7 @@ $tests = [
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 
         $t->throws(InvalidArgumentException::class, static fn () => libsqlite_current_next67_record([], libsqlite_current_next67_output(1, 3), 1));
-        $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteDenominatorCurrentNext67(libsqlite_current_next67_rows(), -1, 25055, '70ce5c6331ef3fe98a080164104ff79d76df9f44', '70ce5c6331ef3fe98a080164104ff79d76df9f44', 'lanes/libsqlite/tests/SQLiteSuiteDenominatorCurrentNext67Test.php', libsqlite_current_next67_output(1, 3), 'non-overlap', 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $evidence->suiteDenominatorCurrentRows(libsqlite_current_next67_rows(), -1, 25055, '70ce5c6331ef3fe98a080164104ff79d76df9f44', '70ce5c6331ef3fe98a080164104ff79d76df9f44', 'lanes/libsqlite/tests/SQLiteSuiteDenominatorCurrentNext67Test.php', libsqlite_current_next67_output(1, 3), 'non-overlap', 1));
     },
 ];
 

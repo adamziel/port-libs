@@ -78,7 +78,7 @@ function libsqlite_suite_runner73_rows(int $case = 1, string $head = 'c1b3825e12
  */
 function libsqlite_suite_runner73_record(array $rows, string $output = null, ?int $expected = 73, string $accepted = 'c1b3825e121841b3669ec7027e8adbacaebb6283', string $evidence = 'c1b3825e121841b3669ec7027e8adbacaebb6283', string $snapshot = ''): array
 {
-    return libsqlite_suite_runner73_evidence()->suiteDenominatorRunnerCurrentNext73(
+    return libsqlite_suite_runner73_evidence()->suiteDenominatorRunnerAdmission(
         $rows,
         464,
         26631,
@@ -300,7 +300,7 @@ $tests['current next73 rejects empty rows'] = static function (TestRunner $t): v
 $tests['current next73 rejects negative mapped baseline'] = static function (TestRunner $t): void {
     $t->throws(
         InvalidArgumentException::class,
-        static fn () => libsqlite_suite_runner73_evidence()->suiteDenominatorRunnerCurrentNext73(
+        static fn () => libsqlite_suite_runner73_evidence()->suiteDenominatorRunnerAdmission(
             libsqlite_suite_runner73_rows(),
             -1,
             26631,

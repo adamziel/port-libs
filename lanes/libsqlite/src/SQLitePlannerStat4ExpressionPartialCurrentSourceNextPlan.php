@@ -34719,6 +34719,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         return array_replace_recursive($base, [
             "status" => $ready ? "stat4-expression-partial-final-prepared-handoff-prepared" : "requires-current-source-stat4-final-prepared-handoff-prep",
+            "stat4FinalPreparedHandoffFence" => $fence,
             "stat4FinalPreparedHandoffPreparationFence" => $fence,
             "stat4TerminalPreparedHandoffFence" => $base["stat4TerminalPreparedHandoffPreparationFence"] ?? null,
             "stat4Next958973PreparationFence" => $base["stat4TerminalPreparedHandoffPreparationFence"] ?? null,
@@ -34731,10 +34732,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "finalPreparedHandoffBlockedSlices" => $fence["blockedSlices"],
                 "finalPreparedHandoffPriorHandoffSignature" => $fence["priorHandoffSignature"],
                 "finalPreparedHandoffHandoffSignature" => $fence["handoffSignature"],
+                "finalPreparedHandoffCanonicalFenceKey" => "stat4FinalPreparedHandoffFence",
             ],
             "stat4Fence" => [
                 "finalPreparedHandoffPrepared" => $ready,
                 "finalPreparedHandoffHandoffSignature" => $fence["handoffSignature"],
+                "finalPreparedHandoffCanonicalFenceKey" => "stat4FinalPreparedHandoffFence",
             ],
             "cursorProgram" => self::preparedHandoffCursorProgramForRange($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
