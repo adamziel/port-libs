@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (integration sample 09:40 UTC):
+  Latest libsqlite source is integrated as `a9b08cf3f`
+  (`libsqlite: integrate behavior helper cleanup batch`). The batch accepts 11
+  handoffs that still applied cleanly to the current integration head: B-tree
+  vacuum pointer-map/freeblock freelist evidence, compound SELECT window
+  recursive-limit stable handoff naming, JSON table generated-path rowid cost
+  canonical helpers, rowvalue/window and savepoint consolidation guards, trigger
+  recursive view returning next222 release checks, PRAGMA index_xinfo
+  foreign-key stable helpers, STAT4 prepared-handoff cleanup, VFS current-source
+  and WAL checkpoint helper cleanup, and window RANGE/GROUPS no-ORDER-BY plan
+  checks. Verification passed PHP lint for changed PHP files, focused
+  changed/new tests `13 files / 1435 assertions / 0 failures`, B-tree/JSON
+  family `471 selected files / 134689 assertions / 0 failures`,
+  STAT4/VFS/WAL/window family `354 selected files / 19048 assertions / 0
+  failures`, rowvalue/trigger/PRAGMA/compound family `494 selected files /
+  56813 assertions / 0 failures`, `git diff --check`, and source guards
+  confirming no numbered `CurrentSourceNext`/`CurrentNext` production filenames
+  or classes remain. Public pass/mapped counters remain `188257 pass / 0 fail`
+  and `830 / 1589` until a new accepted broad runner snapshot is generated.
+  The pool remains visible in tmux `main` with 10 active Codex workers and no
+  long sleepers in the latest health check.
+
 - 2026-05-30 supervisor continuation (integration sample 09:25 UTC):
   Latest libsqlite source is integrated as `e5390996f`
   (`libsqlite: integrate planner suite helper batch`). The batch accepts six
