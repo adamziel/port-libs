@@ -8,21 +8,21 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteCastRtrimLikeCurrentSourceNextPlan;
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'plugin_cache '],
-    ['option_id' => 3, 'option_name' => 'active_plugins', 'option_value' => new SQLiteBlobValue('plugin_blob ')],
-    ['option_id' => 4, 'option_name' => 'retry_count', 'option_value' => '42 retries'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin_cache '],
+    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin_blob ')],
+    ['setting_id' => 4, 'key_name' => 'retry_count', 'key_value' => '42 retries'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'plugin_cache'],
-    ['option_id' => 3, 'option_name' => 'active_plugins', 'option_value' => new SQLiteBlobValue('plugin_blob')],
-    ['option_id' => 4, 'option_name' => 'retry_count', 'option_value' => 42],
-    ['option_id' => 5, 'option_name' => 'fresh_plugin', 'option_value' => 'plugin_cache_new'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin_blob')],
+    ['setting_id' => 4, 'key_name' => 'retry_count', 'key_value' => 42],
+    ['setting_id' => 5, 'key_name' => 'fresh_plugin', 'key_value' => 'plugin_cache_new'],
 ];
 
-$plan = SQLiteCastRtrimLikeCurrentSourceNextPlan::optionRowValuePlan(
+$plan = SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
     'TEXT',
@@ -32,7 +32,7 @@ $plan = SQLiteCastRtrimLikeCurrentSourceNextPlan::optionRowValuePlan(
 
 $summary = [
     'scenario' => 'application-cast-rtrim-like-current-source-next131',
-    'applicationUse' => 'Copied wp_options option_value scans can use an RTRIM expression range over CAST(option_value AS TEXT) while retaining the LIKE residual, so space-padded option payloads remain candidates but do not become exact LIKE matches during import diffing.',
+    'applicationUse' => 'Copied app_settings key_value scans can use an RTRIM expression range over CAST(key_value AS TEXT) while retaining the LIKE residual, so space-padded option payloads remain candidates but do not become exact LIKE matches during import diffing.',
     'range' => $plan['range'],
     'currentCandidateRowids' => $plan['currentCandidateRowids'],
     'currentResidualRejectedRowids' => $plan['currentResidualRejectedRowids'],

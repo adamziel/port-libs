@@ -22,10 +22,11 @@ final class SQLiteSelectExpression
             'cast' => self::castValue($row, $expression),
             'unary' => self::unaryValue($row, $expression),
             'binary' => self::binaryValue($row, $expression),
+            'predicate' => self::predicateValue($row, $expression),
             'row' => self::rowValue($row, $expression),
             'subquery' => self::subqueryValue($row, $expression),
             'case' => self::caseValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, collate, function, cast, unary, binary, row, subquery, or case'),
+            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, collate, function, cast, unary, binary, predicate, row, subquery, or case'),
         };
     }
 
@@ -64,6 +65,25 @@ final class SQLiteSelectExpression
         }
 
         return $evaluated;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function predicateValue(array $row, array $expression): ?int
+    {
+        $predicate = $expression['predicate'] ?? null;
+        if (!is_array($predicate)) {
+            throw new \InvalidArgumentException('SQLite SELECT predicate expression needs a predicate');
+        }
+
+        $value = SQLiteSelectPredicate::evaluate($row, $predicate);
+        if ($value === null) {
+            return null;
+        }
+
+        return self::isSqlTrue($value) ? 1 : 0;
     }
 
     /**
@@ -322,7 +342,7 @@ final class SQLiteSelectExpression
         }
 
         return match ($operator) {
-            '+' => self::numericOperand($operand),
+            '+' => $operand,
             '-' => -self::numericOperand($operand),
             '~' => ~self::integerOperand($operand),
             'NOT' => self::notValue($operand),

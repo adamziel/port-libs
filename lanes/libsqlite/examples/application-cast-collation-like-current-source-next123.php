@@ -8,19 +8,19 @@ use PortLibs\LibSqlite\SQLiteCastCollationLikeCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentRows = [
-    ['option_id' => 10, 'option_name' => 'plugin_rate', 'option_value' => '4.5ms', 'autoload' => 'yes'],
-    ['option_id' => 11, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin:blob  '), 'autoload' => 'yes'],
-    ['option_id' => 12, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN:CACHE', 'autoload' => 'yes'],
+    ['setting_id' => 10, 'key_name' => 'plugin_rate', 'key_value' => '4.5ms', 'load_policy' => 'yes'],
+    ['setting_id' => 11, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin:blob  '), 'load_policy' => 'yes'],
+    ['setting_id' => 12, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN:CACHE', 'load_policy' => 'yes'],
 ];
 
 $nextRows = [
-    ['option_id' => 10, 'option_name' => 'plugin_rate', 'option_value' => '5.5ms', 'autoload' => 'yes'],
-    ['option_id' => 11, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin:blob'), 'autoload' => 'yes'],
-    ['option_id' => 12, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN:CACHE', 'autoload' => 'yes'],
-    ['option_id' => 13, 'option_name' => 'plugin_added', 'option_value' => '49', 'autoload' => 'yes'],
+    ['setting_id' => 10, 'key_name' => 'plugin_rate', 'key_value' => '5.5ms', 'load_policy' => 'yes'],
+    ['setting_id' => 11, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin:blob'), 'load_policy' => 'yes'],
+    ['setting_id' => 12, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN:CACHE', 'load_policy' => 'yes'],
+    ['setting_id' => 13, 'key_name' => 'plugin_added', 'key_value' => '49', 'load_policy' => 'yes'],
 ];
 
-$plan = SQLiteCastCollationLikeCurrentSourceNextPlan::optionRowValueCastScan(
+$plan = SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan(
     $currentRows,
     $nextRows,
     'TEXT',

@@ -11,22 +11,22 @@ use PortLibs\LibSqlite\SQLiteJsonbCheckCurrentNextPlan;
 $jsonb = static fn (array $value): SQLiteBlobValue => new SQLiteBlobValue(SQLiteJsonB::encode($value));
 
 $schema = <<<'SQL'
-CREATE TABLE wp_options(
-  option_id INTEGER PRIMARY KEY,
-  option_name TEXT NOT NULL,
-  option_value BLOB,
-  autoload TEXT,
-  CHECK(json_valid(option_value, 8)),
-  CHECK(json_type(option_value, '$.plugin.slug') = 'text'),
-  CHECK(json_type(option_value, '$.plugin.description') = 'text'),
-  CHECK(json_extract(option_value, '$.plugin.channel') IN ('stable','beta') OR json_extract(option_value, '$.plugin.channel') IS NULL),
-  CHECK(json_extract(option_value, '$.plugin.priority') IS NULL OR json_extract(option_value, '$.plugin.priority') <= 10)
+CREATE TABLE app_settings(
+  setting_id INTEGER PRIMARY KEY,
+  key_name TEXT NOT NULL,
+  key_value BLOB,
+  load_policy TEXT,
+  CHECK(json_valid(key_value, 8)),
+  CHECK(json_type(key_value, '$.plugin.slug') = 'text'),
+  CHECK(json_type(key_value, '$.plugin.description') = 'text'),
+  CHECK(json_extract(key_value, '$.plugin.channel') IN ('stable','beta') OR json_extract(key_value, '$.plugin.channel') IS NULL),
+  CHECK(json_extract(key_value, '$.plugin.priority') IS NULL OR json_extract(key_value, '$.plugin.priority') <= 10)
 )
 SQL;
 
 $plan = SQLiteJsonbCheckCurrentNextPlan::plan($schema, [
-    ['option_id' => 301, 'option_name' => 'plugin_alpha_settings', 'option_value' => $jsonb(['plugin' => ['slug' => 'alpha', 'channel' => 'stable', 'priority' => 5]]), 'autoload' => 'yes'],
-    ['option_id' => 302, 'option_name' => 'plugin_beta_settings', 'option_value' => $jsonb(['plugin' => ['slug' => 'beta']]), 'autoload' => 'no'],
+    ['setting_id' => 301, 'key_name' => 'plugin_alpha_settings', 'key_value' => $jsonb(['plugin' => ['slug' => 'alpha', 'channel' => 'stable', 'priority' => 5]]), 'load_policy' => 'yes'],
+    ['setting_id' => 302, 'key_name' => 'plugin_beta_settings', 'key_value' => $jsonb(['plugin' => ['slug' => 'beta']]), 'load_policy' => 'no'],
 ], [
     ['op' => 'UPDATE', 'rowid' => 301, 'mutations' => [
         ['function' => 'jsonb_set', 'path' => '$.plugin.description', 'value' => 'Alpha updated'],
@@ -34,7 +34,7 @@ $plan = SQLiteJsonbCheckCurrentNextPlan::plan($schema, [
     ['op' => 'UPDATE', 'rowid' => 302, 'mutations' => [
         ['function' => 'jsonb_set', 'path' => '$.plugin.channel', 'value' => 'nightly'],
     ]],
-    ['op' => 'INSERT', 'row' => ['option_id' => 303, 'option_name' => 'plugin_delta_settings', 'option_value' => $jsonb(['plugin' => ['slug' => 'delta', 'priority' => 11]]), 'autoload' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 303, 'key_name' => 'plugin_delta_settings', 'key_value' => $jsonb(['plugin' => ['slug' => 'delta', 'priority' => 11]]), 'load_policy' => 'no']],
 ]);
 
 $nullableDescriptionTerm = $plan['current'][0]['checks'][2]['terms'][0];
@@ -49,5 +49,5 @@ echo json_encode([
     'nullableDescriptionResult' => $nullableDescriptionTerm['result'],
     'nullableDescriptionOk' => $nullableDescriptionTerm['ok'],
     'failedChannelOrActual' => $channelOrTerm['actual'],
-    'applicationUse' => 'Preflight copied wp_options JSONB plugin settings with optional JSON paths before admitting current/next rows to storage.',
+    'applicationUse' => 'Preflight application settings JSONB plugin settings with optional JSON paths before admitting current/next rows to storage.',
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;

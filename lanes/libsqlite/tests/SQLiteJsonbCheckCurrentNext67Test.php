@@ -9,23 +9,23 @@ use PortLibs\LibSqlite\SQLiteJsonbCheckCurrentNextPlan;
 $jsonb67 = static fn (array $value): SQLiteBlobValue => new SQLiteBlobValue(SQLiteJsonB::encode($value));
 
 $schema67 = <<<'SQL'
-CREATE TABLE wp_options(
-  option_id INTEGER PRIMARY KEY,
-  option_name TEXT NOT NULL,
-  option_value BLOB,
-  autoload TEXT,
-  CHECK(json_valid(option_value, 8)),
-  CHECK(json_extract(option_value, '$.plugin.channel') = 'stable' OR json_extract(option_value, '$.plugin.channel') = 'beta'),
-  CHECK(NOT json_extract(option_value, '$.plugin.deprecated')),
-  CHECK(json_extract(option_value, '$.plugin.requires') IS NULL OR json_extract(option_value, '$.plugin.requires') <= 6.7),
-  CHECK(NOT (json_extract(option_value, '$.plugin.channel') = 'beta' AND json_extract(option_value, '$.plugin.rank') > 50))
+CREATE TABLE app_settings(
+  setting_id INTEGER PRIMARY KEY,
+  key_name TEXT NOT NULL,
+  key_value BLOB,
+  load_policy TEXT,
+  CHECK(json_valid(key_value, 8)),
+  CHECK(json_extract(key_value, '$.plugin.channel') = 'stable' OR json_extract(key_value, '$.plugin.channel') = 'beta'),
+  CHECK(NOT json_extract(key_value, '$.plugin.deprecated')),
+  CHECK(json_extract(key_value, '$.plugin.requires') IS NULL OR json_extract(key_value, '$.plugin.requires') <= 6.7),
+  CHECK(NOT (json_extract(key_value, '$.plugin.channel') = 'beta' AND json_extract(key_value, '$.plugin.rank') > 50))
 )
 SQL;
 
 $rows67 = [
-    ['option_id' => 301, 'option_name' => 'plugin_alpha_settings', 'option_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 10, 'deprecated' => false, 'requires' => 6.5]]), 'autoload' => 'yes'],
-    ['option_id' => 302, 'option_name' => 'plugin_beta_settings', 'option_value' => $jsonb67(['plugin' => ['channel' => 'beta', 'rank' => 40, 'deprecated' => false]]), 'autoload' => 'yes'],
-    ['option_id' => 303, 'option_name' => 'plugin_legacy_settings', 'option_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 45, 'deprecated' => false, 'requires' => 6.4]]), 'autoload' => 'no'],
+    ['setting_id' => 301, 'key_name' => 'plugin_alpha_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 10, 'deprecated' => false, 'requires' => 6.5]]), 'load_policy' => 'yes'],
+    ['setting_id' => 302, 'key_name' => 'plugin_beta_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'beta', 'rank' => 40, 'deprecated' => false]]), 'load_policy' => 'yes'],
+    ['setting_id' => 303, 'key_name' => 'plugin_legacy_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 45, 'deprecated' => false, 'requires' => 6.4]]), 'load_policy' => 'no'],
 ];
 
 $changes67 = [
@@ -39,10 +39,10 @@ $changes67 = [
     ['op' => 'UPDATE', 'rowid' => 303, 'mutations' => [
         ['function' => 'jsonb_set', 'path' => '$.plugin.deprecated', 'value' => true],
     ]],
-    ['op' => 'INSERT', 'row' => ['option_id' => 304, 'option_name' => 'plugin_future_settings', 'option_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 12, 'deprecated' => false, 'requires' => 6.8]]), 'autoload' => 'no']],
-    ['op' => 'INSERT', 'row' => ['option_id' => 305, 'option_name' => 'plugin_release_settings', 'option_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 15, 'deprecated' => false]]), 'autoload' => 'yes']],
-    ['op' => 'INSERT', 'row' => ['option_id' => 306, 'option_name' => 'plugin_nightly_settings', 'option_value' => $jsonb67(['plugin' => ['channel' => 'nightly', 'rank' => 15, 'deprecated' => false]]), 'autoload' => 'no']],
-    ['op' => 'INSERT', 'row' => ['option_id' => 307, 'option_name' => 'plugin_beta_import_settings', 'option_value' => $jsonb67(['plugin' => ['channel' => 'beta', 'rank' => 50, 'deprecated' => false, 'requires' => 6.7]]), 'autoload' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 304, 'key_name' => 'plugin_future_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 12, 'deprecated' => false, 'requires' => 6.8]]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 305, 'key_name' => 'plugin_release_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'stable', 'rank' => 15, 'deprecated' => false]]), 'load_policy' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 306, 'key_name' => 'plugin_nightly_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'nightly', 'rank' => 15, 'deprecated' => false]]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 307, 'key_name' => 'plugin_beta_import_settings', 'key_value' => $jsonb67(['plugin' => ['channel' => 'beta', 'rank' => 50, 'deprecated' => false, 'requires' => 6.7]]), 'load_policy' => 'yes']],
 ];
 
 $plan67 = static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema67, $rows67, $changes67);
@@ -54,13 +54,13 @@ $term67 = static function (array $plan, int $change, int $check, int $term = 0):
 $tests = [
     'jsonb check current next67 extracts logical check constraints' => static function (TestRunner $t) use ($plan67): void {
         $plan = $plan67();
-        $t->same('wp_options', $plan['table']);
+        $t->same('app_settings', $plan['table']);
         $t->same(5, count($plan['checks']));
     },
     'jsonb check current next67 preserves or and not sql text' => static function (TestRunner $t) use ($plan67): void {
         $checks = array_column($plan67()['checks'], 'sql');
-        $t->same("CHECK(json_extract(option_value, '$.plugin.channel') = 'stable' OR json_extract(option_value, '$.plugin.channel') = 'beta')", $checks[1]);
-        $t->same("CHECK(NOT json_extract(option_value, '$.plugin.deprecated'))", $checks[2]);
+        $t->same("CHECK(json_extract(key_value, '$.plugin.channel') = 'stable' OR json_extract(key_value, '$.plugin.channel') = 'beta')", $checks[1]);
+        $t->same("CHECK(NOT json_extract(key_value, '$.plugin.deprecated'))", $checks[2]);
     },
     'jsonb check current next67 current rows satisfy logical checks' => static function (TestRunner $t) use ($plan67): void {
         $t->same([true, true, true], array_column($plan67()['current'], 'ok'));
@@ -77,7 +77,7 @@ $tests = [
     },
     'jsonb check current next67 after rows preserve rejected current images' => static function (TestRunner $t) use ($plan67, $decode67): void {
         $after = $plan67()['after'];
-        $payloads = array_map(static fn (array $row): array => $decode67($row['option_value']), $after);
+        $payloads = array_map(static fn (array $row): array => $decode67($row['key_value']), $after);
         $t->same([35, 40, 45, 15, 50], array_map(static fn (array $payload): int => $payload['plugin']['rank'], $payloads));
     },
 ];
@@ -138,8 +138,8 @@ foreach ($childCases67 as $name => [$change, $check, $child, $ok, $actual]) {
 }
 
 $afterCases67 = [
-    'after names reflect accepted inserts only' => ['option_name', ['plugin_alpha_settings', 'plugin_beta_settings', 'plugin_legacy_settings', 'plugin_release_settings', 'plugin_beta_import_settings']],
-    'after autoload values keep accepted order' => ['autoload', ['yes', 'yes', 'no', 'yes', 'yes']],
+    'after names reflect accepted inserts only' => ['key_name', ['plugin_alpha_settings', 'plugin_beta_settings', 'plugin_legacy_settings', 'plugin_release_settings', 'plugin_beta_import_settings']],
+    'after load_policy values keep accepted order' => ['load_policy', ['yes', 'yes', 'no', 'yes', 'yes']],
 ];
 foreach ($afterCases67 as $name => [$column, $expected]) {
     $tests['jsonb check current next67 ' . $name] = static function (TestRunner $t) use ($plan67, $column, $expected): void {
@@ -168,8 +168,8 @@ foreach ($structureCases67 as $name => $case) {
 }
 
 $guardCases67 = [
-    'rejects unsupported OR expression literal fallback' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan('CREATE TABLE wp_options(option_id INTEGER PRIMARY KEY, option_value BLOB, CHECK(option_value OR missing_function(option_value)))', $rows67, []),
-    'rejects unsupported NOT function literal fallback' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan('CREATE TABLE wp_options(option_id INTEGER PRIMARY KEY, option_value BLOB, CHECK(NOT missing_function(option_value)))', $rows67, []),
+    'rejects unsupported OR expression literal fallback' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan('CREATE TABLE app_settings(setting_id INTEGER PRIMARY KEY, key_value BLOB, CHECK(key_value OR missing_function(key_value)))', $rows67, []),
+    'rejects unsupported NOT function literal fallback' => static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan('CREATE TABLE app_settings(setting_id INTEGER PRIMARY KEY, key_value BLOB, CHECK(NOT missing_function(key_value)))', $rows67, []),
 ];
 foreach ($guardCases67 as $name => $callable) {
     $tests['jsonb check current next67 ' . $name] = static function (TestRunner $t) use ($callable): void {

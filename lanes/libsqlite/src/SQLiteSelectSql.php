@@ -3445,6 +3445,40 @@ final class SQLiteSelectSql
             return $case;
         }
 
+        $comparison = self::topLevelComparisonExpressionOperator($sql);
+        if ($comparison !== null) {
+            [$offset, $operator] = $comparison;
+            $left = trim(substr($sql, 0, $offset));
+            $right = trim(substr($sql, $offset + strlen($operator)));
+            if ($left === '' || $right === '') {
+                throw new \InvalidArgumentException("SQLite SELECT SQL expression {$operator} needs both operands");
+            }
+
+            $predicate = [
+                'operator' => strtoupper($operator),
+                'left' => self::valueExpression($left, $tables),
+                'right' => self::valueExpression($right, $tables),
+            ];
+            if (strcasecmp($operator, 'LIKE') === 0 || strcasecmp($operator, 'NOT LIKE') === 0) {
+                $escapeParts = self::splitTopLevelByKeyword($right, 'ESCAPE');
+                if (count($escapeParts) > 2) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL LIKE expression supports one ESCAPE clause');
+                }
+                if (count($escapeParts) === 2) {
+                    if ($escapeParts[0] === '' || $escapeParts[1] === '') {
+                        throw new \InvalidArgumentException('SQLite SELECT SQL LIKE ESCAPE expression needs pattern and escape operands');
+                    }
+                    $predicate['right'] = self::valueExpression($escapeParts[0], $tables);
+                    $predicate['escape'] = self::valueExpression($escapeParts[1], $tables);
+                }
+            }
+
+            return [
+                'type' => 'predicate',
+                'predicate' => $predicate,
+            ];
+        }
+
         if (preg_match('/^(.+)\s+COLLATE\s+([A-Za-z_][A-Za-z0-9_]*)$/is', $sql, $match) === 1) {
             $collation = strtoupper($match[2]);
             if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
@@ -3571,7 +3605,7 @@ final class SQLiteSelectSql
         if (preg_match('/^[+-]?[0-9]+$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => (int) $sql];
         }
-        if (preg_match('/^[+-]?(?:[0-9]+\.[0-9]*|\.[0-9]+)$/', $sql) === 1) {
+        if (preg_match('/^[+-]?(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => (float) $sql];
         }
         if (strcasecmp($sql, 'NULL') === 0) {
@@ -4164,7 +4198,7 @@ final class SQLiteSelectSql
                 if ($operator === '|' && (($sql[$offset - 1] ?? null) === '|' || ($sql[$offset + 1] ?? null) === '|')) {
                     continue;
                 }
-                if (($operator === '+' || $operator === '-') && self::isUnarySign($sql, $offset)) {
+                if (($operator === '+' || $operator === '-') && (self::isUnarySign($sql, $offset) || self::isExponentSign($sql, $offset))) {
                     continue;
                 }
 
@@ -4175,6 +4209,81 @@ final class SQLiteSelectSql
         return null;
     }
 
+    /**
+     * @return array{0:int,1:string}|null
+     */
+    private static function topLevelComparisonExpressionOperator(string $sql): ?array
+    {
+        return self::topLevelComparisonExpressionOperatorIn($sql, ['IS NOT', 'NOT LIKE', 'NOT GLOB', 'LIKE', 'GLOB', 'IS', '==', '!=', '<>', '='])
+            ?? self::topLevelComparisonExpressionOperatorIn($sql, ['>=', '<=', '>', '<']);
+    }
+
+    /**
+     * @param list<string> $operators
+     * @return array{0:int,1:string}|null
+     */
+    private static function topLevelComparisonExpressionOperatorIn(string $sql, array $operators): ?array
+    {
+        $depth = 0;
+        $quote = false;
+        for ($i = strlen($sql) - 1; $i >= 0; $i--) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($i > 0 && $sql[$i - 1] === "'") {
+                    $i--;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                continue;
+            }
+            if ($char === ')') {
+                $depth++;
+                continue;
+            }
+            if ($char === '(') {
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+
+            foreach ($operators as $operator) {
+                $offset = $i - strlen($operator) + 1;
+                if ($offset < 0 || strcasecmp(substr($sql, $offset, strlen($operator)), $operator) !== 0) {
+                    continue;
+                }
+                if (ctype_alpha($operator[0]) && !self::keywordBounded($sql, $offset, strlen($operator))) {
+                    continue;
+                }
+                if (!ctype_alpha($operator[0]) && !self::symbolOperatorBounded($sql, $offset, $operator)) {
+                    continue;
+                }
+
+                return [$offset, $operator];
+            }
+        }
+
+        return null;
+    }
+
+    private static function symbolOperatorBounded(string $sql, int $offset, string $operator): bool
+    {
+        $before = $sql[$offset - 1] ?? '';
+        $after = $sql[$offset + strlen($operator)] ?? '';
+        if (($operator === '>' || $operator === '<' || $operator === '=') && ($before === '<' || $before === '>' || $before === '!' || $after === '=' || $after === '>')) {
+            return false;
+        }
+        if (($operator === '>=' || $operator === '<=' || $operator === '<>' || $operator === '!=' || $operator === '==') && ($before === '<' || $before === '>' || $before === '!' || $before === '=' || $after === '=' || $after === '>')) {
+            return false;
+        }
+
+        return true;
+    }
+
     private static function isUnarySign(string $sql, int $offset): bool
     {
         $before = rtrim(substr($sql, 0, $offset));
@@ -4183,6 +4292,14 @@ final class SQLiteSelectSql
         }
 
         return str_contains('+-*/%&|~(<', substr($before, -1));
+    }
+
+    private static function isExponentSign(string $sql, int $offset): bool
+    {
+        $before = $sql[$offset - 1] ?? '';
+        $after = $sql[$offset + 1] ?? '';
+
+        return ($before === 'e' || $before === 'E') && ctype_digit($after);
     }
 
     /**

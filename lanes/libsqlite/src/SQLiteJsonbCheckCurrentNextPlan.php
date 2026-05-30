@@ -348,7 +348,7 @@ final class SQLiteJsonbCheckCurrentNextPlan
             $row[$column] = $value;
         }
         foreach (($change['mutations'] ?? []) as $mutation) {
-            $column = $mutation['column'] ?? 'option_value';
+            $column = $mutation['column'] ?? 'key_value';
             $row[$column] = SQLiteJsonMutation::mutateSqlFunction($mutation['function'], $row[$column] ?? null, $mutation['path'], $mutation['value']);
         }
 
@@ -371,13 +371,13 @@ final class SQLiteJsonbCheckCurrentNextPlan
 
     private static function rowid(array $row): int|string
     {
-        foreach (['rowid', 'option_id', 'id'] as $column) {
+        foreach (['rowid', 'setting_id', 'id'] as $column) {
             if (isset($row[$column]) && (is_int($row[$column]) || is_string($row[$column]))) {
                 return $row[$column];
             }
         }
 
-        throw new \InvalidArgumentException('SQLite JSONB CHECK row requires rowid, option_id, or id');
+        throw new \InvalidArgumentException('SQLite JSONB CHECK row requires rowid, setting_id, or id');
     }
 
     /**

@@ -137,20 +137,20 @@ final class SQLiteCastRtrimLikeCurrentSourceNextPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException('SQLite CAST RTRIM LIKE rows must be arrays');
             }
-            foreach (['option_id', 'option_value'] as $column) {
+            foreach (['setting_id', 'key_value'] as $column) {
                 if (!array_key_exists($column, $row)) {
                     throw new \InvalidArgumentException("SQLite CAST RTRIM LIKE row is missing {$column}");
                 }
             }
-            if (!is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite CAST RTRIM LIKE option_id must be an integer');
+            if (!is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite CAST RTRIM LIKE setting_id must be an integer');
             }
         }
 
         $castTarget = self::castTargetSql($castTarget);
         $castRows = SQLiteSelectSql::execute(
-            "SELECT option_id, option_value, CAST(option_value AS {$castTarget}) AS cast_value FROM wp_options ORDER BY option_id",
-            ['wp_options' => $rows],
+            "SELECT setting_id, key_value, CAST(key_value AS {$castTarget}) AS cast_value FROM app_settings ORDER BY setting_id",
+            ['app_settings' => $rows],
         );
 
         $trace = [];
@@ -162,8 +162,8 @@ final class SQLiteCastRtrimLikeCurrentSourceNextPlan
                 && ($range['upperBound'] === null || strcmp($rtrimKey, $range['upperBound']) < 0);
             $matched = $candidate && SQLiteDatabase::likeMatches($castText, $pattern, $escape, true);
             $trace[] = [
-                'rowid' => $row['option_id'],
-                'originalStorage' => self::storageClass($row['option_value']),
+                'rowid' => $row['setting_id'],
+                'originalStorage' => self::storageClass($row['key_value']),
                 'castStorage' => self::storageClass($castValue),
                 'castValue' => $castValue instanceof SQLiteBlobValue ? $castValue->bytes : $castValue,
                 'castText' => $castText,

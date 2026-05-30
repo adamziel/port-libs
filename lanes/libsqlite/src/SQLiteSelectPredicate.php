@@ -382,9 +382,9 @@ final class SQLiteSelectPredicate
             return match ($type) {
                 'column' => self::columnExpression($row, $expression),
                 'literal' => $expression['value'] ?? null,
-                'function', 'cast', 'unary', 'binary', 'row', 'subquery', 'case' => SQLiteSelectExpression::evaluate($row, $expression),
+                'function', 'cast', 'unary', 'binary', 'predicate', 'row', 'subquery', 'case' => SQLiteSelectExpression::evaluate($row, $expression),
                 'collate' => self::collateExpression($row, $expression),
-                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, cast, unary, binary, row, subquery, case, or collate'),
+                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, cast, unary, binary, predicate, row, subquery, case, or collate'),
             };
         }
 

@@ -1589,6 +1589,9 @@ final class SQLiteCoreScalarFunction
     private static function formatFloat(float $value): string
     {
         $formatted = sprintf('%.15G', $value);
+        if (!str_contains($formatted, '.') && !str_contains($formatted, 'E')) {
+            $formatted .= '.0';
+        }
 
         return str_contains($formatted, 'E') ? str_replace('E', 'e', $formatted) : $formatted;
     }

@@ -8,29 +8,29 @@ use PortLibs\LibSqlite\SQLiteCastLikeGlobAffinityCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'plugin:alpha'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'plugin:beta'],
-    ['option_id' => 3, 'option_name' => 'active_plugins', 'option_value' => new SQLiteBlobValue('plugin:blob')],
-    ['option_id' => 4, 'option_name' => 'retry_count', 'option_value' => '42 widgets'],
-    ['option_id' => 5, 'option_name' => 'theme', 'option_value' => 'theme:alpha'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin:alpha'],
+    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin:beta'],
+    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin:blob')],
+    ['setting_id' => 4, 'key_name' => 'retry_count', 'key_value' => '42 widgets'],
+    ['setting_id' => 5, 'key_name' => 'theme', 'key_value' => 'theme:alpha'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'plugin:alpha'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'plugin:beta2'],
-    ['option_id' => 3, 'option_name' => 'active_plugins', 'option_value' => new SQLiteBlobValue('plugin:blob2')],
-    ['option_id' => 4, 'option_name' => 'retry_count', 'option_value' => 42],
-    ['option_id' => 6, 'option_name' => 'fresh', 'option_value' => 'plugin:fresh'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin:alpha'],
+    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin:beta2'],
+    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin:blob2')],
+    ['setting_id' => 4, 'key_name' => 'retry_count', 'key_value' => 42],
+    ['setting_id' => 6, 'key_name' => 'fresh', 'key_value' => 'plugin:fresh'],
 ];
 
-$like = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
+$like = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
     'TEXT',
     'plugin:%',
     'LIKE',
 );
-$glob = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
+$glob = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
     'INTEGER',
@@ -40,7 +40,7 @@ $glob = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::optionRowValuePlan(
 
 $summary = [
     'scenario' => 'application-cast-like-glob-affinity-current-source-next133',
-    'applicationUse' => 'Copied wp_options import scans can evaluate CAST(option_value AS ...) through BINARY LIKE/GLOB prefix candidates and residuals while invalidating stale cursors when the next source changes cast text, encoded bytes, or matched rowsets.',
+    'applicationUse' => 'Copied app_settings import scans can evaluate CAST(key_value AS ...) through BINARY LIKE/GLOB prefix candidates and residuals while invalidating stale cursors when the next source changes cast text, encoded bytes, or matched rowsets.',
     'likeCurrentRowids' => $like['currentRowids'],
     'likeNextRowids' => $like['nextRowids'],
     'likeChangedTextRowids' => $like['changedTextRowids'],

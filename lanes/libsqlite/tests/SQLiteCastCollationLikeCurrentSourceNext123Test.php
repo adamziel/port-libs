@@ -8,28 +8,28 @@ use PortLibs\LibSqlite\SQLiteCastCollationLikeCurrentSourceNextPlan;
 $tests = [];
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'plugin_rate', 'option_value' => '4.5ms', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_limit', 'option_value' => '42 widgets', 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'plugin_zero', 'option_value' => 'off', 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin:blob  '), 'autoload' => 'yes'],
-    ['option_id' => 6, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN:CACHE', 'autoload' => 'yes'],
-    ['option_id' => 7, 'option_name' => 'plugin_spaces', 'option_value' => 'plugin:cache  ', 'autoload' => 'yes'],
-    ['option_id' => 8, 'option_name' => 'plugin_tab', 'option_value' => "plugin:cache\t", 'autoload' => 'yes'],
-    ['option_id' => 9, 'option_name' => 'plugin_null', 'option_value' => null, 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'plugin_rate', 'key_value' => '4.5ms', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'plugin_limit', 'key_value' => '42 widgets', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'plugin_zero', 'key_value' => 'off', 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin:blob  '), 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN:CACHE', 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'plugin_spaces', 'key_value' => 'plugin:cache  ', 'load_policy' => 'yes'],
+    ['setting_id' => 8, 'key_name' => 'plugin_tab', 'key_value' => "plugin:cache\t", 'load_policy' => 'yes'],
+    ['setting_id' => 9, 'key_name' => 'plugin_null', 'key_value' => null, 'load_policy' => 'no'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'plugin_rate', 'option_value' => '5.5ms', 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'plugin_limit', 'option_value' => '42 widgets', 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'plugin_zero', 'option_value' => 'off', 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin:blob'), 'autoload' => 'yes'],
-    ['option_id' => 6, 'option_name' => 'plugin_upper', 'option_value' => 'PLUGIN:CACHE', 'autoload' => 'yes'],
-    ['option_id' => 7, 'option_name' => 'plugin_spaces', 'option_value' => 'plugin:cache', 'autoload' => 'yes'],
-    ['option_id' => 8, 'option_name' => 'plugin_tab', 'option_value' => "plugin:cache\t", 'autoload' => 'yes'],
-    ['option_id' => 9, 'option_name' => 'plugin_null', 'option_value' => null, 'autoload' => 'no'],
-    ['option_id' => 10, 'option_name' => 'plugin_added', 'option_value' => '49', 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'plugin_rate', 'key_value' => '5.5ms', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'plugin_limit', 'key_value' => '42 widgets', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'plugin_zero', 'key_value' => 'off', 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin:blob'), 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN:CACHE', 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'plugin_spaces', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 8, 'key_name' => 'plugin_tab', 'key_value' => "plugin:cache\t", 'load_policy' => 'yes'],
+    ['setting_id' => 9, 'key_name' => 'plugin_null', 'key_value' => null, 'load_policy' => 'no'],
+    ['setting_id' => 10, 'key_name' => 'plugin_added', 'key_value' => '49', 'load_policy' => 'yes'],
 ];
 
 $textPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan(
@@ -183,19 +183,19 @@ $tests['cast collation like current source next123 rejects unsupported collation
 };
 
 $tests['cast collation like current source next123 rejects malformed cast target'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT); DROP TABLE wp_options; --', '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT); DROP TABLE app_settings; --', '%'));
 };
 
-$tests['cast collation like current source next123 rejects missing option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan([['option_value' => 'plugin']], [], 'TEXT', '%'));
+$tests['cast collation like current source next123 rejects missing setting id'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan([['key_value' => 'plugin']], [], 'TEXT', '%'));
 };
 
-$tests['cast collation like current source next123 rejects missing option value'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan([['option_id' => 1]], [], 'TEXT', '%'));
+$tests['cast collation like current source next123 rejects missing setting value'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan([['setting_id' => 1]], [], 'TEXT', '%'));
 };
 
-$tests['cast collation like current source next123 rejects non integer option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan([['option_id' => '1', 'option_value' => 'plugin']], [], 'TEXT', '%'));
+$tests['cast collation like current source next123 rejects non integer setting id'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan([['setting_id' => '1', 'key_value' => 'plugin']], [], 'TEXT', '%'));
 };
 
 $tests['cast collation like current source next123 rejects multi-byte escape'] = static function (TestRunner $t) use ($currentRows): void {
@@ -208,7 +208,7 @@ $tests['cast collation like current source next123 accepts decimal type target']
 };
 
 $tests['cast collation like current source next123 escaped LIKE pattern matches literal underscore'] = static function (TestRunner $t): void {
-    $rows = [['option_id' => 1, 'option_value' => 'plugin_key'], ['option_id' => 2, 'option_value' => 'pluginXkey']];
+    $rows = [['setting_id' => 1, 'key_value' => 'plugin_key'], ['setting_id' => 2, 'key_value' => 'pluginXkey']];
     $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($rows, $rows, 'TEXT', 'plugin!_key', 'LIKE', 'BINARY', '!');
     $t->same([1], $plan['currentRowids']);
 };

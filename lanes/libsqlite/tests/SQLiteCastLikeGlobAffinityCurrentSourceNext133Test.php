@@ -8,37 +8,37 @@ use PortLibs\LibSqlite\SQLiteCastLikeGlobAffinityCurrentSourceNextPlan;
 $tests = [];
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'plugin:alpha'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'plugin:beta'],
-    ['option_id' => 3, 'option_name' => 'template', 'option_value' => 'Plugin:Beta'],
-    ['option_id' => 4, 'option_name' => 'stylesheet', 'option_value' => 'plugin:%literal'],
-    ['option_id' => 5, 'option_name' => 'active_plugins', 'option_value' => new SQLiteBlobValue('plugin:blob')],
-    ['option_id' => 6, 'option_name' => 'retry_count', 'option_value' => '42 widgets'],
-    ['option_id' => 7, 'option_name' => 'decimal_rate', 'option_value' => '4.5ms'],
-    ['option_id' => 8, 'option_name' => 'true_flag', 'option_value' => true],
-    ['option_id' => 9, 'option_name' => 'false_flag', 'option_value' => false],
-    ['option_id' => 10, 'option_name' => 'null_flag', 'option_value' => null],
-    ['option_id' => 11, 'option_name' => 'unicode', 'option_value' => 'plugin:éclair'],
-    ['option_id' => 12, 'option_name' => 'emoji', 'option_value' => 'plugin:😀'],
-    ['option_id' => 13, 'option_name' => 'theme', 'option_value' => 'theme:alpha'],
-    ['option_id' => 14, 'option_name' => 'text_zero', 'option_value' => '0plugin'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin:alpha'],
+    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin:beta'],
+    ['setting_id' => 3, 'key_name' => 'template', 'key_value' => 'Plugin:Beta'],
+    ['setting_id' => 4, 'key_name' => 'stylesheet', 'key_value' => 'plugin:%literal'],
+    ['setting_id' => 5, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin:blob')],
+    ['setting_id' => 6, 'key_name' => 'retry_count', 'key_value' => '42 widgets'],
+    ['setting_id' => 7, 'key_name' => 'decimal_rate', 'key_value' => '4.5ms'],
+    ['setting_id' => 8, 'key_name' => 'true_flag', 'key_value' => true],
+    ['setting_id' => 9, 'key_name' => 'false_flag', 'key_value' => false],
+    ['setting_id' => 10, 'key_name' => 'null_flag', 'key_value' => null],
+    ['setting_id' => 11, 'key_name' => 'unicode', 'key_value' => 'plugin:éclair'],
+    ['setting_id' => 12, 'key_name' => 'emoji', 'key_value' => 'plugin:😀'],
+    ['setting_id' => 13, 'key_name' => 'theme', 'key_value' => 'theme:alpha'],
+    ['setting_id' => 14, 'key_name' => 'text_zero', 'key_value' => '0plugin'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'plugin:alpha'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'plugin:beta2'],
-    ['option_id' => 3, 'option_name' => 'template', 'option_value' => 'Plugin:Beta'],
-    ['option_id' => 4, 'option_name' => 'stylesheet', 'option_value' => 'plugin:%literal'],
-    ['option_id' => 5, 'option_name' => 'active_plugins', 'option_value' => new SQLiteBlobValue('plugin:blob2')],
-    ['option_id' => 6, 'option_name' => 'retry_count', 'option_value' => 42],
-    ['option_id' => 7, 'option_name' => 'decimal_rate', 'option_value' => '5.5ms'],
-    ['option_id' => 8, 'option_name' => 'true_flag', 'option_value' => false],
-    ['option_id' => 9, 'option_name' => 'false_flag', 'option_value' => true],
-    ['option_id' => 10, 'option_name' => 'null_flag', 'option_value' => null],
-    ['option_id' => 11, 'option_name' => 'unicode', 'option_value' => 'plugin:éclair2'],
-    ['option_id' => 12, 'option_name' => 'emoji', 'option_value' => 'plugin:😀'],
-    ['option_id' => 15, 'option_name' => 'fresh', 'option_value' => 'plugin:fresh'],
-    ['option_id' => 14, 'option_name' => 'text_zero', 'option_value' => '0plugin'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin:alpha'],
+    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin:beta2'],
+    ['setting_id' => 3, 'key_name' => 'template', 'key_value' => 'Plugin:Beta'],
+    ['setting_id' => 4, 'key_name' => 'stylesheet', 'key_value' => 'plugin:%literal'],
+    ['setting_id' => 5, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin:blob2')],
+    ['setting_id' => 6, 'key_name' => 'retry_count', 'key_value' => 42],
+    ['setting_id' => 7, 'key_name' => 'decimal_rate', 'key_value' => '5.5ms'],
+    ['setting_id' => 8, 'key_name' => 'true_flag', 'key_value' => false],
+    ['setting_id' => 9, 'key_name' => 'false_flag', 'key_value' => true],
+    ['setting_id' => 10, 'key_name' => 'null_flag', 'key_value' => null],
+    ['setting_id' => 11, 'key_name' => 'unicode', 'key_value' => 'plugin:éclair2'],
+    ['setting_id' => 12, 'key_name' => 'emoji', 'key_value' => 'plugin:😀'],
+    ['setting_id' => 15, 'key_name' => 'fresh', 'key_value' => 'plugin:fresh'],
+    ['setting_id' => 14, 'key_name' => 'text_zero', 'key_value' => '0plugin'],
 ];
 
 $plan = static fn (
@@ -155,8 +155,8 @@ foreach ($cases as $name => [$castTarget, $pattern, $operator, $escape, $path, $
 
 $tests['cast like glob affinity current source next133 stable sources are reusable'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'plugin:alpha'],
-        ['option_id' => 2, 'option_value' => new SQLiteBlobValue('plugin:blob')],
+        ['setting_id' => 1, 'key_value' => 'plugin:alpha'],
+        ['setting_id' => 2, 'key_value' => new SQLiteBlobValue('plugin:blob')],
     ];
     $plan = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'TEXT', 'plugin:%', 'LIKE', null, 'stable', 'stable', 7, 7);
     $t->same([1, 2], $plan['currentRowids']);
@@ -165,7 +165,7 @@ $tests['cast like glob affinity current source next133 stable sources are reusab
 };
 
 $tests['cast like glob affinity current source next133 stable leading wildcard keeps no prefix reason'] = static function (TestRunner $t): void {
-    $rows = [['option_id' => 1, 'option_value' => 'plugin:alpha']];
+    $rows = [['setting_id' => 1, 'key_value' => 'plugin:alpha']];
     $plan = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'TEXT', '%alpha', 'LIKE', null, 'stable', 'stable', 7, 7);
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentRowids']);
@@ -173,7 +173,7 @@ $tests['cast like glob affinity current source next133 stable leading wildcard k
 };
 
 $tests['cast like glob affinity current source next133 stable glob leading class keeps no prefix reason'] = static function (TestRunner $t): void {
-    $rows = [['option_id' => 1, 'option_value' => 'plugin:alpha']];
+    $rows = [['setting_id' => 1, 'key_value' => 'plugin:alpha']];
     $plan = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'TEXT', '[Pp]lugin:*', 'GLOB', null, 'stable', 'stable', 7, 7);
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentRowids']);
@@ -181,7 +181,7 @@ $tests['cast like glob affinity current source next133 stable glob leading class
 };
 
 $tests['cast like glob affinity current source next133 rejects malformed cast target'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'TEXT); DROP TABLE wp_options; --', 'plugin:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'TEXT); DROP TABLE app_settings; --', 'plugin:%'));
 };
 
 $tests['cast like glob affinity current source next133 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows): void {
@@ -192,16 +192,16 @@ $tests['cast like glob affinity current source next133 rejects glob escape'] = s
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $currentRows, 'TEXT', 'plugin:*', 'GLOB', '!'));
 };
 
-$tests['cast like glob affinity current source next133 rejects missing option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['option_value' => 'plugin']], [], 'TEXT', 'plugin:%'));
+$tests['cast like glob affinity current source next133 rejects missing setting id'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['key_value' => 'plugin']], [], 'TEXT', 'plugin:%'));
 };
 
-$tests['cast like glob affinity current source next133 rejects missing option value'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => 1]], [], 'TEXT', 'plugin:%'));
+$tests['cast like glob affinity current source next133 rejects missing setting value'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['setting_id' => 1]], [], 'TEXT', 'plugin:%'));
 };
 
-$tests['cast like glob affinity current source next133 rejects non integer option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => '1', 'option_value' => 'plugin']], [], 'TEXT', 'plugin:%'));
+$tests['cast like glob affinity current source next133 rejects non integer setting id'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['setting_id' => '1', 'key_value' => 'plugin']], [], 'TEXT', 'plugin:%'));
 };
 
 $tests['cast like glob affinity current source next133 rejects multi byte escape'] = static function (TestRunner $t) use ($currentRows): void {

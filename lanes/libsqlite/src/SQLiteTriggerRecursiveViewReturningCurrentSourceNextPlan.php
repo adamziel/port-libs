@@ -7360,8 +7360,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             (string) ($options['next_source_resume_token'] ?? ($firstNextResume ?? 'no-next-source-row')),
             'next source resume token',
         );
-        $expectedSignature = self::signatureOptionCurrentSourceResumeFence($options['expected_source_signature'] ?? self::sourceSignatureCurrentSourceResumeFence($currentView, $returning), 'expected source signature');
-        $actualSignature = self::signatureOptionCurrentSourceResumeFence($options['source_signature'] ?? self::sourceSignatureCurrentSourceResumeFence($currentView, $returning), 'source signature');
+        $expectedSignature = self::signatureValueCurrentSourceResumeFence($options['expected_source_signature'] ?? self::sourceSignatureCurrentSourceResumeFence($currentView, $returning), 'expected source signature');
+        $actualSignature = self::signatureValueCurrentSourceResumeFence($options['source_signature'] ?? self::sourceSignatureCurrentSourceResumeFence($currentView, $returning), 'source signature');
 
         $resumeMatches = hash_equals($expectedResumeSource, $actualResumeSource);
         $nextResumeMatches = hash_equals($expectedNextResume, $actualNextResume);
@@ -7550,7 +7550,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'sig190:' . substr(hash('sha256', implode('|', $parts)), 0, 16);
     }
 
-    private static function signatureOptionCurrentSourceResumeFence(mixed $value, string $label): string
+    private static function signatureValueCurrentSourceResumeFence(mixed $value, string $label): string
     {
         $string = (string) $value;
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $string) !== 1) {
@@ -14089,7 +14089,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $options = self::withCurrentSourceTicketOptionAliases($options);
+        $options = self::withCurrentSourceTicketLegacyInputAliases($options);
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceEpochFence(
             $baseRows,
@@ -14483,7 +14483,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $options = self::withCurrentReturningSourceSealOptionAliases($options);
+        $options = self::withCurrentReturningSourceSealLegacyInputAliases($options);
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceEpochFence(
             $baseRows,
             $currentInput,
@@ -14604,7 +14604,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    private static function withCurrentReturningSourceSealOptionAliases(array $options): array
+    private static function withCurrentReturningSourceSealLegacyInputAliases(array $options): array
     {
         $aliases = [
             'current_returning_source_token_source_seal' => 'current_returning_source_token_next224',
@@ -15575,7 +15575,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $options = self::withCurrentReturningGenerationOptionAliases($options);
+        $options = self::withCurrentReturningGenerationLegacyInputAliases($options);
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentReturningSourceSeal(
             $baseRows,
             $currentInput,
@@ -15705,7 +15705,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    private static function withCurrentReturningGenerationOptionAliases(array $options): array
+    private static function withCurrentReturningGenerationLegacyInputAliases(array $options): array
     {
         $aliases = [
             'current_returning_source_generation' => 'current_returning_source_generation_next229',
@@ -16289,7 +16289,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $options = self::withCurrentSourceTicketOptionAliases($options);
+        $options = self::withCurrentSourceTicketLegacyInputAliases($options);
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceTicketFence(
             $baseRows,
             $currentInput,
@@ -16409,7 +16409,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    private static function withCurrentSourceTicketOptionAliases(array $options): array
+    private static function withCurrentSourceTicketLegacyInputAliases(array $options): array
     {
         $aliases = [
             'current_source_ticket' => 'current_source_ticket_next222',

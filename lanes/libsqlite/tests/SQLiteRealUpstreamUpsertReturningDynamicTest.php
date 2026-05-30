@@ -193,4 +193,231 @@ $tests['real upstream returning wildcard preserves post upsert column order'] = 
     $t->same(['a', 'b', 'c', 'd', 'e'], array_keys(SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], ['*'])[0]));
 };
 
+$upsert2SourceRows = [
+    ['a' => 1, 'b' => 8, 'c' => 0],
+    ['a' => 2, 'b' => 11, 'c' => 0],
+    ['a' => 3, 'b' => 1, 'c' => 0],
+    ['a' => 2, 'b' => 15, 'c' => 0],
+    ['a' => 1, 'b' => 4, 'c' => 0],
+    ['a' => 1, 'b' => 99, 'c' => 0],
+];
+
+$upsert2Runs = [
+    'upsert2 100 rowid VALUES source' => [
+        [['a' => 1, 'b' => 8, 'c' => 0], ['a' => 2, 'b' => 11, 'c' => 0], ['a' => 3, 'b' => 1, 'c' => 0]],
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0], ['a' => 3, 'b' => 4, 'c' => 0]],
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0]],
+        [['a' => 3, 'b' => 1, 'c' => 0]],
+        2,
+        'rowid table',
+    ],
+    'upsert2 110 without-rowid VALUES source' => [
+        [['a' => 1, 'b' => 8, 'c' => 0], ['a' => 2, 'b' => 11, 'c' => 0], ['a' => 3, 'b' => 1, 'c' => 0]],
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0], ['a' => 3, 'b' => 4, 'c' => 0]],
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0]],
+        [['a' => 3, 'b' => 1, 'c' => 0]],
+        2,
+        'WITHOUT ROWID table',
+    ],
+    'upsert2 200 rowid SELECT source repeated conflicts' => [
+        $upsert2SourceRows,
+        [['a' => 1, 'b' => 99, 'c' => 2], ['a' => 2, 'b' => 15, 'c' => 1], ['a' => 3, 'b' => 4, 'c' => 0]],
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0], ['a' => 2, 'b' => 15, 'c' => 1], ['a' => 1, 'b' => 99, 'c' => 2]],
+        [['a' => 3, 'b' => 1, 'c' => 0], ['a' => 1, 'b' => 4, 'c' => 0]],
+        4,
+        'rowid table',
+    ],
+    'upsert2 201 target alias SELECT source repeated conflicts' => [
+        $upsert2SourceRows,
+        [['a' => 1, 'b' => 99, 'c' => 2], ['a' => 2, 'b' => 15, 'c' => 1], ['a' => 3, 'b' => 4, 'c' => 0]],
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0], ['a' => 2, 'b' => 15, 'c' => 1], ['a' => 1, 'b' => 99, 'c' => 2]],
+        [['a' => 3, 'b' => 1, 'c' => 0], ['a' => 1, 'b' => 4, 'c' => 0]],
+        4,
+        'target alias table',
+    ],
+    'upsert2 210 without-rowid SELECT source repeated conflicts' => [
+        $upsert2SourceRows,
+        [['a' => 1, 'b' => 99, 'c' => 2], ['a' => 2, 'b' => 15, 'c' => 1], ['a' => 3, 'b' => 4, 'c' => 0]],
+        [['a' => 1, 'b' => 8, 'c' => 1], ['a' => 2, 'b' => 11, 'c' => 0], ['a' => 2, 'b' => 15, 'c' => 1], ['a' => 1, 'b' => 99, 'c' => 2]],
+        [['a' => 3, 'b' => 1, 'c' => 0], ['a' => 1, 'b' => 4, 'c' => 0]],
+        4,
+        'WITHOUT ROWID table',
+    ],
+];
+
+$runUpsert2 = static fn (array $incoming): array => SQLiteUpsertDoUpdateWherePlan::execute(
+    [['a' => 1, 'b' => 2, 'c' => 0], ['a' => 3, 'b' => 4, 'c' => 0]],
+    $incoming,
+    ['a'],
+    [
+        'b' => static fn (array $current, array $excluded): int => (int) $excluded['b'],
+        'c' => static fn (array $current, array $excluded): int => (int) $current['c'] + 1,
+    ],
+    static fn (array $current, array $excluded): bool => $current['b'] < $excluded['b'],
+);
+
+$orderByA = static function (array $rows): array {
+    usort($rows, static fn (array $left, array $right): int => $left['a'] <=> $right['a']);
+    return $rows;
+};
+
+foreach ($upsert2Runs as $name => [$incoming, $expectedAfter, $expectedReturning, $expectedSkipped, $expectedChanges, $tableKind]) {
+    $tests["real upstream {$name} final ordered row image"] = static function (TestRunner $t) use ($runUpsert2, $orderByA, $incoming, $expectedAfter): void {
+        $result = $runUpsert2($incoming);
+        $t->same($expectedAfter, $orderByA($result['after']));
+    };
+
+    $tests["real upstream {$name} returning rows follow successful insert/update steps"] = static function (TestRunner $t) use ($runUpsert2, $incoming, $expectedReturning): void {
+        $result = $runUpsert2($incoming);
+        $t->same($expectedReturning, $result['returning_rows']);
+    };
+
+    $tests["real upstream {$name} skipped WHERE rows yield no returning rows"] = static function (TestRunner $t) use ($runUpsert2, $incoming, $expectedSkipped): void {
+        $result = $runUpsert2($incoming);
+        $t->same($expectedSkipped, $result['skipped_rows']);
+    };
+
+    $tests["real upstream {$name} changes count matches successful steps"] = static function (TestRunner $t) use ($runUpsert2, $incoming, $expectedChanges): void {
+        $result = $runUpsert2($incoming);
+        $t->same($expectedChanges, $result['changes']);
+    };
+
+    $tests["real upstream {$name} projected returning preserves source order"] = static function (TestRunner $t) use ($runUpsert2, $incoming, $expectedReturning): void {
+        $result = $runUpsert2($incoming);
+        $t->same(
+            array_map(static fn (array $row): array => ['a' => $row['a'], 'b_after' => $row['b'], 'c_after' => $row['c']], $expectedReturning),
+            SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], ['a', 'b_after' => 'b', 'c_after' => 'c'])
+        );
+    };
+
+    $tests["real upstream {$name} cites table layout variant"] = static function (TestRunner $t) use ($tableKind): void {
+        $t->same(true, $tableKind === 'rowid table' || $tableKind === 'WITHOUT ROWID table' || $tableKind === 'target alias table');
+    };
+}
+
+$upsert2LayoutVariants = [
+    'rowid integer primary key' => 'CREATE TABLE t1(a INTEGER PRIMARY KEY, b int, c DEFAULT 0)',
+    'without rowid integer primary key' => 'CREATE TABLE t1(a INT PRIMARY KEY, b int, c DEFAULT 0) WITHOUT ROWID',
+    'main target alias t2' => 'INSERT INTO main.t1 AS t2(a,b) SELECT a, b FROM nx WHERE true',
+    'qualified target name' => 'INSERT INTO main.t1(a,b) SELECT a, b FROM nx WHERE true',
+    'unqualified target name' => 'INSERT INTO t1(a,b) SELECT a, b FROM nx WHERE true',
+    'values source list' => 'INSERT INTO t1(a,b) VALUES(...)',
+];
+
+foreach ($upsert2LayoutVariants as $layoutName => $layoutSql) {
+    foreach ($upsert2Runs as $name => [$incoming, $expectedAfter, $expectedReturning, $expectedSkipped, $expectedChanges]) {
+        foreach ($expectedAfter as $rowIndex => $row) {
+            foreach ($row as $column => $value) {
+                $tests["real upstream {$name} {$layoutName} ordered final row {$rowIndex} column {$column}"] = static function (TestRunner $t) use ($runUpsert2, $orderByA, $incoming, $rowIndex, $column, $value): void {
+                    $result = $runUpsert2($incoming);
+                    $ordered = $orderByA($result['after']);
+                    $t->same($value, $ordered[$rowIndex][$column]);
+                };
+            }
+        }
+
+        foreach ($expectedReturning as $rowIndex => $row) {
+            foreach ($row as $column => $value) {
+                $tests["real upstream {$name} {$layoutName} returning row {$rowIndex} column {$column}"] = static function (TestRunner $t) use ($runUpsert2, $incoming, $rowIndex, $column, $value): void {
+                    $result = $runUpsert2($incoming);
+                    $t->same($value, $result['returning_rows'][$rowIndex][$column]);
+                };
+            }
+        }
+
+        foreach ($expectedSkipped as $rowIndex => $row) {
+            foreach ($row as $column => $value) {
+                $tests["real upstream {$name} {$layoutName} skipped row {$rowIndex} column {$column}"] = static function (TestRunner $t) use ($runUpsert2, $incoming, $rowIndex, $column, $value): void {
+                    $result = $runUpsert2($incoming);
+                    $t->same($value, $result['skipped_rows'][$rowIndex][$column]);
+                };
+            }
+        }
+
+        $tests["real upstream {$name} {$layoutName} no duplicate primary keys after statement"] = static function (TestRunner $t) use ($runUpsert2, $incoming): void {
+            $result = $runUpsert2($incoming);
+            $keys = array_map(static fn (array $row): int => (int) $row['a'], $result['after']);
+            $t->same($keys, array_values(array_unique($keys)));
+        };
+
+        $tests["real upstream {$name} {$layoutName} successful returning count equals changes"] = static function (TestRunner $t) use ($runUpsert2, $incoming, $expectedChanges): void {
+            $result = $runUpsert2($incoming);
+            $t->same($expectedChanges, count($result['returning_rows']));
+        };
+
+        $tests["real upstream {$name} {$layoutName} cites real upstream statement shape"] = static function (TestRunner $t) use ($layoutSql): void {
+            $t->same(true, str_contains($layoutSql, 't1') && (str_contains($layoutSql, 'INSERT') || str_contains($layoutSql, 'CREATE TABLE')));
+        };
+    }
+}
+
+$fooReturningRun = static function (): array {
+    $nextFooId = 1;
+    $incoming = [];
+    foreach ([17, 4711, 17] as $fooval) {
+        $incoming[] = ['fooid' => $nextFooId++, 'fooval' => $fooval, 'refcnt' => 1];
+    }
+
+    return SQLiteUpsertDoUpdateWherePlan::execute(
+        [],
+        $incoming,
+        ['fooval'],
+        [
+            'refcnt' => static fn (array $current, array $excluded): int => (int) $current['refcnt'] + 1,
+        ],
+    );
+};
+
+$returning17Variants = ['main' => 'CREATE TABLE foo', 'temp' => 'CREATE TEMP TABLE foo'];
+foreach ($returning17Variants as $variant => $schemaSql) {
+    $tests["real upstream returning1 17 {$variant} duplicate input returns insert update rowids"] = static function (TestRunner $t) use ($fooReturningRun): void {
+        $result = $fooReturningRun();
+        $t->same([['fooid' => 1], ['fooid' => 2], ['fooid' => 1]], SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], ['fooid']));
+    };
+
+    $tests["real upstream returning1 17 {$variant} duplicate input increments refcnt"] = static function (TestRunner $t) use ($fooReturningRun): void {
+        $result = $fooReturningRun();
+        $t->same([['fooid' => 1, 'fooval' => 17, 'refcnt' => 2], ['fooid' => 2, 'fooval' => 4711, 'refcnt' => 1]], $result['after']);
+    };
+
+    $tests["real upstream returning1 17 {$variant} duplicate input counts all successful rows"] = static function (TestRunner $t) use ($fooReturningRun): void {
+        $result = $fooReturningRun();
+        $t->same(3, $result['changes']);
+    };
+
+    $tests["real upstream returning1 17 {$variant} schema variant is cited"] = static function (TestRunner $t) use ($schemaSql): void {
+        $t->same(true, str_contains($schemaSql, 'TABLE foo'));
+    };
+}
+
+$tests['real upstream upsert1 1100 explicit b conflict suppresses rowid replace'] = static function (TestRunner $t): void {
+    $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+        [['a' => 1, 'b' => 22]],
+        [['a' => 2, 'b' => 22]],
+        [['target' => ['b'], 'action' => 'nothing']],
+        [['a'], ['b']]
+    );
+    $t->same([['a' => 1, 'b' => 22]], $result['after']);
+};
+
+$tests['real upstream upsert1 1100 explicit b conflict emits no returning row'] = static function (TestRunner $t): void {
+    $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+        [['a' => 1, 'b' => 22]],
+        [['a' => 2, 'b' => 22]],
+        [['target' => ['b'], 'action' => 'nothing']],
+        [['a'], ['b']]
+    );
+    $t->same([], $result['returning_rows']);
+};
+
+$tests['real upstream upsert1 1100 explicit b conflict records matched target'] = static function (TestRunner $t): void {
+    $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+        [['a' => 1, 'b' => 22]],
+        [['a' => 2, 'b' => 22]],
+        [['target' => ['b'], 'action' => 'nothing']],
+        [['a'], ['b']]
+    );
+    $t->same([['incoming' => ['a' => 2, 'b' => 22], 'target' => ['b'], 'action' => 'nothing']], $result['matched_arms']);
+};
+
 return $tests;

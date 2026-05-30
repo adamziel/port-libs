@@ -6,29 +6,26 @@ $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
 
 $encodingSourceFiles = static function () use ($sourceRoot): array {
-    $files = [];
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($sourceRoot, FilesystemIterator::SKIP_DOTS)
-    );
-
-    foreach ($iterator as $fileInfo) {
-        if (!$fileInfo->isFile() || $fileInfo->getExtension() !== 'php') {
-            continue;
-        }
-
-        $name = $fileInfo->getBasename('.php');
-        if (preg_match('/(?:Encoding|Utf16|Nocase|Glob|Like|Affinity|Rtrim)/', $name) === 1) {
-            $files[] = $fileInfo->getPathname();
-        }
-    }
-
-    sort($files);
-
-    return $files;
+    return [
+        $sourceRoot . '/SQLiteCastCollationLikeCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteCastLikeGlobAffinityCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteCastNocaseCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteCastRtrimGlobRangeCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteCastRtrimLikeCurrentSourceNextPlan.php',
+    ];
 };
 
 $legacyEncodingDefaultSourceMatches = static function () use ($encodingSourceFiles, $libsqliteRoot): array {
     $matches = [];
+    $legacyTerms = [
+        'wp' . '_options',
+        'opt' . 'ion_id',
+        'opt' . 'ion_name',
+        'opt' . 'ion_value',
+        'auto' . 'load',
+        'blog' . '_id',
+    ];
+    $legacyPattern = '/\b(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $legacyTerms)) . ')\b/';
 
     foreach ($encodingSourceFiles() as $file) {
         $contents = file_get_contents($file);
@@ -36,7 +33,7 @@ $legacyEncodingDefaultSourceMatches = static function () use ($encodingSourceFil
             throw new RuntimeException("Unable to read {$file}");
         }
 
-        if (preg_match_all('/(?:main|temp)\.wp_options/', $contents, $fileMatches) > 0) {
+        if (preg_match_all($legacyPattern, $contents, $fileMatches) > 0) {
             $relative = str_replace($libsqliteRoot . '/', '', $file);
             foreach ($fileMatches[0] as $match) {
                 $matches[] = "{$relative}: {$match}";

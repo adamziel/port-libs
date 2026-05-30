@@ -8,37 +8,37 @@ use PortLibs\LibSqlite\SQLiteCastRtrimLikeCurrentSourceNextPlan;
 $tests = [];
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'plugin_cache '],
-    ['option_id' => 3, 'option_name' => 'blogname', 'option_value' => 'plugin_cache  '],
-    ['option_id' => 4, 'option_name' => 'template', 'option_value' => "plugin_cache\t"],
-    ['option_id' => 5, 'option_name' => 'stylesheet', 'option_value' => 'plugin_cache_extra'],
-    ['option_id' => 6, 'option_name' => 'active_plugins', 'option_value' => new SQLiteBlobValue('plugin_blob ')],
-    ['option_id' => 7, 'option_name' => 'retry_count', 'option_value' => '42 widgets'],
-    ['option_id' => 8, 'option_name' => 'decimal_rate', 'option_value' => '4.5ms'],
-    ['option_id' => 9, 'option_name' => 'zero_flag', 'option_value' => false],
-    ['option_id' => 10, 'option_name' => 'null_flag', 'option_value' => null],
-    ['option_id' => 11, 'option_name' => 'unicode', 'option_value' => 'plugin_eclair '],
-    ['option_id' => 12, 'option_name' => 'upper', 'option_value' => 'Plugin_Cache'],
-    ['option_id' => 13, 'option_name' => 'literal_under', 'option_value' => 'plugin_100%_enabled '],
-    ['option_id' => 14, 'option_name' => 'theme', 'option_value' => 'theme_cache'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin_cache '],
+    ['setting_id' => 3, 'key_name' => 'site_label', 'key_value' => 'plugin_cache  '],
+    ['setting_id' => 4, 'key_name' => 'template', 'key_value' => "plugin_cache\t"],
+    ['setting_id' => 5, 'key_name' => 'stylesheet', 'key_value' => 'plugin_cache_extra'],
+    ['setting_id' => 6, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin_blob ')],
+    ['setting_id' => 7, 'key_name' => 'retry_count', 'key_value' => '42 widgets'],
+    ['setting_id' => 8, 'key_name' => 'decimal_rate', 'key_value' => '4.5ms'],
+    ['setting_id' => 9, 'key_name' => 'zero_flag', 'key_value' => false],
+    ['setting_id' => 10, 'key_name' => 'null_flag', 'key_value' => null],
+    ['setting_id' => 11, 'key_name' => 'unicode', 'key_value' => 'plugin_eclair '],
+    ['setting_id' => 12, 'key_name' => 'upper', 'key_value' => 'Plugin_Cache'],
+    ['setting_id' => 13, 'key_name' => 'literal_under', 'key_value' => 'plugin_100%_enabled '],
+    ['setting_id' => 14, 'key_name' => 'theme', 'key_value' => 'theme_cache'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'plugin_cache'],
-    ['option_id' => 3, 'option_name' => 'blogname', 'option_value' => 'plugin_cache  '],
-    ['option_id' => 4, 'option_name' => 'template', 'option_value' => "plugin_cache\t"],
-    ['option_id' => 5, 'option_name' => 'stylesheet', 'option_value' => 'plugin_cache_extra_v2'],
-    ['option_id' => 6, 'option_name' => 'active_plugins', 'option_value' => new SQLiteBlobValue('plugin_blob')],
-    ['option_id' => 7, 'option_name' => 'retry_count', 'option_value' => 42],
-    ['option_id' => 8, 'option_name' => 'decimal_rate', 'option_value' => '5.5ms'],
-    ['option_id' => 9, 'option_name' => 'zero_flag', 'option_value' => true],
-    ['option_id' => 10, 'option_name' => 'null_flag', 'option_value' => null],
-    ['option_id' => 11, 'option_name' => 'unicode', 'option_value' => 'plugin_eclair'],
-    ['option_id' => 12, 'option_name' => 'upper', 'option_value' => 'Plugin_Cache'],
-    ['option_id' => 13, 'option_name' => 'literal_under', 'option_value' => 'plugin_100%_enabled'],
-    ['option_id' => 15, 'option_name' => 'fresh', 'option_value' => 'plugin_cache_new'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 3, 'key_name' => 'site_label', 'key_value' => 'plugin_cache  '],
+    ['setting_id' => 4, 'key_name' => 'template', 'key_value' => "plugin_cache\t"],
+    ['setting_id' => 5, 'key_name' => 'stylesheet', 'key_value' => 'plugin_cache_extra_v2'],
+    ['setting_id' => 6, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin_blob')],
+    ['setting_id' => 7, 'key_name' => 'retry_count', 'key_value' => 42],
+    ['setting_id' => 8, 'key_name' => 'decimal_rate', 'key_value' => '5.5ms'],
+    ['setting_id' => 9, 'key_name' => 'zero_flag', 'key_value' => true],
+    ['setting_id' => 10, 'key_name' => 'null_flag', 'key_value' => null],
+    ['setting_id' => 11, 'key_name' => 'unicode', 'key_value' => 'plugin_eclair'],
+    ['setting_id' => 12, 'key_name' => 'upper', 'key_value' => 'Plugin_Cache'],
+    ['setting_id' => 13, 'key_name' => 'literal_under', 'key_value' => 'plugin_100%_enabled'],
+    ['setting_id' => 15, 'key_name' => 'fresh', 'key_value' => 'plugin_cache_new'],
 ];
 
 $plan = static fn (
@@ -159,8 +159,8 @@ foreach ($cases as $name => [$castTarget, $pattern, $escape, $path, $expected]) 
 
 $tests['cast rtrim like current source next131 stable exact padded peer is reusable'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_value' => 'plugin_cache'],
-        ['option_id' => 2, 'option_value' => 'plugin_cache '],
+        ['setting_id' => 1, 'key_value' => 'plugin_cache'],
+        ['setting_id' => 2, 'key_value' => 'plugin_cache '],
     ];
     $plan = SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'TEXT', 'plugin\\_cache', '\\', 'stable', 'stable', 7, 7);
     $t->same([1, 2], $plan['currentCandidateRowids']);
@@ -171,7 +171,7 @@ $tests['cast rtrim like current source next131 stable exact padded peer is reusa
 };
 
 $tests['cast rtrim like current source next131 stable leading wildcard keeps no prefix reason'] = static function (TestRunner $t): void {
-    $rows = [['option_id' => 1, 'option_value' => 'plugin_cache']];
+    $rows = [['setting_id' => 1, 'key_value' => 'plugin_cache']];
     $plan = SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'TEXT', '%cache', null, 'stable', 'stable', 7, 7);
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentRowids']);
@@ -179,19 +179,19 @@ $tests['cast rtrim like current source next131 stable leading wildcard keeps no 
 };
 
 $tests['cast rtrim like current source next131 rejects malformed cast target'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, 'TEXT); DROP TABLE wp_options; --', 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, 'TEXT); DROP TABLE app_settings; --', 'plugin%'));
 };
 
-$tests['cast rtrim like current source next131 rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan([['option_value' => 'plugin']], $nextRows, 'TEXT', 'plugin%'));
+$tests['cast rtrim like current source next131 rejects missing setting id'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan([['key_value' => 'plugin']], $nextRows, 'TEXT', 'plugin%'));
 };
 
-$tests['cast rtrim like current source next131 rejects missing option value'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => 1]], $nextRows, 'TEXT', 'plugin%'));
+$tests['cast rtrim like current source next131 rejects missing setting value'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan([['setting_id' => 1]], $nextRows, 'TEXT', 'plugin%'));
 };
 
-$tests['cast rtrim like current source next131 rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan([['option_id' => '1', 'option_value' => 'plugin']], $nextRows, 'TEXT', 'plugin%'));
+$tests['cast rtrim like current source next131 rejects non integer setting id'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastRtrimLikeCurrentSourceNextPlan::keyValueRowValuePlan([['setting_id' => '1', 'key_value' => 'plugin']], $nextRows, 'TEXT', 'plugin%'));
 };
 
 $tests['cast rtrim like current source next131 rejects multi byte escape'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {

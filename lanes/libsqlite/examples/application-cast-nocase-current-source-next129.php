@@ -8,19 +8,19 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteCastNocaseCurrentSourceNextPlan;
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'Plugin_Cache'],
-    ['option_id' => 2, 'option_name' => 'active_plugins', 'option_value' => new SQLiteBlobValue('PLUGIN_CACHE_BLOB')],
-    ['option_id' => 3, 'option_name' => 'stylesheet', 'option_value' => 'plugin-cache'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'Plugin_Cache'],
+    ['setting_id' => 2, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('PLUGIN_CACHE_BLOB')],
+    ['setting_id' => 3, 'key_name' => 'stylesheet', 'key_value' => 'plugin-cache'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'plugin_cache'],
-    ['option_id' => 2, 'option_name' => 'active_plugins', 'option_value' => new SQLiteBlobValue('plugin_cache_blob')],
-    ['option_id' => 3, 'option_name' => 'stylesheet', 'option_value' => 'plugin-cache'],
-    ['option_id' => 4, 'option_name' => 'fresh_plugin', 'option_value' => 'PLUGIN_CACHE_NEW'],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin_cache'],
+    ['setting_id' => 2, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin_cache_blob')],
+    ['setting_id' => 3, 'key_name' => 'stylesheet', 'key_value' => 'plugin-cache'],
+    ['setting_id' => 4, 'key_name' => 'fresh_plugin', 'key_value' => 'PLUGIN_CACHE_NEW'],
 ];
 
-$plan = SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan(
+$plan = SQLiteCastNocaseCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
     'TEXT',
@@ -30,7 +30,7 @@ $plan = SQLiteCastNocaseCurrentSourceNextPlan::optionRowValuePlan(
 
 $summary = [
     'scenario' => 'application-cast-nocase-current-source-next129',
-    'applicationUse' => 'Copied wp_options import scans can keep a NOCASE LIKE prefix range over CAST(option_value AS TEXT) while retaining the LIKE residual and invalidating stale cursors when the next source changes matching option values.',
+    'applicationUse' => 'Copied app_settings import scans can keep a NOCASE LIKE prefix range over CAST(key_value AS TEXT) while retaining the LIKE residual and invalidating stale cursors when the next source changes matching setting values.',
     'range' => $plan['range'],
     'currentCandidateRowids' => $plan['currentCandidateRowids'],
     'nextCandidateRowids' => $plan['nextCandidateRowids'],

@@ -9,25 +9,25 @@ use PortLibs\LibSqlite\SQLiteJsonbCheckCurrentNextPlan;
 $jsonb68 = static fn (array $value): SQLiteBlobValue => new SQLiteBlobValue(SQLiteJsonB::encode($value));
 
 $schema68 = <<<'SQL'
-CREATE TABLE wp_options(
-  option_id INTEGER PRIMARY KEY,
-  option_name TEXT NOT NULL,
-  option_value BLOB,
-  autoload TEXT,
-  CHECK(json_valid(option_value, 8)),
-  CHECK(json_type(option_value, '$.plugin.slug') = 'text'),
-  CHECK(json_type(option_value, '$.plugin.description') = 'text'),
-  CHECK(json_extract(option_value, '$.plugin.channel') IN ('stable','beta') OR json_extract(option_value, '$.plugin.channel') IS NULL),
-  CHECK(json_extract(option_value, '$.plugin.priority') IS NULL OR json_extract(option_value, '$.plugin.priority') >= 0),
-  CHECK(json_extract(option_value, '$.plugin.priority') IS NULL OR json_extract(option_value, '$.plugin.priority') <= 10),
-  CHECK(json_type(option_value, '$.plugin.rules') = 'array' OR json_extract(option_value, '$.plugin.rules') IS NULL)
+CREATE TABLE app_settings(
+  setting_id INTEGER PRIMARY KEY,
+  key_name TEXT NOT NULL,
+  key_value BLOB,
+  load_policy TEXT,
+  CHECK(json_valid(key_value, 8)),
+  CHECK(json_type(key_value, '$.plugin.slug') = 'text'),
+  CHECK(json_type(key_value, '$.plugin.description') = 'text'),
+  CHECK(json_extract(key_value, '$.plugin.channel') IN ('stable','beta') OR json_extract(key_value, '$.plugin.channel') IS NULL),
+  CHECK(json_extract(key_value, '$.plugin.priority') IS NULL OR json_extract(key_value, '$.plugin.priority') >= 0),
+  CHECK(json_extract(key_value, '$.plugin.priority') IS NULL OR json_extract(key_value, '$.plugin.priority') <= 10),
+  CHECK(json_type(key_value, '$.plugin.rules') = 'array' OR json_extract(key_value, '$.plugin.rules') IS NULL)
 )
 SQL;
 
 $rows68 = [
-    ['option_id' => 301, 'option_name' => 'plugin_alpha_settings', 'option_value' => $jsonb68(['plugin' => ['slug' => 'alpha', 'channel' => 'stable', 'priority' => 5, 'rules' => ['cache']]]), 'autoload' => 'yes'],
-    ['option_id' => 302, 'option_name' => 'plugin_beta_settings', 'option_value' => $jsonb68(['plugin' => ['slug' => 'beta', 'description' => 'Beta import', 'priority' => 0]]), 'autoload' => 'no'],
-    ['option_id' => 303, 'option_name' => 'plugin_gamma_settings', 'option_value' => $jsonb68(['plugin' => ['slug' => 'gamma']]), 'autoload' => 'yes'],
+    ['setting_id' => 301, 'key_name' => 'plugin_alpha_settings', 'key_value' => $jsonb68(['plugin' => ['slug' => 'alpha', 'channel' => 'stable', 'priority' => 5, 'rules' => ['cache']]]), 'load_policy' => 'yes'],
+    ['setting_id' => 302, 'key_name' => 'plugin_beta_settings', 'key_value' => $jsonb68(['plugin' => ['slug' => 'beta', 'description' => 'Beta import', 'priority' => 0]]), 'load_policy' => 'no'],
+    ['setting_id' => 303, 'key_name' => 'plugin_gamma_settings', 'key_value' => $jsonb68(['plugin' => ['slug' => 'gamma']]), 'load_policy' => 'yes'],
 ];
 
 $changes68 = [
@@ -41,11 +41,11 @@ $changes68 = [
     ['op' => 'UPDATE', 'rowid' => 303, 'mutations' => [
         ['function' => 'jsonb_set', 'path' => '$.plugin.description', 'value' => 42],
     ]],
-    ['op' => 'INSERT', 'row' => ['option_id' => 304, 'option_name' => 'plugin_delta_settings', 'option_value' => $jsonb68(['plugin' => ['slug' => 'delta', 'channel' => 'beta', 'priority' => 7]]), 'autoload' => 'yes']],
-    ['op' => 'INSERT', 'row' => ['option_id' => 305, 'option_name' => 'plugin_bad_priority_high', 'option_value' => $jsonb68(['plugin' => ['slug' => 'high', 'priority' => 11]]), 'autoload' => 'no']],
-    ['op' => 'INSERT', 'row' => ['option_id' => 306, 'option_name' => 'plugin_bad_priority_low', 'option_value' => $jsonb68(['plugin' => ['slug' => 'low', 'priority' => -1]]), 'autoload' => 'no']],
-    ['op' => 'INSERT', 'row' => ['option_id' => 307, 'option_name' => 'plugin_bad_rules_type', 'option_value' => $jsonb68(['plugin' => ['slug' => 'rules', 'rules' => 'cache']]), 'autoload' => 'no']],
-    ['op' => 'INSERT', 'row' => ['option_id' => 308, 'option_name' => 'plugin_malformed_jsonb', 'option_value' => new SQLiteBlobValue("\x8c\xff"), 'autoload' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 304, 'key_name' => 'plugin_delta_settings', 'key_value' => $jsonb68(['plugin' => ['slug' => 'delta', 'channel' => 'beta', 'priority' => 7]]), 'load_policy' => 'yes']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 305, 'key_name' => 'plugin_bad_priority_high', 'key_value' => $jsonb68(['plugin' => ['slug' => 'high', 'priority' => 11]]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 306, 'key_name' => 'plugin_bad_priority_low', 'key_value' => $jsonb68(['plugin' => ['slug' => 'low', 'priority' => -1]]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 307, 'key_name' => 'plugin_bad_rules_type', 'key_value' => $jsonb68(['plugin' => ['slug' => 'rules', 'rules' => 'cache']]), 'load_policy' => 'no']],
+    ['op' => 'INSERT', 'row' => ['setting_id' => 308, 'key_name' => 'plugin_malformed_jsonb', 'key_value' => new SQLiteBlobValue("\x8c\xff"), 'load_policy' => 'no']],
 ];
 
 $plan68 = static fn (): array => SQLiteJsonbCheckCurrentNextPlan::plan($schema68, $rows68, $changes68);
@@ -57,13 +57,13 @@ $term68 = static function (array $plan, string $section, int $row, int $check, i
 $tests = [
     'jsonb check current next68 extracts optional check table metadata' => static function (TestRunner $t) use ($plan68): void {
         $plan = $plan68();
-        $t->same('wp_options', $plan['table']);
+        $t->same('app_settings', $plan['table']);
         $t->same(7, count($plan['checks']));
     },
     'jsonb check current next68 preserves optional check sql order' => static function (TestRunner $t) use ($plan68): void {
         $checks = array_column($plan68()['checks'], 'sql');
-        $t->same('CHECK(json_type(option_value, \'$.plugin.description\') = \'text\')', $checks[2]);
-        $t->same('CHECK(json_type(option_value, \'$.plugin.rules\') = \'array\' OR json_extract(option_value, \'$.plugin.rules\') IS NULL)', $checks[6]);
+        $t->same('CHECK(json_type(key_value, \'$.plugin.description\') = \'text\')', $checks[2]);
+        $t->same('CHECK(json_type(key_value, \'$.plugin.rules\') = \'array\' OR json_extract(key_value, \'$.plugin.rules\') IS NULL)', $checks[6]);
     },
     'jsonb check current next68 admits current rows with missing optional json paths' => static function (TestRunner $t) use ($plan68): void {
         $t->same([true, true, true], array_column($plan68()['current'], 'ok'));
@@ -82,24 +82,24 @@ $tests = [
         $t->same([302, 303, 305, 306, 307, 308], array_column($plan['rejected'], 'rowid'));
     },
     'jsonb check current next68 keeps rejected rows out of after image' => static function (TestRunner $t) use ($plan68): void {
-        $t->same([301, 302, 303, 304], array_column($plan68()['after'], 'option_id'));
+        $t->same([301, 302, 303, 304], array_column($plan68()['after'], 'setting_id'));
     },
     'jsonb check current next68 applies accepted jsonb updates to after image' => static function (TestRunner $t) use ($plan68, $decode68): void {
-        $alpha = $decode68($plan68()['after'][0]['option_value']);
+        $alpha = $decode68($plan68()['after'][0]['key_value']);
         $t->same('Alpha updated', $alpha['plugin']['description']);
         $t->same(10, $alpha['plugin']['priority']);
     },
     'jsonb check current next68 appends accepted optional insert' => static function (TestRunner $t) use ($plan68, $decode68): void {
-        $delta = $decode68($plan68()['after'][3]['option_value']);
+        $delta = $decode68($plan68()['after'][3]['key_value']);
         $t->same('delta', $delta['plugin']['slug']);
         $t->same('beta', $delta['plugin']['channel']);
     },
     'jsonb check current next68 preserves rejected channel update' => static function (TestRunner $t) use ($plan68, $decode68): void {
-        $beta = $decode68($plan68()['after'][1]['option_value']);
+        $beta = $decode68($plan68()['after'][1]['key_value']);
         $t->same(false, isset($beta['plugin']['channel']));
     },
     'jsonb check current next68 preserves rejected description update' => static function (TestRunner $t) use ($plan68, $decode68): void {
-        $gamma = $decode68($plan68()['after'][2]['option_value']);
+        $gamma = $decode68($plan68()['after'][2]['key_value']);
         $t->same(false, isset($gamma['plugin']['description']));
     },
 ];
@@ -178,7 +178,7 @@ foreach ($afterCases68 as $name => [$path, $expected]) {
     $tests['jsonb check current next68 ' . $name] = static function (TestRunner $t) use ($plan68, $decode68, $path, $expected): void {
         $actual = [];
         foreach ($plan68()['after'] as $row) {
-            $value = $decode68($row['option_value']);
+            $value = $decode68($row['key_value']);
             foreach (explode('.', $path) as $part) {
                 $value = is_array($value) && array_key_exists($part, $value) ? $value[$part] : null;
             }

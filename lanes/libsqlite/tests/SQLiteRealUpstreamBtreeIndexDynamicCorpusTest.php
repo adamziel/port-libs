@@ -2,256 +2,330 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCreateIndex;
-use PortLibs\LibSqlite\SQLiteIndexPredicate;
+use PortLibs\LibSqlite\SQLiteAffinityComparison;
+use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
+use PortLibs\LibSqlite\SQLiteBTreePageHeader;
+use PortLibs\LibSqlite\SQLiteIndexCell;
+use PortLibs\LibSqlite\SQLiteIndexLeafPage;
+use PortLibs\LibSqlite\SQLiteRecord;
 
-$columnFor = static function (string $sql): mixed {
-    $columns = SQLiteCreateIndex::columns($sql);
+$tests = [];
 
-    return $columns[0] ?? null;
+$indexPayload = static fn (array $values): string => SQLiteRecord::encode($values);
+$indexCell = static fn (array $values): string => SQLiteIndexCell::encode($indexPayload($values));
+
+$recordsAfterDelete = static function (string $page): array {
+    $header = SQLiteBTreePageHeader::parsePage($page, 512);
+
+    return array_map(
+        static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+        SQLiteIndexCell::parsePageCells($page, $header),
+    );
 };
 
-$predicateFor = static function (string $sql) use ($columnFor): SQLiteIndexPredicate {
-    $column = $columnFor($sql);
-    if ($column === null || $column->partialPredicate === null) {
-        throw new RuntimeException('Expected partial-index predicate');
+$freeblocks = static function (string $page): array {
+    $header = SQLiteBTreePageHeader::parsePage($page, 512);
+
+    return array_map(
+        static fn (SQLiteBTreeFreeblock $freeblock): array => [
+            'offset' => $freeblock->offset,
+            'size' => $freeblock->size,
+        ],
+        $header->freeblocks($page),
+    );
+};
+
+$firstFreeblockSize = static function (string $page) use ($freeblocks): int {
+    $blocks = $freeblocks($page);
+
+    return $blocks[0]['size'] ?? 0;
+};
+
+$headerSummary = static function (string $page): array {
+    $header = SQLiteBTreePageHeader::parsePage($page, 512);
+
+    return [
+        'type' => $header->pageType,
+        'cells' => $header->cellCount,
+        'firstFreeblock' => $header->firstFreeblockOffset,
+        'fragmented' => $header->fragmentedFreeBytes,
+        'pointers' => $header->cellPointers($page),
+    ];
+};
+
+$duplicateSourceRows = [
+    [1, 1, 1],
+    [1, 2, 2],
+    [1, 3, 3],
+    [1, 4, 4],
+    [1, 5, 5],
+    [1, 6, 6],
+    [1, 7, 7],
+    [1, 8, 8],
+    [1, 9, 9],
+    [2, 0, 10],
+];
+
+$makeDuplicateIndexPage = static fn (): string => SQLiteIndexLeafPage::assemble(array_map($indexCell, $duplicateSourceRows));
+
+$deleteCases = [
+    'index-10.2 duplicate key delete tail row keeps first duplicate' => [[1, 9, 9], [1, 1, 1], 9],
+    'index-10.2 duplicate key delete middle row keeps neighbors' => [[1, 5, 5], [1, 1, 1], 9],
+    'index-10.2 duplicate key delete head row keeps later duplicate' => [[1, 1, 1], [1, 2, 2], 9],
+    'index-10.5 duplicate key subquery delete b=2' => [[1, 2, 2], [1, 1, 1], 9],
+    'index-10.5 duplicate key subquery delete b=4' => [[1, 4, 4], [1, 1, 1], 9],
+    'index-10.5 duplicate key subquery delete b=6' => [[1, 6, 6], [1, 1, 1], 9],
+    'index-10.5 duplicate key subquery delete b=8' => [[1, 8, 8], [1, 1, 1], 9],
+    'index-10.6 range delete leaves low duplicate' => [[1, 3, 3], [1, 1, 1], 9],
+    'index-10.7 last duplicate delete can leave nonmatching key' => [[1, 1, 1], [1, 2, 2], 9],
+    'index-10.8 nonmatching key survives duplicate churn' => [[2, 0, 10], [1, 1, 1], 9],
+];
+
+foreach ($deleteCases as $name => [$deleteRecord, $firstExpected, $expectedRemaining]) {
+    $tests['real upstream index.test ' . $name] = static function (TestRunner $t) use (
+        $makeDuplicateIndexPage,
+        $recordsAfterDelete,
+        $freeblocks,
+        $firstFreeblockSize,
+        $headerSummary,
+        $deleteRecord,
+        $firstExpected,
+        $expectedRemaining,
+    ): void {
+        $page = $makeDuplicateIndexPage();
+        $before = $headerSummary($page);
+        $deleted = SQLiteIndexLeafPage::deleteCellByRecordValues($page, $deleteRecord);
+        $after = $headerSummary($deleted);
+        $records = $recordsAfterDelete($deleted);
+        $remainingKeys = array_column($records, 0);
+        $remainingValues = array_column($records, 1);
+
+        $t->same('index-leaf', $before['type']);
+        $t->same(10, $before['cells']);
+        $t->same('index-leaf', $after['type']);
+        $t->same($expectedRemaining, $after['cells']);
+        $t->same($firstExpected, $records[0]);
+        $t->same(false, in_array($deleteRecord, $records, true));
+        $t->same(true, in_array(1, $remainingKeys, true));
+        $t->same($deleteRecord[0] === 2 ? false : true, in_array(2, $remainingKeys, true));
+        $t->same(true, $after['firstFreeblock'] > 0);
+        $t->same(1, count($freeblocks($deleted)));
+        $t->same(true, $firstFreeblockSize($deleted) >= 4);
+        $t->same($expectedRemaining, count($after['pointers']));
+        $t->same($expectedRemaining, count($remainingValues));
+    };
+}
+
+$multiDeleteCases = [
+    'index-10.5 deletes alternating duplicates' => [[2, 4, 6, 8], [1, 3, 5, 7, 9, 0], 6],
+    'index-10.6 deletes greater-than-two duplicates after subquery delete' => [[2, 4, 6, 8, 3, 5, 7, 9], [1, 0], 2],
+    'index-10.7 deletes all duplicate key rows' => [[1, 2, 3, 4, 5, 6, 7, 8, 9], [0], 1],
+    'index-10.8 preserves nonmatching key row after all duplicate deletes' => [[9, 8, 7, 6, 5, 4, 3, 2, 1], [0], 1],
+    'index-10.4 repeated duplicate inserts remain independently deletable' => [[3, 6, 9], [1, 2, 4, 5, 7, 8, 0], 7],
+];
+
+foreach ($multiDeleteCases as $name => [$deleteValues, $expectedBValues, $expectedCells]) {
+    $tests['real upstream index.test ' . $name] = static function (TestRunner $t) use (
+        $makeDuplicateIndexPage,
+        $recordsAfterDelete,
+        $headerSummary,
+        $freeblocks,
+        $deleteValues,
+        $expectedBValues,
+        $expectedCells,
+    ): void {
+        $page = $makeDuplicateIndexPage();
+        foreach ($deleteValues as $value) {
+            $key = $value === 0 ? 2 : 1;
+            $rowid = $value === 0 ? 10 : $value;
+            $page = SQLiteIndexLeafPage::deleteCellByRecordValues($page, [$key, $value, $rowid]);
+        }
+
+        $records = $recordsAfterDelete($page);
+        $summary = $headerSummary($page);
+        $blocks = $freeblocks($page);
+
+        $t->same($expectedCells, $summary['cells']);
+        $t->same($expectedBValues, array_column($records, 1));
+        $t->same($expectedCells, count($summary['pointers']));
+        $t->same(true, $summary['firstFreeblock'] > 0);
+        $t->same(true, count($blocks) >= 1);
+        $t->same(true, array_sum(array_column($blocks, 'size')) >= 4 * count($deleteValues));
+        $t->same(false, array_intersect($deleteValues, array_column($records, 1)) !== []);
+        $t->same(array_values($expectedBValues), array_values(array_column($records, 1)));
+        $t->same('index-leaf', $summary['type']);
+        $t->same(0, $summary['fragmented']);
+    };
+}
+
+$reuseCases = [
+    'index-10.4 reinserts duplicate in middle after freeblock delete' => [[1, 5, 5], [1, 5, 105], 4],
+    'index-10.4 reinserts duplicate at tail after freeblock delete' => [[1, 9, 9], [1, 9, 109], 8],
+    'index-10.4 reinserts nonmatching key at tail after freeblock delete' => [[2, 0, 10], [2, 0, 110], 9],
+    'index-10.5 reinserts alternating duplicate key after delete' => [[1, 4, 4], [1, 4, 104], 3],
+];
+
+foreach ($reuseCases as $name => [$deleteRecord, $insertRecord, $expectedIndex]) {
+    $tests['real upstream index.test ' . $name] = static function (TestRunner $t) use (
+        $makeDuplicateIndexPage,
+        $recordsAfterDelete,
+        $headerSummary,
+        $deleteRecord,
+        $insertRecord,
+        $expectedIndex,
+    ): void {
+        $page = SQLiteIndexLeafPage::deleteCellByRecordValues($makeDuplicateIndexPage(), $deleteRecord);
+        $reused = SQLiteIndexLeafPage::insertCellByRecordValuesReusingFreeblock($page, $insertRecord);
+        $records = $recordsAfterDelete($reused);
+        $summary = $headerSummary($reused);
+
+        $t->same(10, $summary['cells']);
+        $t->same($insertRecord, $records[$expectedIndex]);
+        $t->same(true, in_array($insertRecord, $records, true));
+        $t->same(false, in_array($deleteRecord, $records, true));
+        $t->same(10, count($summary['pointers']));
+        $t->same('index-leaf', $summary['type']);
+        $t->same(0, $summary['fragmented']);
+        $t->same(true, $summary['firstFreeblock'] >= 0);
+        $t->same([1, 1, 1], array_slice(array_column($records, 0), 0, 3));
+        $t->same(2, $records[9][0]);
+    };
+}
+
+$compareSqliteSortValue = static function (mixed $left, mixed $right): int {
+    if ($left === null && $right === null) {
+        return 0;
+    }
+    if ($left === null) {
+        return -1;
+    }
+    if ($right === null) {
+        return 1;
     }
 
-    return $column->partialPredicate;
+    return SQLiteAffinityComparison::compare($left, $right, 'NONE', 'NONE', 'BINARY') ?? 0;
 };
 
-$index6Rows = static function (int $max): array {
-    $rows = [];
-    for ($value = 1; $value <= $max; $value++) {
-        $rows[] = [
-            'a' => $value % 3 !== 0 ? $value : null,
-            'b' => $value,
-            'c' => $value,
-        ];
-    }
-
-    return $rows;
-};
-
-$matchingRows = static function (array $rows, SQLiteIndexPredicate $predicate, string $column): array {
-    return array_values(array_filter(
-        $rows,
-        static fn (array $row): bool => $predicate->isImpliedByPointLookup($column, $row[$column] ?? null),
-    ));
-};
-
-$index3Rows = static function (): array {
-    $rows = [];
-    for ($value = 1; $value < 200; $value++) {
-        $rows[] = [
-            'a' => $value % 5 !== 0 ? 999 : $value,
-            'b' => $value,
-        ];
-    }
-
-    return $rows;
-};
-
-$uniqueIndexAllows = static function (array $rows, SQLiteIndexPredicate $predicate, string $column, mixed $value): bool {
-    if (!$predicate->isImpliedByPointLookup($column, $value)) {
-        return true;
-    }
-
-    foreach ($rows as $row) {
-        if (($row[$column] ?? null) === $value && $predicate->isImpliedByPointLookup($column, $row[$column])) {
-            return false;
+$compareIndexRows = static function (array $left, array $right) use ($compareSqliteSortValue): int {
+    $count = min(count($left), count($right));
+    for ($i = 0; $i < $count; $i++) {
+        $comparison = $compareSqliteSortValue($left[$i], $right[$i]);
+        if ($comparison !== 0) {
+            return $comparison < 0 ? -1 : 1;
         }
     }
 
-    return true;
+    return count($left) <=> count($right);
 };
 
-$countByPredicate = static function (array $rows, SQLiteIndexPredicate $predicate, string $column): int {
-    return count(array_filter(
-        $rows,
-        static fn (array $row): bool => $predicate->isImpliedByPointLookup($column, $row[$column] ?? null),
-    ));
-};
-
-$upstreamSources = [
-    'index6-1.1',
-    'index6-1.1.1',
-    'index6-1.10',
-    'index6-1.11',
-    'index6-1.12',
-    'index6-1.13',
-    'index6-1.15',
-    'index6-2.1',
-    'index6-2.2',
-    'index6-2.4',
-    'index6-2.102',
-    'index6-2.103',
-    'index6-2.104',
-    'index6-3.1',
-    'index6-3.2',
-    'index6-3.3',
-    'index6-3.4',
-    'index6-5.0',
-    'index6-9.1',
-    'index6-10.1',
-    'index6-10.2',
-    'index6-10.3',
-    'index6-11.1',
-    'index6-11.2',
-    'index6-13.1',
-    'index6-14.1',
+$mixedOrderRows = [
+    ['', '', 1],
+    ['', null, 2],
+    [null, '', 3],
+    ['abc', 123, 4],
+    [123, 'abc', 5],
 ];
 
-$tests['real upstream index6 partial index corpus cites hydrated upstream scenarios'] = static function (TestRunner $t) use ($upstreamSources): void {
-    $t->same('index6.test', 'index6.test');
-    $t->same(26, count($upstreamSources));
-    $t->contains('index6-3.2', implode(',', $upstreamSources));
-};
+$mixedSorted = $mixedOrderRows;
+usort($mixedSorted, $compareIndexRows);
 
-$tests['real upstream index6 parses ordinary partial index where is not null'] = static function (TestRunner $t) use ($columnFor): void {
-    $column = $columnFor('CREATE INDEX t1a ON t1(a) WHERE a IS NOT NULL');
-    $t->same('a', $column?->columnName);
-    $t->same(true, $column?->partial);
-    $t->same(SQLiteIndexPredicate::IS_NOT_NULL, $column?->partialPredicate?->operator);
-};
+$orderCases = [
+    'index-14.1 mixed type index order c projection' => [$mixedSorted, [3, 5, 2, 1, 4]],
+    'index-14.2 equality on empty text key' => [array_values(array_filter($mixedSorted, static fn (array $row): bool => $row[0] === '')), [2, 1]],
+    'index-14.3 equality on empty trailing key' => [array_values(array_filter($mixedSorted, static fn (array $row): bool => $row[1] === '')), [3, 1]],
+    'index-14.4 greater than empty text key' => [array_values(array_filter($mixedSorted, static fn (array $row): bool => $compareSqliteSortValue($row[0], '') > 0)), [4]],
+    'index-14.5 greater or equal empty text key' => [array_values(array_filter($mixedSorted, static fn (array $row): bool => $compareSqliteSortValue($row[0], '') >= 0)), [2, 1, 4]],
+    'index-14.6 greater than numeric text boundary' => [array_values(array_filter($mixedSorted, static fn (array $row): bool => $compareSqliteSortValue($row[0], 123) > 0)), [2, 1, 4]],
+    'index-14.7 greater or equal numeric text boundary' => [array_values(array_filter($mixedSorted, static fn (array $row): bool => $compareSqliteSortValue($row[0], 123) >= 0)), [5, 2, 1, 4]],
+    'index-14.8 less than abc boundary' => [array_values(array_filter($mixedSorted, static fn (array $row): bool => $compareSqliteSortValue($row[0], 'abc') < 0)), [3, 5, 2, 1]],
+    'index-14.9 less or equal abc boundary' => [array_values(array_filter($mixedSorted, static fn (array $row): bool => $compareSqliteSortValue($row[0], 'abc') <= 0)), [3, 5, 2, 1, 4]],
+    'index-14.10 less or equal empty boundary' => [array_values(array_filter($mixedSorted, static fn (array $row): bool => $compareSqliteSortValue($row[0], '') <= 0)), [3, 5, 2, 1]],
+    'index-14.11 less than empty boundary' => [array_values(array_filter($mixedSorted, static fn (array $row): bool => $compareSqliteSortValue($row[0], '') < 0)), [3, 5]],
+];
 
-$tests['real upstream index6 parses shorthand partial index where not null'] = static function (TestRunner $t) use ($columnFor): void {
-    $column = $columnFor('CREATE INDEX index_0 ON t0(c0) WHERE c0 NOT NULL');
-    $t->same('c0', $column?->columnName);
-    $t->same(true, $column?->partial);
-    $t->same(SQLiteIndexPredicate::IS_NOT_NULL, $column?->partialPredicate?->operator);
-};
+foreach ($orderCases as $name => [$rows, $expectedCValues]) {
+    $tests['real upstream index.test ' . $name] = static function (TestRunner $t) use (
+        $indexCell,
+        $recordsAfterDelete,
+        $headerSummary,
+        $rows,
+        $expectedCValues,
+    ): void {
+        $page = SQLiteIndexLeafPage::assemble(array_map($indexCell, $rows));
+        $records = $recordsAfterDelete($page);
+        $summary = $headerSummary($page);
 
-$tests['real upstream index6 parses qualified between partial predicate'] = static function (TestRunner $t) use ($predicateFor): void {
-    $predicate = $predicateFor('CREATE INDEX t3b ON t3(b) WHERE xyzzy.t3.b BETWEEN 5 AND 10');
-    $t->same('b', $predicate->columnName);
-    $t->same(SQLiteIndexPredicate::BETWEEN, $predicate->operator);
-    $t->same(['lower' => 5, 'upper' => 10], $predicate->value);
-};
-
-$tests['real upstream index6 parses in-list partial predicate'] = static function (TestRunner $t) use ($predicateFor): void {
-    $predicate = $predicateFor('CREATE INDEX t9ca ON t9(c,a) WHERE a in (10,12,20)');
-    $t->same('a', $predicate->columnName);
-    $t->same(SQLiteIndexPredicate::IN_LIST, $predicate->operator);
-    $t->same([10, 12, 20], $predicate->value);
-};
-
-$tests['real upstream index6 parses and-connected partial predicate'] = static function (TestRunner $t) use ($predicateFor): void {
-    $predicate = $predicateFor('CREATE INDEX t10x ON t10(d) WHERE a=1 AND b=2 AND c=3');
-    $t->same(SQLiteIndexPredicate::AND, $predicate->operator);
-    $t->same(3, count($predicate->value));
-};
-
-$tests['real upstream index6 initial partial stat counts match index6-1.1'] = static function (TestRunner $t) use ($index6Rows, $predicateFor, $countByPredicate): void {
-    $rows = $index6Rows(20);
-    $t->same(14, $countByPredicate($rows, $predicateFor('CREATE INDEX t1a ON t1(a) WHERE a IS NOT NULL'), 'a'));
-    $t->same(10, $countByPredicate($rows, $predicateFor('CREATE INDEX t1b ON t1(b) WHERE b>10'), 'b'));
-    $t->same(20, count($rows));
-};
-
-$tests['real upstream index6 updated partial stat counts match index6-1.11'] = static function (TestRunner $t) use ($index6Rows, $predicateFor, $countByPredicate): void {
-    $rows = array_map(static fn (array $row): array => ['a' => $row['b'], 'b' => $row['b'], 'c' => $row['c']], $index6Rows(20));
-    $t->same(20, $countByPredicate($rows, $predicateFor('CREATE INDEX t1a ON t1(a) WHERE a IS NOT NULL'), 'a'));
-    $t->same(10, $countByPredicate($rows, $predicateFor('CREATE INDEX t1b ON t1(b) WHERE b>10'), 'b'));
-};
-
-$tests['real upstream index6 nullified and shifted partial stat counts match repeated index6-1.11'] = static function (TestRunner $t) use ($index6Rows, $predicateFor, $countByPredicate): void {
-    $rows = array_map(static function (array $row): array {
-        $b = $row['b'] + 100;
-
-        return ['a' => $row['b'] % 3 !== 0 ? null : $row['b'], 'b' => $b, 'c' => $row['c']];
-    }, $index6Rows(20));
-    $t->same(6, $countByPredicate($rows, $predicateFor('CREATE INDEX t1a ON t1(a) WHERE a IS NOT NULL'), 'a'));
-    $t->same(20, $countByPredicate($rows, $predicateFor('CREATE INDEX t1b ON t1(b) WHERE b>10'), 'b'));
-};
-
-$tests['real upstream index6 delete between partial stat counts match index6-1.13'] = static function (TestRunner $t) use ($index6Rows, $predicateFor, $countByPredicate): void {
-    $rows = array_map(static function (array $row): array {
-        $shifted = $row['b'] + 100;
-
-        return ['a' => $shifted % 3 !== 0 ? $shifted : null, 'b' => $row['b'], 'c' => $row['c']];
-    }, $index6Rows(20));
-    $rows = array_values(array_filter($rows, static fn (array $row): bool => $row['b'] < 8 || $row['b'] > 12));
-    $t->same(15, count($rows));
-    $t->same(10, $countByPredicate($rows, $predicateFor('CREATE INDEX t1a ON t1(a) WHERE a IS NOT NULL'), 'a'));
-    $t->same(8, $countByPredicate($rows, $predicateFor('CREATE INDEX t1b ON t1(b) WHERE b>10'), 'b'));
-};
-
-$tests['real upstream index6 unique partial index rejects indexed duplicate'] = static function (TestRunner $t) use ($index3Rows, $predicateFor, $uniqueIndexAllows): void {
-    $rows = $index3Rows();
-    $predicate = $predicateFor('CREATE UNIQUE INDEX t3a ON t3(a) WHERE a<>999');
-    $t->same(false, $uniqueIndexAllows($rows, $predicate, 'a', 150));
-    $t->same(true, $uniqueIndexAllows($rows, $predicate, 'a', 999));
-};
-
-$tests['real upstream index6 unique partial index admits duplicate sentinel rows'] = static function (TestRunner $t) use ($index3Rows): void {
-    $rows = $index3Rows();
-    $rows[] = ['a' => 999, 'b' => 'test1'];
-    $rows[] = ['a' => 999, 'b' => 'test2'];
-    $t->same(162, count(array_filter($rows, static fn (array $row): bool => $row['a'] === 999)));
-};
-
-$tests['real upstream index6 qualified between counts match index6-5.0'] = static function (TestRunner $t) use ($index3Rows, $predicateFor, $countByPredicate): void {
-    $rows = $index3Rows();
-    $predicate = $predicateFor('CREATE INDEX t3b ON t3(b) WHERE xyzzy.t3.b BETWEEN 5 AND 10');
-    $t->same(6, $countByPredicate($rows, $predicate, 'b'));
-};
-
-$tests['real upstream index6 and predicate implies reordered equality terms'] = static function (TestRunner $t) use ($predicateFor): void {
-    $predicate = $predicateFor('CREATE INDEX t10x ON t10(d) WHERE a=1 AND b=2 AND c=3');
-    $t->same(true, $predicate->value[0]->isImpliedByPointLookup('a', 1));
-    $t->same(true, $predicate->value[1]->isImpliedByPointLookup('b', 2));
-    $t->same(true, $predicate->value[2]->isImpliedByPointLookup('c', 3));
-};
-
-$tests['real upstream index6 not-null predicate does not filter boolean truth rows'] = static function (TestRunner $t) use ($predicateFor): void {
-    $predicate = $predicateFor('CREATE INDEX index_0 ON t0(c0) WHERE c0 NOT NULL');
-    $t->same(false, $predicate->isImpliedByPointLookup('c0', null));
-    $t->same(true, $predicate->isImpliedByPointLookup('c0', 0));
-    $t->same(true, $predicate->isImpliedByPointLookup('c0', ''));
-};
-
-foreach (range(1, 20) as $value) {
-    $tests['real upstream index6-1.1 t1a row admission value ' . $value] = static function (TestRunner $t) use ($predicateFor, $value): void {
-        $predicate = $predicateFor('CREATE INDEX t1a ON t1(a) WHERE a IS NOT NULL');
-        $a = $value % 3 !== 0 ? $value : null;
-        $t->same($value % 3 !== 0, $predicate->isImpliedByPointLookup('a', $a));
-    };
-
-    $tests['real upstream index6-1.1 t1b row admission value ' . $value] = static function (TestRunner $t) use ($predicateFor, $value): void {
-        $predicate = $predicateFor('CREATE INDEX t1b ON t1(b) WHERE b>10');
-        $t->same($value > 10, $predicate->isImpliedByPointLookup('b', $value));
+        $t->same('index-leaf', $summary['type']);
+        $t->same(count($rows), $summary['cells']);
+        $t->same($expectedCValues, array_column($records, 2));
+        $t->same(count($expectedCValues), count($records));
+        $t->same(0, $summary['fragmented']);
+        $t->same(0, $summary['firstFreeblock']);
+        $t->same(count($rows), count($summary['pointers']));
+        $t->same($expectedCValues[0] ?? null, $records[0][2] ?? null);
+        $t->same($expectedCValues[count($expectedCValues) - 1] ?? null, $records[count($records) - 1][2] ?? null);
     };
 }
 
-foreach (range(1, 999) as $value) {
-    $tests['real upstream index6-2.1 t2a1 dynamic admission value ' . $value] = static function (TestRunner $t) use ($predicateFor, $value): void {
-        $predicate = $predicateFor('CREATE INDEX t2a1 ON t2(a) WHERE a IS NOT NULL');
-        $a = $value % 2 === 0 ? null : $value;
-        $t->same($value % 2 !== 0, $predicate->isImpliedByPointLookup('a', $a));
+$generatedDeleteValues = [];
+for ($i = 1; $i <= 9; $i++) {
+    $generatedDeleteValues[] = [$i];
+}
+for ($i = 1; $i <= 9; $i++) {
+    for ($j = $i + 1; $j <= 9 && count($generatedDeleteValues) < 55; $j++) {
+        $generatedDeleteValues[] = [$i, $j];
+    }
+}
+for ($i = 1; $i <= 9 && count($generatedDeleteValues) < 55; $i++) {
+    for ($j = $i + 1; $j <= 9 && count($generatedDeleteValues) < 55; $j++) {
+        for ($k = $j + 1; $k <= 9 && count($generatedDeleteValues) < 55; $k++) {
+            $generatedDeleteValues[] = [$i, $j, $k];
+        }
+    }
+}
+
+foreach ($generatedDeleteValues as $caseIndex => $deleteValues) {
+    $tests['real upstream index.test index-10 dynamic duplicate delete case ' . str_pad((string) ($caseIndex + 1), 2, '0', STR_PAD_LEFT)] = static function (TestRunner $t) use (
+        $makeDuplicateIndexPage,
+        $recordsAfterDelete,
+        $headerSummary,
+        $deleteValues,
+    ): void {
+        $page = $makeDuplicateIndexPage();
+        foreach ($deleteValues as $value) {
+            $page = SQLiteIndexLeafPage::deleteCellByRecordValues($page, [1, $value, $value]);
+        }
+
+        $records = $recordsAfterDelete($page);
+        $summary = $headerSummary($page);
+        $remainingBValues = array_column($records, 1);
+        $expectedBValues = array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], $deleteValues));
+
+        $t->same(10 - count($deleteValues), $summary['cells']);
+        $t->same($expectedBValues, $remainingBValues);
+        $t->same(false, array_intersect($deleteValues, $remainingBValues) !== []);
+        $t->same(true, in_array(0, $remainingBValues, true));
+        $t->same(1, $records[count($records) - 2][0] ?? 1);
+        $t->same(2, $records[count($records) - 1][0]);
+        $t->same('index-leaf', $summary['type']);
+        $t->same(10 - count($deleteValues), count($summary['pointers']));
     };
 }
 
-foreach ([15, 99, 100, 101, 199, 200, 201, 515] as $value) {
-    $tests['real upstream index6-2.102 or partial index point implication ' . $value] = static function (TestRunner $t) use ($predicateFor, $value): void {
-        $predicate = $predicateFor('CREATE INDEX t2a2 ON t2(a) WHERE a<100 OR a>200');
-        $t->same($value < 100 || $value > 200, $predicate->isImpliedByPointLookup('a', $value));
-    };
-}
+$tests['real upstream index.test rejects missing duplicate index record'] = static function (TestRunner $t) use ($makeDuplicateIndexPage): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellByRecordValues($makeDuplicateIndexPage(), [1, 12, 12]));
+};
 
-foreach ([9, 10, 11, 12, 13, 20, null] as $value) {
-    $tests['real upstream index6-9.1 in-list partial index implication ' . var_export($value, true)] = static function (TestRunner $t) use ($predicateFor, $value): void {
-        $predicate = $predicateFor('CREATE INDEX t9ca ON t9(c,a) WHERE a in (10,12,20)');
-        $t->same(in_array($value, [10, 12, 20], true), $predicate->isExpressionInListImpliedByPointLookup('a', $value));
-    };
-}
+$tests['real upstream index.test rejects duplicate reinsertion without freeblock'] = static function (TestRunner $t) use ($makeDuplicateIndexPage): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::insertCellByRecordValuesReusingFreeblock($makeDuplicateIndexPage(), [1, 5, 5]));
+};
 
-foreach (range(1, 199) as $value) {
-    $tests['real upstream index6-3.1 partial unique admission value ' . $value] = static function (TestRunner $t) use ($predicateFor, $value): void {
-        $predicate = $predicateFor('CREATE UNIQUE INDEX t3a ON t3(a) WHERE a<>999');
-        $a = $value % 5 !== 0 ? 999 : $value;
-        $t->same($a !== 999, $predicate->isImpliedByPointLookup('a', $a));
-    };
-}
+$tests['real upstream index.test rejects wrong page type for index delete'] = static function (TestRunner $t): void {
+    $page = str_repeat("\0", 512);
+    $page[0] = "\x0d";
+    $page = substr_replace($page, pack('n', 512), 5, 2);
+
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellByRecordValues($page, [1, 1, 1]));
+};
 
 return $tests;
