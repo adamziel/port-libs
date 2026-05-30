@@ -138,6 +138,34 @@ $tests['upstream corpus window groups range current next18 rows frame without or
     $t->same([20, 30, 50, 60, 70, 40], array_column(SQLiteSelectSql::execute('SELECT sum(bytes) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_sum FROM wp_options ORDER BY option_id', ['wp_options' => $options]), 'window_sum'));
 };
 
+$tests['upstream corpus window groups range current next18 plan accepts rows frame without order'] = static function (TestRunner $t) use ($options): void {
+    $plan = SQLiteSelectSql::plan('SELECT count(*) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_count FROM wp_options', ['wp_options' => $options]);
+
+    $t->same('ROWS', $plan['select'][0]['frame']['unit']);
+    $t->same([], $plan['select'][0]['orderBy']);
+};
+
+$tests['upstream corpus window groups range current next18 named rows frame without order remains valid'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute('SELECT count(*) OVER framed AS window_count FROM wp_options WINDOW framed AS (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) ORDER BY option_id', ['wp_options' => $options]);
+
+    $t->same([2, 2, 2, 2, 2, 1], array_column($rows, 'window_count'));
+};
+
+$tests['upstream corpus window groups range current next18 direct query accepts rows frame without order'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectQuery::execute([
+        'from' => $options,
+        'select' => [[
+            'type' => 'window',
+            'function' => 'sum',
+            'arguments' => [['type' => 'column', 'name' => 'bytes']],
+            'frame' => ['unit' => 'ROWS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
+            'alias' => 'window_sum',
+        ]],
+    ]);
+
+    $t->same([20, 30, 50, 60, 70, 40], array_column($rows, 'window_sum'));
+};
+
 $tests['upstream corpus window groups range current next18 rejects json frame without order'] = static function (TestRunner $t) use ($options): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT json_group_array(option_name) OVER (GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
 };

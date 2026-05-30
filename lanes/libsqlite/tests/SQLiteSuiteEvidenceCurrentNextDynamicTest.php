@@ -21,6 +21,70 @@ function libsqlite_suite_evidence_dynamic_output(int $passLines = 3): string
 }
 
 return [
+    'current next78 through next103 preserve dynamic count keys and dependency closure' => static function (TestRunner $t): void {
+        $head = 'c196709c053869bec78f15d5a1f299d396f8fdb0';
+        $rows = [
+            [
+                'unit' => 'suite-evidence-current-next103-focused-artifact',
+                'tier' => 'focused',
+                'repository_head' => $head,
+                'current_countable' => false,
+                'next_countable' => true,
+                'artifact_path' => 'lanes/libsqlite/notes/suite-evidence-current-next103.md',
+                'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick attach3.test wal2.test',
+                'scripts' => ['pager-current-next103-11.test', 'attach3.test', 'wal2.test'],
+                'exit' => 0,
+                'errors' => 0,
+                'current_tests' => 0,
+                'next_tests' => 1301,
+                'evidence' => 'current-next103 records one bounded suite evidence row after current-next78 through current-next102 were already accepted',
+            ],
+        ];
+
+        foreach (range(78, 102) as $next) {
+            $rows[] = [
+                'unit' => sprintf('suite-evidence-current-next%d-preserved-baseline', $next),
+                'tier' => 'focused',
+                'repository_head' => $head,
+                'current_countable' => true,
+                'next_countable' => true,
+                'artifact_path' => sprintf('lanes/libsqlite/notes/suite-evidence-current-next%d.md', $next),
+                'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick attach3.test wal2.test',
+                'scripts' => [sprintf('pager-current-next%d-preserved.test', $next), 'attach3.test', 'wal2.test'],
+                'exit' => 0,
+                'errors' => 0,
+                'current_tests' => 700 + $next,
+                'next_tests' => 700 + $next,
+                'evidence' => sprintf('accepted current-next%d suite evidence remains preserved for current-next103 dependency closure', $next),
+            ];
+        }
+
+        $record = libsqlite_suite_evidence_dynamic()->suiteEvidenceSlice(
+            $rows,
+            489,
+            29294,
+            $head,
+            'lanes/libsqlite/tests/SQLiteSuiteEvidenceCurrentNext103Test.php',
+            libsqlite_suite_evidence_dynamic_output(passLines: 12),
+            'root gate current-next103 bounded evidence preserves current-next78 current-next79 current-next80 current-next81 current-next82 current-next83 current-next84 current-next85 current-next86 current-next87 current-next88 current-next89 current-next90 current-next91 current-next92 current-next93 current-next94 current-next95 current-next96 current-next97 current-next98 current-next99 current-next100 current-next101 current-next102 dependency closure without release/all parity',
+            12
+        );
+
+        $t->same('current-next103-suite-evidence-countable', $record['status']);
+        $t->same(26, $record['row_count']);
+        $t->same(1, $record['mapped_delta']);
+        $t->same(12, $record['php_pass_delta']);
+        $t->same(['suite-evidence-current-next103-focused-artifact'], $record['advanced_units']);
+        $t->same(25, count($record['preserved_units']));
+        $t->same(1301, $record['tests_total_delta']);
+        $t->same(true, $record['counts_suite_evidence_current_next103']);
+        foreach (range(78, 102) as $next) {
+            $t->same(false, $record['counts_suite_evidence_current_next' . $next], 'current-next' . $next . ' remains preserved');
+        }
+        $t->contains('current-next103 suite evidence', $record['dependency_closure']);
+        $t->contains('release/all parity remains blocked', $record['next_gate']);
+        $t->same(false, $record['counts_release_parity']);
+    },
     'current next dynamic evidence derives primary id from spaced note' => static function (TestRunner $t): void {
         $head = 'c196709c053869bec78f15d5a1f299d396f8fdb0';
         $record = libsqlite_suite_evidence_dynamic()->suiteEvidenceSlice(
