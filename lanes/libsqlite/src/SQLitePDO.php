@@ -15,21 +15,26 @@ final class SQLitePDO extends \PDO
     private int $lastInsertId = 0;
     private int $lastChanges = 0;
     private ?array $transactionSnapshot = null;
+    private int $errmode = \PDO::ERRMODE_EXCEPTION;
+    private int $defaultFetchMode = \PDO::FETCH_BOTH;
 
     public function __construct(string $dsn, ?string $username = null, ?string $password = null, ?array $options = null)
     {
-        unset($username, $password, $options);
+        unset($username, $password);
         if ($dsn !== 'sqlite::memory:' && preg_match('/^sqlite:(.+)$/', $dsn, $match) !== 1) {
-            throw new \PDOException('SQLitePDO supports only sqlite::memory: and sqlite:/path DSNs');
+            throw new \PDOException("SQLitePDO invalid DSN '{$dsn}': expected sqlite::memory: or sqlite:/path");
         }
         if ($dsn !== 'sqlite::memory:') {
             $path = $match[1];
             if ($path === '') {
-                throw new \PDOException('SQLitePDO file DSN path cannot be empty');
+                throw new \PDOException("SQLitePDO invalid DSN '{$dsn}': file path cannot be empty");
             }
             if (is_file($path) && filesize($path) > 0) {
                 throw new \PDOException('SQLitePDO cannot open existing SQLite file images in this first slice');
             }
+        }
+        foreach ($options ?? [] as $attribute => $value) {
+            $this->setAttribute((int) $attribute, $value);
         }
     }
 
@@ -52,6 +57,68 @@ final class SQLitePDO extends \PDO
         }
 
         return new SQLitePDOStatement($this, $query);
+    }
+
+    public function quote(string $string, int $type = \PDO::PARAM_STR): string|false
+    {
+        if (!in_array($type, [\PDO::PARAM_STR, \PDO::PARAM_INT, \PDO::PARAM_BOOL, \PDO::PARAM_NULL], true)) {
+            throw new \PDOException('SQLitePDO quote type is not supported');
+        }
+        if ($type === \PDO::PARAM_NULL) {
+            return 'NULL';
+        }
+        if ($type === \PDO::PARAM_INT) {
+            return (string) (int) $string;
+        }
+        if ($type === \PDO::PARAM_BOOL) {
+            return ((bool) $string) ? '1' : '0';
+        }
+
+        return "'" . str_replace("'", "''", $string) . "'";
+    }
+
+    public function setAttribute(int $attribute, mixed $value): bool
+    {
+        if ($attribute === \PDO::ATTR_ERRMODE) {
+            if ($value !== \PDO::ERRMODE_EXCEPTION) {
+                throw new \PDOException('SQLitePDO supports only PDO::ERRMODE_EXCEPTION');
+            }
+            $this->errmode = \PDO::ERRMODE_EXCEPTION;
+
+            return true;
+        }
+        if ($attribute === \PDO::ATTR_DEFAULT_FETCH_MODE) {
+            if (!in_array($value, SQLitePDOStatement::SUPPORTED_FETCH_MODES, true)) {
+                throw new \PDOException('SQLitePDO default fetch mode is not supported');
+            }
+            $this->defaultFetchMode = $value;
+
+            return true;
+        }
+
+        throw new \PDOException("SQLitePDO attribute {$attribute} is not supported");
+    }
+
+    public function getAttribute(int $attribute): mixed
+    {
+        if ($attribute === \PDO::ATTR_ERRMODE) {
+            return $this->errmode;
+        }
+        if ($attribute === \PDO::ATTR_DEFAULT_FETCH_MODE) {
+            return $this->defaultFetchMode;
+        }
+
+        throw new \PDOException("SQLitePDO attribute {$attribute} is not supported");
+    }
+
+    public function defaultFetchMode(): int
+    {
+        return $this->defaultFetchMode;
+    }
+
+    public function inTransaction(): bool
+    {
+        return $this->transactionSnapshot !== null;
     }
 
     public function exec(string $statement): int|false
@@ -149,7 +216,7 @@ final class SQLitePDO extends \PDO
             throw new \PDOException($exception->getMessage(), 0, $exception);
         }
 
-        throw new \PDOException('SQLitePDO unsupported SQL statement');
+        throw new \PDOException("SQLitePDO unsupported SQL statement: {$sql}");
     }
 
     /** @return list<string> */

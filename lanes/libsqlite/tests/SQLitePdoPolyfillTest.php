@@ -77,4 +77,69 @@ return [
         $pdo->commit();
         $t->same('kept', $pdo->query('SELECT body FROM logs')->fetchColumn());
     },
+
+    'SQLitePDO reports PDO exceptions for invalid DSNs unsupported APIs and transaction misuse' => static function (TestRunner $t): void {
+        $t->throws(PDOException::class, static fn () => new SQLitePDO('mysql:dbname=test'));
+
+        $pdo = new SQLitePDO('sqlite::memory:');
+        $t->same(PDO::ERRMODE_EXCEPTION, $pdo->getAttribute(PDO::ATTR_ERRMODE));
+        $t->true($pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION));
+        $t->throws(PDOException::class, static fn () => $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT));
+        $t->throws(PDOException::class, static fn () => $pdo->getAttribute(PDO::ATTR_AUTOCOMMIT));
+        $t->throws(PDOException::class, static fn () => $pdo->exec('VACUUM'));
+        $t->throws(PDOException::class, static fn () => $pdo->commit());
+
+        $pdo->beginTransaction();
+        $t->throws(PDOException::class, static fn () => $pdo->beginTransaction());
+        $pdo->rollBack();
+    },
+
+    'SQLitePDO quotes scalar values and applies default fetch modes' => static function (TestRunner $t): void {
+        $pdo = new SQLitePDO('sqlite::memory:', options: [PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ]);
+        $t->same(PDO::FETCH_OBJ, $pdo->getAttribute(PDO::ATTR_DEFAULT_FETCH_MODE));
+        $t->same("'Ada''s notes'", $pdo->quote("Ada's notes"));
+        $t->same('42', $pdo->quote('42x', PDO::PARAM_INT));
+        $t->same('NULL', $pdo->quote('ignored', PDO::PARAM_NULL));
+
+        $pdo->exec('CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)');
+        $pdo->exec("INSERT INTO users (name) VALUES ('Ada')");
+        $row = $pdo->query('SELECT id, name FROM users')->fetch();
+        $t->true($row instanceof stdClass);
+        $t->same('Ada', $row->name);
+
+        $t->throws(PDOException::class, static fn () => $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_CLASS));
+    },
+
+    'SQLitePDOStatement supports object bound and repeated column fetches' => static function (TestRunner $t): void {
+        $pdo = new SQLitePDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER)');
+        $insert = $pdo->prepare('INSERT INTO items (name, qty) VALUES (:name, :qty)');
+
+        $name = 'first';
+        $qty = '4';
+        $insert->bindParam('name', $name);
+        $insert->bindParam('qty', $qty, PDO::PARAM_INT);
+        $insert->execute();
+
+        $name = 'second';
+        $qty = '6';
+        $insert->execute();
+
+        $statement = $pdo->query('SELECT name, qty FROM items ORDER BY id');
+        $t->same('first', $statement->fetchColumn());
+        $t->same('second', $statement->fetchColumn());
+        $t->same(false, $statement->fetchColumn());
+
+        $object = $pdo->query('SELECT name, qty FROM items WHERE id = 2')->fetch(PDO::FETCH_OBJ);
+        $t->true($object instanceof stdClass);
+        $t->same('second', $object->name);
+        $t->same(6, $object->qty);
+
+        $bound = $pdo->query('SELECT name, qty FROM items WHERE id = 1');
+        $bound->bindColumn('name', $boundName);
+        $bound->bindColumn(2, $boundQty, PDO::PARAM_INT);
+        $t->true($bound->fetch(PDO::FETCH_BOUND));
+        $t->same('first', $boundName);
+        $t->same(4, $boundQty);
+    },
 ];
