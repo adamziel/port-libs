@@ -126,6 +126,77 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
+    /**
+     * @param list<array<string,mixed>> $initialRows
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @param list<array<string,mixed>> $triggers
+     * @param list<string> $uniqueColumns
+     * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,int,int):mixed> $returning
+     * @param array{view?:string,savepoint?:string,current_source?:string,next_source?:string,current_rollback_to?:bool,next_rollback_to?:bool,recursive_triggers?:bool,max_depth?:int,conflict_action?:string,acknowledged_current_rows?:int,current_cursor?:string,next_cursor?:string} $options
+     * @return array<string,mixed>
+     */
+    public static function executeCurrentSourceDrainBeforeNextYield(
+        array $initialRows,
+        array $currentRows,
+        array $nextRows,
+        array $triggers,
+        array $uniqueColumns,
+        array $returning = ['*'],
+        array $options = [],
+    ): array {
+        $plan = self::insertThroughViewSources(
+            $initialRows,
+            $currentRows,
+            $nextRows,
+            $triggers,
+            $uniqueColumns,
+            $returning,
+            $options + ['current_rollback_to' => false, 'next_rollback_to' => false],
+        );
+        $currentCursor = self::recursiveViewReturningIdentifier((string) ($options['current_cursor'] ?? 'current_returning_cursor'), 'current cursor');
+        $nextCursor = self::recursiveViewReturningIdentifier((string) ($options['next_cursor'] ?? 'next_returning_cursor'), 'next cursor');
+        $currentCount = count($plan['current_source_stream']);
+        $acknowledged = max(0, (int) ($options['acknowledged_current_rows'] ?? 0));
+        $fullyAcknowledged = $acknowledged >= $currentCount;
+        $blockedNextStream = self::recursiveViewReturningRows($fullyAcknowledged ? [] : $plan['next_source_stream']);
+        $visibleNextStream = self::recursiveViewReturningRows($fullyAcknowledged ? $plan['next_source_stream'] : []);
+
+        $plan['status'] = $fullyAcknowledged
+            ? 'trigger-recursive-view-returning-current-source-drained-next-yield-visible'
+            : 'trigger-recursive-view-returning-current-source-drain-before-next-yield';
+        $plan['current_returning_rows'] = self::recursiveViewReturningRows($plan['current_source_stream']);
+        $plan['next_returning_rows'] = self::recursiveViewReturningRows($plan['next_source_stream']);
+        $plan['current_cursor'] = $currentCursor;
+        $plan['next_cursor'] = $nextCursor;
+        $plan['current_returning_required'] = $currentCount;
+        $plan['current_returning_acknowledged'] = min($acknowledged, $currentCount);
+        $plan['current_returning_remaining'] = max(0, $currentCount - $acknowledged);
+        $plan['current_source_done'] = $fullyAcknowledged;
+        $plan['next_yield_blocked'] = !$fullyAcknowledged;
+        $plan['next_yield_blocker'] = $fullyAcknowledged ? null : 'current-returning-source-not-drained';
+        $plan['blocked_next_returning_rows'] = $blockedNextStream;
+        $plan['visible_next_returning_rows'] = $visibleNextStream;
+        $plan['yield_boundary'] = $fullyAcknowledged
+            ? 'current-recursive-view-returning-drained-before-next-yield-visible'
+            : 'current-recursive-view-returning-must-drain-before-next-yield';
+        $plan['cursor_handoff'] = [
+            'from' => $currentCursor,
+            'to' => $nextCursor,
+            'required_current_rows' => $currentCount,
+            'acknowledged_current_rows' => min($acknowledged, $currentCount),
+            'blocked_next_rows' => count($blockedNextStream),
+            'visible_next_rows' => count($visibleNextStream),
+        ];
+        $plan['dependencies'] = array_values(array_unique(array_merge($plan['dependencies'], [
+            'sqlite-trigger-recursive-view-returning-current-source-drain-before-next-yield',
+            'sqlite-trigger-recursive-view-returning-current-source-next154',
+        ])));
+        $plan['dependency_closure'] = 'reuses-native-recursive-trigger-returning-current-source-drain-and-cursor-handoff-model';
+
+        return $plan;
+    }
+
     private static function recursiveViewReturningSourceStatus(bool $currentRollback, bool $nextRollback): string
     {
         if ($currentRollback && !$nextRollback) {

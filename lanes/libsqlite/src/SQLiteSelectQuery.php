@@ -584,6 +584,24 @@ final class SQLiteSelectQuery
      */
     private static function windowFrameRows(array $rows, string $unit, int|float $preceding, int|float $following, string $exclude): array
     {
+        if ($preceding < 0 || $following < 0) {
+            throw new \InvalidArgumentException('SQLite SELECT query window frame offsets must be non-negative');
+        }
+        if (!in_array($unit, ['ROWS', 'RANGE', 'GROUPS'], true)) {
+            throw new \InvalidArgumentException('SQLite SELECT query window frame unit is not supported');
+        }
+        if (!in_array($exclude, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
+            throw new \InvalidArgumentException('SQLite SELECT query window EXCLUDE mode is not supported');
+        }
+        if ($unit === 'RANGE') {
+            foreach ($rows as $row) {
+                $key = $row['frameKey'];
+                if (!is_int($key) && !is_float($key) && !is_bool($key)) {
+                    throw new \InvalidArgumentException('SQLite SELECT query RANGE frame offsets require numeric ORDER BY keys');
+                }
+            }
+        }
+
         $count = count($rows);
         $groups = [];
         $groupByIndex = [];
@@ -652,7 +670,7 @@ final class SQLiteSelectQuery
         }
 
         $current = $rows[$position]['frameKey'];
-        if (!is_int($current) && !is_float($current)) {
+        if (!is_int($current) && !is_float($current) && !is_bool($current)) {
             $group = $groupByIndex[$position];
             $startGroup = $group;
             $endGroup = $group;
@@ -671,7 +689,7 @@ final class SQLiteSelectQuery
         $end = $position;
         foreach ($rows as $index => $row) {
             $key = $row['frameKey'];
-            if (!is_int($key) && !is_float($key)) {
+            if (!is_int($key) && !is_float($key) && !is_bool($key)) {
                 continue;
             }
             if ($key < $lower || $key > $upper) {

@@ -66,6 +66,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'current' => self::limitTraceWindowRecursiveLimit($currentPreLimitRows, $currentRows, $currentPlan),
                     'next' => self::limitTraceWindowRecursiveLimit($nextPreLimitRows, $nextRows, $nextPlan),
                 ],
+                'sourceSignature' => self::sourceSignatureWindowRecursiveLimit($sql, $currentRows, $nextRows, $currentTrace, $nextTrace, $currentPlan, $nextPlan),
                 'boundary' => self::boundaryDeltaWindowRecursiveLimit($currentRows, $nextRows),
                 'changedSignatures' => self::changedSignaturesWindowRecursiveLimit($currentRows, $nextRows),
                 'replanReasons' => self::replanReasonsWindowRecursiveLimit($currentRows, $nextRows, $currentPreLimitRows, $nextPreLimitRows, $currentTrace, $nextTrace),
@@ -75,6 +76,51 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-final-limit-current-source-boundary-window-recursive-limit',
                 ],
                 'dependency_closure' => 'no new support component needed; this reuses lane-local SELECT SQL, recursive CTE, compound combiner, window execution, and LIMIT/OFFSET helpers',
+            ];
+        }
+
+        /**
+         * @param list<array<string,mixed>> $currentRows
+         * @param list<array<string,mixed>> $nextRows
+         * @param array<string,mixed> $currentTrace
+         * @param array<string,mixed> $nextTrace
+         * @param array<string,mixed> $currentPlan
+         * @param array<string,mixed> $nextPlan
+         * @return array<string,mixed>
+         */
+        private static function sourceSignatureWindowRecursiveLimit(string $sql, array $currentRows, array $nextRows, array $currentTrace, array $nextTrace, array $currentPlan, array $nextPlan): array
+        {
+            $current = self::sourceSignaturePayloadWindowRecursiveLimit($sql, $currentRows, $currentTrace, $currentPlan);
+            $next = self::sourceSignaturePayloadWindowRecursiveLimit($sql, $nextRows, $nextTrace, $nextPlan);
+
+            return [
+                'current' => $current,
+                'next' => $next,
+                'currentMatchesNext' => $current['digest'] === $next['digest'],
+            ];
+        }
+
+        /**
+         * @param list<array<string,mixed>> $rows
+         * @param array<string,mixed> $trace
+         * @param array<string,mixed> $plan
+         * @return array<string,mixed>
+         */
+        private static function sourceSignaturePayloadWindowRecursiveLimit(string $sql, array $rows, array $trace, array $plan): array
+        {
+            $payload = [
+                'sql' => preg_replace('/\s+/', ' ', trim($sql)),
+                'recursiveName' => $trace['name'] ?? null,
+                'recursiveRows' => self::rowSignaturesWindowRecursiveLimit(is_array($trace['rows'] ?? null) ? $trace['rows'] : []),
+                'windowTerms' => self::windowTermsWindowRecursiveLimit($plan),
+                'finalRows' => self::rowSignaturesWindowRecursiveLimit($rows),
+            ];
+
+            return [
+                'digest' => hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR)),
+                'recursiveRowCount' => count($payload['recursiveRows']),
+                'windowCount' => count($payload['windowTerms']),
+                'finalRowCount' => count($payload['finalRows']),
             ];
         }
 

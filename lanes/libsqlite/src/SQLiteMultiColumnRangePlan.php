@@ -296,6 +296,11 @@ final class SQLiteMultiColumnRangePlan
 
             return ['column' => $column, 'operator' => 'IN', 'values' => array_map(static fn (mixed $value): mixed => self::literalValue($value), $values)];
         }
+        if ($operator === 'IS NULL') {
+            $column = self::columnOperand($predicate['left'] ?? null);
+
+            return $column === null ? null : ['column' => $column, 'operator' => 'is-null', 'values' => null];
+        }
 
         return null;
     }
@@ -349,8 +354,8 @@ final class SQLiteMultiColumnRangePlan
                 continue;
             }
 
-            $equality = self::firstConstraint($matches, ['point', 'IN']);
-            if ($equality !== null && self::hasNonNullValue($equality['values'])) {
+            $equality = self::firstConstraint($matches, ['point', 'IN', 'is-null']);
+            if ($equality !== null && self::equalityConstraintHasUsableValue($equality)) {
                 $used[] = $column->columnName;
                 $equalityConstraints[] = $equality;
                 $equalityPrefix++;
@@ -441,8 +446,8 @@ final class SQLiteMultiColumnRangePlan
                     continue;
                 }
 
-                $equality = self::firstConstraint($matches, ['point', 'IN']);
-                if ($equality !== null && self::hasNonNullValue($equality['values'])) {
+                $equality = self::firstConstraint($matches, ['point', 'IN', 'is-null']);
+                if ($equality !== null && self::equalityConstraintHasUsableValue($equality)) {
                     $used[] = $column->columnName;
                     $equalityConstraints[] = $equality;
                     $equalityPrefix++;
@@ -851,6 +856,9 @@ final class SQLiteMultiColumnRangePlan
             }
             $value = self::literalValue($sampleValues[$offset]);
             if (($constraint['operator'] ?? null) === 'point' && self::compareStat4Keys($value, $constraint['values']) !== 0) {
+                return false;
+            }
+            if (($constraint['operator'] ?? null) === 'is-null' && $value !== null) {
                 return false;
             }
             if (($constraint['operator'] ?? null) === 'IN') {
@@ -1300,6 +1308,18 @@ final class SQLiteMultiColumnRangePlan
     }
 
     /**
+     * @param array{operator:string,values:mixed} $constraint
+     */
+    private static function equalityConstraintHasUsableValue(array $constraint): bool
+    {
+        if ($constraint['operator'] === 'is-null') {
+            return true;
+        }
+
+        return self::hasNonNullValue($constraint['values']);
+    }
+
+    /**
      * @param list<array<string,mixed>> $terms
      */
     private static function partialPredicateIsImplied(?SQLiteIndexPredicate $predicate, array $terms): bool
@@ -1331,6 +1351,9 @@ final class SQLiteMultiColumnRangePlan
                 continue;
             }
             if ($constraint['operator'] === 'point' && $predicate->isImpliedByPointLookup($constraint['column'], $constraint['values'])) {
+                return true;
+            }
+            if ($constraint['operator'] === 'is-null' && $predicate->isImpliedByPointLookup($constraint['column'], null)) {
                 return true;
             }
             if ($constraint['operator'] === 'IN' && is_array($constraint['values']) && $predicate->isImpliedByInListLookup($constraint['column'], $constraint['values'])) {

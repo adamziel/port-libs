@@ -30523,9 +30523,32 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             : ($checkpointAllowed
                 ? 'wal-hot-journal-savepoint-checkpoint-current-source-next154'
                 : 'wal-hot-journal-savepoint-checkpoint-current-source-deferred-next154');
+        $statusFamily = !(bool) $base['hot_recovered']
+            ? 'wal-hot-journal-savepoint-checkpoint-current-source-blocked'
+            : ($checkpointAllowed
+                ? 'wal-hot-journal-savepoint-checkpoint-current-source'
+                : 'wal-hot-journal-savepoint-checkpoint-current-source-deferred');
+        $canonicalOperationReasons = $checkpointAllowed ? [
+            'apply_checkpoint_at_savepoint_visible_frame',
+            'discard_wal_tail_after_savepoint_before_reset',
+        ] : [
+            'defer_checkpoint_until_savepoint_visible_source_matches',
+        ];
+        $numberedOperationReasons = $checkpointAllowed ? [
+            'apply_checkpoint_at_savepoint_visible_frame_next154',
+            'discard_wal_tail_after_savepoint_before_reset_next154',
+        ] : [
+            'defer_checkpoint_until_savepoint_visible_source_matches_next154',
+        ];
+        $canonicalDependencies = [
+            'sqlite-wal-hot-journal-savepoint-checkpoint-current-source',
+            'sqlite-wal-checkpoint-hot-journal-reader-current-source',
+            'sqlite-savepoint-visible-wal-frame-boundary',
+        ];
 
         return [
             'status' => $status,
+            'status_family' => $statusFamily,
             'reason' => !(bool) $base['hot_recovered']
                 ? (string) $base['reason']
                 : ($checkpointAllowed
@@ -30566,18 +30589,15 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
             'rows' => $rows,
             'source_transitions' => array_column($rows, 'source_transition'),
             'source_digest' => hash('sha256', implode('|', array_column($rows, 'source_transition'))),
-            'operation_reasons' => array_merge($base['operation_reasons'], $checkpointAllowed ? [
-                'apply_checkpoint_at_savepoint_visible_frame_next154',
-                'discard_wal_tail_after_savepoint_before_reset_next154',
-            ] : [
-                'defer_checkpoint_until_savepoint_visible_source_matches_next154',
-            ]),
+            'operation_reason_aliases' => $canonicalOperationReasons,
+            'operation_reasons' => array_merge($base['operation_reasons'], $numberedOperationReasons),
             'base_plan' => $base,
             'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
                 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next154',
                 'sqlite-wal-checkpoint-hot-journal-reader-current-source-next144',
                 'sqlite-savepoint-visible-wal-frame-boundary',
             ]))),
+            'canonical_dependencies' => $canonicalDependencies,
             'dependency_closure' => 'no new support component needed; reuses native hot-journal recovery, WAL reader snapshots, and savepoint-visible frame-boundary comparison',
             'non_overlap' => 'avoids accepted next148 end-of-WAL checkpoint matching, WAL byte truncation, and VFS writer application by validating checkpoint database bytes against the savepoint-visible WAL frame boundary after hot-journal recovery',
         ];

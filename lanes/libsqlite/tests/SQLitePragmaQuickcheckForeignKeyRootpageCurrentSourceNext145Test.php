@@ -216,6 +216,16 @@ $tests['pragma quickcheck foreignkey rootpage current source next145 accepts qua
     $t->same('wp_archive_options', $result['rows'][1]['target']);
 };
 
+$tests['pragma quickcheck foreignkey rootpage current source next145 accepts quoted quickcheck schema prefix'] = static function (TestRunner $t) use ($page145): void {
+    $result = $page145(0, 145, null, null, null, "SELECT * FROM archive.pragma_foreign_key_check('wp_archive_options')", 'PRAGMA "archive".quick_check(wp_archive_options)');
+
+    $t->same('ok', $result['status']);
+    $t->same('pragma "archive".quick_check(wp_archive_options)', $result['current_source']['quick_check_sql']);
+    $t->same('wp_archive_options', $result['current_source']['quick_check_target']);
+    $t->same('quick_check_rootpage', $result['rows'][0]['phase']);
+    $t->same('wp_archive_options', $result['rows'][0]['name']);
+};
+
 $tests['pragma quickcheck foreignkey rootpage current source next145 rejects mismatched pragma schema and target'] = static function (TestRunner $t) use ($page145): void {
     $t->throws(InvalidArgumentException::class, static fn () => $page145(0, 145, null, null, null, "SELECT * FROM main.pragma_foreign_key_check('archive.wp_archive_options')"));
 };

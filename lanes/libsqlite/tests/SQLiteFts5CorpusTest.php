@@ -65,6 +65,47 @@ return [
         $rows = $search('thumb', ['prefix' => true, 'snippetColumn' => 'body']);
         $t->same('Media plugin removes stale <b>thumbnails</b> and scans upload folders', $rows[0]['fts5_snippet']);
     },
+    'honors fts5 star suffix as a per token prefix query' => static function (TestRunner $t): void {
+        $rows = SQLiteFts5Corpus::search([
+            ['rowid' => 1, 'body' => 'plugin cache refresh'],
+            ['rowid' => 2, 'body' => 'plugin cached refresh'],
+            ['rowid' => 3, 'body' => 'plugins cache refresh'],
+        ], ['body'], 'plugin cach*');
+        $t->same([1, 2], array_column($rows, 'rowid'));
+    },
+    'keeps exact terms exact when another query term uses star prefix' => static function (TestRunner $t): void {
+        $rows = SQLiteFts5Corpus::search([
+            ['rowid' => 1, 'body' => 'plugin cache refresh'],
+            ['rowid' => 2, 'body' => 'plugins cache refresh'],
+            ['rowid' => 3, 'body' => 'plugin cached refresh'],
+        ], ['body'], 'plugin cach*');
+        $t->same([1, 3], array_column($rows, 'rowid'));
+    },
+    'counts only per token star prefix matches in fts5 match count' => static function (TestRunner $t): void {
+        $rows = SQLiteFts5Corpus::search([
+            ['rowid' => 1, 'body' => 'plugin plugins cache cached'],
+            ['rowid' => 2, 'body' => 'plugin cache cached'],
+        ], ['body'], 'plugin cach*');
+        $t->same([3, 3], array_column($rows, 'fts5_match_count'));
+    },
+    'highlights only the per token prefix term in snippets' => static function (TestRunner $t): void {
+        $rows = SQLiteFts5Corpus::search([
+            ['rowid' => 1, 'body' => 'plugins keep cached values'],
+            ['rowid' => 2, 'body' => 'plugin keeps cached values'],
+        ], ['body'], 'plugin cach*', ['snippetColumn' => 'body']);
+        $t->same('<b>plugin</b> keeps <b>cached</b> values', $rows[0]['fts5_snippet']);
+    },
+    'supports fts5 star suffix inside phrase queries' => static function (TestRunner $t): void {
+        $rows = SQLiteFts5Corpus::search([
+            ['rowid' => 1, 'body' => 'cache refreshes quickly'],
+            ['rowid' => 2, 'body' => 'cache metadata refreshes quickly'],
+            ['rowid' => 3, 'body' => 'cached refreshes quickly'],
+        ], ['body'], 'cache refresh*', ['phrase' => true]);
+        $t->same([1], array_column($rows, 'rowid'));
+    },
+    'extracts fts5 query tokens without exposing star suffix metadata' => static function (TestRunner $t): void {
+        $t->same(['plugin', 'cach', 'refresh'], SQLiteFts5Corpus::queryTokens('plugin cach* refresh'));
+    },
     'supports phrase matching when adjacent terms are required' => static function (TestRunner $t) use ($search): void {
         $rows = $search('cache bridge', ['phrase' => true]);
         $t->same([4], array_column($rows, 'rowid'));

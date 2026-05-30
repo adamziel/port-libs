@@ -29542,6 +29542,34 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSurvivingChainVaria
     /**
      * @return array<string, mixed>
      */
+    public function chainContinuitySummary(): array
+    {
+        $mismatchedPages = $this->mismatchedCurrentSourceNextPages();
+        $releasedPages = array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            $this->currentSourceRows,
+        ));
+        $nextPages = array_values(array_map(
+            static fn (array $row): int => (int) $row['current_source_next_page'],
+            $this->currentSourceRows,
+        ));
+
+        return [
+            'released_page_count' => count($releasedPages),
+            'released_pages' => $releasedPages,
+            'current_source_next_pages' => $nextPages,
+            'mismatched_page_count' => count($mismatchedPages),
+            'mismatched_pages' => $mismatchedPages,
+            'chain_is_contiguous' => $mismatchedPages === [],
+            'tail_terminates_chain' => $nextPages !== [] && end($nextPages) === 0,
+            'surviving_materialized_pages' => $this->survivingCurrentSourceNextPages(),
+            'surviving_materialized_page_count' => count($this->survivingCurrentSourceNextPages()),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return [
@@ -29553,6 +29581,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSurvivingChainVaria
             'truncated_pointer_map_pages' => $this->basePlan->truncatedPointerMapPages(),
             'surviving_current_source_next_pages' => $this->survivingCurrentSourceNextPages(),
             'mismatched_current_source_next_pages' => $this->mismatchedCurrentSourceNextPages(),
+            'chain_continuity_summary' => $this->chainContinuitySummary(),
             'freeblock_summary' => $this->freeblockSummary,
             'current_source_next_rows' => $this->currentSourceRows,
             'base_plan' => $this->basePlan->toArray(),
@@ -30061,6 +30090,34 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceOverflowChainAuditV
     /**
      * @return array<string, mixed>
      */
+    public function chainContinuitySummary(): array
+    {
+        $mismatchedPages = $this->mismatchedCurrentSourceNextPages();
+        $releasedPages = array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            $this->currentSourceRows,
+        ));
+        $nextPages = array_values(array_map(
+            static fn (array $row): int => (int) $row['current_source_next_page'],
+            $this->currentSourceRows,
+        ));
+
+        return [
+            'released_page_count' => count($releasedPages),
+            'released_pages' => $releasedPages,
+            'current_source_next_pages' => $nextPages,
+            'mismatched_page_count' => count($mismatchedPages),
+            'mismatched_pages' => $mismatchedPages,
+            'chain_is_contiguous' => $mismatchedPages === [],
+            'tail_terminates_chain' => $nextPages !== [] && end($nextPages) === 0,
+            'surviving_materialized_pages' => $this->survivingCurrentSourceNextPages(),
+            'surviving_materialized_page_count' => count($this->survivingCurrentSourceNextPages()),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return [
@@ -30072,6 +30129,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceOverflowChainAuditV
             'truncated_pointer_map_pages' => $this->basePlan->truncatedPointerMapPages(),
             'surviving_current_source_next_pages' => $this->survivingCurrentSourceNextPages(),
             'mismatched_current_source_next_pages' => $this->mismatchedCurrentSourceNextPages(),
+            'chain_continuity_summary' => $this->chainContinuitySummary(),
             'freeblock_summary' => $this->freeblockSummary,
             'current_source_next_rows' => $this->currentSourceRows,
             'base_plan' => $this->basePlan->toArray(),

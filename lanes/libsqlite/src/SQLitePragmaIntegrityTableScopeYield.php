@@ -15,15 +15,16 @@ final class SQLitePragmaIntegrityTableScopeYield
     {
         $trimmed = trim(rtrim(trim($sql), ';'));
         $identifier = '(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)';
-        if (!preg_match('/^PRAGMA\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>integrity_check|quick_check)\s*\(\s*(?<target>' . $identifier . ')\s*\)$/i', $trimmed, $matches)) {
+        if (!preg_match('/^PRAGMA\s+(?:(?<schema>' . $identifier . ')\s*\.\s*)?(?<pragma>integrity_check|quick_check)\s*\(\s*(?<target>' . $identifier . ')\s*\)$/i', $trimmed, $matches)) {
             throw new InvalidArgumentException('SQLite table-scoped integrity PRAGMA needs PRAGMA integrity_check(table) or quick_check(table)');
         }
 
         $pragma = strtolower($matches['pragma']);
+        $schema = isset($matches['schema']) && $matches['schema'] !== '' ? self::unquoteIdentifier($matches['schema']) : 'main';
 
         return [
             'pragma' => $pragma,
-            'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? strtolower($matches['schema']) : 'main',
+            'schema' => strtolower($schema),
             'target' => self::unquoteIdentifier($matches['target']),
             'quick' => $pragma === 'quick_check',
             'limit' => 100,

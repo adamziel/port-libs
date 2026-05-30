@@ -17,9 +17,9 @@ final class SQLiteFts5Corpus
         string $query,
         array $options = [],
     ): array {
-        $tokens = self::queryTokens($query);
+        $terms = self::queryTerms($query, (bool) ($options['prefix'] ?? false));
+        $tokens = array_values(array_map(static fn (array $term): string => $term['token'], $terms));
         $columnWeights = self::columnWeights($columns, $options['columnWeights'] ?? []);
-        $prefix = (bool) ($options['prefix'] ?? false);
         $phrase = (bool) ($options['phrase'] ?? false);
         $start = (string) ($options['start'] ?? '<b>');
         $end = (string) ($options['end'] ?? '</b>');
@@ -37,21 +37,21 @@ final class SQLiteFts5Corpus
             throw new \InvalidArgumentException('FTS5 snippet column must be indexed');
         }
 
-        $documentFrequencies = self::documentFrequencies($rows, $columns, $tokens, $prefix);
+        $documentFrequencies = self::documentFrequencies($rows, $columns, $terms);
         $averageLength = max(1.0, self::averageDocumentLength($rows, $columns));
         $matches = [];
 
         foreach ($rows as $index => $row) {
             $columnTexts = self::columnTexts($row, $columns);
-            if (!self::matches($columnTexts, $tokens, $prefix, $phrase)) {
+            if (!self::matches($columnTexts, $terms, $phrase)) {
                 continue;
             }
 
-            $rank = self::bm25($columnTexts, $tokens, $documentFrequencies, count($rows), $averageLength, $columnWeights, $prefix);
+            $rank = self::bm25($columnTexts, $terms, $documentFrequencies, count($rows), $averageLength, $columnWeights);
             $result = $row;
             $result['fts5_rank'] = $rank;
-            $result['fts5_snippet'] = self::snippet((string) ($row[$snippetColumn] ?? ''), $tokens, $prefix, $start, $end, $ellipsis, $snippetTokens);
-            $result['fts5_match_count'] = self::totalMatchCount($columnTexts, $tokens, $prefix);
+            $result['fts5_snippet'] = self::snippetForTerms((string) ($row[$snippetColumn] ?? ''), $terms, $start, $end, $ellipsis, $snippetTokens);
+            $result['fts5_match_count'] = self::totalMatchCount($columnTexts, $terms);
             $result['fts5_source_index'] = $index;
             $matches[] = $result;
         }
@@ -73,16 +73,25 @@ final class SQLiteFts5Corpus
      */
     public static function queryTokens(string $query): array
     {
+        return array_values(array_map(static fn (array $term): string => $term['token'], self::queryTerms($query, false)));
+    }
+
+    /**
+     * @return list<array{token:string,prefix:bool}>
+     */
+    private static function queryTerms(string $query, bool $forcePrefix): array
+    {
         preg_match_all('/"([^"]+)"|([\\p{L}\\p{N}_]+)\\*?/u', $query, $matches, PREG_SET_ORDER);
-        $tokens = [];
+        $terms = [];
         foreach ($matches as $match) {
             $text = $match[1] !== '' ? $match[1] : $match[2];
+            $prefix = $forcePrefix || ($match[1] === '' && str_ends_with($match[0], '*'));
             foreach (self::tokenize($text) as $token) {
-                $tokens[] = $token;
+                $terms[] = ['token' => $token, 'prefix' => $prefix];
             }
         }
 
-        return $tokens;
+        return $terms;
     }
 
     /**
@@ -112,6 +121,29 @@ final class SQLiteFts5Corpus
             throw new \InvalidArgumentException('FTS5 snippet token limit must be positive');
         }
 
+        $terms = array_values(array_map(
+            static fn (string $token): array => ['token' => $token, 'prefix' => $prefix],
+            $tokens,
+        ));
+
+        return self::snippetForTerms($text, $terms, $start, $end, $ellipsis, $tokenLimit);
+    }
+
+    /**
+     * @param list<array{token:string,prefix:bool}> $terms
+     */
+    private static function snippetForTerms(
+        string $text,
+        array $terms,
+        string $start,
+        string $end,
+        string $ellipsis,
+        int $tokenLimit,
+    ): string {
+        if ($tokenLimit < 1) {
+            throw new \InvalidArgumentException('FTS5 snippet token limit must be positive');
+        }
+
         $parts = self::tokenParts($text);
         $tokenPositions = [];
         foreach ($parts as $position => $part) {
@@ -122,7 +154,7 @@ final class SQLiteFts5Corpus
 
         $firstMatchToken = null;
         foreach ($tokenPositions as $tokenIndex => $partPosition) {
-            if (self::tokenMatchesAny((string) $parts[$partPosition]['token'], $tokens, $prefix)) {
+            if (self::tokenMatchesAny((string) $parts[$partPosition]['token'], $terms)) {
                 $firstMatchToken = $tokenIndex;
                 break;
             }
@@ -141,7 +173,7 @@ final class SQLiteFts5Corpus
         $rendered = '';
         foreach ($slice as $part) {
             $piece = (string) $part['text'];
-            if ($part['token'] !== null && self::tokenMatchesAny((string) $part['token'], $tokens, $prefix)) {
+            if ($part['token'] !== null && self::tokenMatchesAny((string) $part['token'], $terms)) {
                 $piece = $start . $piece . $end;
             }
             $rendered .= $piece;
@@ -168,9 +200,9 @@ final class SQLiteFts5Corpus
 
     /**
      * @param array<string, string> $columnTexts
-     * @param list<string> $tokens
+     * @param list<array{token:string,prefix:bool}> $terms
      */
-    private static function matches(array $columnTexts, array $tokens, bool $prefix, bool $phrase): bool
+    private static function matches(array $columnTexts, array $terms, bool $phrase): bool
     {
         $documentTokens = [];
         foreach ($columnTexts as $text) {
@@ -178,11 +210,11 @@ final class SQLiteFts5Corpus
         }
 
         if ($phrase) {
-            return self::containsPhrase($documentTokens, $tokens, $prefix);
+            return self::containsPhrase($documentTokens, $terms);
         }
 
-        foreach ($tokens as $token) {
-            if (!self::tokenListContains($documentTokens, $token, $prefix)) {
+        foreach ($terms as $term) {
+            if (!self::tokenListContains($documentTokens, $term)) {
                 return false;
             }
         }
@@ -192,18 +224,18 @@ final class SQLiteFts5Corpus
 
     /**
      * @param list<string> $documentTokens
-     * @param list<string> $queryTokens
+     * @param list<array{token:string,prefix:bool}> $queryTerms
      */
-    private static function containsPhrase(array $documentTokens, array $queryTokens, bool $prefix): bool
+    private static function containsPhrase(array $documentTokens, array $queryTerms): bool
     {
-        $length = count($queryTokens);
+        $length = count($queryTerms);
         if ($length === 0 || count($documentTokens) < $length) {
             return false;
         }
 
         for ($offset = 0; $offset <= count($documentTokens) - $length; $offset++) {
             for ($index = 0; $index < $length; $index++) {
-                if (!self::tokenMatches($documentTokens[$offset + $index], $queryTokens[$index], $prefix)) {
+                if (!self::tokenMatches($documentTokens[$offset + $index], $queryTerms[$index])) {
                     continue 2;
                 }
             }
@@ -216,11 +248,12 @@ final class SQLiteFts5Corpus
 
     /**
      * @param list<string> $tokens
+     * @param array{token:string,prefix:bool} $queryTerm
      */
-    private static function tokenListContains(array $tokens, string $queryToken, bool $prefix): bool
+    private static function tokenListContains(array $tokens, array $queryTerm): bool
     {
         foreach ($tokens as $token) {
-            if (self::tokenMatches($token, $queryToken, $prefix)) {
+            if (self::tokenMatches($token, $queryTerm)) {
                 return true;
             }
         }
@@ -229,12 +262,12 @@ final class SQLiteFts5Corpus
     }
 
     /**
-     * @param list<string> $queryTokens
+     * @param list<array{token:string,prefix:bool}> $queryTerms
      */
-    private static function tokenMatchesAny(string $token, array $queryTokens, bool $prefix): bool
+    private static function tokenMatchesAny(string $token, array $queryTerms): bool
     {
-        foreach ($queryTokens as $queryToken) {
-            if (self::tokenMatches($token, $queryToken, $prefix)) {
+        foreach ($queryTerms as $queryTerm) {
+            if (self::tokenMatches($token, $queryTerm)) {
                 return true;
             }
         }
@@ -242,28 +275,33 @@ final class SQLiteFts5Corpus
         return false;
     }
 
-    private static function tokenMatches(string $token, string $queryToken, bool $prefix): bool
+    /**
+     * @param array{token:string,prefix:bool} $queryTerm
+     */
+    private static function tokenMatches(string $token, array $queryTerm): bool
     {
-        return $prefix ? str_starts_with($token, $queryToken) : $token === $queryToken;
+        $queryToken = $queryTerm['token'];
+
+        return $queryTerm['prefix'] ? str_starts_with($token, $queryToken) : $token === $queryToken;
     }
 
     /**
      * @param list<array<string, mixed>> $rows
      * @param list<string> $columns
-     * @param list<string> $tokens
+     * @param list<array{token:string,prefix:bool}> $terms
      * @return array<string, int>
      */
-    private static function documentFrequencies(array $rows, array $columns, array $tokens, bool $prefix): array
+    private static function documentFrequencies(array $rows, array $columns, array $terms): array
     {
-        $frequencies = array_fill_keys($tokens, 0);
+        $frequencies = array_fill_keys(array_map(static fn (array $term): string => $term['token'], $terms), 0);
         foreach ($rows as $row) {
             $documentTokens = [];
             foreach (self::columnTexts($row, $columns) as $text) {
                 $documentTokens = array_merge($documentTokens, self::tokenize($text));
             }
-            foreach (array_keys($frequencies) as $token) {
-                if (self::tokenListContains($documentTokens, (string) $token, $prefix)) {
-                    $frequencies[$token]++;
+            foreach ($terms as $term) {
+                if (self::tokenListContains($documentTokens, $term)) {
+                    $frequencies[$term['token']]++;
                 }
             }
         }
@@ -293,18 +331,17 @@ final class SQLiteFts5Corpus
 
     /**
      * @param array<string, string> $columnTexts
-     * @param list<string> $tokens
+     * @param list<array{token:string,prefix:bool}> $terms
      * @param array<string, int> $documentFrequencies
      * @param array<string, float> $columnWeights
      */
     private static function bm25(
         array $columnTexts,
-        array $tokens,
+        array $terms,
         array $documentFrequencies,
         int $documentCount,
         float $averageLength,
         array $columnWeights,
-        bool $prefix,
     ): float {
         $score = 0.0;
         $length = 0;
@@ -313,17 +350,17 @@ final class SQLiteFts5Corpus
         }
         $length = max(1, $length);
 
-        foreach ($tokens as $token) {
+        foreach ($terms as $term) {
             $termFrequency = 0.0;
             foreach ($columnTexts as $column => $text) {
-                $matches = self::matchCount(self::tokenize($text), $token, $prefix);
+                $matches = self::matchCount(self::tokenize($text), $term);
                 $termFrequency += $matches * ($columnWeights[$column] ?? 1.0);
             }
             if ($termFrequency <= 0.0) {
                 continue;
             }
 
-            $df = max(0, $documentFrequencies[$token] ?? 0);
+            $df = max(0, $documentFrequencies[$term['token']] ?? 0);
             $idf = log((($documentCount - $df + 0.5) / ($df + 0.5)) + 1.0);
             $denominator = $termFrequency + 1.2 * (1 - 0.75 + 0.75 * ($length / $averageLength));
             $score -= $idf * (($termFrequency * 2.2) / $denominator);
@@ -334,14 +371,14 @@ final class SQLiteFts5Corpus
 
     /**
      * @param array<string, string> $columnTexts
-     * @param list<string> $tokens
+     * @param list<array{token:string,prefix:bool}> $terms
      */
-    private static function totalMatchCount(array $columnTexts, array $tokens, bool $prefix): int
+    private static function totalMatchCount(array $columnTexts, array $terms): int
     {
         $count = 0;
-        foreach ($tokens as $token) {
+        foreach ($terms as $term) {
             foreach ($columnTexts as $text) {
-                $count += self::matchCount(self::tokenize($text), $token, $prefix);
+                $count += self::matchCount(self::tokenize($text), $term);
             }
         }
 
@@ -350,12 +387,13 @@ final class SQLiteFts5Corpus
 
     /**
      * @param list<string> $tokens
+     * @param array{token:string,prefix:bool} $queryTerm
      */
-    private static function matchCount(array $tokens, string $queryToken, bool $prefix): int
+    private static function matchCount(array $tokens, array $queryTerm): int
     {
         $count = 0;
         foreach ($tokens as $token) {
-            if (self::tokenMatches($token, $queryToken, $prefix)) {
+            if (self::tokenMatches($token, $queryTerm)) {
                 $count++;
             }
         }

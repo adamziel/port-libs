@@ -168,7 +168,8 @@ final class SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan
     {
         $trimmed = trim(rtrim(trim($sql), ';'));
         $identifier = '(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)';
-        if (preg_match('/^PRAGMA\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>quick_check)\s*(?:\(\s*(?<limit1>\d+)\s*\)|=\s*(?<limit2>\d+))$/i', $trimmed, $matches) === 1) {
+        $schemaPrefix = '(?:(?:' . $identifier . ')\s*\.\s*)?';
+        if (preg_match('/^PRAGMA\s+' . $schemaPrefix . '(?<pragma>quick_check)\s*(?:\(\s*(?<limit1>\d+)\s*\)|=\s*(?<limit2>\d+))$/i', $trimmed, $matches) === 1) {
             return [
                 'pragma' => 'quick_check',
                 'scope' => 'database',
@@ -176,7 +177,7 @@ final class SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan
                 'limit' => (int) ($matches['limit1'] !== '' ? $matches['limit1'] : $matches['limit2']),
             ];
         }
-        if (preg_match('/^PRAGMA\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>quick_check)\s*\(\s*(?<target>' . $identifier . ')\s*\)$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^PRAGMA\s+' . $schemaPrefix . '(?<pragma>quick_check)\s*\(\s*(?<target>' . $identifier . ')\s*\)$/i', $trimmed, $matches) === 1) {
             return [
                 'pragma' => 'quick_check',
                 'scope' => 'table',
@@ -184,7 +185,7 @@ final class SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan
                 'limit' => null,
             ];
         }
-        if (preg_match('/^PRAGMA\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>quick_check)$/i', $trimmed) === 1) {
+        if (preg_match('/^PRAGMA\s+' . $schemaPrefix . '(?<pragma>quick_check)$/i', $trimmed) === 1) {
             return [
                 'pragma' => 'quick_check',
                 'scope' => 'database',

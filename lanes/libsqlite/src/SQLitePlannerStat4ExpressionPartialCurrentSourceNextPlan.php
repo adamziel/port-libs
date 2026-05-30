@@ -25770,6 +25770,64 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     }
 
     /**
+     * @param array<string,mixed> $preparedSource
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $predicate
+     * @param list<array<string,string>> $orderBy
+     * @param list<string> $neededColumns
+     * @param list<array<string,string>> $neededExpressions
+     * @return array<string,mixed>
+     */
+    public static function materializeStat4SampleCurrentSourceFence(
+        array $preparedSource,
+        array $currentSource,
+        array $predicate,
+        array $orderBy,
+        array $neededColumns,
+        array $neededExpressions = []
+    ): array {
+        $plan = self::materializeStat4PartialPredicateDrift(
+            $preparedSource,
+            $currentSource,
+            $predicate,
+            $orderBy,
+            $neededColumns,
+            $neededExpressions
+        );
+        $ready = ($plan['status'] ?? null) === 'stat4-expression-partial-current-source-next155-ready';
+        $selected = is_array($plan['selectedPlan'] ?? null) ? $plan['selectedPlan'] : [];
+        $cursor = is_array($plan['cursorTape'] ?? null) ? $plan['cursorTape'] : [];
+        $selectedSamples = $selected['stat4CurrentNext'] ?? [];
+        if (!is_array($selectedSamples)) {
+            $selectedSamples = [];
+        }
+
+        return array_replace($plan, [
+            'status' => $ready ? 'stat4-expression-partial-current-source-sample-fence-ready' : 'requires-next-stage',
+            'sampleFence' => [
+                'selectedSource' => $plan['selectedSource'] ?? 'prepared',
+                'schemaCookieChanged' => $plan['schemaCookieChanged'] ?? false,
+                'stat4GenerationChanged' => $plan['stat4GenerationChanged'] ?? false,
+                'indexSignatureChanged' => $plan['indexSignatureChanged'] ?? false,
+                'currentRowids' => $plan['currentCoveringRowids'] ?? [],
+                'preparedRowids' => $plan['preparedCoveringRowids'] ?? [],
+                'matchedRowids' => $cursor['matchedRowids'] ?? [],
+                'matchedKeys' => $cursor['matchedKeys'] ?? [],
+                'samplePairs' => $selectedSamples,
+                'sampleSignature' => self::rowStreamSignatureStat4PartialPredicateDrift($selectedSamples),
+                'rowStreamSignature' => self::rowStreamSignatureStat4PartialPredicateDrift($plan['currentCoveringRows'] ?? []),
+                'stalePreparedRowidsBlocked' => $plan['staleCoveringRejectedRowids'] ?? [],
+            ],
+            'dependencies' => array_values(array_unique(array_merge(
+                is_array($plan['dependencies'] ?? null) ? $plan['dependencies'] : [],
+                ['sqlite-sqlplanner-stat4-expression-partial-current-source-sample-fence']
+            ))),
+            'dependency_closure' => 'no new support component needed; STAT4 sample current-source fence reuses native expression-index STAT4 range planning, partial predicate proof, and current-source row fences',
+            'non_overlap' => 'avoids accepted next155 partial-predicate drift output by exposing the stable STAT4 sample/current-source fence without adding a numbered production helper',
+        ]);
+    }
+
+    /**
      * @param array<string,mixed> $source
      * @param array<string,mixed> $predicate
      * @param list<array<string,string>> $orderBy

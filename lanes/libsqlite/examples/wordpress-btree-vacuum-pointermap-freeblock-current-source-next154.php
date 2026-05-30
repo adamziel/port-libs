@@ -104,6 +104,7 @@ $summary = [
     'wordpress_use' => 'Delete a copied wp_options transient row, verify the current-source overflow next-pointer chain before freeblock/vacuum apply, and preserve only page 106 as the surviving freelist trunk after partial incremental vacuum.',
     'released_overflow_pages' => $plan->toArray()['released_overflow_pages'],
     'current_source_next_pages' => array_column($plan->currentSourceRows(), 'current_source_next_page'),
+    'chain_continuity' => $plan->chainContinuitySummary(),
     'surviving_current_source_next_pages' => $plan->survivingCurrentSourceNextPages(),
     'mismatched_current_source_next_pages' => $plan->mismatchedCurrentSourceNextPages(),
     'freeblock_status' => $plan->freeblockSummary()['integrity_status'],
@@ -112,6 +113,9 @@ $summary = [
 
 if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     $ok = $summary['current_source_next_pages'] === [107, 108, 109, 110, 0]
+        && $summary['chain_continuity']['chain_is_contiguous'] === true
+        && $summary['chain_continuity']['tail_terminates_chain'] === true
+        && $summary['chain_continuity']['surviving_materialized_pages'] === [106]
         && $summary['surviving_current_source_next_pages'] === [106]
         && $summary['mismatched_current_source_next_pages'] === []
         && $summary['freeblock_status'] === 'ok'

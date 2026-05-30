@@ -77,6 +77,10 @@ if (($argv[1] ?? '') === '--self-test') {
         fwrite(STDERR, "missing recursive queue LIMIT exhaustion diagnostic\n");
         exit(1);
     }
+    if (($summary['sourceSignature']['currentMatchesNext'] ?? true) !== false) {
+        fwrite(STDERR, "missing current/next source signature drift diagnostic\n");
+        exit(1);
+    }
     echo "wordpress-compound-window-recursive-limit-current-source-window-recursive-limit self-test passed\n";
     exit(0);
 }

@@ -79,18 +79,24 @@ $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::savepointCh
 $summary = [
     'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next154',
     'status' => $plan['status'],
+    'statusFamily' => $plan['status_family'],
     'wordpressUse' => 'A copied WordPress plugin import recovers a hot rollback journal, rolls back the failed savepoint tail, then checkpoints only pages visible at the savepoint WAL frame boundary before resetting the current source.',
     'checkpointAllowed' => $plan['checkpoint_allowed'],
     'readerPreservedAtSavepoint' => $plan['reader_preserved_at_savepoint'],
     'tailDiscardedPages' => $plan['tail_discarded_page_numbers'],
+    'operationAliases' => $plan['operation_reason_aliases'],
+    'canonicalDependencies' => $plan['canonical_dependencies'],
     'checkpointLabels' => $plan['checkpoint_labels'],
     'dependencyClosure' => $plan['dependency_closure'],
 ];
 
 if ($summary['status'] !== 'wal-hot-journal-savepoint-checkpoint-current-source-next154'
+    || $summary['statusFamily'] !== 'wal-hot-journal-savepoint-checkpoint-current-source'
     || $summary['checkpointAllowed'] !== true
     || $summary['readerPreservedAtSavepoint'] !== true
     || $summary['tailDiscardedPages'] !== [4]
+    || !in_array('apply_checkpoint_at_savepoint_visible_frame', $summary['operationAliases'], true)
+    || !in_array('sqlite-wal-hot-journal-savepoint-checkpoint-current-source', $summary['canonicalDependencies'], true)
 ) {
     fwrite(STDERR, "wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next154 self-test failed\n");
     exit(1);

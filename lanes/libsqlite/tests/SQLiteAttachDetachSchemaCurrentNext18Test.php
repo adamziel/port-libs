@@ -183,12 +183,26 @@ $tests = [
         $t->same("/srv/wp/site's.sqlite", $result['file']);
         $t->same("/srv/wp/site's.sqlite", $catalog->databaseList()[2]['file']);
     },
+    'attach detach schema current next18 single quoted file expression keeps embedded as token' => static function (TestRunner $t) use ($makeCatalog): void {
+        $catalog = $makeCatalog();
+        $result = $catalog->executeAttachDetachSql("ATTACH '/srv/wp/as archive/site.sqlite' AS archive");
+
+        $t->same('/srv/wp/as archive/site.sqlite', $result['file']);
+        $t->same('archive', $result['schema']);
+    },
     'attach detach schema current next18 double quoted file expression unescapes quotes' => static function (TestRunner $t) use ($makeCatalog): void {
         $catalog = $makeCatalog();
         $result = $catalog->executeAttachDetachSql('ATTACH "/srv/wp/site""quoted.sqlite" AS quoted');
 
         $t->same('/srv/wp/site"quoted.sqlite', $result['file']);
         $t->same('/srv/wp/site"quoted.sqlite', $catalog->databaseList()[2]['file']);
+    },
+    'attach detach schema current next18 double quoted file expression keeps embedded as token' => static function (TestRunner $t) use ($makeCatalog): void {
+        $catalog = $makeCatalog();
+        $result = $catalog->executeAttachDetachSql('ATTACH "/srv/wp/as archive/site.sqlite" AS archive');
+
+        $t->same('/srv/wp/as archive/site.sqlite', $result['file']);
+        $t->same('archive', $result['schema']);
     },
     'attach detach schema current next18 bare bounded path token attaches' => static function (TestRunner $t) use ($makeCatalog): void {
         $catalog = $makeCatalog();
@@ -293,6 +307,12 @@ $tests = [
     },
     'attach detach schema current next18 SQL executor rejects non attach detach statement' => static function (TestRunner $t) use ($makeCatalog): void {
         $t->throws(InvalidArgumentException::class, static fn () => $makeCatalog()->executeAttachDetachSql('PRAGMA database_list'));
+    },
+    'attach detach schema current next18 SQL attach rejects missing as separator' => static function (TestRunner $t) use ($makeCatalog): void {
+        $t->throws(InvalidArgumentException::class, static fn () => $makeCatalog()->executeAttachDetachSql("ATTACH '/srv/site.sqlite' site"));
+    },
+    'attach detach schema current next18 SQL attach rejects trailing schema tokens' => static function (TestRunner $t) use ($makeCatalog): void {
+        $t->throws(InvalidArgumentException::class, static fn () => $makeCatalog()->executeAttachDetachSql("ATTACH '/srv/site.sqlite' AS site trailing"));
     },
     'attach detach schema current next18 SQL attach accepts trailing semicolon whitespace' => static function (TestRunner $t) use ($makeCatalog, $loader): void {
         $catalog = $makeCatalog();

@@ -13,6 +13,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextBasicImpl::wordpressOptionNamePlan(...$args);
     }
 
+    public static function wordpressOptionNameUtf16NocaseRtrimPlan(mixed ...$args): array
+    {
+        return self::wordpressOptionNameNoCasePlan(...$args);
+    }
+
     public static function wordpressOptionNameNormalizedPatternPlan(mixed ...$args): array
     {
         return SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextNormalizedPatternImpl::wordpressOptionNameNormalizedPatternPlan(...$args);
@@ -149,13 +154,13 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         int $nextSchemaCookie = 158,
     ): array {
         $like = SQLiteLikeCollationPlan::plan($pattern, 'NOCASE', $escape, false);
-        $current = self::v158_scan($currentRows, $pattern, $escape, $like['range']);
-        $next = self::v158_scan($nextRows, $pattern, $escape, $like['range']);
-        $currentCandidates = self::v158_rowids($current['candidates']);
-        $nextCandidates = self::v158_rowids($next['candidates']);
-        $currentMatched = self::v158_rowids($current['matched']);
-        $nextMatched = self::v158_rowids($next['matched']);
-        $changes = self::v158_changes($current['decoded'], $next['decoded']);
+        $current = self::sourceDeltaScan($currentRows, $pattern, $escape, $like['range']);
+        $next = self::sourceDeltaScan($nextRows, $pattern, $escape, $like['range']);
+        $currentCandidates = self::sourceDeltaRowids($current['candidates']);
+        $nextCandidates = self::sourceDeltaRowids($next['candidates']);
+        $currentMatched = self::sourceDeltaRowids($current['matched']);
+        $nextMatched = self::sourceDeltaRowids($next['matched']);
+        $changes = self::sourceDeltaChanges($current['decoded'], $next['decoded']);
 
         $reasons = [];
         if ($currentSource !== $nextSource) {
@@ -207,14 +212,14 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'nextSource' => $nextSource,
             'currentSchemaCookie' => $currentSchemaCookie,
             'nextSchemaCookie' => $nextSchemaCookie,
-            'currentOrderRowids' => self::v158_rowids($current['decoded']),
-            'nextOrderRowids' => self::v158_rowids($next['decoded']),
+            'currentOrderRowids' => self::sourceDeltaRowids($current['decoded']),
+            'nextOrderRowids' => self::sourceDeltaRowids($next['decoded']),
             'currentCandidateRowids' => $currentCandidates,
             'nextCandidateRowids' => $nextCandidates,
             'currentMatchedRowids' => $currentMatched,
             'nextMatchedRowids' => $nextMatched,
-            'currentFalsePositiveRowids' => self::v158_rowids($current['falsePositive']),
-            'nextFalsePositiveRowids' => self::v158_rowids($next['falsePositive']),
+            'currentFalsePositiveRowids' => self::sourceDeltaRowids($current['falsePositive']),
+            'nextFalsePositiveRowids' => self::sourceDeltaRowids($next['falsePositive']),
             'retainedMatchedRowids' => array_values(array_intersect($currentMatched, $nextMatched)),
             'enteredMatchedRowids' => array_values(array_diff($nextMatched, $currentMatched)),
             'exitedMatchedRowids' => array_values(array_diff($currentMatched, $nextMatched)),
@@ -222,18 +227,18 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'nextMalformedRowids' => $next['malformedRowids'],
             'currentErrors' => $current['errors'],
             'nextErrors' => $next['errors'],
-            'currentTexts' => self::v158_map($current['decoded'], 'text'),
-            'nextTexts' => self::v158_map($next['decoded'], 'text'),
-            'currentRtrimTexts' => self::v158_map($current['decoded'], 'rtrimText'),
-            'nextRtrimTexts' => self::v158_map($next['decoded'], 'rtrimText'),
-            'currentNocaseKeys' => self::v158_map($current['decoded'], 'nocaseKey'),
-            'nextNocaseKeys' => self::v158_map($next['decoded'], 'nocaseKey'),
-            'currentEncodings' => self::v158_map($current['decoded'], 'encoding'),
-            'nextEncodings' => self::v158_map($next['decoded'], 'encoding'),
-            'currentBytesHex' => self::v158_map($current['decoded'], 'bytesHex'),
-            'nextBytesHex' => self::v158_map($next['decoded'], 'bytesHex'),
-            'currentResidualMatches' => self::v158_map($current['candidates'], 'residualMatch'),
-            'nextResidualMatches' => self::v158_map($next['candidates'], 'residualMatch'),
+            'currentTexts' => self::sourceDeltaMap($current['decoded'], 'text'),
+            'nextTexts' => self::sourceDeltaMap($next['decoded'], 'text'),
+            'currentRtrimTexts' => self::sourceDeltaMap($current['decoded'], 'rtrimText'),
+            'nextRtrimTexts' => self::sourceDeltaMap($next['decoded'], 'rtrimText'),
+            'currentNocaseKeys' => self::sourceDeltaMap($current['decoded'], 'nocaseKey'),
+            'nextNocaseKeys' => self::sourceDeltaMap($next['decoded'], 'nocaseKey'),
+            'currentEncodings' => self::sourceDeltaMap($current['decoded'], 'encoding'),
+            'nextEncodings' => self::sourceDeltaMap($next['decoded'], 'encoding'),
+            'currentBytesHex' => self::sourceDeltaMap($current['decoded'], 'bytesHex'),
+            'nextBytesHex' => self::sourceDeltaMap($next['decoded'], 'bytesHex'),
+            'currentResidualMatches' => self::sourceDeltaMap($current['candidates'], 'residualMatch'),
+            'nextResidualMatches' => self::sourceDeltaMap($next['candidates'], 'residualMatch'),
             'changedTextRowids' => $changes['textChangedRowids'],
             'changedRtrimRowids' => $changes['rtrimChangedRowids'],
             'changedNocaseKeyRowids' => $changes['nocaseKeyChangedRowids'],
@@ -260,13 +265,13 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param ?array{lowerInclusive:string,upperBound:?string} $range
      * @return array{decoded:list<array<string,mixed>>,candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,falsePositive:list<array<string,mixed>>,malformedRowids:list<int>,errors:array<int,string>}
      */
-    private static function v158_scan(array $rows, string $pattern, ?string $escape, ?array $range): array
+    private static function sourceDeltaScan(array $rows, string $pattern, ?string $escape, ?array $range): array
     {
         $decoded = [];
         $malformed = [];
         $errors = [];
         foreach ($rows as $row) {
-            self::v158_assertRow($row);
+            self::assertSourceDeltaRow($row);
             try {
                 $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
                 $rtrim = rtrim($text, ' ');
@@ -274,8 +279,8 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
                     'rowid' => $row['option_id'],
                     'text' => $text,
                     'rtrimText' => $rtrim,
-                    'nocaseKey' => self::v158_asciiLower($rtrim),
-                    'encoding' => self::v158_encodingName($row['text_encoding']),
+                    'nocaseKey' => self::asciiLowerSourceDeltaKey($rtrim),
+                    'encoding' => self::sourceDeltaEncodingName($row['text_encoding']),
                     'bytesHex' => bin2hex($row['option_name_bytes']),
                 ];
             } catch (\InvalidArgumentException $exception) {
@@ -284,7 +289,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             }
         }
 
-        usort($decoded, self::v158_sortRows(...));
+        usort($decoded, self::compareSourceDeltaRows(...));
         sort($malformed);
         ksort($errors);
 
@@ -292,7 +297,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         $matched = [];
         $falsePositive = [];
         foreach ($decoded as $entry) {
-            if (!self::v158_inRange($entry['nocaseKey'], $range)) {
+            if (!self::sourceDeltaKeyInRange($entry['nocaseKey'], $range)) {
                 continue;
             }
             $entry['residualMatch'] = SQLiteDatabase::likeMatches($entry['rtrimText'], $pattern, $escape, false);
@@ -315,7 +320,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $row */
-    private static function v158_assertRow(array $row): void
+    private static function assertSourceDeltaRow(array $row): void
     {
         if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveEight rows require integer option_id');
@@ -329,7 +334,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param ?array{lowerInclusive:string,upperBound:?string} $range */
-    private static function v158_inRange(string $key, ?array $range): bool
+    private static function sourceDeltaKeyInRange(string $key, ?array $range): bool
     {
         if ($range === null || strcmp($key, $range['lowerInclusive']) < 0) {
             return false;
@@ -339,7 +344,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param array{nocaseKey:string,rowid:int} $left @param array{nocaseKey:string,rowid:int} $right */
-    private static function v158_sortRows(array $left, array $right): int
+    private static function compareSourceDeltaRows(array $left, array $right): int
     {
         $comparison = strcmp($left['nocaseKey'], $right['nocaseKey']);
 
@@ -347,13 +352,13 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     }
 
     /** @param list<array{rowid:int}> $rows @return list<int> */
-    private static function v158_rowids(array $rows): array
+    private static function sourceDeltaRowids(array $rows): array
     {
         return array_map(static fn (array $row): int => $row['rowid'], $rows);
     }
 
     /** @param list<array<string,mixed>> $rows @return array<int,mixed> */
-    private static function v158_map(array $rows, string $key): array
+    private static function sourceDeltaMap(array $rows, string $key): array
     {
         $mapped = [];
         foreach ($rows as $row) {
@@ -368,7 +373,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
      * @param list<array{rowid:int,text:string,rtrimText:string,nocaseKey:string,encoding:string,bytesHex:string,residualMatch?:bool}> $nextRows
      * @return array{textChangedRowids:list<int>,rtrimChangedRowids:list<int>,nocaseKeyChangedRowids:list<int>,encodingChangedRowids:list<int>,bytesChangedRowids:list<int>,matchChangedRowids:list<int>}
      */
-    private static function v158_changes(array $currentRows, array $nextRows): array
+    private static function sourceDeltaChanges(array $currentRows, array $nextRows): array
     {
         $current = [];
         foreach ($currentRows as $row) {
@@ -414,7 +419,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return $changes;
     }
 
-    private static function v158_encodingName(int $encoding): string
+    private static function sourceDeltaEncodingName(int $encoding): string
     {
         return match ($encoding) {
             1 => 'UTF-8',
@@ -424,7 +429,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         };
     }
 
-    private static function v158_asciiLower(string $value): string
+    private static function asciiLowerSourceDeltaKey(string $value): string
     {
         return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
     }

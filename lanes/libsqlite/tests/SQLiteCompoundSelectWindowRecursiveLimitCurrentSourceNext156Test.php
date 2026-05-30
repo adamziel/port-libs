@@ -119,6 +119,19 @@ $tests['compound select window recursive limit window-recursive-limit boundary d
     $t->true(str_contains(implode("\n", $boundary['lostRows']), '"label":"seed:2"'));
 };
 
+$tests['compound select window recursive limit window-recursive-limit source signatures'] = static function (TestRunner $t) use ($summary): void {
+    $signature = $summary()['sourceSignature'];
+    $t->same(64, strlen($signature['current']['digest']));
+    $t->same(64, strlen($signature['next']['digest']));
+    $t->same(5, $signature['current']['recursiveRowCount']);
+    $t->same(5, $signature['next']['recursiveRowCount']);
+    $t->same(2, $signature['current']['windowCount']);
+    $t->same(2, $signature['next']['windowCount']);
+    $t->same(6, $signature['current']['finalRowCount']);
+    $t->same(6, $signature['next']['finalRowCount']);
+    $t->same(false, $signature['currentMatchesNext']);
+};
+
 $tests['compound select window recursive limit window-recursive-limit replan reasons'] = static function (TestRunner $t) use ($summary): void {
     $reasons = $summary()['replanReasons'];
     $t->true(in_array('limited-compound-rowset-changed', $reasons, true));

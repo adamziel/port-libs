@@ -127,6 +127,20 @@ $tests = [
         $fk['on_delete'] = 'NO ACTION';
         $t->same(1, $plan([['id' => 1]], $fk)['changes']);
     },
+    'foreign key immediate no action raises at statement boundary' => static function (TestRunner $t) use ($plan, $cascade): void {
+        $fk = $cascade;
+        $fk['on_delete'] = 'NO ACTION';
+        $fk['deferred'] = false;
+        $t->throws(InvalidArgumentException::class, static fn () => $plan([['id' => 1]], $fk));
+    },
+    'foreign key immediate no action allows unreferenced parent delete' => static function (TestRunner $t) use ($parents, $children, $cascade): void {
+        $fk = $cascade;
+        $fk['on_delete'] = 'NO ACTION';
+        $fk['deferred'] = false;
+        $rows = array_merge($parents, [['id' => 4, 'name' => 'unused']]);
+        $result = SQLiteForeignKeyDeferredCascadePlan::deleteParents($rows, $children, [['id' => 4]], $fk);
+        $t->same([1, 2, 3], array_column($result['parent'], 'id'));
+    },
     'foreign key restrict raises before deferred commit' => static function (TestRunner $t) use ($plan, $cascade): void {
         $fk = $cascade;
         $fk['on_delete'] = 'RESTRICT';

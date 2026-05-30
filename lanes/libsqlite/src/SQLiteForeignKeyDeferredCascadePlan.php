@@ -45,6 +45,7 @@ final class SQLiteForeignKeyDeferredCascadePlan
         }
 
         $commit = self::commit($parents, $children, $deletedParents, $spec);
+        self::assertImmediateViolationsAllowed($commit['violations'], $spec['deferred'], 'delete');
 
         return [
             'parent' => $parents,
@@ -114,6 +115,7 @@ final class SQLiteForeignKeyDeferredCascadePlan
         }
 
         $commit = self::commitUpdate($parents, $children, $updatedKeys, $spec);
+        self::assertImmediateViolationsAllowed($commit['violations'], $spec['deferred'], 'update');
 
         return [
             'parent' => $parents,
@@ -369,6 +371,18 @@ final class SQLiteForeignKeyDeferredCascadePlan
         }
 
         return $action;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $violations
+     */
+    private static function assertImmediateViolationsAllowed(array $violations, bool $deferred, string $operation): void
+    {
+        if ($deferred || $violations === []) {
+            return;
+        }
+
+        throw new \InvalidArgumentException("SQLite foreign key NO ACTION {$operation} constraint failed at statement boundary");
     }
 
     private static function identifier(mixed $value, string $label): string

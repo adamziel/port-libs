@@ -280,6 +280,11 @@ final class SQLiteCoveringIndexPlan
 
             return $column === null ? null : ['column' => $column, 'operator' => 'is-not-null', 'values' => true];
         }
+        if ($operator === 'IS NULL') {
+            $column = self::columnOperand($predicate['left'] ?? null);
+
+            return $column === null ? null : ['column' => $column, 'operator' => 'is-null', 'values' => null];
+        }
 
         return null;
     }
@@ -321,6 +326,11 @@ final class SQLiteCoveringIndexPlan
             $column = self::targetColumnOperand($predicate['left'] ?? null, $targetAlias);
 
             return $column === null ? null : ['column' => $column, 'operator' => 'is-not-null', 'values' => true];
+        }
+        if ($operator === 'IS NULL') {
+            $column = self::targetColumnOperand($predicate['left'] ?? null, $targetAlias);
+
+            return $column === null ? null : ['column' => $column, 'operator' => 'is-null', 'values' => null];
         }
 
         return null;
@@ -453,8 +463,8 @@ final class SQLiteCoveringIndexPlan
         $equalityPrefix = 0;
         foreach ($columns as $column) {
             $matches = $constraints[strtolower($column->columnName)] ?? [];
-            $equality = self::firstConstraint($matches, ['point', 'IN']);
-            if ($equality !== null && self::hasNonNullValue($equality['values'])) {
+            $equality = self::firstConstraint($matches, ['point', 'IN', 'is-null']);
+            if ($equality !== null && self::equalityConstraintHasUsableValue($equality)) {
                 $used[] = $column->columnName;
                 $equalityPrefix++;
                 continue;
@@ -686,6 +696,7 @@ final class SQLiteCoveringIndexPlan
     {
         return match ($constraint['operator']) {
             'point' => self::compareSqlValues($sampleValue, $constraint['values']) === 0,
+            'is-null' => $sampleValue === null,
             'IN' => is_array($constraint['values']) && self::stat4ValueInList($sampleValue, $constraint['values']),
             'BETWEEN' => is_array($constraint['values'])
                 && self::stat4CompareNullable($sampleValue, $constraint['values']['lower'] ?? null) >= 0
@@ -816,6 +827,9 @@ final class SQLiteCoveringIndexPlan
             if ($constraint['operator'] === 'point' && $predicate->isImpliedByPointLookup($constraint['column'], $constraint['values'])) {
                 return true;
             }
+            if ($constraint['operator'] === 'is-null' && $predicate->isImpliedByPointLookup($constraint['column'], null)) {
+                return true;
+            }
             if ($constraint['operator'] === 'IN' && is_array($constraint['values']) && $predicate->isImpliedByInListLookup($constraint['column'], $constraint['values'])) {
                 return true;
             }
@@ -882,6 +896,9 @@ final class SQLiteCoveringIndexPlan
             if ($constraint['operator'] === 'point' && $predicate->isImpliedByPointLookup($constraint['column'], $constraint['values'])) {
                 return true;
             }
+            if ($constraint['operator'] === 'is-null' && $predicate->isImpliedByPointLookup($constraint['column'], null)) {
+                return true;
+            }
             if ($constraint['operator'] === 'IN' && is_array($constraint['values']) && $predicate->isImpliedByInListLookup($constraint['column'], $constraint['values'])) {
                 return true;
             }
@@ -937,6 +954,18 @@ final class SQLiteCoveringIndexPlan
         }
 
         return $value !== null;
+    }
+
+    /**
+     * @param array{operator:string,values:mixed} $constraint
+     */
+    private static function equalityConstraintHasUsableValue(array $constraint): bool
+    {
+        if ($constraint['operator'] === 'is-null') {
+            return true;
+        }
+
+        return self::hasNonNullValue($constraint['values']);
     }
 
     /**

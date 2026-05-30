@@ -870,6 +870,11 @@ final class SQLiteAttachedSchemaCatalog
 
     private static function normalizeSchemaName(string $name): string
     {
+        $trimmed = trim($name);
+        if ($trimmed !== '' && !self::isQuotedIdentifier($trimmed) && preg_match('/\s/', $trimmed) === 1) {
+            throw new \InvalidArgumentException('SQLite schema name cannot contain unquoted whitespace');
+        }
+
         $normalized = strtolower(self::unquoteIdentifier($name));
         if ($normalized === '') {
             throw new \InvalidArgumentException('SQLite schema name cannot be empty');
@@ -958,6 +963,17 @@ final class SQLiteAttachedSchemaCatalog
         }
 
         return $identifier;
+    }
+
+    private static function isQuotedIdentifier(string $identifier): bool
+    {
+        $first = $identifier[0];
+        $last = $identifier[strlen($identifier) - 1];
+
+        return ($first === '"' && $last === '"')
+            || ($first === '`' && $last === '`')
+            || ($first === "'" && $last === "'")
+            || ($first === '[' && $last === ']');
     }
 
     private static function pragmaArgumentLiteral(string $value): string

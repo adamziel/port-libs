@@ -123,11 +123,11 @@ $page = SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNextPlan::page(
     $schemas(0),
     $catalog,
     "SELECT * FROM archive.pragma_foreign_key_check('wp_archive_options')",
-    'PRAGMA quick_check(wp_archive_options)',
+    'PRAGMA "archive".quick_check(wp_archive_options)',
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-if ($page['status'] !== 'ok' || $page['current']['foreign_key_violations'] !== 2 || $page['current']['quick_check_errors'] !== 1 || $page['rows'][1]['target_source'] !== 'pragma-schema') {
+    if ($page['status'] !== 'ok' || $page['current']['foreign_key_violations'] !== 2 || $page['current']['quick_check_errors'] !== 1 || $page['rows'][1]['target_source'] !== 'pragma-schema' || $page['current_source']['quick_check_sql'] !== 'pragma "archive".quick_check(wp_archive_options)') {
         fwrite(STDERR, "wordpress-pragma-quickcheck-foreignkey-rootpage-current-source-next145 self-test failed\n");
         exit(1);
     }
@@ -140,6 +140,7 @@ echo json_encode([
     'scenario' => 'wordpress-pragma-quickcheck-foreignkey-rootpage-current-source-next145',
     'wordpressUse' => 'Gate attached WordPress archive imports on a resumable quick_check plus schema-qualified pragma_foreign_key_check rootpage stream.',
     'status' => $page['status'],
+    'quickCheckSql' => $page['current_source']['quick_check_sql'],
     'current' => $page['current'],
     'next' => $page['next_counts'],
     'foreignKeyTarget' => [

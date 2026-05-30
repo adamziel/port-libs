@@ -74,3 +74,41 @@ No new support component is needed. The slice reuses the lane-local attached sch
 ## Next
 
 Wire SQL-form attach/detach into a broader parser/executor transaction path once the native connection lifecycle has file-handle ownership for attached database images.
+
+## 2026-05-30 Current-Base Parser Guard
+
+This follow-up tightens the SQL-form ATTACH parser so an unquoted schema name cannot absorb trailing SQL tokens as part of the schema name. Quoted schema identifiers still normalize through the existing identifier path, and quoted file expressions may contain `as` text without changing the `AS <schema>` split.
+
+Red-first reproduction before the fix:
+
+```sh
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachDetachSchemaCurrentNext18Test.php
+Focused test run: 1 selected test files (root lock skipped)
+FAIL attach detach schema current next18 SQL attach rejects trailing schema tokens (lanes/libsqlite/tests/SQLiteAttachDetachSchemaCurrentNext18Test.php)
+Expected exception InvalidArgumentException was not thrown
+1 test files, 86 assertions, 1 failures
+```
+
+Focused verification after the fix:
+
+```sh
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachDetachSchemaCurrentNext18Test.php
+Focused test run: 1 selected test files (root lock skipped)
+1 test files, 86 assertions, 0 failures
+
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachDetachSchemaCurrentNext18Test.php lanes/libsqlite/tests/SQLiteAttachDetachSchemaCacheCurrentNext29Test.php lanes/libsqlite/tests/SQLiteAttachDetachTransactionCurrentTest.php
+Focused test run: 3 selected test files (root lock skipped)
+3 test files, 212 assertions, 0 failures
+
+$ php lanes/libsqlite/examples/wordpress-attach-detach-schema-current-next18.php
+WordPress smoke printed attached site/archive database-list and detach results without error.
+
+$ php -l lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php && php -l lanes/libsqlite/tests/SQLiteAttachDetachSchemaCurrentNext18Test.php
+No syntax errors detected in lanes/libsqlite/src/SQLiteAttachedSchemaCatalog.php
+No syntax errors detected in lanes/libsqlite/tests/SQLiteAttachDetachSchemaCurrentNext18Test.php
+
+$ git diff --check -- lanes/libsqlite
+No output.
+```
+
+Dependency closure remains unchanged: no new support component is needed; this reuses the existing bounded ATTACH/DETACH SQL executor, schema catalog, URI/open planning, and PRAGMA current-source resolution.

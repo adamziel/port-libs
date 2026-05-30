@@ -87,7 +87,8 @@ final class SQLitePragmaIntegrityCheck
     {
         $trimmed = rtrim(trim($sql), ';');
         $trimmed = trim($trimmed);
-        if (!preg_match('/^PRAGMA\s+(?:(?:main|temp|[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(integrity_check|quick_check)(?:\s*(?:\(\s*(\d+)\s*\)|=\s*(\d+)))?$/i', $trimmed, $matches)) {
+        $identifier = '(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)';
+        if (!preg_match('/^PRAGMA\s+(?:(?:' . $identifier . ')\s*\.\s*)?(integrity_check|quick_check)(?:\s*(?:\(\s*(\d+)\s*\)|=\s*(\d+)))?$/i', $trimmed, $matches)) {
             throw new \InvalidArgumentException('Unsupported SQLite integrity PRAGMA SQL');
         }
 
@@ -104,7 +105,8 @@ final class SQLitePragmaIntegrityCheck
     private static function isTableScopedPragmaSql(string $sql): bool
     {
         $trimmed = trim(rtrim(trim($sql), ';'));
-        if (!preg_match('/^PRAGMA\s+(?:(?:main|temp|[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?:integrity_check|quick_check)\s*\(\s*(?<argument>.+)\s*\)$/i', $trimmed, $matches)) {
+        $identifier = '(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)';
+        if (!preg_match('/^PRAGMA\s+(?:(?:' . $identifier . ')\s*\.\s*)?(?:integrity_check|quick_check)\s*\(\s*(?<argument>.+)\s*\)$/i', $trimmed, $matches)) {
             return false;
         }
 

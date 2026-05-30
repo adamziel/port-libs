@@ -151,6 +151,20 @@ $tests = [
         $fk['on_update'] = 'NO ACTION';
         $t->same(1, $plan([['id' => 1, 'new_id' => 101]], $fk)['changes']);
     },
+    'foreign key on update immediate no action raises at statement boundary' => static function (TestRunner $t) use ($plan, $cascade): void {
+        $fk = $cascade;
+        $fk['on_update'] = 'NO ACTION';
+        $fk['deferred'] = false;
+        $t->throws(InvalidArgumentException::class, static fn () => $plan([['id' => 1, 'new_id' => 101]], $fk));
+    },
+    'foreign key on update immediate no action allows unreferenced parent update' => static function (TestRunner $t) use ($parents, $children, $cascade): void {
+        $fk = $cascade;
+        $fk['on_update'] = 'NO ACTION';
+        $fk['deferred'] = false;
+        $rows = array_merge($parents, [['id' => 4, 'name' => 'unused']]);
+        $result = SQLiteForeignKeyDeferredCascadePlan::updateParents($rows, $children, [['id' => 4, 'new_id' => 404]], $fk);
+        $t->same([1, 2, 3, 404], array_column($result['parent'], 'id'));
+    },
     'foreign key on update restrict raises before deferred commit' => static function (TestRunner $t) use ($plan, $cascade): void {
         $fk = $cascade;
         $fk['on_update'] = 'RESTRICT';
