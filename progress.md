@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 05:06 UTC):
+  Latest libsqlite consolidation source is integrated as `796fb2053`
+  (`libsqlite: consolidate suite evidence suffix helpers`). The batch accepts
+  two current-base handoffs from `b5beca046`, consolidating release-runner
+  denominator burnup current-next52 and upstream veryquick shard next378 helper
+  suffixes onto stable suite-evidence helpers. Rehearsal in
+  `.tmux-team/worktrees/rehearse-libsqlite-suite-cleanup-20260530T050436Z`
+  passed before applying the same patches to the clean integration worktree.
+  Exact integration gates passed PHP lint for 6 changed PHP files, `git diff
+  --check -- lanes/libsqlite`, focused suite tests `6 files / 6815 assertions
+  / 0 failures`, release-runner family `27 files / 10866 assertions / 0
+  failures`, and upstream veryquick current-source family `292 files / 368550
+  assertions / 0 failures`. Public counters remain `154019 pass / 0 fail` and
+  `830 / 1589` because this is consolidation-only. Next intake: publish and
+  live-verify the dashboard snapshot for `796fb2053`, consume accepted handoff
+  artifacts, keep 10-11 workers active, and continue scoring current-base
+  libsqlite handoffs while steering new capacity toward the pre-existing root
+  blockers after the suffix backlog drains.
+
 - 2026-05-30 supervisor continuation (shell samples 04:58 UTC):
   Latest libsqlite consolidation source is integrated as `8fa8416940`
   (`libsqlite: consolidate planner wal suite suffix helpers`). The batch
