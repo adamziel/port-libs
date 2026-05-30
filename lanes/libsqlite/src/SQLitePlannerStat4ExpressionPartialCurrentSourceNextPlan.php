@@ -33289,7 +33289,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializePreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        return self::materializePreparedHandoffNumberedRangeStage(
+        return self::materializePreparedHandoffRangeStage(
             $base,
             $currentSource,
             $neededColumns,
@@ -33309,7 +33309,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function materializePreparedHandoffNumberedRangeStage(
+    private static function materializePreparedHandoffRangeStage(
         array $base,
         array $currentSource,
         array $neededColumns,
@@ -33369,7 +33369,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializePreparedHandoffFirstContinuation($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        return self::materializePreparedHandoffNumberedRangeStage(
+        return self::materializePreparedHandoffRangeStage(
             $base,
             $currentSource,
             $neededColumns,
@@ -33399,7 +33399,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializePreparedHandoffProjectedContinuation($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        return self::materializePreparedHandoffNumberedRangeStage(
+        return self::materializePreparedHandoffRangeStage(
             $base,
             $currentSource,
             $neededColumns,
@@ -33429,7 +33429,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializePreparedHandoffRangeContinuation($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        return self::materializePreparedHandoffNumberedRangeStage(
+        return self::materializePreparedHandoffRangeStage(
             $base,
             $currentSource,
             $neededColumns,
@@ -33459,7 +33459,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializePreparedHandoffValidationRange($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        return self::materializePreparedHandoffNumberedRangeStage(
+        return self::materializePreparedHandoffRangeStage(
             $base,
             $currentSource,
             $neededColumns,

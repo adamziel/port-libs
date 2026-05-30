@@ -131,6 +131,9 @@ final class SQLiteSelectQuery
         $partitionBy = self::expressionList($expression['partitionBy'] ?? [], 'window partition expressions');
         $orderBy = self::windowOrderList($expression['orderBy'] ?? []);
         $frame = self::windowFrame($expression['frame'] ?? null);
+        if ($frame !== null) {
+            self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
+        }
         $filter = self::windowFilter($expression['filter'] ?? null);
         $aggregateOrderBy = null;
         if (array_key_exists('aggregateOrderBy', $expression)) {

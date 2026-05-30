@@ -193,4 +193,21 @@ $tests['upstream corpus window groups range current next18 rejects framed rankin
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT row_number() OVER (ORDER BY bytes GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
 };
 
+$tests['upstream corpus window groups range current next18 rejects value range frame without order'] = static function (TestRunner $t) use ($options): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT last_value(bytes) OVER (RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
+};
+
+$tests['upstream corpus window groups range current next18 direct query rejects value groups frame without order'] = static function (TestRunner $t) use ($options): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute([
+        'from' => $options,
+        'select' => [[
+            'type' => 'window',
+            'function' => 'last_value',
+            'arguments' => [['type' => 'column', 'name' => 'bytes']],
+            'frame' => ['unit' => 'GROUPS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'],
+            'alias' => 'last_bytes',
+        ]],
+    ]));
+};
+
 return $tests;
