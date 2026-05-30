@@ -102,6 +102,46 @@ final class SQLiteIndexLifecyclePlan
     }
 
     /**
+     * @return list<array{source:string,case:int,batch:int,upstream_section:string,scenario:string,table_name:string,index_name:string,unique_column:string,duplicate_value:int,initial_rows:list<list<int>>,create_index_result:array{0:int,1:string},commit_result:array{0:int,1:list<mixed>},catalog_names:list<string>,index_names:list<string>,integrity:string,row_count:int,residue_detected:bool}>
+     */
+    public static function duplicateUniqueIndexRollbackCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index3 duplicate UNIQUE corpus requires at least one case');
+        }
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $batch = intdiv($case - 1, 24) + 1;
+            $duplicateValue = (($case - 1) % 24) + 1;
+            $table = 't_dup_' . $batch;
+            $index = 'i_dup_' . $duplicateValue;
+
+            $rows[] = [
+                'source' => 'index3.test index3-1.1 through index3-1.4',
+                'case' => $case,
+                'batch' => $batch,
+                'upstream_section' => 'index3-1.1/1.4',
+                'scenario' => 'failed UNIQUE index creation on duplicate column data leaves no index residue after transaction commit',
+                'table_name' => $table,
+                'index_name' => $index,
+                'unique_column' => 'a',
+                'duplicate_value' => $duplicateValue,
+                'initial_rows' => [[$duplicateValue], [$duplicateValue]],
+                'create_index_result' => [1, 'UNIQUE constraint failed: ' . $table . '.a'],
+                'commit_result' => [0, []],
+                'catalog_names' => [$table],
+                'index_names' => [],
+                'integrity' => 'ok',
+                'row_count' => 2,
+                'residue_detected' => false,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function duplicateKeyLookup(): array

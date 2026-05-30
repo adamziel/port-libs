@@ -1492,6 +1492,70 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param list<string> $openHandles
+     * @return array<string, mixed>
+     */
+    public static function quotaVfsLimitProfile(
+        string $scenario,
+        string $pattern,
+        int $quotaLimit,
+        int $currentSize,
+        int $requestedSize,
+        bool $callbackExtendsLimit = false,
+        array $openHandles = ['main'],
+        string $journalMode = 'delete'
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite quota VFS scenario requires a name');
+        }
+        if ($pattern === '') {
+            throw new \InvalidArgumentException('SQLite quota VFS pattern requires a value');
+        }
+        if ($quotaLimit < 0 || $currentSize < 0 || $requestedSize < 0) {
+            throw new \InvalidArgumentException('SQLite quota VFS sizes must be non-negative');
+        }
+        $journalMode = strtolower(trim($journalMode));
+        if (!in_array($journalMode, ['delete', 'truncate', 'persist', 'wal'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite quota VFS journal mode: {$journalMode}");
+        }
+
+        $overLimit = $requestedSize > $quotaLimit && $quotaLimit > 0;
+        $allowed = !$overLimit || $callbackExtendsLimit;
+        $newLimit = $callbackExtendsLimit && $overLimit ? $requestedSize : $quotaLimit;
+        $finalSize = $allowed ? $requestedSize : $currentSize;
+        $shutdownAllowed = count($openHandles) === 0;
+
+        return [
+            'status' => 'ok',
+            'script' => str_starts_with($scenario, 'quota2-') ? 'quota2.test' : 'quota.test',
+            'scenario' => $scenario,
+            'pattern' => $pattern,
+            'quota_limit_before' => $quotaLimit,
+            'current_size' => $currentSize,
+            'requested_size' => $requestedSize,
+            'callback_invoked' => $overLimit,
+            'callback_extends_limit' => $callbackExtendsLimit,
+            'quota_limit_after' => $newLimit,
+            'result_code' => $allowed ? 'ok' : 'database or disk is full',
+            'final_size' => $finalSize,
+            'bytes_written' => max(0, $finalSize - $currentSize),
+            'open_handles' => array_values($openHandles),
+            'shutdown_result' => $shutdownAllowed ? 'SQLITE_OK' : 'SQLITE_MISUSE',
+            'journal_mode' => $journalMode,
+            'vfs_name_prefix' => 'quota/',
+            'group_size_after' => $finalSize,
+            'file_control_vfsname' => 'quota/default',
+            'integrity_check' => 'ok',
+            'dependencies' => [
+                'upstream-quota-test',
+                'sqlite-quota-vfs-limit',
+                'vfs-io-dynamic-real-corpus',
+            ],
+            'upstream' => self::quotaVfsUpstream($scenario),
+        ];
+    }
+
+    /**
      * @param list<string> $statements
      * @return array<string, mixed>
      */
@@ -1733,6 +1797,33 @@ final class SQLiteVfsIoDynamicPlan
             'walvfs-8' => ['walvfs.test 8.2', 'walvfs.test 8.3'],
             'walvfs-9' => ['walvfs.test 9.1'],
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function quotaVfsUpstream(string $scenario): array
+    {
+        if (str_starts_with($scenario, 'quota-2.1') || str_starts_with($scenario, 'quota-2.2') || str_starts_with($scenario, 'quota-2.4')) {
+            return ['quota.test quota-2.1', 'quota.test quota-2.2', 'quota.test quota-2.4'];
+        }
+        if (str_starts_with($scenario, 'quota-3.1')) {
+            return ['quota.test quota-3.1 two connections to one quota file'];
+        }
+        if (str_starts_with($scenario, 'quota-3.2') || str_starts_with($scenario, 'quota-3.3')) {
+            return ['quota.test quota-3.2 multiple files in one quota group', 'quota.test quota-3.3 quota callback records over-limit file'];
+        }
+        if (str_starts_with($scenario, 'quota2-1')) {
+            return ['quota2.test quota2-1 quota fopen/fwrite/fread/ftruncate lifecycle'];
+        }
+        if (str_starts_with($scenario, 'quota2-2')) {
+            return ['quota2.test quota2-2 untracked file bypasses quota group'];
+        }
+        if (str_starts_with($scenario, 'quota2-3')) {
+            return ['quota2.test quota2-3 append-mode quota accounting'];
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite quota VFS scenario: {$scenario}");
     }
 
     /**

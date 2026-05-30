@@ -475,6 +475,128 @@ final class SQLiteDynamicTriggerForeignKeyPlan
 
     /**
      * @param list<array<string,mixed>> $rows
+     * @param list<int> $updatedColumns
+     * @return array<string,mixed>
+     */
+    public static function wideColumnTriggerMaskPlan(array $rows, array $updatedColumns, int $columnCount = 66): array
+    {
+        if ($columnCount < 1) {
+            throw new \InvalidArgumentException('SQLite triggerB wide-column corpus requires at least one column');
+        }
+
+        $rows = array_values($rows);
+        $updated = [];
+        $changes = [];
+        $seen = [];
+
+        foreach ($updatedColumns as $column) {
+            if ($column < 0 || $column >= $columnCount) {
+                throw new \InvalidArgumentException('SQLite triggerB column index is outside the trigger mask width');
+            }
+            if (isset($seen[$column])) {
+                continue;
+            }
+            $seen[$column] = true;
+            $updated[] = $column;
+
+            $columnName = 'c' . $column;
+            foreach ($rows as $rowIndex => $row) {
+                $old = $row[$columnName] ?? null;
+                $new = 'b' . $column . '-' . ($row['setting_id'] ?? $rowIndex);
+                $rows[$rowIndex][$columnName] = $new;
+                if ($old !== $new) {
+                    $changes[] = [
+                        'rowid' => $row['setting_id'] ?? $rowIndex + 1,
+                        'colnum' => $column,
+                        'oldval' => $old,
+                        'newval' => $new,
+                    ];
+                }
+            }
+        }
+
+        return [
+            'source' => 'triggerB.test triggerB-3.1..3.2',
+            'operation' => 'wide-old-new-trigger-column-mask',
+            'status' => 'commit-ok',
+            'column_count' => $columnCount,
+            'updated_columns' => $updated,
+            'change_count' => count($changes),
+            'changes' => $changes,
+            'final_rows' => $rows,
+            'high_column_mask_required' => max($updated ?: [0]) >= 32,
+            'dependencies' => [
+                'sqlite-triggerB-old-new-column-mask-beyond-32-columns',
+                'sqlite-triggerB-when-old-column-differs-from-new-column',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:string}> $rows
+     * @return array<string,mixed>
+     */
+    public static function withoutRowidConflictDeleteTriggerPlan(array $rows, string $triggerMode): array
+    {
+        $rows = array_values($rows);
+        usort($rows, static fn (array $a, array $b): int => $a['a'] <=> $b['a']);
+        $triggerMode = strtolower(trim($triggerMode));
+        if (!in_array($triggerMode, ['none', 'after', 'before', 'both'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerF trigger mode must be none, after, before, or both');
+        }
+
+        $log = [];
+        $delete = static function (array &$state, int $key) use (&$log, $triggerMode): void {
+            foreach ($state as $index => $row) {
+                if ((int) $row['a'] !== $key) {
+                    continue;
+                }
+
+                $beforeCount = count($state);
+                if ($triggerMode === 'before' || $triggerMode === 'both') {
+                    $log[] = $row['a'] . $row['b'] . $beforeCount;
+                }
+                unset($state[$index]);
+                $state = array_values($state);
+                if ($triggerMode === 'after' || $triggerMode === 'both') {
+                    $log[] = $row['a'] . $row['b'] . count($state);
+                }
+                return;
+            }
+        };
+
+        $delete($rows, 1);
+        $delete($rows, 2);
+        $rows[] = ['a' => 2, 'b' => 'three'];
+        usort($rows, static fn (array $a, array $b): int => $a['a'] <=> $b['a']);
+        $delete($rows, 3);
+        foreach ($rows as $index => $row) {
+            if ((int) $row['a'] === 2) {
+                $rows[$index]['a'] = 3;
+                break;
+            }
+        }
+        usort($rows, static fn (array $a, array $b): int => $a['a'] <=> $b['a']);
+
+        return [
+            'source' => 'triggerF.test triggerF-1.*',
+            'operation' => 'without-rowid-conflict-delete-triggers',
+            'status' => 'commit-ok',
+            'trigger_mode' => $triggerMode,
+            'log' => $log,
+            'log_count' => count($log),
+            'final_rows' => $rows,
+            'final_keys' => array_values(array_column($rows, 'a')),
+            'dependencies' => [
+                'sqlite-triggerF-without-rowid-conflict-delete-trigger-order',
+                'sqlite-triggerF-before-delete-sees-row-before-removal',
+                'sqlite-triggerF-after-delete-sees-row-after-removal',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
      * @param array{event:string,match_column:string,match_value:mixed,delete_column:string,delete_value:mixed,name?:string} $trigger
      * @return array<string,mixed>
      */
@@ -1962,6 +2084,85 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'dependencies' => [
                 'sqlite-trigger7-many-triggers-on-table-remain-addressable',
                 'sqlite-trigger7-drop-trigger-removes-only-named-trigger',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{schema:string,name:string,table:string,event:string,timing:string}> $triggers
+     * @return array<string,mixed>
+     */
+    public static function dropTriggerSchemaResolutionPlan(array $triggers, string $dropName, string $event, string $table, bool $ifExists = false): array
+    {
+        $schemas = ['temp' => 0, 'main' => 1];
+        $records = [];
+        foreach (array_values($triggers) as $trigger) {
+            $schema = self::identifier((string) ($trigger['schema'] ?? ''), 'trigger schema');
+            $schemas[$schema] ??= count($schemas);
+            $records[] = [
+                'schema' => $schema,
+                'name' => self::identifier((string) ($trigger['name'] ?? ''), 'trigger name'),
+                'table' => self::identifier((string) ($trigger['table'] ?? ''), 'trigger table'),
+                'event' => strtolower(self::identifier((string) ($trigger['event'] ?? ''), 'trigger event')),
+                'timing' => strtolower(self::identifier((string) ($trigger['timing'] ?? ''), 'trigger timing')),
+            ];
+        }
+
+        $event = strtolower(self::identifier($event, 'trigger event'));
+        $table = self::identifier($table, 'trigger table');
+        [$dropSchema, $localName] = self::splitQualifiedTriggerName($dropName);
+        if ($dropSchema !== null) {
+            self::identifier($dropSchema, 'drop trigger schema');
+        }
+        $localName = self::identifier($localName, 'drop trigger name');
+
+        $before = self::triggerFireList($records, $event, $table, $schemas);
+        $dropIndex = null;
+        foreach ($records as $index => $record) {
+            if ($record['name'] !== $localName) {
+                continue;
+            }
+            if ($dropSchema !== null && $record['schema'] !== $dropSchema) {
+                continue;
+            }
+            if ($dropIndex === null || $schemas[$record['schema']] < $schemas[$records[$dropIndex]['schema']]) {
+                $dropIndex = $index;
+            }
+        }
+
+        $error = null;
+        $dropped = null;
+        if ($dropIndex === null) {
+            $error = $ifExists ? null : 'no such trigger: ' . ($dropSchema === null ? $localName : $dropSchema . '.' . $localName);
+        } else {
+            $dropped = $records[$dropIndex];
+            unset($records[$dropIndex]);
+            $records = array_values($records);
+        }
+
+        $after = self::triggerFireList($records, $event, $table, $schemas);
+
+        return [
+            'source' => 'e_droptrigger.test e_droptrigger-1..4',
+            'operation' => 'drop-trigger-schema-resolution-and-fired-program-removal',
+            'status' => $error === null ? 'commit-ok' : 'schema-error',
+            'drop_name' => $dropName,
+            'drop_schema' => $dropSchema,
+            'drop_trigger' => $localName,
+            'if_exists' => $ifExists,
+            'error' => $error,
+            'dropped_trigger' => $dropped === null ? null : $dropped['schema'] . '.' . $dropped['name'],
+            'event' => $event,
+            'table' => $table,
+            'fired_before' => $before,
+            'fired_after' => $after,
+            'remaining_trigger_names' => self::qualifiedTriggerNames($records, $schemas),
+            'schema_rows_removed' => $dropped === null ? 0 : 1,
+            'dependencies' => [
+                'sqlite-drop-trigger-removes-schema-row',
+                'sqlite-drop-trigger-unqualified-schema-search-order',
+                'sqlite-drop-trigger-removed-program-no-longer-fires',
+                'sqlite-drop-trigger-if-exists-allows-missing-trigger',
             ],
         ];
     }
@@ -4460,6 +4661,56 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         ksort($counts);
 
         return $counts;
+    }
+
+    /**
+     * @return array{0:?string,1:string}
+     */
+    private static function splitQualifiedTriggerName(string $name): array
+    {
+        $parts = explode('.', $name);
+        if (count($parts) === 1) {
+            return [null, $parts[0]];
+        }
+        if (count($parts) === 2) {
+            return [$parts[0], $parts[1]];
+        }
+
+        throw new \InvalidArgumentException('SQLite dynamic trigger FK drop trigger name is malformed');
+    }
+
+    /**
+     * @param list<array{schema:string,name:string,table:string,event:string,timing:string}> $triggers
+     * @param array<string,int> $schemas
+     * @return list<string>
+     */
+    private static function triggerFireList(array $triggers, string $event, string $table, array $schemas): array
+    {
+        $rows = array_values(array_filter(
+            $triggers,
+            static fn (array $trigger): bool => $trigger['event'] === $event && $trigger['table'] === $table
+        ));
+        usort($rows, static function (array $left, array $right) use ($schemas): int {
+            return [$schemas[$left['schema']] ?? 999, $left['timing'] === 'before' ? 0 : 1, $left['name']]
+                <=> [$schemas[$right['schema']] ?? 999, $right['timing'] === 'before' ? 0 : 1, $right['name']];
+        });
+
+        return array_values(array_map(static fn (array $trigger): string => $trigger['schema'] . '.' . $trigger['name'], $rows));
+    }
+
+    /**
+     * @param list<array{schema:string,name:string,table:string,event:string,timing:string}> $triggers
+     * @param array<string,int> $schemas
+     * @return list<string>
+     */
+    private static function qualifiedTriggerNames(array $triggers, array $schemas): array
+    {
+        usort($triggers, static function (array $left, array $right) use ($schemas): int {
+            return [$schemas[$left['schema']] ?? 999, $left['name']]
+                <=> [$schemas[$right['schema']] ?? 999, $right['name']];
+        });
+
+        return array_values(array_map(static fn (array $trigger): string => $trigger['schema'] . '.' . $trigger['name'], $triggers));
     }
 
     private static function raiseActionForValue(int $value, bool $viewTrigger): string
