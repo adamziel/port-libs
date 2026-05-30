@@ -459,4 +459,36 @@ $tests['upstream corpus window groups range current next18 direct query rejects 
     throw new RuntimeException('Expected direct value GROUPS frame without ORDER BY to be rejected');
 };
 
+$tests['upstream corpus window groups range current next18 commented groups frame keeps order'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute(
+        "SELECT sum(bytes) OVER (ORDER BY bytes /* peer group boundary */ GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_sum FROM app_cache_entries ORDER BY option_id",
+        ['app_cache_entries' => $options],
+    );
+
+    $t->same([40, 40, 80, 100, 100, 40], array_column($rows, 'window_sum'));
+};
+
+$tests['upstream corpus window groups range current next18 commented range frame keeps order'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute(
+        "SELECT count(*) OVER (ORDER BY bytes -- numeric peer key\n RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING) AS window_count FROM app_cache_entries ORDER BY option_id",
+        ['app_cache_entries' => $options],
+    );
+
+    $t->same([3, 3, 3, 3, 3, 1], array_column($rows, 'window_count'));
+};
+
+$tests['upstream corpus window groups range current next18 commented partitioned range without order rejects'] = static function (TestRunner $t) use ($options): void {
+    try {
+        SQLiteSelectSql::execute(
+            "SELECT count(*) OVER (PARTITION BY autoload /* no order key */ RANGE BETWEEN CURRENT ROW AND 10 FOLLOWING) FROM app_cache_entries",
+            ['app_cache_entries' => $options],
+        );
+    } catch (InvalidArgumentException $exception) {
+        $t->same('SQLite SELECT SQL RANGE/GROUPS window frame needs ORDER BY', $exception->getMessage());
+        return;
+    }
+
+    throw new RuntimeException('Expected commented partitioned RANGE frame without ORDER BY to be rejected');
+};
+
 return $tests;

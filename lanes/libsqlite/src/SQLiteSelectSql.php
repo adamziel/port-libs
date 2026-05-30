@@ -28,7 +28,7 @@ final class SQLiteSelectSql
      */
     public static function recursiveCteCycleTrace(string $sql, array $tables, array $parameters = []): array
     {
-        $sql = trim(rtrim(trim($sql), ';'));
+        $sql = trim(rtrim(self::stripSqlComments(trim($sql)), ';'));
         if ($parameters !== []) {
             $sql = self::bindParameters($sql, $parameters);
         }
@@ -70,7 +70,7 @@ final class SQLiteSelectSql
      */
     public static function plan(string $sql, array $tables, array $parameters = [], ?array $outerRow = null): array
     {
-        $sql = trim(rtrim(trim($sql), ';'));
+        $sql = trim(rtrim(self::stripSqlComments(trim($sql)), ';'));
         if ($parameters !== []) {
             $sql = self::bindParameters($sql, $parameters);
         }
@@ -210,6 +210,70 @@ final class SQLiteSelectSql
         }
 
         return $plan;
+    }
+
+    private static function stripSqlComments(string $sql): string
+    {
+        $result = '';
+        $length = strlen($sql);
+        $quote = null;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            $next = $sql[$i + 1] ?? '';
+
+            if ($quote !== null) {
+                $result .= $char;
+                if ($char === $quote) {
+                    if (($quote === "'" || $quote === '"') && $next === $quote) {
+                        $result .= $next;
+                        $i++;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === "'" || $char === '"') {
+                $quote = $char;
+                $result .= $char;
+                continue;
+            }
+
+            if ($char === '-' && $next === '-') {
+                $i += 2;
+                while ($i < $length && !in_array($sql[$i], ["\n", "\r"], true)) {
+                    $i++;
+                }
+                $result .= ' ';
+                if ($i < $length) {
+                    $result .= $sql[$i];
+                }
+                continue;
+            }
+
+            if ($char === '/' && $next === '*') {
+                $i += 2;
+                while ($i < $length - 1 && !($sql[$i] === '*' && $sql[$i + 1] === '/')) {
+                    $i++;
+                }
+                if ($i >= $length - 1) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL block comment is unterminated');
+                }
+                $i++;
+                $result .= ' ';
+                continue;
+            }
+
+            $result .= $char;
+        }
+
+        if ($quote !== null) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL string literal is unterminated');
+        }
+
+        return $result;
     }
 
     /**

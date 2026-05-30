@@ -1257,19 +1257,38 @@ final class SQLiteCoreScalarFunction
         if (strcasecmp($text, 'now') === 0) {
             return new \DateTimeImmutable('now', $timezone);
         }
+        if (preg_match('/\A\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
+            $normalized = self::normalizeDateTimeText('2000-01-01 ' . $text);
+
+            return (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone);
+        }
         if (preg_match('/\A\d{4}-\d{2}-\d{2}\z/', $text) === 1) {
             return new \DateTimeImmutable($text . ' 00:00:00', $timezone);
         }
-        if (preg_match('/\A\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})?\z/i', $text) === 1) {
-            $normalized = str_replace('T', ' ', $text);
-            if (preg_match('/Z\z/i', $normalized) === 1) {
-                $normalized = rtrim($normalized, 'Zz') . '+00:00';
-            }
+        if (preg_match('/\A\d{4}-\d{2}-\d{2}(?:[ T]+)\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
+            $normalized = self::normalizeDateTimeText($text);
 
             return (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone);
         }
 
         throw new \InvalidArgumentException("Unsupported SQLite date/time value: {$text}");
+    }
+
+    private static function normalizeDateTimeText(string $text): string
+    {
+        $normalized = preg_replace('/[ T]+/', ' ', trim($text));
+        if ($normalized === null) {
+            throw new \InvalidArgumentException('Failed to normalize SQLite date/time value');
+        }
+        $normalized = preg_replace('/\s+(Z|[+-]\d{2}:\d{2})\z/i', '$1', $normalized);
+        if ($normalized === null) {
+            throw new \InvalidArgumentException('Failed to normalize SQLite date/time timezone suffix');
+        }
+        if (preg_match('/Z\z/i', $normalized) === 1) {
+            $normalized = rtrim($normalized, 'Zz') . '+00:00';
+        }
+
+        return $normalized;
     }
 
     private static function dateTimeFromUnixTimestamp(float|int $seconds, \DateTimeZone $timezone): \DateTimeImmutable
