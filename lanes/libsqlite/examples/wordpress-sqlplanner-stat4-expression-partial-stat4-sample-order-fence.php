@@ -6,16 +6,29 @@ use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
+$payload = static fn (array $row): array => [
+    'rowid' => $row['rowid'],
+    'expressionKey' => strtolower((string) $row['option_name']),
+    'coveredValues' => [
+        'option_name' => $row['option_name'],
+        'option_value' => $row['option_value'],
+        'updated_at' => $row['updated_at'],
+        'blog_id' => $row['blog_id'],
+        'autoload' => $row['autoload'],
+    ],
+];
+
 $prepared = [
-    'name' => 'prepared-wordpress-options-next208',
-    'schemaCookie' => 2080,
-    'stat4Generation' => 208,
+    'name' => 'prepared-wordpress-options-next224',
+    'schemaCookie' => 2240,
+    'stat4Generation' => 224,
     'rows' => [
         ['rowid' => 10, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_alpha', 'option_value' => 'old-alpha', 'updated_at' => 10],
+        ['rowid' => 20, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_forms', 'option_value' => 'old-forms', 'updated_at' => 20],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_partial_or_stat4_next208',
-        'rootPage' => 20801,
+        'name' => 'idx_wp_options_stat4_sample_order_next224',
+        'rootPage' => 22401,
         'expression' => 'lower(option_name)',
         'expressionColumn' => '__expr_lower_option_name',
         'collation' => 'BINARY',
@@ -26,22 +39,38 @@ $prepared = [
             ['left' => ['column' => 'autoload'], 'operator' => '=', 'right' => 'yes'],
             ['left' => ['column' => 'option_name'], 'operator' => 'IS NOT NULL'],
         ],
-        'partialOrPredicateTerms' => [
-            ['left' => ['column' => 'autoload'], 'operator' => '=', 'right' => 'critical'],
-            ['left' => ['column' => 'blog_id'], 'operator' => '=', 'right' => 1],
+        'partialGroupedOrPredicateArms' => [
+            [
+                ['left' => ['column' => 'blog_id'], 'operator' => '=', 'right' => 1],
+                ['left' => ['column' => 'autoload'], 'operator' => '=', 'right' => 'yes'],
+            ],
+            [
+                ['left' => ['column' => 'autoload'], 'operator' => '=', 'right' => 'critical'],
+            ],
+        ],
+        'partialGroupedLikePredicateArms' => [
+            [
+                ['left' => ['column' => 'blog_id'], 'operator' => '=', 'right' => 1],
+                ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'plugin_%'],
+            ],
+            [
+                ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'network_%'],
+            ],
         ],
         'coveringColumns' => ['option_name', 'option_value', 'updated_at', 'autoload', 'blog_id'],
         'stat4Samples' => [
             ['neq' => '1 1', 'nlt' => '0 0', 'ndlt' => '0 0', 'sample' => ['plugin_alpha', 10]],
+            ['neq' => '1 1', 'nlt' => '1 1', 'ndlt' => '1 1', 'sample' => ['plugin_forms', 20]],
         ],
+        'stat4ExpressionPayloads' => [],
     ]],
 ];
 
 $current = $prepared;
-$current['name'] = 'current-wordpress-options-next208';
-$current['schemaCookie'] = 2088;
-$current['stat4Generation'] = 254;
-$current['indexes'][0]['rootPage'] = 20888;
+$current['name'] = 'current-wordpress-options-next224';
+$current['schemaCookie'] = 2249;
+$current['stat4Generation'] = 294;
+$current['indexes'][0]['rootPage'] = 22488;
 $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '1 1', 'nlt' => '0 0', 'ndlt' => '0 0', 'sample' => ['plugin_alpha', 10]],
     ['neq' => '1 1', 'nlt' => '1 1', 'ndlt' => '1 1', 'sample' => ['plugin_cache', 40]],
@@ -60,8 +89,9 @@ $current['rows'] = [
     ['rowid' => 40, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_cache', 'option_value' => 'cache', 'updated_at' => 40],
     ['rowid' => 10, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_alpha', 'option_value' => 'alpha', 'updated_at' => 10],
 ];
+$current['indexes'][0]['stat4ExpressionPayloads'] = array_map($payload, $current['rows']);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext208(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4SampleOrderFence(
     $prepared,
     $current,
     [
@@ -69,25 +99,34 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNex
         ['left' => ['column' => 'autoload'], 'operator' => '=', 'right' => 'yes'],
         ['left' => ['column' => 'option_name'], 'operator' => 'IS NOT NULL'],
         ['left' => ['column' => 'blog_id'], 'operator' => '=', 'right' => 1],
+        ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'plugin_%'],
     ],
     ['option_name', 'option_value', 'updated_at', 'blog_id'],
     5,
     1,
 );
 
-if (in_array('--self-test', $argv, true)) {
-    assert(($plan['status'] ?? null) === 'stat4-expression-partial-current-source-next208-ready');
-    assert(($plan['stat4SelectivityFence']['estimatedRowsFromStat4'] ?? null) === 5);
-    assert(($plan['stat4SelectivityFence']['selectedSampleKeys'] ?? []) === ['plugin_seo', 'plugin_mail', 'plugin_forms']);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next208 self-test passed\n";
+if (($plan['status'] ?? null) !== 'stat4-expression-partial-current-source-next224-ready') {
+    throw new RuntimeException('Expected next224 STAT4 sample-order plan to be ready');
+}
+if (($plan['stat4SampleOrderFence']['matchedSampleProofs'][0]['sampleOrdinal'] ?? null) !== 4) {
+    throw new RuntimeException('Expected plugin_seo to resolve to the current descending STAT4 sample ordinal');
+}
+if (($plan['stat4SampleOrderFence']['duplicateSamplePeersRemainInRowidOrder'] ?? null) !== true) {
+    throw new RuntimeException('Expected duplicate plugin_forms peers to remain in rowid order');
+}
+
+if (($argv[1] ?? null) === '--self-test') {
+    echo 'wordpress-sqlplanner-stat4-expression-partial-current-source-next224 self-test passed' . PHP_EOL;
+
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next208',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],
     'matchedRowids' => $plan['matchedRowids'],
-    'stat4SelectivityFence' => $plan['stat4SelectivityFence'],
-    'wordpressUse' => 'Copied wp_options plugin diagnostics can admit a current-source partial expression-index scan only when the matched partial-OR arm has a fresh STAT4 sample window anchoring the selected option_name keys and rowids.',
+    'sampleOrdinals' => array_column($plan['stat4SampleOrderFence']['matchedSampleProofs'], 'sampleOrdinal'),
+    'relations' => array_column($plan['stat4SampleOrderFence']['matchedSampleProofs'], 'relationToPrevious'),
+    'wordpressUse' => 'Copied wp_options plugin scans can reuse a current-source STAT4 partial expression index only after the selected page maps to current sqlite_stat4 sample order and duplicate expression peers stay in rowid order.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

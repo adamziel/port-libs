@@ -83,7 +83,7 @@ $terms175 = static fn (): array => [
     $exprRange175('lower(option_name)', '<', 'plugin`'),
 ];
 $needed175 = ['option_name', 'option_value'];
-$plan175 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext175(
+$plan175 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeLikePrefixWindowFence(
     $prepared ?? $prepared175(),
     $current ?? $current175(),
     $terms ?? $terms175(),

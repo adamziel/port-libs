@@ -27358,20 +27358,30 @@ final class SQLiteJsonTablePlan
         $next = self::generatedPathRowidCostProfile($slice, $function, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, null, $yieldBatchSize, null, null);
         $transitions = self::generatedPathRowidCostTransitions($current, $next);
         $reasons = self::generatedPathRowidCostReasons($slice, $transitions);
+        $legacyReasons = $reasons === [] ? [] : array_values(array_unique(array_merge([
+            'json-table-generated-path-rowid-yield-guard-source-changed-next224',
+        ], $reasons)));
+        $stableReasons = self::generatedPathRowidStableCostReasons($legacyReasons, $slice);
 
         return [
             'function' => $current['function'],
+            'currentGeneratedPathRowidCurrentSourceCostSelection' => $current,
+            'nextGeneratedPathRowidCurrentSourceCostSelection' => $next,
+            'generatedPathRowidCurrentSourceCostSelectionTransitions' => $transitions,
+            'generatedPathRowidCurrentSourceCostSelectionReplanReasons' => $stableReasons,
+            'replanReasons' => $stableReasons,
             'currentGeneratedPathRowidCurrentSourceCostSelection' . $slice => $current,
             'nextGeneratedPathRowidCurrentSourceCostSelection' . $slice => $next,
             'generatedPathRowidCurrentSourceCostSelection' . $slice . 'Transitions' => $transitions,
-            'replanRequired' => $reasons !== [],
-            'next' . $slice . 'ReplanReasons' => $reasons === [] ? [] : array_values(array_unique(array_merge([
-                'json-table-generated-path-rowid-yield-guard-source-changed-next224',
-            ], $reasons))),
+            'replanRequired' => $legacyReasons !== [],
+            'next' . $slice . 'ReplanReasons' => $legacyReasons,
+            'canonicalCurrentReaderPolicy' => 'cost-select-current-json-table-generated-path-rowid',
+            'canonicalNextReaderPolicy' => $legacyReasons === [] ? 'reuse-cost-select-current-json-table-generated-path-rowid' : 'reprepare-cost-select-next-json-table-generated-path-rowid',
             'currentReaderPolicy' => 'cost-select-current-json-table-generated-path-rowid-next' . $slice,
-            'nextReaderPolicy' => $reasons === [] ? 'reuse-cost-select-current-json-table-generated-path-rowid-next' . $slice : 'reprepare-cost-select-next-json-table-generated-path-rowid-next' . $slice,
+            'nextReaderPolicy' => $legacyReasons === [] ? 'reuse-cost-select-current-json-table-generated-path-rowid-next' . $slice : 'reprepare-cost-select-next-json-table-generated-path-rowid-next' . $slice,
             'projectedColumns' => $projectedColumns,
             'dependencies' => [
+                'sqlite-json-table-generated-path-rowid-cost-current-source-selection',
                 'sqlite-json-table-generated-path-rowid-cost-current-source-next224',
                 'sqlite-json-table-generated-path-rowid-cost-current-source-next' . $slice,
             ],
@@ -27540,6 +27550,27 @@ final class SQLiteJsonTablePlan
         }
 
         return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param list<string> $reasons
+     * @return list<string>
+     */
+    private static function generatedPathRowidStableCostReasons(array $reasons, int $slice): array
+    {
+        $stable = [];
+        foreach ($reasons as $reason) {
+            $stable[] = str_replace(
+                [
+                    '-next' . $slice,
+                    '-next224',
+                ],
+                '',
+                $reason,
+            );
+        }
+
+        return array_values(array_unique($stable));
     }
 
 

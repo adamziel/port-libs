@@ -64,7 +64,7 @@ $current['rows'] = [
     ['rowid' => 70, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'theme_mods_twenty', 'option_value' => 'theme-current'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext175(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeLikePrefixWindowFence(
     $prepared,
     $current,
     [

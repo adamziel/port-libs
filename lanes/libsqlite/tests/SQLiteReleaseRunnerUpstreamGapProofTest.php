@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 
-function libsqlite_release_gap37_evidence(): SQLiteUpstreamSuiteEvidence
+function libsqlite_release_upstream_gap_proof_evidence(): SQLiteUpstreamSuiteEvidence
 {
     return SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 }
 
-function libsqlite_release_gap37_root(string $label): string
+function libsqlite_release_upstream_gap_proof_root(string $label): string
 {
-    return sys_get_temp_dir() . '/libsqlite-release-gap37-' . $label . '-' . bin2hex(random_bytes(4));
+    return sys_get_temp_dir() . '/libsqlite-release-upstream-gap-proof-' . $label . '-' . bin2hex(random_bytes(4));
 }
 
-function libsqlite_release_gap37_cleanup(string $root): void
+function libsqlite_release_upstream_gap_proof_cleanup(string $root): void
 {
     if (!is_dir($root)) {
         return;
@@ -36,7 +36,7 @@ function libsqlite_release_gap37_cleanup(string $root): void
     @rmdir($root);
 }
 
-function libsqlite_release_gap37_hydrate(string $root, array $scripts): void
+function libsqlite_release_upstream_gap_proof_hydrate(string $root, array $scripts): void
 {
     $testDir = $root . '/.upstream-cache/libsqlite/test';
     $buildDir = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
@@ -50,7 +50,7 @@ function libsqlite_release_gap37_hydrate(string $root, array $scripts): void
     chmod($buildDir . '/testfixture', 0777);
 }
 
-function libsqlite_release_gap37_artifact(string $head, string $label = 'current-release', int $tests = 22000, string $testset = 'release', string $patterns = 'none', int $exit = 0, int $errors = 0): string
+function libsqlite_release_upstream_gap_proof_artifact(string $head, string $label = 'current-release', int $tests = 22000, string $testset = 'release', string $patterns = 'none', int $exit = 0, int $errors = 0): string
 {
     return "# SQLite Tcl Bounded Runner Evidence - {$label}\n\n"
         . "- Repository HEAD: `{$head}`\n"
@@ -66,16 +66,16 @@ function libsqlite_release_gap37_artifact(string $head, string $label = 'current
         . "- Parsed tests: `{$tests}`\n";
 }
 
-function libsqlite_release_gap37_write_artifact(string $dir, string $head, string $label = 'current-release', int $tests = 22000, string $testset = 'release', string $patterns = 'none', int $exit = 0, int $errors = 0): void
+function libsqlite_release_upstream_gap_proof_write_artifact(string $dir, string $head, string $label = 'current-release', int $tests = 22000, string $testset = 'release', string $patterns = 'none', int $exit = 0, int $errors = 0): void
 {
     if (!is_dir($dir)) {
         mkdir($dir, 0777, true);
     }
-    file_put_contents($dir . '/' . $label . '.md', libsqlite_release_gap37_artifact($head, $label, $tests, $testset, $patterns, $exit, $errors));
+    file_put_contents($dir . '/' . $label . '.md', libsqlite_release_upstream_gap_proof_artifact($head, $label, $tests, $testset, $patterns, $exit, $errors));
     file_put_contents($dir . '/' . $label . '.log', "{$errors} errors out of {$tests} tests\n");
 }
 
-function libsqlite_release_gap37_focused_output(int $assertions = 57, int $failures = 0, int $files = 1): string
+function libsqlite_release_upstream_gap_proof_focused_output(int $assertions = 57, int $failures = 0, int $files = 1): string
 {
     return "Focused test run: {$files} selected test files (root lock skipped)\n"
         . "{$files} test files, {$assertions} assertions, {$failures} failures";
@@ -83,18 +83,18 @@ function libsqlite_release_gap37_focused_output(int $assertions = 57, int $failu
 
 $acceptedHead = '28488284c6b42b08db024e7e34c788f71b24a201';
 $nextHead = 'current-next37-proof-head';
-$focusedPath = 'lanes/libsqlite/tests/SQLiteReleaseRunnerUpstreamGapProofCurrentNext37Test.php';
+$focusedPath = 'lanes/libsqlite/tests/SQLiteReleaseRunnerUpstreamGapProofTest.php';
 $nonOverlap = 'Avoids accepted release runner parity ledger, current/next count, audit extension, hydration cluster, JSON/VFS/WAL/B-tree/SQL behavior clusters; proves only current-next37 upstream gap readiness.';
 
 $tests = [
     'current next37 proves current artifact and next runner gap with focused php admission' => static function (TestRunner $t) use ($acceptedHead, $nextHead, $focusedPath, $nonOverlap): void {
-        $root = libsqlite_release_gap37_root('ready');
+        $root = libsqlite_release_upstream_gap_proof_root('ready');
         $artifacts = $root . '/artifacts';
         try {
-            libsqlite_release_gap37_hydrate($root, ['json101.test', 'wal.test', 'btree01.test']);
-            libsqlite_release_gap37_write_artifact($artifacts, $acceptedHead);
+            libsqlite_release_upstream_gap_proof_hydrate($root, ['json101.test', 'wal.test', 'btree01.test']);
+            libsqlite_release_upstream_gap_proof_write_artifact($artifacts, $acceptedHead);
 
-            $record = libsqlite_release_gap37_evidence()->releaseRunnerUpstreamGapProofCurrentNext37(
+            $record = libsqlite_release_upstream_gap_proof_evidence()->releaseRunnerUpstreamGapProof(
                 $acceptedHead,
                 $nextHead,
                 $artifacts,
@@ -104,7 +104,7 @@ $tests = [
                 ],
                 12903,
                 $focusedPath,
-                libsqlite_release_gap37_focused_output(57),
+                libsqlite_release_upstream_gap_proof_focused_output(57),
                 $nonOverlap,
                 $root
             );
@@ -127,25 +127,25 @@ $tests = [
             $t->contains('current-next37 gap proof', $record['dependency_closure']);
             $t->contains('launch at most one guarded next-source runner', $record['next_gate']);
         } finally {
-            libsqlite_release_gap37_cleanup($root);
+            libsqlite_release_upstream_gap_proof_cleanup($root);
         }
     },
     'current next37 blocks duplicate next artifact rather than relaunching broad runner' => static function (TestRunner $t) use ($acceptedHead, $nextHead, $focusedPath, $nonOverlap): void {
-        $root = libsqlite_release_gap37_root('duplicate-next');
+        $root = libsqlite_release_upstream_gap_proof_root('duplicate-next');
         $artifacts = $root . '/artifacts';
         try {
-            libsqlite_release_gap37_hydrate($root, ['json101.test']);
-            libsqlite_release_gap37_write_artifact($artifacts, $acceptedHead, 'current-release');
-            libsqlite_release_gap37_write_artifact($artifacts, $nextHead, 'next-release');
+            libsqlite_release_upstream_gap_proof_hydrate($root, ['json101.test']);
+            libsqlite_release_upstream_gap_proof_write_artifact($artifacts, $acceptedHead, 'current-release');
+            libsqlite_release_upstream_gap_proof_write_artifact($artifacts, $nextHead, 'next-release');
 
-            $record = libsqlite_release_gap37_evidence()->releaseRunnerUpstreamGapProofCurrentNext37(
+            $record = libsqlite_release_upstream_gap_proof_evidence()->releaseRunnerUpstreamGapProof(
                 $acceptedHead,
                 $nextHead,
                 $artifacts,
                 ['json' => ['json101.test']],
                 12903,
                 $focusedPath,
-                libsqlite_release_gap37_focused_output(43),
+                libsqlite_release_upstream_gap_proof_focused_output(43),
                 $nonOverlap,
                 $root
             );
@@ -158,17 +158,17 @@ $tests = [
             $t->same(43, $record['php_pass_delta']);
             $t->same(12946, $record['next_php_pass']);
         } finally {
-            libsqlite_release_gap37_cleanup($root);
+            libsqlite_release_upstream_gap_proof_cleanup($root);
         }
     },
     'current next37 reports focused subset hydration blockers' => static function (TestRunner $t) use ($acceptedHead, $nextHead, $focusedPath, $nonOverlap): void {
-        $root = libsqlite_release_gap37_root('missing-script');
+        $root = libsqlite_release_upstream_gap_proof_root('missing-script');
         $artifacts = $root . '/artifacts';
         try {
-            libsqlite_release_gap37_hydrate($root, ['json101.test']);
-            libsqlite_release_gap37_write_artifact($artifacts, $acceptedHead);
+            libsqlite_release_upstream_gap_proof_hydrate($root, ['json101.test']);
+            libsqlite_release_upstream_gap_proof_write_artifact($artifacts, $acceptedHead);
 
-            $record = libsqlite_release_gap37_evidence()->releaseRunnerUpstreamGapProofCurrentNext37(
+            $record = libsqlite_release_upstream_gap_proof_evidence()->releaseRunnerUpstreamGapProof(
                 $acceptedHead,
                 $nextHead,
                 $artifacts,
@@ -178,7 +178,7 @@ $tests = [
                 ],
                 12903,
                 $focusedPath,
-                libsqlite_release_gap37_focused_output(41),
+                libsqlite_release_upstream_gap_proof_focused_output(41),
                 $nonOverlap,
                 $root
             );
@@ -191,24 +191,24 @@ $tests = [
             $t->same('skipped', $record['focused_subsets']['wal']['status']);
             $t->same(false, $record['ready_to_launch_next_guarded_runner']);
         } finally {
-            libsqlite_release_gap37_cleanup($root);
+            libsqlite_release_upstream_gap_proof_cleanup($root);
         }
     },
     'current next37 preserves current artifact while broad runner is active' => static function (TestRunner $t) use ($acceptedHead, $nextHead, $focusedPath, $nonOverlap): void {
-        $root = libsqlite_release_gap37_root('active-runner');
+        $root = libsqlite_release_upstream_gap_proof_root('active-runner');
         $artifacts = $root . '/artifacts';
         try {
-            libsqlite_release_gap37_hydrate($root, ['json101.test']);
-            libsqlite_release_gap37_write_artifact($artifacts, $acceptedHead);
+            libsqlite_release_upstream_gap_proof_hydrate($root, ['json101.test']);
+            libsqlite_release_upstream_gap_proof_write_artifact($artifacts, $acceptedHead);
 
-            $record = libsqlite_release_gap37_evidence()->releaseRunnerUpstreamGapProofCurrentNext37(
+            $record = libsqlite_release_upstream_gap_proof_evidence()->releaseRunnerUpstreamGapProof(
                 $acceptedHead,
                 $nextHead,
                 $artifacts,
                 ['json' => ['json101.test']],
                 12903,
                 $focusedPath,
-                libsqlite_release_gap37_focused_output(40),
+                libsqlite_release_upstream_gap_proof_focused_output(40),
                 $nonOverlap,
                 $root,
                 '12345 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error all'
@@ -220,17 +220,17 @@ $tests = [
             $t->true(in_array('duplicate-broad-runner-active', array_column($record['blockers'], 'id'), true), 'Expected duplicate runner blocker');
             $t->same(40, $record['php_pass_delta']);
         } finally {
-            libsqlite_release_gap37_cleanup($root);
+            libsqlite_release_upstream_gap_proof_cleanup($root);
         }
     },
     'current next37 blocks missing php pass admission' => static function (TestRunner $t) use ($acceptedHead, $nextHead, $focusedPath, $nonOverlap): void {
-        $root = libsqlite_release_gap37_root('php-blocked');
+        $root = libsqlite_release_upstream_gap_proof_root('php-blocked');
         $artifacts = $root . '/artifacts';
         try {
-            libsqlite_release_gap37_hydrate($root, ['json101.test']);
-            libsqlite_release_gap37_write_artifact($artifacts, $acceptedHead);
+            libsqlite_release_upstream_gap_proof_hydrate($root, ['json101.test']);
+            libsqlite_release_upstream_gap_proof_write_artifact($artifacts, $acceptedHead);
 
-            $record = libsqlite_release_gap37_evidence()->releaseRunnerUpstreamGapProofCurrentNext37(
+            $record = libsqlite_release_upstream_gap_proof_evidence()->releaseRunnerUpstreamGapProof(
                 $acceptedHead,
                 $nextHead,
                 $artifacts,
@@ -248,7 +248,7 @@ $tests = [
             $t->true(in_array('php-pass-admission-blocked', array_column($record['blockers'], 'id'), true), 'Expected PHP pass blocker');
             $t->contains('missing focused TestRunner output', json_encode($record['blockers'], JSON_THROW_ON_ERROR));
         } finally {
-            libsqlite_release_gap37_cleanup($root);
+            libsqlite_release_upstream_gap_proof_cleanup($root);
         }
     },
 ];
@@ -268,7 +268,7 @@ $matrix = [
 
 foreach ($matrix as $label => [$scripts, $assertions, $groupCount, $scriptCount]) {
     $tests['current next37 matrix gap proof ' . $label] = static function (TestRunner $t) use ($label, $scripts, $assertions, $groupCount, $scriptCount, $acceptedHead, $nextHead, $focusedPath, $nonOverlap): void {
-        $root = libsqlite_release_gap37_root($label);
+        $root = libsqlite_release_upstream_gap_proof_root($label);
         $artifacts = $root . '/artifacts';
         try {
             $hydratedScripts = $scripts;
@@ -278,8 +278,8 @@ foreach ($matrix as $label => [$scripts, $assertions, $groupCount, $scriptCount]
                     $hydratedScripts[] = 'subset' . $i . '.test';
                 }
             }
-            libsqlite_release_gap37_hydrate($root, $hydratedScripts);
-            libsqlite_release_gap37_write_artifact($artifacts, $acceptedHead);
+            libsqlite_release_upstream_gap_proof_hydrate($root, $hydratedScripts);
+            libsqlite_release_upstream_gap_proof_write_artifact($artifacts, $acceptedHead);
 
             $groups = [];
             if ($groupCount > 1) {
@@ -290,14 +290,14 @@ foreach ($matrix as $label => [$scripts, $assertions, $groupCount, $scriptCount]
                 $groups['subset'] = $scripts;
             }
 
-            $record = libsqlite_release_gap37_evidence()->releaseRunnerUpstreamGapProofCurrentNext37(
+            $record = libsqlite_release_upstream_gap_proof_evidence()->releaseRunnerUpstreamGapProof(
                 $acceptedHead,
                 $nextHead,
                 $artifacts,
                 $groups,
                 12903,
                 $focusedPath,
-                libsqlite_release_gap37_focused_output($assertions),
+                libsqlite_release_upstream_gap_proof_focused_output($assertions),
                 $nonOverlap,
                 $root,
                 '',
@@ -312,19 +312,19 @@ foreach ($matrix as $label => [$scripts, $assertions, $groupCount, $scriptCount]
             $t->same($assertions, $record['php_pass_delta']);
             $t->same(12903 + $assertions, $record['next_php_pass']);
         } finally {
-            libsqlite_release_gap37_cleanup($root);
+            libsqlite_release_upstream_gap_proof_cleanup($root);
         }
     };
 }
 
 $tests['current next37 validates required inputs'] = static function (TestRunner $t) use ($acceptedHead, $nextHead, $focusedPath, $nonOverlap): void {
-    $evidence = libsqlite_release_gap37_evidence();
+    $evidence = libsqlite_release_upstream_gap_proof_evidence();
 
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerUpstreamGapProofCurrentNext37('', $nextHead, '/tmp/artifacts', ['json' => ['json101.test']], 1, $focusedPath, libsqlite_release_gap37_focused_output(), $nonOverlap));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerUpstreamGapProofCurrentNext37($acceptedHead, '', '/tmp/artifacts', ['json' => ['json101.test']], 1, $focusedPath, libsqlite_release_gap37_focused_output(), $nonOverlap));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerUpstreamGapProofCurrentNext37($acceptedHead, $nextHead, '', ['json' => ['json101.test']], 1, $focusedPath, libsqlite_release_gap37_focused_output(), $nonOverlap));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerUpstreamGapProofCurrentNext37($acceptedHead, $nextHead, '/tmp/artifacts', [], 1, $focusedPath, libsqlite_release_gap37_focused_output(), $nonOverlap));
-    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerUpstreamGapProofCurrentNext37($acceptedHead, $nextHead, '/tmp/artifacts', ['json' => ['json101.test']], 1, $focusedPath, libsqlite_release_gap37_focused_output(), $nonOverlap, null, '', 0));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerUpstreamGapProof('', $nextHead, '/tmp/artifacts', ['json' => ['json101.test']], 1, $focusedPath, libsqlite_release_upstream_gap_proof_focused_output(), $nonOverlap));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerUpstreamGapProof($acceptedHead, '', '/tmp/artifacts', ['json' => ['json101.test']], 1, $focusedPath, libsqlite_release_upstream_gap_proof_focused_output(), $nonOverlap));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerUpstreamGapProof($acceptedHead, $nextHead, '', ['json' => ['json101.test']], 1, $focusedPath, libsqlite_release_upstream_gap_proof_focused_output(), $nonOverlap));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerUpstreamGapProof($acceptedHead, $nextHead, '/tmp/artifacts', [], 1, $focusedPath, libsqlite_release_upstream_gap_proof_focused_output(), $nonOverlap));
+    $t->throws(InvalidArgumentException::class, static fn () => $evidence->releaseRunnerUpstreamGapProof($acceptedHead, $nextHead, '/tmp/artifacts', ['json' => ['json101.test']], 1, $focusedPath, libsqlite_release_upstream_gap_proof_focused_output(), $nonOverlap, null, '', 0));
 };
 
 return $tests;

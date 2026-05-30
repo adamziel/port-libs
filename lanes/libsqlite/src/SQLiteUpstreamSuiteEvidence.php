@@ -16442,7 +16442,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<string, list<string>> $focusedGroups
      * @return array<string, mixed>
      */
-    public function releaseRunnerUpstreamGapProofCurrentNext37(
+    public function releaseRunnerUpstreamGapProof(
         string $currentAcceptedHead,
         string $nextAcceptedHead,
         string $artifactDirectory,
@@ -17278,7 +17278,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRecords
      * @return array<string, mixed>
      */
-    public function releaseRunnerUpstreamCanonicalMapCurrentNext36(
+    public function releaseRunnerUpstreamCanonicalMap(
         array $artifactRecords,
         string $currentAcceptedHead,
         string $nextAcceptedHead
@@ -24761,7 +24761,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<string, mixed> $nextDenominator
      * @return array<string, mixed>
      */
-    public function releaseRunnerDenominatorAuditCurrentNext34(
+    public function releaseRunnerDenominatorAudit(
         array $currentDenominator,
         array $nextDenominator,
         int $currentPhpPass,

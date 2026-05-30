@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence;
 return [
     'admits current next34 denominator movement only from focused php pass and clean runner counts' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $record = $evidence->releaseRunnerDenominatorAuditCurrentNext34(
+        $record = $evidence->releaseRunnerDenominatorAudit(
             [
                 'total' => 1589,
                 'mapped' => 461,
@@ -21,7 +21,7 @@ return [
                 'runner_blocked_count' => 0,
             ],
             11752,
-            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditCurrentNext34Test.php',
+            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditTest.php',
             "Focused test run: 1 selected test files (root lock skipped)\n\n1 test files, 64 assertions, 0 failures\n",
             'Avoids accepted batch23 runner preflight and release-runner current/next count records; audits only next34 denominator admission.'
         );
@@ -59,7 +59,7 @@ return [
     },
     'blocks next34 movement when focused output is not a single passing lane test file' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $record = $evidence->releaseRunnerDenominatorAuditCurrentNext34(
+        $record = $evidence->releaseRunnerDenominatorAudit(
             [
                 'total' => 1589,
                 'mapped' => 461,
@@ -73,7 +73,7 @@ return [
                 'runner_blocked_count' => 0,
             ],
             11752,
-            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditCurrentNext34Test.php',
+            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditTest.php',
             "Focused test run: 2 selected test files (root lock skipped)\n\n2 test files, 128 assertions, 0 failures\n",
             'Current-next34 denominator audit rejects repeated focused assertions from multiple files.'
         );
@@ -95,7 +95,7 @@ return [
     },
     'blocks denominator movement when mapped inventory regresses or totals drift' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $record = $evidence->releaseRunnerDenominatorAuditCurrentNext34(
+        $record = $evidence->releaseRunnerDenominatorAudit(
             [
                 'total' => 1589,
                 'mapped' => 461,
@@ -109,7 +109,7 @@ return [
                 'runner_blocked_count' => 0,
             ],
             11752,
-            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditCurrentNext34Test.php',
+            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditTest.php',
             "Focused test run: 1 selected test files (root lock skipped)\n\n1 test files, 64 assertions, 0 failures\n",
             'Current-next34 denominator audit keeps stale mapped regressions out of phpPass publication.'
         );
@@ -132,7 +132,7 @@ return [
     },
     'blocks next34 runner denominator movement for regressed or blocked artifacts' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $record = $evidence->releaseRunnerDenominatorAuditCurrentNext34(
+        $record = $evidence->releaseRunnerDenominatorAudit(
             [
                 'total' => 1589,
                 'mapped' => 461,
@@ -146,7 +146,7 @@ return [
                 'runner_blocked_count' => 2,
             ],
             11752,
-            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditCurrentNext34Test.php',
+            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditTest.php',
             "Focused test run: 1 selected test files (root lock skipped)\n\n1 test files, 64 assertions, 0 failures\n",
             'Current-next34 denominator audit refuses stale runner artifact directories.'
         );
@@ -172,7 +172,7 @@ return [
     },
     'preserves current next34 denominator when clean evidence has no new movement' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $record = $evidence->releaseRunnerDenominatorAuditCurrentNext34(
+        $record = $evidence->releaseRunnerDenominatorAudit(
             [
                 'total' => '1589',
                 'mapped' => '461',
@@ -186,7 +186,7 @@ return [
                 'runner_blocked_count' => '0',
             ],
             11752,
-            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditCurrentNext34Test.php',
+            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditTest.php',
             "Focused test run: 1 selected test files (root lock skipped)\n\n1 test files, 64 assertions, 0 failures\n",
             'Current-next34 denominator audit records preservation without inventing mapped or runner movement.'
         );
@@ -209,7 +209,7 @@ return [
     },
     'rejects missing denominator integers before counting next34 php pass output' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
-        $record = $evidence->releaseRunnerDenominatorAuditCurrentNext34(
+        $record = $evidence->releaseRunnerDenominatorAudit(
             [
                 'total' => 1589,
                 'mapped' => 'not-a-count',
@@ -223,7 +223,7 @@ return [
                 'runner_blocked_count' => 0,
             ],
             11752,
-            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditCurrentNext34Test.php',
+            'lanes/libsqlite/tests/SQLiteReleaseRunnerDenominatorAuditTest.php',
             "Focused test run: 1 selected test files (root lock skipped)\n\n1 test files, 64 assertions, 0 failures\n",
             'Current-next34 denominator audit requires numeric mapped and runner counts.'
         );

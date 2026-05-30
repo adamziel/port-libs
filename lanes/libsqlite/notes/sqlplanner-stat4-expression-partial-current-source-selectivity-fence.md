@@ -1,4 +1,4 @@
-# sqlplanner-stat4-expression-partial-current-source-next208
+# sqlplanner-stat4-expression-partial-current-source-selectivity-fence
 
 Status: focused PHP behavior growth for a current-source STAT4 expression
 partial-index planner edge.
@@ -19,12 +19,12 @@ Behavior:
 
 WordPress smoke:
 
-- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next208.php --self-test`
+- `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-selectivity-fence.php --self-test`
 - Output: `wordpress-sqlplanner-stat4-expression-partial-current-source-next208 self-test passed`
 
 Focused verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext208Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourcePartialOrSelectivityFenceTest.php`
 - Result: `1 test files, 58 assertions, 0 failures`
 
 Dependency closure:
