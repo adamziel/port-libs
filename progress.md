@@ -43,10 +43,29 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 243G available after bounded inactive-worktree cleanup; `/tmp` has about 12G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 258G available after bounded inactive-worktree cleanup; `/tmp` has about 12G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-30 supervisor continuation (shell samples 02:27 UTC):
+  Latest libsqlite consolidation is integrated as `655751e57`
+  (`libsqlite: consolidate pager upstream suffix names`). The batch accepts
+  3 current-base-compatible handoffs covering pager reader-cache
+  `CurrentSourceNext181` through `CurrentSourceNext190` test/example/method
+  names, upstream-suite `CurrentSourceNext382` / `CurrentSourceNext383` VDBE
+  literal branch naming, and additional pager reader-cache production helper
+  cleanup. Validation passed PHP lint for 24 existing changed PHP files, 10
+  changed WordPress/self-test examples, `git diff --check -- lanes/libsqlite`,
+  focused renamed tests `12 files / 3626 assertions / 0 failures`, pager
+  reader-cache family `149 files / 9989 assertions / 0 failures`, and
+  upstream-suite evidence family `3 files / 6597 assertions / 0 failures`.
+  Public pass/mapped counters remain `154019 pass / 0 fail` and `830 / 1589`
+  because this is consolidation-only. Disk cleanup in the same supervisor pass
+  archived status/diffs and pruned inactive ready/preflight worker worktrees,
+  reducing `.tmux-team/worktrees` from about `19G` to about `2.2G` and raising
+  `/home/claude` free space to about `258G`. The live worker pool remains in
+  the requested 10-11 isolated libsqlite Codex band with 0 long sleepers.
 
 - 2026-05-30 supervisor continuation (shell samples 02:16 UTC):
   Latest libsqlite consolidation is integrated as `bb93d670`
