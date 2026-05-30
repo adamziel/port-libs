@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-30 supervisor continuation (shell samples 02:02 UTC):
+  Latest libsqlite consolidation is integrated as `c72bc419`
+  (`libsqlite: consolidate pager stat4 release suffix names`). The batch
+  accepts 4 current-base-applicable handoffs covering pager reader-cache
+  `Next172` through `Next176` example/test/method naming, STAT4 post-analyze
+  sample-window naming, STAT4 final prepared-handoff tail metadata naming, and
+  release-runner gap-ledger `CurrentNext31` naming. Validation passed PHP lint
+  for 17 changed PHP files, 6 changed WordPress/self-test examples,
+  `git diff --check -- lanes/libsqlite`, focused tests `8 files / 620
+  assertions / 0 failures`, pager reader-cache family `149 files / 9989
+  assertions / 0 failures`, STAT4 expression partial family `133 files / 7541
+  assertions / 0 failures`, and release-runner family `32 files / 16391
+  assertions / 0 failures`. Public pass/mapped counters remain `154019 pass /
+  0 fail` and `830 / 1589` because this is consolidation-only. The live worker
+  pool sampled at 11 isolated libsqlite Codex workers and 0 long sleepers; disk
+  remains healthy after cleanup at roughly `220G` free on `/home/claude` and
+  `12G` free on `/tmp`.
+
 - 2026-05-30 supervisor continuation (shell samples 01:54 UTC):
   Latest libsqlite consolidation is integrated as `7f646cd40`
   (`libsqlite: consolidate pager token and stat4 helper names`). The batch
